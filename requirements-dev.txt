@@ -1,0 +1,9 @@
+# 代码格式与类型检查
+black>=24.0
+mypy>=1.11
+ruff>=0.6.0
+
+# 测试框架
+pytest>=8.0
+pytest-asyncio>=0.24
+httpx>=0.27

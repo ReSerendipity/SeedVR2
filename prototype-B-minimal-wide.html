@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeedVR2 - 原型 B：极简顶部导航 + 宽内容区</title>
+<style>
+  :root {
+    --bg: #0f0e1a;
+    --bg-card: #181628;
+    --bg-card-hover: #1e1b32;
+    --bg-input: #12111e;
+    --border: #262340;
+    --border-light: #1e1b32;
+    --text: #ede9f6;
+    --text-2: #a09ab4;
+    --text-3: #6b6580;
+    --primary: #8175f0;
+    --primary-soft: rgba(129,117,240,0.1);
+    --coral: #ff7f50;
+    --green: #34d399;
+    --amber: #fbbf24;
+    --red: #f87171;
+    --blue: #60a5fa;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --radius-xs: 6px;
+    --nav-h: 48px;
+    --max-w: 1280px;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Minimal Top Nav */
+  .nav {
+    position: sticky; top: 0; z-index: 100;
+    height: var(--nav-h);
+    background: rgba(15,14,26,0.9);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border-light);
+    display: flex; align-items: center;
+    padding: 0 24px;
+  }
+  .nav-logo {
+    font-size: 15px; font-weight: 700; color: var(--primary);
+    letter-spacing: -0.3px; margin-right: 32px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .nav-logo .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary), var(--coral));
+  }
+  .nav-links { display: flex; gap: 2px; flex: 1; }
+  .nav-link {
+    padding: 6px 14px; border-radius: var(--radius-xs);
+    font-size: 13px; color: var(--text-2);
+    cursor: pointer; transition: all 0.15s ease;
+    display: flex; align-items: center; gap: 6px;
+    text-decoration: none; font-weight: 450;
+  }
+  .nav-link:hover { color: var(--text); background: var(--bg-card); }
+  .nav-link.active { color: var(--primary); background: var(--primary-soft); font-weight: 600; }
+  .nav-link .ico { font-size: 14px; }
+
+  .nav-right { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+  .status-pill {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--text-3);
+    padding: 4px 10px; border-radius: 20px;
+    background: var(--bg-card); border: 1px solid var(--border-light);
+  }
+  .status-pill .dot-green { width:5px;height:5px;border-radius:50%;background:var(--green); }
+  .nav-icon-btn {
+    width: 32px; height: 32px; border-radius: var(--radius-xs);
+    background: transparent; border: none; color: var(--text-3);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-size: 15px; transition: all 0.15s;
+  }
+  .nav-icon-btn:hover { background: var(--bg-card); color: var(--text); }
+  .lang-btn {
+    font-size: 11px; color: var(--text-3); background: var(--bg-card);
+    border: 1px solid var(--border-light); padding: 4px 10px;
+    border-radius: var(--radius-xs); cursor: pointer;
+    display: flex; align-items: center; gap: 4px;
+  }
+
+  /* Content */
+  .content {
+    max-width: var(--max-w);
+    margin: 0 auto;
+    padding: 32px 24px 80px;
+  }
+  .page { display: none; }
+  .page.active { display: block; animation: fadeUp 0.3s ease; }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+
+  /* Page Title */
+  .ptitle { margin-bottom: 28px; }
+  .ptitle h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 6px; }
+  .ptitle p { font-size: 14px; color: var(--text-2); }
+
+  /* Cards */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    padding: 24px;
+    transition: all 0.2s ease;
+  }
+  .card:hover { border-color: var(--border); }
+
+  /* Home: Hero */
+  .hero {
+    text-align: center; padding: 48px 32px;
+    background: linear-gradient(135deg, rgba(129,117,240,0.06), rgba(255,127,80,0.04));
+    border: 1px solid rgba(129,117,240,0.12);
+    border-radius: 16px;
+    margin-bottom: 28px;
+    position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 30% 50%, rgba(129,117,240,0.08) 0%, transparent 60%);
+  }
+  .hero h1 {
+    font-size: 28px; font-weight: 800; letter-spacing: -0.5px;
+    background: linear-gradient(135deg, var(--primary), var(--coral));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text; margin-bottom: 8px; position: relative;
+  }
+  .hero p { font-size: 14px; color: var(--text-2); position: relative; }
+  .hero .status-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin-top: 16px; padding: 6px 14px;
+    background: var(--bg-card); border: 1px solid var(--border-light);
+    border-radius: 20px; font-size: 12px; color: var(--text-3);
+    position: relative;
+  }
+  .hero .status-chip .dot { width:6px;height:6px;border-radius:50%;background:var(--text-3); }
+
+  /* Bento Grid */
+  .bento {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px; margin-bottom: 32px;
+  }
+  .bento-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    padding: 24px;
+    cursor: pointer; transition: all 0.2s ease;
+    display: flex; flex-direction: column;
+  }
+  .bento-card:hover { border-color: var(--primary); transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+  .bento-card.wide { grid-column: span 2; }
+  .bento-icon {
+    width: 44px; height: 44px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; margin-bottom: 16px;
+  }
+  .bento-icon.p { background: var(--primary-soft); }
+  .bento-icon.a { background: rgba(251,191,36,0.1); }
+  .bento-icon.b { background: rgba(96,165,250,0.1); }
+  .bento-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+  .bento-card p { font-size: 13px; color: var(--text-2); line-height: 1.5; flex: 1; }
+  .bento-link {
+    margin-top: 16px; font-size: 13px; color: var(--primary);
+    font-weight: 500; display: inline-flex; align-items: center; gap: 4px;
+  }
+
+  /* System Overview */
+  .section-title { font-size: 16px; font-weight: 700; margin-bottom: 16px; letter-spacing: -0.3px; }
+  .sys-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+  }
+  .sys-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    padding: 20px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .ring-wrap { position: relative; width: 56px; height: 56px; flex-shrink: 0; }
+  .ring-wrap svg { transform: rotate(-90deg); }
+  .ring-wrap .bg { fill:none; stroke:var(--border); stroke-width:4; }
+  .ring-wrap .fg { fill:none; stroke-width:4; stroke-linecap:round; }
+  .ring-wrap .val {
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-size:12px;font-weight:700;
+  }
+  .sys-info .sys-label { font-size:11px;color:var(--text-3);margin-bottom:2px; }
+  .sys-info .sys-val { font-size:15px;font-weight:700; }
+  .sys-info .sys-sub { font-size:11px;color:var(--text-2);margin-top:2px; }
+
+  /* Restore Layout */
+  .restore-grid {
+    display: grid; grid-template-columns: 280px 1fr 320px; gap: 16px;
+  }
+  .panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+  .panel-head {
+    font-size: 13px; font-weight: 600; margin-bottom: 16px;
+    display: flex; align-items: center; gap: 8px;
+    padding-bottom: 12px; border-bottom: 1px solid var(--border-light);
+  }
+  .panel-head .head-right { margin-left: auto; }
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 36px 20px; text-align: center;
+    cursor: pointer; transition: all 0.2s;
+    min-height: 180px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+  }
+  .drop-zone:hover { border-color: var(--primary); background: var(--primary-soft); }
+  .drop-zone .dz-icon { font-size: 36px; margin-bottom: 12px; opacity: 0.6; }
+  .drop-zone h4 { font-size: 13px; margin-bottom: 4px; }
+  .drop-zone p { font-size: 11px; color: var(--text-3); line-height: 1.5; }
+
+  .preview-box {
+    background: var(--bg);
+    border-radius: var(--radius);
+    min-height: 360px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .wf-steps { display: flex; align-items: center; gap: 20px; }
+  .wf-step { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .wf-step .wf-ico {
+    width: 64px; height: 64px; border-radius: 16px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; color: var(--text-3);
+  }
+  .wf-step .wf-lbl { font-size: 11px; color: var(--text-2); text-align: center; }
+  .wf-arr { color: var(--text-3); font-size: 20px; }
+
+  .fg { margin-bottom: 14px; }
+  .fl { font-size: 11.5px; color: var(--text-2); margin-bottom: 5px; display: block; font-weight: 500; }
+  .fc {
+    width: 100%; height: 36px; padding: 0 10px;
+    background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: var(--radius-xs); color: var(--text);
+    font-size: 12.5px; outline: none; transition: border-color 0.15s;
+  }
+  .fc:focus { border-color: var(--primary); }
+  .frow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 8px 16px; border-radius: var(--radius-xs);
+    font-size: 12.5px; font-weight: 500; cursor: pointer;
+    border: none; transition: all 0.15s;
+  }
+  .btn-p { background: var(--primary); color: #fff; }
+  .btn-p:hover { filter: brightness(1.1); }
+  .btn-s { background: var(--bg-input); color: var(--text-2); border: 1px solid var(--border); }
+  .btn-s:hover { background: var(--bg-card-hover); color: var(--text); }
+  .btn-g { background: transparent; color: var(--text-2); }
+  .btn-g:hover { background: var(--bg-card); color: var(--text); }
+  .btn-block { width: 100%; }
+  .btn-sm { padding: 6px 12px; font-size: 11.5px; }
+
+  /* History */
+  .toolbar {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 16px;
+  }
+  .search-box {
+    flex: 1; position: relative;
+  }
+  .search-box input {
+    width: 100%; height: 38px; padding: 0 14px 0 36px;
+    background: var(--bg-card); border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm); color: var(--text);
+    font-size: 13px; outline: none;
+  }
+  .search-box input:focus { border-color: var(--primary); }
+  .search-box::before {
+    content: ''; position: absolute; left: 12px; top: 50%;
+    transform: translateY(-50%); font-size: 13px;
+  }
+  .sel {
+    height: 38px; padding: 0 12px;
+    background: var(--bg-card); border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm); color: var(--text-2);
+    font-size: 12px; outline: none; cursor: pointer;
+  }
+  .tbl {
+    width: 100%; border-collapse: collapse;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border-light);
+  }
+  .tbl th {
+    text-align: left; padding: 10px 16px;
+    font-size: 11px; font-weight: 600; color: var(--text-3);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border-light);
+  }
+  .tbl td {
+    padding: 10px 16px; font-size: 13px;
+    border-bottom: 1px solid var(--border-light);
+    color: var(--text-2);
+  }
+  .tbl tr:last-child td { border-bottom: none; }
+  .tbl tr:hover td { background: var(--bg-card-hover); }
+  .sbadge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 12px;
+    font-size: 11px; font-weight: 500;
+  }
+  .sbadge.pending { background: rgba(251,191,36,0.1); color: var(--amber); }
+  .sbadge.done { background: rgba(52,211,153,0.1); color: var(--green); }
+  .sbadge.fail { background: rgba(248,113,113,0.1); color: var(--red); }
+
+  .empty {
+    text-align: center; padding: 64px 20px;
+    background: var(--bg-card); border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+  }
+  .empty .e-ico { font-size: 52px; margin-bottom: 14px; opacity: 0.4; }
+  .empty h3 { font-size: 16px; color: var(--text-2); margin-bottom: 6px; }
+  .empty p { font-size: 13px; color: var(--text-3); margin-bottom: 24px; }
+
+  /* Status Grid */
+  .sg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .sc {
+    background: var(--bg-card); border: 1px solid var(--border-light);
+    border-radius: var(--radius); padding: 20px;
+  }
+  .sc-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .sc-title { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .sc-badge {
+    font-size: 10px; padding: 2px 8px; border-radius: 10px;
+    font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .sc-badge.unavail { background: rgba(248,113,113,0.1); color: var(--red); }
+  .sc-badge.idle { background: rgba(160,154,180,0.1); color: var(--text-2); }
+  .sr {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 7px 0; font-size: 12.5px;
+    border-bottom: 1px solid var(--border-light);
+  }
+  .sr:last-child { border-bottom: none; }
+  .sr .sl { color: var(--text-3); }
+  .sr .sv { font-weight: 600; }
+  .alert-box {
+    font-size: 12px; padding: 10px 12px;
+    background: rgba(251,191,36,0.06); border: 1px solid rgba(251,191,36,0.15);
+    border-radius: var(--radius-xs); color: var(--amber);
+    margin-bottom: 12px;
+  }
+
+  /* Settings */
+  .settings-grid { display: grid; grid-template-columns: 160px 1fr; gap: 24px; }
+  .s-tabs { display: flex; flex-direction: column; gap: 4px; }
+  .s-tab {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; border-radius: var(--radius-xs);
+    font-size: 13px; color: var(--text-2); cursor: pointer;
+    transition: all 0.15s;
+  }
+  .s-tab:hover { background: var(--bg-card); color: var(--text); }
+  .s-tab.active { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+  .s-content {
+    background: var(--bg-card); border: 1px solid var(--border-light);
+    border-radius: var(--radius); padding: 28px;
+  }
+  .s-section-title { font-size: 18px; font-weight: 700; margin-bottom: 24px; letter-spacing: -0.3px; }
+  .s-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .s-row label { font-size: 12.5px; color: var(--text-2); min-width: 80px; }
+  .s-row .fc { flex: 1; }
+  .s-help { font-size: 11px; color: var(--text-3); margin-top: -10px; margin-bottom: 16px; }
+
+  /* Responsive */
+  @media (max-width: 1200px) {
+    .restore-grid { grid-template-columns: 240px 1fr 280px; }
+    .sys-grid, .sg { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 992px) {
+    .bento { grid-template-columns: 1fr; }
+    .bento-card.wide { grid-column: span 1; }
+    .restore-grid { grid-template-columns: 1fr; }
+    .settings-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 768px) {
+    .sys-grid, .sg { grid-template-columns: 1fr; }
+    .nav-links { gap: 0; }
+    .nav-link { padding: 6px 10px; font-size: 12px; }
+    .nav-link .lbl { display: none; }
+    .content { padding: 20px 16px 60px; }
+    .hero { padding: 32px 20px; }
+    .hero h1 { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Minimal Nav -->
+<nav class="nav">
+  <div class="nav-logo"><span class="dot"></span> SeedVR2</div>
+  <div class="nav-links">
+    <a class="nav-link active" data-page="home" onclick="go('home')"><span class="ico">🏠</span><span class="lbl">首页</span></a>
+    <a class="nav-link" data-page="restore" onclick="go('restore')"><span class="ico">⚡</span><span class="lbl">修复</span></a>
+    <a class="nav-link" data-page="history" onclick="go('history')"><span class="ico">🕐</span><span class="lbl">历史记录</span></a>
+    <a class="nav-link" data-page="status" onclick="go('status')"><span class="ico">📊</span><span class="lbl">系统状态</span></a>
+    <a class="nav-link" data-page="settings" onclick="go('settings')"><span class="ico">⚙️</span><span class="lbl">设置</span></a>
+  </div>
+  <div class="nav-right">
+    <div class="status-pill"><span class="dot-green"></span> v1.0.0 · GPU: --</div>
+    <button class="nav-icon-btn" title="主题">🌙</button>
+    <button class="lang-btn">🌐 中文 ▾</button>
+  </div>
+</nav>
+
+<div class="content">
+
+  <!-- HOME -->
+  <div class="page active" id="p-home">
+    <div class="hero">
+      <h1>SeedVR2 便携式视频/图像修复工具箱</h1>
+      <p>基于深度学习的视频/图像超分辨率修复工具</p>
+      <div class="status-chip"><span class="dot"></span> 未检测到 NVIDIA GPU · 未加载</div>
+    </div>
+
+    <div class="bento">
+      <div class="bento-card wide" onclick="go('restore')">
+        <div class="bento-icon p">⚡</div>
+        <h3>开始修复</h3>
+        <p>上传图片或视频，使用 SeedVR2 模型进行超分辨率增强</p>
+        <span class="bento-link">开始修复 →</span>
+      </div>
+      <div class="bento-card" onclick="go('status')">
+        <div class="bento-icon a">🔆</div>
+        <h3>系统状态</h3>
+        <p>查看 GPU、模型和系统运行状态</p>
+        <span class="bento-link">查看状态 →</span>
+      </div>
+      <div class="bento-card" onclick="go('history')">
+        <div class="bento-icon b">🕐</div>
+        <h3>历史记录</h3>
+        <p>搜索文件名、模型、状态...</p>
+        <span class="bento-link">刷新 →</span>
+      </div>
+    </div>
+
+    <div class="section-title">系统状态</div>
+    <div class="sys-grid">
+      <div class="sys-card">
+        <div class="ring-wrap">
+          <svg width="56" height="56" viewBox="0 0 56 56"><circle class="bg" cx="28" cy="28" r="24"/><circle class="fg" cx="28" cy="28" r="24" stroke="#8175f0" stroke-dasharray="150.8" stroke-dashoffset="150.8"/></svg>
+          <div class="val" style="color:var(--text-3)">0%</div>
+        </div>
+        <div class="sys-info"><div class="sys-label">GPU</div><div class="sys-val">未检测到 NVIDIA GPU</div><div class="sys-sub">N/A</div></div>
+      </div>
+      <div class="sys-card">
+        <div class="ring-wrap">
+          <svg width="56" height="56" viewBox="0 0 56 56"><circle class="bg" cx="28" cy="28" r="24"/><circle class="fg" cx="28" cy="28" r="24" stroke="#fbbf24" stroke-dasharray="150.8" stroke-dashoffset="46.25"/></svg>
+          <div class="val">69%</div>
+        </div>
+        <div class="sys-info"><div class="sys-label">系统内存</div><div class="sys-val">10.78 / 15.47 GB</div><div class="sys-sub">69.2% 已使用</div></div>
+      </div>
+      <div class="sys-card">
+        <div style="width:56px;height:56px;border-radius:14px;background:var(--primary-soft);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;"></div>
+        <div class="sys-info"><div class="sys-label">模型状态</div><div class="sys-val">未加载</div><div class="sys-sub">3B, 7B, 7B_SHARP</div></div>
+      </div>
+      <div class="sys-card">
+        <div style="width:56px;height:56px;border-radius:14px;background:rgba(96,165,250,0.1);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">⏱</div>
+        <div class="sys-info"><div class="sys-label">运行时间</div><div class="sys-val">37分 30秒</div><div class="sys-sub">Windows-11-10.0.26200</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESTORE -->
+  <div class="page" id="p-restore">
+    <div class="ptitle"><h1>⚡ 修复</h1><p>上传图片或视频，SeedVR2 将自动按类型处理</p></div>
+    <div class="restore-grid">
+      <div class="panel">
+        <div class="panel-head"> 选择文件</div>
+        <div class="drop-zone">
+          <div class="dz-icon">☁️</div>
+          <h4>拖拽文件到此处，或点击选择</h4>
+          <p>支持图片（PNG/JPG/BMP/WEBP）与视频（MP4/AVI/MOV/MKV）</p>
+        </div>
+        <div style="margin-top:14px;">
+          <span class="fl">文件夹路径</span>
+          <div style="display:flex;gap:6px;">
+            <input class="fc" value="C:\..." style="flex:1;">
+            <button class="btn btn-s btn-sm"></button>
+            <button class="btn btn-s btn-sm"></button>
+          </div>
+        </div>
+        <div style="margin-top:auto;padding-top:14px;display:flex;flex-direction:column;gap:8px;">
+          <button class="btn btn-p btn-block">▶ 上传并修复</button>
+          <button class="btn btn-s btn-block">🗂 从文件夹批量处理</button>
+          <button class="btn btn-g btn-block">↻ 重置</button>
+        </div>
+      </div>
+      <div class="panel" style="padding:0;overflow:hidden;">
+        <div class="preview-box">
+          <div class="wf-steps">
+            <div class="wf-step"><div class="wf-ico">📤</div><div class="wf-lbl">拖拽文件到此处<br>或点击选择</div></div>
+            <div class="wf-arr">→</div>
+            <div class="wf-step"><div class="wf-ico">️</div><div class="wf-lbl">处理中...</div></div>
+            <div class="wf-arr">→</div>
+            <div class="wf-step"><div class="wf-ico">️</div><div class="wf-lbl">修复完成</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">🎛 模型设置 <button class="btn btn-g btn-sm head-right">高级设置</button></div>
+        <span class="fl" style="color:var(--text-3);font-size:11px;">输出设置</span>
+        <div class="frow">
+          <div class="fg"><label class="fl">模型</label><select class="fc"><option>3B FP16</option><option>7B FP16</option></select></div>
+          <div class="fg"><label class="fl">随机种子</label><input class="fc" value="1373201197" type="number"></div>
+        </div>
+        <div class="frow">
+          <div class="fg"><label class="fl">输出分辨率</label><input class="fc" value="2160" type="number"></div>
+          <div class="fg"><label class="fl">最大分辨率</label><input class="fc" value="0" type="number"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HISTORY -->
+  <div class="page" id="p-history">
+    <div class="ptitle"><h1>🕐 历史记录</h1><p>查看所有修复任务的历史记录</p></div>
+    <div class="toolbar">
+      <div class="search-box"><input placeholder="搜索文件名、模型、状态..."></div>
+      <select class="sel"><option>全部类型</option><option>图片</option><option>视频</option></select>
+      <select class="sel"><option>全部状态</option><option>待处理</option><option>已完成</option><option>失败</option></select>
+      <button class="btn btn-s btn-sm">↻</button>
+      <button class="btn btn-g btn-sm" style="color:var(--red);">🗑 清空历史</button>
+    </div>
+    <div class="empty">
+      <div class="e-ico">📂</div>
+      <h3>暂无记录</h3>
+      <p>修复任务完成后会自动记录在这里</p>
+      <button class="btn btn-p" onclick="go('restore')">⚡ 修复</button>
+    </div>
+  </div>
+
+  <!-- STATUS -->
+  <div class="page" id="p-status">
+    <div class="ptitle" style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div><h1> 系统状态</h1><p>实时监控系统运行状态和资源使用情况</p></div>
+      <button class="btn btn-s">↻ 刷新</button>
+    </div>
+    <div class="sg">
+      <div class="sc">
+        <div class="sc-head"><div class="sc-title">🎮 GPU 信息</div><span class="sc-badge unavail">UNAVAILABLE</span></div>
+        <div class="alert-box">⚠ CPU 模式不受支持，SeedVR2 仅支持 NVIDIA GPU CUDA 推理</div>
+        <div class="sr"><span class="sl">设备名称</span><span class="sv">未检测到 NVIDIA GPU</span></div>
+        <div class="sr"><span class="sl">总显存</span><span class="sv">--</span></div>
+        <div class="sr"><span class="sl">可用显存</span><span class="sv">--</span></div>
+        <div class="sr"><span class="sl">显存使用率</span><span class="sv">--</span></div>
+        <div class="sr"><span class="sl">GPU 利用率</span><span class="sv">--</span></div>
+        <div class="sr"><span class="sl">CUDA 版本</span><span class="sv">--</span></div>
+        <div class="sr"><span class="sl">驱动版本</span><span class="sv">--</span></div>
+      </div>
+      <div class="sc">
+        <div class="sc-head"><div class="sc-title">📦 模型状态</div><span class="sc-badge idle">未加载</span></div>
+        <div class="sr"><span class="sl">加载状态</span><span class="sv">未加载</span></div>
+        <div class="sr"><span class="sl">当前模型</span><span class="sv">--</span></div>
+        <div class="sr"><span class="sl">可用模型</span><span class="sv">3B, 7B, 7B_SHARP</span></div>
+        <div class="sr"><span class="sl">显存占用</span><span class="sv" style="color:var(--text-3);">--</span></div>
+        <div style="margin-top:14px;padding:14px;background:var(--bg);border-radius:var(--radius-xs);text-align:center;">
+          <div style="font-size:11px;color:var(--text-3);">模型加载时间</div>
+          <div style="font-size:20px;font-weight:700;margin-top:4px;">--</div>
+        </div>
+      </div>
+      <div class="sc">
+        <div class="sc-head"><div class="sc-title">🧠 系统内存</div></div>
+        <div class="sr"><span class="sl">总内存</span><span class="sv">15.47 GB</span></div>
+        <div class="sr"><span class="sl">可用内存</span><span class="sv">4.76 GB</span></div>
+        <div class="sr"><span class="sl">内存使用率</span><span class="sv" style="color:var(--amber);">69.2%</span></div>
+        <div style="display:flex;justify-content:center;padding:16px 0;">
+          <div class="ring-wrap" style="width:80px;height:80px;">
+            <svg width="80" height="80" viewBox="0 0 80 80"><circle class="bg" cx="40" cy="40" r="34" stroke-width="6"/><circle class="fg" cx="40" cy="40" r="34" stroke="#fbbf24" stroke-width="6" stroke-dasharray="213.63" stroke-dashoffset="65.80" stroke-linecap="round"/></svg>
+            <div class="val" style="font-size:14px;">69.2%</div>
+          </div>
+        </div>
+        <div class="sr"><span class="sl">CPU 核心数</span><span class="sv">18</span></div>
+      </div>
+      <div class="sc">
+        <div class="sc-head"><div class="sc-title">⏱ 运行信息</div></div>
+        <div class="sr"><span class="sl">运行时间</span><span class="sv">37分 30秒</span></div>
+        <div class="sr"><span class="sl">平台</span><span class="sv" style="font-size:11px;">Windows-11-10.0.26200-SP0</span></div>
+        <div class="sr"><span class="sl">Python 版本</span><span class="sv">3.12.10</span></div>
+        <div class="sr"><span class="sl">服务状态</span><span class="sv" style="color:var(--green);">● 运行中</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="page" id="p-settings">
+    <div class="ptitle"><h1>⚙️ 设置</h1><p>配置模型和应用参数</p></div>
+    <div class="settings-grid">
+      <div class="s-tabs">
+        <div class="s-tab active" onclick="stab(this)"> 路径配置</div>
+        <div class="s-tab" onclick="stab(this)">🤖 模型设置</div>
+        <div class="s-tab" onclick="stab(this)">🌐 语言设置</div>
+      </div>
+      <div class="s-content">
+        <div class="s-section-title">路径配置</div>
+        <div class="fg">
+          <label class="fl">模型目录</label>
+          <div class="s-row"><input class="fc" value="pretrained_models"><button class="btn btn-s btn-sm">📤 上传文件</button></div>
+          <div class="s-help">settings.pretrained_dir_help</div>
+        </div>
+        <div class="fg">
+          <label class="fl">输出目录</label>
+          <div class="s-row"><input class="fc" value="outputs"><button class="btn btn-s btn-sm"> 上传文件</button></div>
+          <div class="s-help">settings.output_dir_help</div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:20px;">
+          <button class="btn btn-p">✓ 保存</button>
+          <button class="btn btn-s">↻ 重置</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  function go(p) {
+    document.querySelectorAll('.page').forEach(e=>e.classList.remove('active'));
+    document.getElementById('p-'+p).classList.add('active');
+    document.querySelectorAll('.nav-link').forEach(e=>e.classList.remove('active'));
+    document.querySelector(`.nav-link[data-page="${p}"]`).classList.add('active');
+  }
+  function stab(el) {
+    document.querySelectorAll('.s-tab').forEach(e=>e.classList.remove('active'));
+    el.classList.add('active');
+  }
+</script>
+</body>
+</html>

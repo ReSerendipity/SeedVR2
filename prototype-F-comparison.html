@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeedVR2 - 原型 F：对比工作台 + 抽屉式导航</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+  :root {
+    --bg: #0a0a0f;
+    --bg-2: #12121a;
+    --bg-3: #1a1a26;
+    --bg-4: #22222e;
+    --border: #2a2a38;
+    --border-2: #1e1e2a;
+    --text: #e8e8f0;
+    --text-2: #8888a0;
+    --text-3: #55556a;
+    --accent: #7c6cf0;
+    --accent-soft: rgba(124,108,240,0.12);
+    --coral: #ff7f50;
+    --green: #22c55e;
+    --amber: #eab308;
+    --red: #ef4444;
+    --blue: #3b82f6;
+    --mono: 'JetBrains Mono', 'SF Mono', monospace;
+    --radius: 6px;
+    --radius-sm: 4px;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+
+  /* Toolbar */
+  .toolbar {
+    height: 40px;
+    background: var(--bg-2);
+    border-bottom: 1px solid var(--border-2);
+    display: flex; align-items: center;
+    padding: 0 12px;
+    flex-shrink: 0;
+    gap: 4px;
+    z-index: 100;
+  }
+  .tb-logo {
+    font-size: 13px; font-weight: 800; color: var(--accent);
+    margin-right: 16px; letter-spacing: -0.3px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .tb-logo .ldot {
+    width: 8px; height: 8px; border-radius: 2px;
+    background: linear-gradient(135deg, var(--accent), var(--coral));
+  }
+  .tb-group {
+    display: flex; align-items: center; gap: 2px;
+    padding: 0 4px;
+    border-right: 1px solid var(--border-2);
+    height: 28px;
+  }
+  .tb-group:last-of-type { border-right: none; }
+  .tb-btn {
+    height: 28px; padding: 0 10px;
+    background: transparent; border: none;
+    color: var(--text-2); font-size: 11px; font-weight: 500;
+    cursor: pointer; border-radius: var(--radius-sm);
+    display: flex; align-items: center; gap: 5px;
+    transition: all 0.1s; font-family: inherit;
+    white-space: nowrap;
+  }
+  .tb-btn:hover { background: var(--bg-3); color: var(--text); }
+  .tb-btn.active { background: var(--accent-soft); color: var(--accent); }
+  .tb-btn .tb-ico { font-size: 13px; }
+  .tb-spacer { flex: 1; }
+  .tb-indicator {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 10px; color: var(--text-3);
+    font-family: var(--mono);
+    padding: 3px 8px;
+    background: var(--bg-3);
+    border-radius: var(--radius-sm);
+  }
+  .tb-indicator .ti-dot { width:5px;height:5px;border-radius:50%; }
+  .tb-indicator .ti-dot.green { background: var(--green); }
+  .tb-indicator .ti-dot.amber { background: var(--amber); }
+  .tb-indicator .ti-dot.red { background: var(--red); }
+
+  /* Main Area */
+  .main-area {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Drawers */
+  .drawer {
+    position: absolute; top: 0; bottom: 0;
+    background: var(--bg-2);
+    border: 1px solid var(--border-2);
+    z-index: 50;
+    transition: transform 0.25s ease;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .drawer-left {
+    left: 0; width: 300px;
+    border-left: none;
+    transform: translateX(-100%);
+  }
+  .drawer-left.open { transform: translateX(0); }
+  .drawer-right {
+    right: 0; width: 320px;
+    border-right: none;
+    transform: translateX(100%);
+  }
+  .drawer-right.open { transform: translateX(0); }
+  .drawer-header {
+    padding: 10px 14px;
+    font-size: 11px; font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-2);
+    border-bottom: 1px solid var(--border-2);
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+    background: var(--bg-3);
+  }
+  .drawer-header button {
+    width: 22px; height: 22px; border-radius: var(--radius-sm);
+    background: var(--bg-4); border: none; color: var(--text-3);
+    cursor: pointer; font-size: 12px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .drawer-body { flex: 1; overflow-y: auto; padding: 12px; }
+  .drawer-footer {
+    padding: 10px 12px;
+    border-top: 1px solid var(--border-2);
+    display: flex; flex-direction: column; gap: 6px;
+    flex-shrink: 0;
+  }
+
+  /* Comparison View */
+  .comparison {
+    flex: 1;
+    display: flex;
+    position: relative;
+    overflow: hidden;
+    background: var(--bg);
+  }
+  .comp-side {
+    flex: 1;
+    display: flex; flex-direction: column;
+    position: relative;
+  }
+  .comp-label {
+    position: absolute; top: 12px; left: 12px;
+    font-size: 10px; font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    z-index: 10;
+    font-family: var(--mono);
+  }
+  .comp-label.before { background: rgba(239,68,68,0.15); color: var(--red); }
+  .comp-label.after { background: rgba(34,197,94,0.15); color: var(--green); }
+  .comp-canvas {
+    flex: 1;
+    display: flex; align-items: center; justify-content: center;
+    background:
+      linear-gradient(45deg, var(--bg-2) 25%, transparent 25%),
+      linear-gradient(-45deg, var(--bg-2) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, var(--bg-2) 75%),
+      linear-gradient(-45deg, transparent 75%, var(--bg-2) 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+    background-color: var(--bg);
+  }
+  .comp-placeholder {
+    text-align: center; color: var(--text-3);
+  }
+  .comp-placeholder .cp-icon { font-size: 40px; margin-bottom: 12px; opacity: 0.3; }
+  .comp-placeholder h3 { font-size: 14px; font-weight: 600; margin-bottom: 4px; color: var(--text-2); }
+  .comp-placeholder p { font-size: 11px; }
+  .comp-divider {
+    width: 3px;
+    background: var(--accent);
+    position: relative;
+    z-index: 10;
+    cursor: col-resize;
+    flex-shrink: 0;
+  }
+  .comp-divider::after {
+    content: '⟺';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 32px; height: 32px;
+    background: var(--accent);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; color: #fff;
+    box-shadow: 0 2px 12px rgba(124,108,240,0.4);
+  }
+
+  /* Bottom Task Bar */
+  .taskbar {
+    height: 120px;
+    background: var(--bg-2);
+    border-top: 1px solid var(--border-2);
+    display: flex; flex-direction: column;
+    flex-shrink: 0;
+    transition: height 0.2s;
+  }
+  .taskbar.collapsed { height: 32px; }
+  .taskbar-header {
+    height: 32px;
+    display: flex; align-items: center;
+    padding: 0 12px;
+    font-size: 10px; font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-3);
+    border-bottom: 1px solid var(--border-2);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .taskbar-header span { flex: 1; }
+  .taskbar-body {
+    flex: 1; overflow-y: auto; padding: 8px 12px;
+  }
+  .task-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    margin-bottom: 2px;
+    transition: background 0.1s;
+  }
+  .task-item:hover { background: var(--bg-3); }
+  .task-item .ti-status {
+    width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  }
+  .task-item .ti-name { flex: 1; color: var(--text-2); }
+  .task-item .ti-meta { color: var(--text-3); font-family: var(--mono); font-size: 10px; }
+
+  /* Drawer Content Styles */
+  .d-upload {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 24px 16px; text-align: center;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .d-upload:hover { border-color: var(--accent); background: var(--accent-soft); }
+  .d-upload .du-icon { font-size: 24px; margin-bottom: 8px; opacity: 0.5; }
+  .d-upload h4 { font-size: 11px; font-weight: 600; margin-bottom: 4px; }
+  .d-upload p { font-size: 9.5px; color: var(--text-3); line-height: 1.5; }
+
+  .d-file-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px; border-radius: var(--radius-sm);
+    margin-bottom: 2px; cursor: pointer;
+    transition: background 0.1s;
+  }
+  .d-file-item:hover { background: var(--bg-3); }
+  .d-file-item .dfi-icon { font-size: 14px; }
+  .d-file-item .dfi-name { font-size: 11px; flex: 1; color: var(--text-2); }
+  .d-file-item .dfi-size { font-size: 9.5px; color: var(--text-3); font-family: var(--mono); }
+
+  .d-param-section { margin-bottom: 12px; }
+  .d-param-title {
+    font-size: 9px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--text-3);
+    margin-bottom: 8px; padding-bottom: 4px;
+    border-bottom: 1px solid var(--border-2);
+  }
+  .d-param-field { margin-bottom: 8px; }
+  .d-param-field label {
+    font-size: 10px; color: var(--text-2); margin-bottom: 3px;
+    display: block; font-weight: 500;
+  }
+  .d-param-field input, .d-param-field select {
+    width: 100%; height: 28px; padding: 0 8px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); color: var(--text);
+    font-size: 11px; outline: none; font-family: inherit;
+  }
+  .d-param-field input:focus, .d-param-field select:focus { border-color: var(--accent); }
+  .d-param-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+    padding: 6px 12px; border-radius: var(--radius-sm);
+    font-size: 11px; font-weight: 600; cursor: pointer;
+    border: none; transition: all 0.1s; font-family: inherit;
+  }
+  .btn-p { background: var(--accent); color: #fff; }
+  .btn-p:hover { filter: brightness(1.1); }
+  .btn-s { background: var(--bg-3); color: var(--text-2); border: 1px solid var(--border); }
+  .btn-s:hover { background: var(--bg-4); color: var(--text); }
+  .btn-g { background: transparent; color: var(--text-3); }
+  .btn-g:hover { background: var(--bg-3); color: var(--text-2); }
+  .btn-block { width: 100%; }
+
+  /* Page overlays for non-comparison views */
+  .page-overlay {
+    position: absolute; inset: 0;
+    background: var(--bg);
+    z-index: 40;
+    display: none;
+    overflow-y: auto;
+    padding: 24px;
+  }
+  .page-overlay.active { display: block; }
+  .page-overlay h1 { font-size: 20px; font-weight: 800; margin-bottom: 6px; }
+  .page-overlay .po-sub { font-size: 12px; color: var(--text-2); margin-bottom: 20px; }
+
+  /* Status Grid for overlay pages */
+  .po-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+  }
+  .po-card {
+    background: var(--bg-2); border: 1px solid var(--border-2);
+    border-radius: var(--radius); padding: 14px;
+  }
+  .po-card-title { font-size: 11px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+  .po-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 10.5px; border-bottom: 1px solid var(--border-2); }
+  .po-row:last-child { border-bottom: none; }
+  .po-row .pol { color: var(--text-3); }
+  .po-row .pov { font-weight: 600; font-family: var(--mono); font-size: 10px; }
+
+  /* Responsive */
+  @media (max-width: 992px) {
+    .drawer-left, .drawer-right { width: 260px; }
+    .po-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 768px) {
+    .tb-btn .tb-label { display: none; }
+    .po-grid { grid-template-columns: 1fr; }
+    .taskbar { height: 80px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Toolbar -->
+<header class="toolbar">
+  <div class="tb-logo"><span class="ldot"></span> SeedVR2</div>
+
+  <div class="tb-group">
+    <button class="tb-btn" onclick="toggleDrawer('left')"><span class="tb-ico"></span><span class="tb-label">文件</span></button>
+    <button class="tb-btn" onclick="toggleDrawer('right')"><span class="tb-ico"></span><span class="tb-label">参数</span></button>
+  </div>
+
+  <div class="tb-group">
+    <button class="tb-btn active" onclick="showPage('compare')"><span class="tb-ico">🔍</span><span class="tb-label">对比</span></button>
+    <button class="tb-btn" onclick="showPage('home')"><span class="tb-ico">🏠</span><span class="tb-label">首页</span></button>
+    <button class="tb-btn" onclick="showPage('history')"><span class="tb-ico">🕐</span><span class="tb-label">历史</span></button>
+    <button class="tb-btn" onclick="showPage('status')"><span class="tb-ico">📊</span><span class="tb-label">状态</span></button>
+    <button class="tb-btn" onclick="showPage('settings')"><span class="tb-ico">⚙️</span><span class="tb-label">设置</span></button>
+  </div>
+
+  <div class="tb-spacer"></div>
+
+  <div class="tb-indicator"><span class="ti-dot green"></span> v1.0.0</div>
+  <div class="tb-indicator"><span class="ti-dot amber"></span> GPU: --</div>
+  <div class="tb-indicator"><span class="ti-dot green"></span> 00:02:47</div>
+  <div class="tb-btn" style="margin-left:4px;">🌙</div>
+  <div class="tb-btn">🌐 中文</div>
+</header>
+
+<!-- Main Area -->
+<div class="main-area">
+
+  <!-- Left Drawer: Files -->
+  <div class="drawer drawer-left" id="drawerLeft">
+    <div class="drawer-header">
+      <span>文件管理</span>
+      <button onclick="toggleDrawer('left')">✕</button>
+    </div>
+    <div class="drawer-body">
+      <div class="d-upload">
+        <div class="du-icon">☁️</div>
+        <h4>拖拽文件到此处</h4>
+        <p>PNG / JPG / BMP / WEBP<br>MP4 / AVI / MOV / MKV</p>
+      </div>
+      <div style="margin-top:12px;">
+        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-3);margin-bottom:6px;">最近文件</div>
+        <div class="d-file-item">
+          <span class="dfi-icon">🖼️</span>
+          <span class="dfi-name">sample_photo.png</span>
+          <span class="dfi-size">4.2MB</span>
+        </div>
+        <div class="d-file-item">
+          <span class="dfi-icon">🎬</span>
+          <span class="dfi-name">clip_001.mp4</span>
+          <span class="dfi-size">128MB</span>
+        </div>
+      </div>
+      <div style="margin-top:12px;">
+        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-3);margin-bottom:6px;">文件夹路径</div>
+        <div style="display:flex;gap:4px;">
+          <input style="flex:1;height:28px;padding:0 8px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:10px;outline:none;" value="C:\...">
+          <button class="btn btn-s" style="height:28px;padding:0 8px;"></button>
+        </div>
+      </div>
+    </div>
+    <div class="drawer-footer">
+      <button class="btn btn-p btn-block">▶ 上传并修复</button>
+      <button class="btn btn-s btn-block">🗂 批量处理</button>
+    </div>
+  </div>
+
+  <!-- Right Drawer: Parameters -->
+  <div class="drawer drawer-right" id="drawerRight">
+    <div class="drawer-header">
+      <span>参数配置</span>
+      <button onclick="toggleDrawer('right')">✕</button>
+    </div>
+    <div class="drawer-body">
+      <div class="d-param-section">
+        <div class="d-param-title">模型选择</div>
+        <div class="d-param-field">
+          <label>模型</label>
+          <select><option>3B FP16</option><option>7B FP16</option><option>7B SHARP</option></select>
+        </div>
+        <div class="d-param-field">
+          <label>随机种子</label>
+          <input value="1373201197" type="number">
+        </div>
+      </div>
+      <div class="d-param-section">
+        <div class="d-param-title">输出设置</div>
+        <div class="d-param-row">
+          <div class="d-param-field">
+            <label>输出分辨率</label>
+            <input value="2160" type="number">
+          </div>
+          <div class="d-param-field">
+            <label>最大分辨率</label>
+            <input value="0" type="number">
+          </div>
+        </div>
+      </div>
+      <div class="d-param-section">
+        <div class="d-param-title">高级参数</div>
+        <div style="font-size:10px;color:var(--text-3);text-align:center;padding:8px 0;cursor:pointer;">点击展开 </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Comparison View (default) -->
+  <div class="comparison" id="view-compare">
+    <div class="comp-side">
+      <div class="comp-label before">Before · 原始</div>
+      <div class="comp-canvas">
+        <div class="comp-placeholder">
+          <div class="cp-icon">🖼️</div>
+          <h3>原始文件</h3>
+          <p>从左侧抽屉上传文件</p>
+        </div>
+      </div>
+    </div>
+    <div class="comp-divider"></div>
+    <div class="comp-side">
+      <div class="comp-label after">After · 修复后</div>
+      <div class="comp-canvas">
+        <div class="comp-placeholder">
+          <div class="cp-icon">✨</div>
+          <h3>修复结果</h3>
+          <p>处理完成后在此显示</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page Overlays -->
+  <div class="page-overlay" id="page-home">
+    <h1>SeedVR2 对比工作台</h1>
+    <p class="po-sub">基于深度学习的视频/图像超分辨率修复工具</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px;">
+      <div class="po-card" style="grid-column:span 2;cursor:pointer;" onclick="showPage('compare')">
+        <div class="po-card-title">⚡ 开始修复</div>
+        <p style="font-size:11px;color:var(--text-2);line-height:1.5;">上传图片或视频，使用 SeedVR2 模型进行超分辨率增强。切换到对比视图开始工作。</p>
+        <div style="margin-top:10px;font-size:11px;color:var(--accent);font-weight:600;">进入对比工作台 →</div>
+      </div>
+      <div class="po-card" style="cursor:pointer;" onclick="showPage('status')">
+        <div class="po-card-title"> 系统状态</div>
+        <p style="font-size:11px;color:var(--text-2);">查看 GPU、模型和系统运行状态</p>
+      </div>
+    </div>
+    <div class="po-grid">
+      <div class="po-card">
+        <div class="po-card-title"> GPU</div>
+        <div class="po-row"><span class="pol">状态</span><span class="pov" style="color:var(--red);">未检测到</span></div>
+        <div class="po-row"><span class="pol">显存</span><span class="pov">--</span></div>
+      </div>
+      <div class="po-card">
+        <div class="po-card-title">🧠 内存</div>
+        <div class="po-row"><span class="pol">使用率</span><span class="pov" style="color:var(--amber);">69.2%</span></div>
+        <div class="po-row"><span class="pol">可用</span><span class="pov">4.76 GB</span></div>
+      </div>
+      <div class="po-card">
+        <div class="po-card-title">📦 模型</div>
+        <div class="po-row"><span class="pol">状态</span><span class="pov">未加载</span></div>
+        <div class="po-row"><span class="pol">可用</span><span class="pov">3B,7B,7B_S</span></div>
+      </div>
+      <div class="po-card">
+        <div class="po-card-title">⏱ 运行</div>
+        <div class="po-row"><span class="pol">时间</span><span class="pov">37m30s</span></div>
+        <div class="po-row"><span class="pol">状态</span><span class="pov" style="color:var(--green);">运行中</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-overlay" id="page-history">
+    <h1>历史记录</h1>
+    <p class="po-sub">查看所有修复任务的历史记录</p>
+    <div style="text-align:center;padding:48px 20px;background:var(--bg-2);border:1px solid var(--border-2);border-radius:var(--radius);">
+      <div style="font-size:40px;margin-bottom:12px;opacity:0.3;"></div>
+      <h3 style="font-size:14px;font-weight:600;color:var(--text-2);margin-bottom:4px;">暂无记录</h3>
+      <p style="font-size:11px;color:var(--text-3);margin-bottom:16px;">修复任务完成后会自动记录在这里</p>
+      <button class="btn btn-p" onclick="showPage('compare')">进入对比工作台</button>
+    </div>
+  </div>
+
+  <div class="page-overlay" id="page-status">
+    <h1>系统状态</h1>
+    <p class="po-sub">实时监控系统运行状态和资源使用情况</p>
+    <div class="po-grid">
+      <div class="po-card">
+        <div class="po-card-title">🎮 GPU <span style="font-size:8px;padding:1px 5px;border-radius:6px;background:rgba(239,68,68,0.15);color:var(--red);margin-left:auto;">UNAVAILABLE</span></div>
+        <div style="font-size:10px;color:var(--amber);padding:6px 8px;background:rgba(234,179,8,0.06);border-radius:var(--radius-sm);margin-bottom:8px;">⚠ 仅支持 NVIDIA GPU CUDA</div>
+        <div class="po-row"><span class="pol">设备</span><span class="pov">未检测到</span></div>
+        <div class="po-row"><span class="pol">总显存</span><span class="pov">--</span></div>
+        <div class="po-row"><span class="pol">CUDA</span><span class="pov">--</span></div>
+        <div class="po-row"><span class="pol">驱动</span><span class="pov">--</span></div>
+      </div>
+      <div class="po-card">
+        <div class="po-card-title">📦 模型 <span style="font-size:8px;padding:1px 5px;border-radius:6px;background:rgba(136,136,160,0.15);color:var(--text-2);margin-left:auto;">未加载</span></div>
+        <div class="po-row"><span class="pol">加载状态</span><span class="pov">未加载</span></div>
+        <div class="po-row"><span class="pol">当前模型</span><span class="pov">--</span></div>
+        <div class="po-row"><span class="pol">可用模型</span><span class="pov">3B,7B,7B_S</span></div>
+        <div class="po-row"><span class="pol">显存占用</span><span class="pov" style="color:var(--text-3);">--</span></div>
+      </div>
+      <div class="po-card">
+        <div class="po-card-title">🧠 系统内存</div>
+        <div class="po-row"><span class="pol">总内存</span><span class="pov">15.47 GB</span></div>
+        <div class="po-row"><span class="pol">可用内存</span><span class="pov">4.76 GB</span></div>
+        <div class="po-row"><span class="pol">使用率</span><span class="pov" style="color:var(--amber);">69.2%</span></div>
+        <div class="po-row"><span class="pol">CPU 核心</span><span class="pov">18</span></div>
+      </div>
+      <div class="po-card">
+        <div class="po-card-title">⏱ 运行信息</div>
+        <div class="po-row"><span class="pol">运行时间</span><span class="pov">37m30s</span></div>
+        <div class="po-row"><span class="pol">平台</span><span class="pov" style="font-size:9px;">Win11-26200</span></div>
+        <div class="po-row"><span class="pol">Python</span><span class="pov">3.12.10</span></div>
+        <div class="po-row"><span class="pol">服务</span><span class="pov" style="color:var(--green);">● 运行中</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-overlay" id="page-settings">
+    <h1>设置</h1>
+    <p class="po-sub">配置模型和应用参数</p>
+    <div style="display:grid;grid-template-columns:130px 1fr;gap:16px;">
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <div class="btn btn-s" style="justify-content:flex-start;background:var(--accent-soft);color:var(--accent);border-color:var(--accent);"> 路径配置</div>
+        <div class="btn btn-g" style="justify-content:flex-start;">🤖 模型设置</div>
+        <div class="btn btn-g" style="justify-content:flex-start;"> 语言设置</div>
+      </div>
+      <div style="background:var(--bg-2);border:1px solid var(--border-2);border-radius:var(--radius);padding:20px;">
+        <div style="font-size:14px;font-weight:700;margin-bottom:16px;">路径配置</div>
+        <div style="margin-bottom:14px;">
+          <label style="font-size:10px;font-weight:600;color:var(--text-2);display:block;margin-bottom:4px;">模型目录</label>
+          <div style="display:flex;gap:6px;"><input style="flex:1;height:30px;padding:0 10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:11px;outline:none;" value="pretrained_models"><button class="btn btn-s" style="height:30px;">📤</button></div>
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="font-size:10px;font-weight:600;color:var(--text-2);display:block;margin-bottom:4px;">输出目录</label>
+          <div style="display:flex;gap:6px;"><input style="flex:1;height:30px;padding:0 10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:11px;outline:none;" value="outputs"><button class="btn btn-s" style="height:30px;"></button></div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-p">✓ 保存</button>
+          <button class="btn btn-s">↻ 重置</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Bottom Task Bar -->
+<div class="taskbar" id="taskbar">
+  <div class="taskbar-header" onclick="toggleTaskbar()">
+    <span>任务队列</span>
+    <span style="font-size:9px;color:var(--text-3);">0 待处理 · 0 进行中</span>
+    <span style="font-size:12px;">▴</span>
+  </div>
+  <div class="taskbar-body">
+    <div style="text-align:center;padding:16px;color:var(--text-3);font-size:11px;">
+      暂无任务 · 上传文件开始修复
+    </div>
+  </div>
+</div>
+
+<script>
+  function toggleDrawer(side) {
+    const el = document.getElementById(side === 'left' ? 'drawerLeft' : 'drawerRight');
+    el.classList.toggle('open');
+  }
+  function showPage(page) {
+    // Hide all overlays
+    document.querySelectorAll('.page-overlay').forEach(p => p.classList.remove('active'));
+    document.getElementById('view-compare').style.display = page === 'compare' ? 'flex' : 'none';
+    if (page !== 'compare') {
+      document.getElementById('page-' + page).classList.add('active');
+    }
+    // Update toolbar buttons
+    document.querySelectorAll('.tb-group .tb-btn').forEach(b => b.classList.remove('active'));
+    event.target.closest('.tb-btn')?.classList.add('active');
+  }
+  function toggleTaskbar() {
+    document.getElementById('taskbar').classList.toggle('collapsed');
+  }
+</script>
+</body>
+</html>

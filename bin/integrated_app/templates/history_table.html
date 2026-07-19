@@ -1,0 +1,61 @@
+{% if records %}
+    {% for r in records %}
+    <tr data-record-id="{{ r.id }}" data-output="{{ r.output_file or '' }}" class="sv-history-row">
+        <td>{{ r.id }}</td>
+        <td><i class="bi {{ 'bi-play-circle' if r.task_type == 'video' else 'bi-image' }} sv-mr-1"></i>{{ t('history.video') if r.task_type == 'video' else t('history.image') }}</td>
+        <td title="{{ r.input_file or '' }}">{{ r.input_file.split('\\').pop().split('/').pop() if r.input_file else '--' }}</td>
+        <td>{{ r.model_size.upper() if r.model_size else '--' }}</td>
+        <td>
+            {% if r.status == 'pending' %}
+                <span class="sv-badge sv-badge-pending">{{ t('status.pending') }}</span>
+            {% elif r.status == 'processing' %}
+                <span class="sv-badge sv-badge-processing">{{ t('status.processing') }}</span>
+            {% elif r.status == 'completed' %}
+                <span class="sv-badge sv-badge-completed">{{ t('status.completed') }}</span>
+            {% elif r.status == 'failed' %}
+                <span class="sv-badge sv-badge-failed">{{ t('status.failed') }}</span>
+            {% else %}
+                <span class="sv-badge sv-badge-secondary">{{ r.status }}</span>
+            {% endif %}
+        </td>
+        <td>{{ '%.1fs' % r.processing_time if r.processing_time > 0 else '--' }}</td>
+        <td>{{ r.created_at }}</td>
+        <td>
+            <div class="sv-flex sv-gap-1">
+                {% if r.status == 'completed' and r.output_file %}
+                <a href="/api/system/history/{{ r.id }}/download" class="sv-btn sv-btn-sm sv-btn-outline" data-tooltip="{{ t('common.download') }}" aria-label="{{ t('common.download') }}">
+                    <i class="bi bi-download"></i>
+                </a>
+                {% endif %}
+                {% if r.status in ('pending', 'processing') %}
+                <button class="sv-btn sv-btn-sm sv-btn-outline btn-cancel-record"
+                        hx-post="/api/system/history/{{ r.id }}/cancel"
+                        hx-swap="none"
+                        hx-indicator="#historyLoading"
+                        hx-disabled-elt="this"
+                        hx-on::after-request="setTimeout(() => document.getElementById('btnRefresh').click(), 300)"
+                        data-tooltip="{{ t('common.cancel') }}" aria-label="{{ t('common.cancel') }}">
+                    <i class="bi bi-x-circle"></i>
+                </button>
+                {% endif %}
+                <button class="sv-btn sv-btn-sm sv-btn-outline btn-delete-record" data-record-id="{{ r.id }}" data-tooltip="{{ t('common.delete') }}" aria-label="{{ t('common.delete') }}">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        </td>
+    </tr>
+    {% endfor %}
+{% else %}
+    <tr class="empty-row">
+        <td colspan="8">
+            <div class="sv-empty-state">
+                <div class="empty-icon"><i class="bi bi-inbox"></i></div>
+                <div class="empty-title">{{ t('history.no_records') }}</div>
+                <div class="empty-desc">{{ t('history.no_records_desc') }}</div>
+                <a href="/restore" class="sv-btn sv-btn-primary sv-btn-sm sv-mt-3">
+                    <i class="bi bi-lightning-charge"></i> {{ t('nav.restore') }}
+                </a>
+            </div>
+        </td>
+    </tr>
+{% endif %}

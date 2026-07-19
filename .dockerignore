@@ -1,0 +1,10 @@
+WPy64-312101/
+data/
+pretrained_models/
+.trae/
+*.pyc
+__pycache__/
+.git/
+*.md
+.pytest_cache/
+*.egg-info/
