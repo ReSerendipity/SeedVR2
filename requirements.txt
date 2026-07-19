@@ -1,0 +1,55 @@
+# Core
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+gunicorn>=23.0
+pydantic>=2.9.0
+pyyaml>=6.0
+
+# Template & Frontend
+jinja2>=3.1.0
+python-multipart>=0.0.12
+
+# Deep Learning
+torch>=2.4.0
+torchvision>=0.19.0
+torchaudio>=2.4.0
+
+# Model & Inference
+transformers>=4.44.0
+safetensors>=0.4.0
+huggingface_hub>=0.25.0
+einops>=0.8.0
+omegaconf>=2.3.0
+diffusers>=0.30.0
+mediapy>=1.1.0
+
+# Video Processing
+opencv-python>=4.10.0
+imageio>=2.35.0
+imageio-ffmpeg>=0.5.0
+pillow>=10.4.0
+
+# Database
+aiosqlite>=0.20.0
+
+# Utilities
+aiofiles>=24.1.0
+psutil>=6.0.0
+rich>=13.8.0
+PyWavelets>=1.9.0
+
+# Flash Attention (需要 CUDA 编译环境，Windows 下可能需要预编译包)
+# 如果安装失败，请从以下地址下载预编译 whl：
+# https://github.com/Dao-AILab/flash-attention/releases
+# flash-attn>=2.5.0
+
+# Apex (需要 CUDA 编译环境，Windows 下可能需要预编译包)
+# 如果安装失败，请从 HuggingFace 下载预编译 whl：
+# https://huggingface.co/ByteDance-Seed/SeedVR2-3B/tree/main
+# apex
+
+# 注意：flash_attn 和 apex 在 Windows 上的安装可能需要：
+# 1. 安装 Visual Studio Build Tools
+# 2. 安装 CUDA Toolkit
+# 3. 使用预编译的 whl 文件
+# 如果无法安装，应用将自动回退到标准注意力机制

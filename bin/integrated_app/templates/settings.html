@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+
+{% block title %}SeedVR2 - {{ t('nav.settings') }}{% endblock %}
+
+{% block content %}
+<nav class="sv-breadcrumb">
+    <a href="/"><i class="bi bi-house"></i> {{ t('nav.home') }}</a>
+    <span class="separator"><i class="bi bi-chevron-right"></i></span>
+    <span class="current">{{ t('nav.settings') }}</span>
+</nav>
+<div class="sv-page-header">
+    <h1><i class="bi bi-gear sv-text-primary"></i> {{ t('settings.title') }}</h1>
+    <p>{{ t('settings.subtitle') }}</p>
+</div>
+
+<div class="sv-settings-layout" x-data="{ tab: 'paths' }">
+    <nav class="sv-settings-nav" id="settingsNav" role="tablist">
+        <button class="nav-item" :class="{ 'active': tab === 'paths' }" role="tab" id="tab-paths" aria-selected="true" :aria-selected="(tab === 'paths').toString()" aria-controls="section-paths" tabindex="0" data-tab="paths" @click="tab = 'paths'">
+            <i class="bi bi-folder2-open"></i> {{ t('settings.path_config') }}
+        </button>
+        <button class="nav-item" :class="{ 'active': tab === 'model' }" role="tab" id="tab-model" aria-selected="false" :aria-selected="(tab === 'model').toString()" aria-controls="section-model" tabindex="-1" data-tab="model" @click="tab = 'model'">
+            <i class="bi bi-cpu"></i> {{ t('settings.model_settings') }}
+        </button>
+        <button class="nav-item" :class="{ 'active': tab === 'language' }" role="tab" id="tab-language" aria-selected="false" :aria-selected="(tab === 'language').toString()" aria-controls="section-language" tabindex="-1" data-tab="language" @click="tab = 'language'">
+            <i class="bi bi-translate"></i> {{ t('settings.language_settings') }}
+        </button>
+    </nav>
+
+    <div>
+        <!-- Path Configuration Section -->
+        <div class="sv-settings-section" id="section-paths" role="tabpanel" aria-labelledby="tab-paths" x-show="tab === 'paths'">
+            <div class="sv-settings-section-title">{{ t('settings.path_config') }}</div>
+            <div class="sv-card">
+                <div class="sv-card-body">
+                    <div class="sv-form-group">
+                        <label class="sv-form-label" for="pretrainedDir">{{ t('settings.pretrained_dir') }}</label>
+                        <div class="sv-flex sv-gap-2 sv-items-center">
+                            <input type="text" class="sv-form-control sv-flex-1" id="pretrainedDir" value="pretrained_models"
+                                   placeholder="{{ t('settings.pretrained_dir') }}">
+                            <button type="button" class="sv-btn sv-btn-outline sv-btn-sm btn-browse-dir"
+                                    data-target="pretrainedDir" data-tooltip="{{ t('common.browse') if t('common.browse') else t('common.upload') }}">
+                                <i class="bi bi-folder-symlink"></i> {{ t('common.upload') }}
+                            </button>
+                        </div>
+                        <div class="sv-form-help">{{ t('settings.pretrained_dir_help') if t('settings.pretrained_dir_help') else 'Folder path for pretrained model files' }}</div>
+                    </div>
+                    <div class="sv-form-group">
+                        <label class="sv-form-label" for="outputDir">{{ t('settings.output_dir') }}</label>
+                        <div class="sv-flex sv-gap-2 sv-items-center">
+                            <input type="text" class="sv-form-control sv-flex-1" id="outputDir" value="outputs"
+                                   placeholder="{{ t('settings.output_dir') }}">
+                            <button type="button" class="sv-btn sv-btn-outline sv-btn-sm btn-browse-dir"
+                                    data-target="outputDir" data-tooltip="{{ t('common.browse') if t('common.browse') else t('common.upload') }}">
+                                <i class="bi bi-folder-symlink"></i> {{ t('common.upload') }}
+                            </button>
+                        </div>
+                        <div class="sv-form-help">{{ t('settings.output_dir_help') if t('settings.output_dir_help') else 'Output folder path for restored files' }}</div>
+                    </div>
+                    <div class="sv-settings-actions">
+                        <button class="sv-btn sv-btn-primary sv-btn-sm" id="btnSavePaths" data-tooltip="{{ t('common.save') }}">
+                            <i class="bi bi-check-lg"></i> {{ t('common.save') }}
+                        </button>
+                        <button class="sv-btn sv-btn-secondary sv-btn-sm" id="btnResetPaths" data-tooltip="{{ t('common.reset') }}">
+                            <i class="bi bi-arrow-counterclockwise"></i> {{ t('common.reset') }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Model Settings Section -->
+        <div class="sv-settings-section" id="section-model" role="tabpanel" aria-labelledby="tab-model" x-show="tab === 'model'" x-cloak>
+            <div class="sv-settings-section-title">{{ t('settings.model_settings') }}</div>
+            <div class="sv-card">
+                <div class="sv-card-body">
+                    <div class="sv-form-group">
+                        <label class="sv-form-label" for="defaultModelSize">{{ t('settings.default_model_size') }}</label>
+                        <select class="sv-form-control" id="defaultModelSize">
+                            <option value="3b">3B</option>
+                            <option value="7b">7B</option>
+                        </select>
+                                <div class="sv-form-help">{{ t('settings.default_model_size_help') if t('settings.default_model_size_help') else '启动时默认加载的模型大小' }}</div>
+                    </div>
+                    <div class="sv-form-group">
+                        <label class="sv-form-label" for="modelPrecision">{{ t('settings.precision') }}</label>
+                        <select class="sv-form-control" id="modelPrecision">
+                            <option value="fp16">{{ t('settings.fp16') }}</option>
+                            <option value="fp8">{{ t('settings.fp8') }}</option>
+                        </select>
+                                <div class="sv-form-help">{{ t('settings.precision_help') if t('settings.precision_help') else '模型推理精度，FP8 可节省显存' }}</div>
+                    </div>
+                    <div class="sv-form-group">
+                        <label class="sv-form-label" for="gpuBackend">{{ t('settings.gpu_backend') }}</label>
+                        <select class="sv-form-control" id="gpuBackend">
+                            <option value="auto">{{ t('settings.backend_auto') }}</option>
+                            <option value="cuda">{{ t('settings.backend_cuda') }}</option>
+                        </select>
+                                <div class="sv-form-help">{{ t('settings.gpu_backend_help') if t('settings.gpu_backend_help') else 'SeedVR2 仅支持 NVIDIA CUDA GPU 推理' }}</div>
+                    </div>
+                    <div class="sv-settings-actions">
+                        <button class="sv-btn sv-btn-primary sv-btn-sm" id="btnSaveModelSettings" data-tooltip="{{ t('common.save') }}">
+                            <i class="bi bi-check-lg"></i> {{ t('common.save') }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Language Settings Section -->
+        <div class="sv-settings-section" id="section-language" role="tabpanel" aria-labelledby="tab-language" x-show="tab === 'language'" x-cloak>
+            <div class="sv-settings-section-title">{{ t('settings.language_settings') }}</div>
+            <div class="sv-card">
+                <div class="sv-card-body">
+                    <div class="sv-form-group">
+                        <label class="sv-form-label" for="locale">{{ t('settings.interface_language') }}</label>
+                        <select class="sv-form-control" id="locale">
+                            <option value="zh">中文</option>
+                            <option value="en">English</option>
+                            <option value="ja">日本語</option>
+                            <option value="fr">Français</option>
+                        </select>
+                                <div class="sv-form-help">{{ t('settings.language_help') if t('settings.language_help') else '切换界面显示语言，保存后刷新页面生效' }}</div>
+                    </div>
+                    <div class="sv-settings-actions">
+                        <button class="sv-btn sv-btn-primary sv-btn-sm" id="btnSaveLanguage" data-tooltip="{{ t('common.save') }}">
+                            <i class="bi bi-check-lg"></i> {{ t('common.save') }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    const I = window.__I18N__ || {};
+
+    // Folder pickers
+    function setupFolderPicker(btnSelector, inputId) {
+        const btn = document.querySelector(btnSelector);
+        if (!btn) return;
+        btn.addEventListener('click', () => {
+            const currentPath = document.getElementById(inputId).value.trim();
+            SeedVR2.openDirBrowser(currentPath, (selectedPath) => {
+                document.getElementById(inputId).value = selectedPath;
+                SeedVR2.toast(selectedPath, 'success');
+            });
+        });
+    }
+    setupFolderPicker('[data-target="pretrainedDir"]', 'pretrainedDir');
+    setupFolderPicker('[data-target="outputDir"]', 'outputDir');
+
+    // Save paths
+    const btnSavePaths = document.getElementById('btnSavePaths');
+    if (btnSavePaths) {
+        btnSavePaths.addEventListener('click', async () => {
+            const settings = {
+                pretrained_dir: document.getElementById('pretrainedDir').value,
+                output_dir: document.getElementById('outputDir').value,
+            };
+            try {
+                const result = await SeedVR2.api.submitWithLoading(
+                    btnSavePaths,
+                    SeedVR2.api.post('/api/system/settings', settings),
+                    { loadingText: I["common.saving"] || 'Saving' }
+                );
+                SeedVR2.toast(result.message || I["settings.save_success"] || 'Saved', 'success');
+            } catch (err) {
+                SeedVR2.toast(I["common.failed"] + ': ' + err.message, 'error');
+            }
+        });
+    }
+
+    // Reset paths
+    const btnResetPaths = document.getElementById('btnResetPaths');
+    if (btnResetPaths) {
+        btnResetPaths.addEventListener('click', () => {
+            SeedVR2.confirm(I["common.confirm"] || 'Confirm', '', () => {
+                document.getElementById('pretrainedDir').value = 'pretrained_models';
+                document.getElementById('outputDir').value = 'outputs';
+                SeedVR2.toast(I["common.reset"] || 'Reset', 'info');
+            });
+        });
+    }
+
+    // Save model settings
+    const btnSaveModel = document.getElementById('btnSaveModelSettings');
+    if (btnSaveModel) {
+        btnSaveModel.addEventListener('click', async () => {
+            const settings = {
+                model: {
+                    default_size: document.getElementById('defaultModelSize').value,
+                    precision: document.getElementById('modelPrecision').value,
+                },
+                gpu: {
+                    backend: document.getElementById('gpuBackend').value,
+                }
+            };
+            try {
+                const result = await SeedVR2.api.submitWithLoading(
+                    btnSaveModel,
+                    SeedVR2.api.post('/api/system/settings', settings),
+                    { loadingText: I["common.saving"] || 'Saving' }
+                );
+                SeedVR2.toast(result.message || I["settings.save_success"] || 'Saved', 'success');
+            } catch (err) {
+                SeedVR2.toast(I["common.failed"] + ': ' + err.message, 'error');
+            }
+        });
+    }
+
+    // Save language
+    const btnSaveLanguage = document.getElementById('btnSaveLanguage');
+    if (btnSaveLanguage) {
+        btnSaveLanguage.addEventListener('click', async () => {
+            const locale = document.getElementById('locale').value;
+            try {
+                const data = await SeedVR2.api.submitWithLoading(
+                    btnSaveLanguage,
+                    SeedVR2.api.post('/api/system/locale', { locale }),
+                    { loadingText: I["common.saving"] || 'Saving' }
+                );
+                SeedVR2.toast(data.message || I["settings.save_success"] || 'Saved', 'success');
+                setTimeout(() => window.location.reload(), 500);
+            } catch (err) {
+                SeedVR2.toast(I["common.failed"] + ': ' + err.message, 'error');
+            }
+        });
+    }
+
+    // Load current settings
+    try {
+        const settings = await SeedVR2.api.get('/api/system/settings');
+        if (settings.model) {
+            if (document.getElementById('defaultModelSize')) document.getElementById('defaultModelSize').value = settings.model.default_size || '3b';
+            if (document.getElementById('modelPrecision')) document.getElementById('modelPrecision').value = settings.model.precision || 'fp16';
+        }
+        if (settings.gpu) {
+            if (document.getElementById('gpuBackend')) document.getElementById('gpuBackend').value = settings.gpu.backend || 'auto';
+        }
+        if (settings.i18n) {
+            if (document.getElementById('locale')) document.getElementById('locale').value = settings.i18n.default_locale || 'zh';
+        }
+    } catch (err) {
+        console.error('Failed to load settings:', err);
+    }
+});
+</script>
+{% endblock %}

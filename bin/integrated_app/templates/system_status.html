@@ -1,0 +1,338 @@
+{% extends "base.html" %}
+
+{% block title %}SeedVR2 - {{ t('system.title') }}{% endblock %}
+
+{% block content %}
+<nav class="sv-breadcrumb">
+    <a href="/"><i class="bi bi-house"></i> {{ t('nav.home') }}</a>
+    <span class="separator"><i class="bi bi-chevron-right"></i></span>
+    <span class="current">{{ t('nav.system') }}</span>
+</nav>
+<div class="sv-page-header">
+    <div class="sv-flex sv-items-center sv-justify-between">
+        <div>
+            <h1><i class="bi bi-cpu sv-text-warning"></i> {{ t('system.title') }}</h1>
+            <p>{{ t('system.subtitle') }}</p>
+        </div>
+        <button class="sv-btn sv-btn-secondary" id="btnRefreshStatus" aria-label="{{ t('common.refresh') }}">
+            <i class="bi bi-arrow-clockwise" id="refreshIcon"></i> {{ t('common.refresh') }}
+        </button>
+    </div>
+</div>
+
+<div class="sv-status-grid">
+    <!-- GPU 信息卡片 -->
+    <div class="sv-card">
+        <div class="sv-card-header">
+            <h3><i class="bi bi-gpu-card sv-text-primary"></i> {{ t('system.gpu_info') }}</h3>
+            <span class="sv-badge sv-badge-secondary" id="gpuBackendBadge">--</span>
+        </div>
+        <div class="sv-card-body" id="gpuInfoBody">
+            <div id="gpuSupportNotice" class="sv-alert sv-alert-info sv-mb-3" role="note">
+                <i class="bi bi-info-circle"></i> <span id="gpuSupportText">--</span>
+            </div>
+            <div class="sv-stat-item">
+                <span class="stat-label">{{ t('system.device_name') }}</span>
+                <span class="stat-value" id="gpuName"><span class="sv-skeleton sv-skeleton-text sv-skeleton-text--medium sv-skeleton--stat"></span></span>
+            </div>
+            <div class="sv-stat-item">
+                <span class="stat-label">{{ t('system.vram_total') }}</span>
+                <span class="stat-value" id="gpuVramTotal"><span class="sv-skeleton sv-skeleton-text sv-skeleton-text--medium sv-skeleton--stat"></span></span>
+            </div>
+            <div class="sv-stat-item">
+                <span class="stat-label">{{ t('system.vram_available') }}</span>
+                <span class="stat-value" id="gpuVramAvail"><span class="sv-skeleton sv-skeleton-text sv-skeleton-text--medium sv-skeleton--stat"></span></span>
+            </div>
+            <div class="sv-stat-item">
+                <span class="stat-label">{{ t('system.vram_usage') }}</span>
+                <span class="stat-value" id="gpuVramPct"><span class="sv-skeleton sv-skeleton-text sv-skeleton-text--medium sv-skeleton--stat"></span></span>
+            </div>
+            <div class="sv-ring-progress sv-mb-3" id="gpuVramRing">
+                <svg viewBox="0 0 100 100" class="sv-ring-progress-svg">
+                    <circle cx="50" cy="50" r="42" class="sv-ring-progress-track"/>
+                    <circle cx="50" cy="50" r="42" class="sv-ring-progress-fill" id="gpuVramRingFill"
+                            stroke-dasharray="263.89" stroke-dashoffset="263.89"/>
+                </svg>
+                <div class="sv-ring-progress-label">
+                    <span class="sv-ring-progress-value" id="gpuVramRingValue">--</span>
+                    <span class="sv-ring-progress-text">VRAM</span>
+                </div>
+            </div>
+            <div class="sv-stat-item">
+                <span class="stat-label">{{ t('system.gpu_utilization') }}</span>
+                <span class="stat-value" id="gpuUtil"><span class="sv-skeleton sv-skeleton-text sv-skeleton-text--medium sv-skeleton--stat"></span></span>
+            </div>
+            <div class="sv-gauge-bar">
+                <div class="gauge-fill sv-bg-success" id="gpuUtilBar" style="width:0%;"></div>
+            </div>
+            <div class="sv-trend-chart" id="gpuTrendChart">
+                <svg viewBox="0 0 200 60" preserveAspectRatio="none">
+                    <path class="sv-trend-area" d="M0,50 L20,45 L40,48 L60,42 L80,44 L100,40 L120,43 L140,38 L160,41 L180,39 L200,42 L200,60 L0,60 Z"/>
+                    <path class="sv-trend-line" d="M0,50 L20,45 L40,48 L60,42 L80,44 L100,40 L120,43 L140,38 L160,41 L180,39 L200,42"/>
+                </svg>
+            </div>
+            <div class="sv-stat-item">
+                <span class="stat-label">{{ t('system.cuda_version') }}</span>
+                <span class="stat-value" id="gpuCudaVer"><span class="sv-skeleton sv-skeleton-text sv-skeleton-text--medium sv-skeleton--stat"></span></span>
+            </div>
+            <div class="sv-stat-item">
+                <span class="stat-label">{{ t('system.driver_version') }}</span>
+                <span class="stat-value" id="gpuDriverVer"><span class="sv-skeleton sv-skeleton-text sv-skeleton-text--medium sv-skeleton--stat"></span></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 模型状态卡片 -->
+    <div class="sv-card">
+        <div class="sv-card-header">
+            <h3><i class="bi bi-box-seam sv-text-success"></i> {{ t('system.model_status') }}</h3>
+            <span class="sv-badge sv-badge-secondary" id="modelStatusBadge">--</span>
+        </div>
+        <div class="sv-card-body" id="modelInfoBody">
+            <div class="sv-stat-item">
+                <span class="stat-label">{{ t('system.load_status') }}</span>
+                <span class="stat-value" id="modelLoaded"><span class="sv-skeleton sv-skeleton-text sv-skeleton-text--medium sv-skeleton--stat"></span></span>
+            </div>
+            <div class="sv-stat-item">
+                <span class="stat-label">{{ t('system.current_model') }}</span>
+                <span class="stat-value" id="currentModel"><span class="sv-skeleton sv-skeleton-text sv-skeleton-text--medium sv-skeleton--stat"></span></span>
+            </div>
+            <div class="sv-stat-item">
+                <span class="stat-label">{{ t('system.available_models') }}</span>
+                <span class="stat-value" id="availableModels"><span class="sv-skeleton sv-skeleton-text sv-skeleton-text--medium sv-skeleton--stat"></span></span>
+            </div>
+            <div class="sv-stat-item">
+                <span class="stat-label">{{ t('system.vram_usage_model') }}</span>
+                <span class="stat-value" id="modelVramUsage"><span class="sv-skeleton sv-skeleton-text sv-skeleton-text--medium sv-skeleton--stat"></span></span>
+            </div>
+            <div class="sv-model-summary">
+                <div class="sv-model-summary-label">{{ t('system.model_load_time') if t('system.model_load_time') else '模型加载时间' }}</div>
+                <div class="sv-model-summary-value" id="modelLoadTime">--</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 系统内存卡片 -->
+    <div class="sv-card">
+        <div class="sv-card-header">
+            <h3><i class="bi bi-memory sv-text-warning"></i> {{ t('system.system_memory') }}</h3>
+        </div>
+        <div class="sv-card-body" id="memoryInfoBody">
+            <div class="sv-stat-item">
+                <span class="stat-label">{{ t('system.total_memory') }}</span>
+                <span class="stat-value" id="memTotal"><span class="sv-skeleton sv-skeleton-text sv-skeleton-text--medium sv-skeleton--stat"></span></span>
+            </div>
+            <div class="sv-stat-item">
+                <span class="stat-label">{{ t('system.available_memory') }}</span>
+                <span class="stat-value" id="memAvail"><span class="sv-skeleton sv-skeleton-text sv-skeleton-text--medium sv-skeleton--stat"></span></span>
+            </div>
+            <div class="sv-stat-item">
+                <span class="stat-label">{{ t('system.memory_usage') }}</span>
+                <span class="stat-value" id="memPct"><span class="sv-skeleton sv-skeleton-text sv-skeleton-text--medium sv-skeleton--stat"></span></span>
+            </div>
+            <div class="sv-ring-progress sv-mb-3" id="memRing">
+                <svg viewBox="0 0 100 100" class="sv-ring-progress-svg">
+                    <circle cx="50" cy="50" r="42" class="sv-ring-progress-track"/>
+                    <circle cx="50" cy="50" r="42" class="sv-ring-progress-fill sv-ring-progress-fill--warning" id="memRingFill"
+                            stroke-dasharray="263.89" stroke-dashoffset="263.89"/>
+                </svg>
+                <div class="sv-ring-progress-label">
+                    <span class="sv-ring-progress-value" id="memRingValue">--</span>
+                    <span class="sv-ring-progress-text">MEM</span>
+                </div>
+            </div>
+            <div class="sv-stat-item">
+                <span class="stat-label">{{ t('system.cpu_cores') }}</span>
+                <span class="stat-value" id="cpuCount"><span class="sv-skeleton sv-skeleton-text sv-skeleton-text--medium sv-skeleton--stat"></span></span>
+            </div>
+            <div class="sv-trend-chart" id="memTrendChart">
+                <svg viewBox="0 0 200 60" preserveAspectRatio="none">
+                    <path class="sv-trend-area" d="M0,30 L20,28 L40,32 L60,26 L80,28 L100,24 L120,27 L140,22 L160,25 L180,23 L200,26 L200,60 L0,60 Z"/>
+                    <path class="sv-trend-line" d="M0,30 L20,28 L40,32 L60,26 L80,28 L100,24 L120,27 L140,22 L160,25 L180,23 L200,26"/>
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <!-- 运行时间卡片 -->
+    <div class="sv-card">
+        <div class="sv-card-header">
+            <h3><i class="bi bi-clock sv-text-info"></i> {{ t('system.runtime_info') }}</h3>
+        </div>
+        <div class="sv-card-body" id="runtimeInfoBody">
+            <div class="sv-stat-item">
+                <span class="stat-label">{{ t('system.uptime') }}</span>
+                <span class="stat-value" id="uptime"><span class="sv-skeleton sv-skeleton-text sv-skeleton-text--medium sv-skeleton--stat"></span></span>
+            </div>
+            <div class="sv-stat-item">
+                <span class="stat-label">{{ t('system.platform') }}</span>
+                <span class="stat-value" id="platform"><span class="sv-skeleton sv-skeleton-text sv-skeleton-text--medium sv-skeleton--stat"></span></span>
+            </div>
+            <div class="sv-stat-item">
+                <span class="stat-label">{{ t('system.python_version') }}</span>
+                <span class="stat-value" id="pythonVer"><span class="sv-skeleton sv-skeleton-text sv-skeleton-text--medium sv-skeleton--stat"></span></span>
+            </div>
+            <div class="sv-stat-item">
+                <span class="stat-label">{{ t('system.service_status') }}</span>
+                <span class="stat-value" id="serviceStatus">
+                    <span class="sv-status-dot online"></span> {{ t('system.running') }}
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const I = window.__I18N__;
+
+    async function loadStatus() {
+        try {
+            const health = await SeedVR2.api.get('/api/system/health');
+
+            // 系统信息
+            if (health.system) {
+                document.getElementById('platform').textContent = health.system.platform || '--';
+                document.getElementById('pythonVer').textContent = health.system.python_version || '--';
+                document.getElementById('cpuCount').textContent = health.system.cpu_count || '--';
+                document.getElementById('memTotal').textContent = `${health.system.memory_total_gb} GB`;
+                document.getElementById('memAvail').textContent = `${health.system.memory_available_gb} GB`;
+
+                const memPct = health.system.memory_utilization_pct || 0;
+                document.getElementById('memPct').textContent = `${memPct}%`;
+
+                // 圆形进度
+                const circumference = 2 * Math.PI * 42; // 263.89
+                const memOffset = circumference - (memPct / 100) * circumference;
+                const memFill = document.getElementById('memRingFill');
+                if (memFill) memFill.style.strokeDashoffset = memOffset;
+                const memRingValue = document.getElementById('memRingValue');
+                if (memRingValue) memRingValue.textContent = `${memPct}%`;
+
+                // 根据内存使用率改变颜色
+                if (memPct > 85) {
+                    if (memFill) memFill.style.stroke = 'var(--sv-danger)';
+                } else if (memPct > 70) {
+                    if (memFill) memFill.style.stroke = 'var(--sv-warning)';
+                }
+            }
+
+            // 运行时间
+            if (health.uptime_seconds !== undefined) {
+                document.getElementById('uptime').textContent = SeedVR2.formatUptime(health.uptime_seconds);
+            }
+
+            // GPU 信息
+            if (health.gpu) {
+                document.getElementById('gpuName').textContent = health.gpu.device_name || '--';
+                document.getElementById('gpuBackendBadge').textContent = health.gpu.backend?.toUpperCase() || '--';
+
+                // 硬件支持提示
+                const noticeEl = document.getElementById('gpuSupportNotice');
+                const noticeText = document.getElementById('gpuSupportText');
+                if (noticeEl && noticeText) {
+                    if (health.gpu.is_gpu_available) {
+                        noticeEl.className = 'sv-alert sv-alert-success sv-mb-3';
+                        noticeText.textContent = I['system.nvidia_ready'] || 'NVIDIA GPU detected, CUDA acceleration enabled.';
+                    } else {
+                        noticeEl.className = 'sv-alert sv-alert-danger sv-mb-3';
+                        noticeText.textContent = I['system.cpu_mode_tip'] || 'No NVIDIA GPU detected. SeedVR2 requires an NVIDIA GPU with CUDA for inference.';
+                    }
+                }
+
+                if (health.gpu.is_gpu_available) {
+                    try {
+                        const gpuInfo = await SeedVR2.api.get('/api/system/gpu');
+                        const totalGb = (gpuInfo.vram_total_mb / 1024).toFixed(1);
+                        const availGb = (gpuInfo.vram_available_mb / 1024).toFixed(1);
+                        const usedPct = gpuInfo.utilization_pct || 0;
+
+                        document.getElementById('gpuVramTotal').textContent = `${totalGb} GB`;
+                        document.getElementById('gpuVramAvail').textContent = `${availGb} GB`;
+                        document.getElementById('gpuVramPct').textContent = `${usedPct.toFixed(1)}%`;
+
+                        // 圆形进度
+                        const circumference = 2 * Math.PI * 42; // 263.89
+                        const vramOffset = circumference - (usedPct / 100) * circumference;
+                        const vramFill = document.getElementById('gpuVramRingFill');
+                        if (vramFill) vramFill.style.strokeDashoffset = vramOffset;
+                        const vramRingValue = document.getElementById('gpuVramRingValue');
+                        if (vramRingValue) vramRingValue.textContent = `${usedPct.toFixed(0)}%`;
+
+                        document.getElementById('gpuUtil').textContent = `${usedPct.toFixed(1)}%`;
+                        document.getElementById('gpuUtilBar').style.width = `${usedPct}%`;
+                        document.getElementById('gpuCudaVer').textContent = gpuInfo.cuda_version || '--';
+                        document.getElementById('gpuDriverVer').textContent = gpuInfo.driver_version || '--';
+
+                        // 显存使用率颜色
+                        if (usedPct > 90) {
+                            if (vramFill) vramFill.style.stroke = 'var(--sv-danger)';
+                        } else if (usedPct > 75) {
+                            if (vramFill) vramFill.style.stroke = 'var(--sv-warning)';
+                        }
+                    } catch (e) {
+                        document.getElementById('gpuVramTotal').textContent = 'N/A';
+                    }
+                } else {
+                    // 降级模式：无 NVIDIA GPU，显示占位信息
+                    document.getElementById('gpuVramTotal').textContent = '--';
+                    document.getElementById('gpuVramAvail').textContent = '--';
+                    document.getElementById('gpuVramPct').textContent = '--';
+                    document.getElementById('gpuUtil').textContent = '--';
+                    document.getElementById('gpuCudaVer').textContent = '--';
+                    document.getElementById('gpuDriverVer').textContent = '--';
+                    const gpuVramRing = document.getElementById('gpuVramRing');
+                    if (gpuVramRing) gpuVramRing.style.display = 'none';
+                    const gpuUtilBar = document.querySelector('.sv-gauge-bar');
+                    if (gpuUtilBar) gpuUtilBar.style.display = 'none';
+                }
+            }
+
+            // 模型信息
+            if (health.model) {
+                const loaded = health.model.model_loaded;
+                document.getElementById('modelLoaded').innerHTML = loaded
+                    ? `<span class="sv-text-success">${I["system.loaded"]}</span>`
+                    : `<span class="sv-text-muted">${I["system.not_loaded"]}</span>`;
+                document.getElementById('currentModel').textContent = health.model.current_model_size
+                    ? `SeedVR2-${health.model.current_model_size.toUpperCase()}`
+                    : '--';
+                document.getElementById('modelStatusBadge').textContent = loaded ? I["system.loaded"] : I["system.not_loaded"];
+                document.getElementById('modelStatusBadge').className = loaded
+                    ? 'sv-badge sv-badge-completed' : 'sv-badge sv-badge-secondary';
+
+                // 获取详细模型信息
+                try {
+                    const modelStatus = await SeedVR2.api.get('/api/system/model/status');
+                    document.getElementById('availableModels').textContent =
+                        modelStatus.available_models ? modelStatus.available_models.map(m => m.toUpperCase()).join(', ') : '--';
+                } catch (e) {
+                    document.getElementById('availableModels').textContent = '--';
+                }
+            }
+        } catch (err) {
+            console.error('Failed to load system status:', err);
+            document.getElementById('serviceStatus').innerHTML =
+                `<span class="sv-status-dot error"></span> ${I["system.connection_failed"]}`;
+        }
+    }
+
+    document.getElementById('btnRefreshStatus').addEventListener('click', loadStatus);
+
+    // 初始加载
+    loadStatus();
+
+    // 自动刷新时旋转图标
+    const refreshIcon = document.getElementById('refreshIcon');
+    if (refreshIcon) {
+        refreshIcon.style.animation = 'spin 1s linear infinite';
+    }
+
+    // 自动刷新（每 10 秒）
+    const _statusInterval = setInterval(loadStatus, 10000);
+    window.addEventListener('beforeunload', () => clearInterval(_statusInterval));
+});
+</script>
+{% endblock %}

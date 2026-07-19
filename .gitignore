@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# WinPython environment (local Python distribution, ~5GB)
+WPy64-*/
+WinPython/
+
+# Caches / IDE / tooling local state
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.trae/
+.uploads/
+tests/node_modules/
+tests/test-results/
+tests/playwright-report/
+tests/blob-report/
+*.tmp
+*.bak
+
+# Model files
+pretrained_models/*.pth
+pretrained_models/*.safetensors
+pretrained_models/*.bin
+pretrained_models/*.pt
+!pretrained_models/.gitkeep
+
+# Data
+data/uploads/*
+!data/uploads/.gitkeep
+outputs/*
+!outputs/.gitkeep
+logs/*
+!logs/.gitkeep
+
+# Database
+data/*.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+.DS_Store

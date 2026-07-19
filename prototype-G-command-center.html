@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeedVR2 - 原型 G：控制中心 + 实时数据</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+  :root {
+    --bg: #060608;
+    --bg-panel: #0c0c10;
+    --bg-cell: #111116;
+    --bg-cell-hover: #16161d;
+    --border: #1e1e28;
+    --border-bright: #2a2a38;
+    --text: #d0d0d8;
+    --text-2: #78788a;
+    --text-3: #44444f;
+    --green: #00ff88;
+    --green-dim: rgba(0,255,136,0.15);
+    --amber: #ffaa00;
+    --amber-dim: rgba(255,170,0,0.12);
+    --red: #ff4444;
+    --red-dim: rgba(255,68,68,0.12);
+    --blue: #4488ff;
+    --blue-dim: rgba(68,136,255,0.12);
+    --purple: #aa66ff;
+    --purple-dim: rgba(170,102,255,0.12);
+    --cyan: #00ddff;
+    --cyan-dim: rgba(0,221,255,0.1);
+    --mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace;
+    --sans: 'Inter', sans-serif;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+
+  /* Top Metrics Bar */
+  .metrics-bar {
+    height: 32px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center;
+    padding: 0 12px;
+    gap: 0;
+    flex-shrink: 0;
+    font-family: var(--mono);
+    font-size: 10px;
+    overflow-x: auto;
+  }
+  .metric-item {
+    display: flex; align-items: center; gap: 5px;
+    padding: 0 12px;
+    height: 100%;
+    border-right: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .metric-item:last-child { border-right: none; }
+  .metric-item .m-label { color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; font-size: 9px; }
+  .metric-item .m-value { font-weight: 600; }
+  .metric-item .m-value.green { color: var(--green); }
+  .metric-item .m-value.amber { color: var(--amber); }
+  .metric-item .m-value.red { color: var(--red); }
+  .metric-item .m-value.blue { color: var(--blue); }
+  .metric-item .m-value.purple { color: var(--purple); }
+  .metric-item .m-bar {
+    width: 40px; height: 3px; background: var(--border);
+    border-radius: 1px; overflow: hidden;
+  }
+  .metric-item .m-bar-fill { height: 100%; border-radius: 1px; }
+  .metric-logo {
+    font-family: var(--sans);
+    font-weight: 800; font-size: 12px;
+    color: var(--green);
+    padding-right: 16px;
+    letter-spacing: -0.3px;
+  }
+  .metric-spacer { flex: 1; }
+
+  /* Main Grid Layout */
+  .main-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 200px 1fr 280px;
+    grid-template-rows: 1fr 160px;
+    gap: 1px;
+    background: var(--border);
+    overflow: hidden;
+  }
+
+  /* Panel base */
+  .panel {
+    background: var(--bg-panel);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .panel-header {
+    padding: 8px 12px;
+    font-size: 10px; font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-3);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+    background: var(--bg-cell);
+  }
+  .panel-header .ph-tag {
+    font-size: 8px; padding: 1px 6px; border-radius: 3px;
+    font-weight: 600; text-transform: uppercase;
+  }
+  .panel-body { flex: 1; overflow-y: auto; padding: 8px; }
+
+  /* Left Nav Panel */
+  .nav-panel { grid-row: 1 / 3; }
+  .nav-section {
+    padding: 8px;
+  }
+  .nav-section-label {
+    font-size: 8px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1.2px; color: var(--text-3);
+    padding: 8px 8px 4px;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 8px; border-radius: 4px;
+    font-size: 11px; color: var(--text-2);
+    cursor: pointer; transition: all 0.1s;
+    margin-bottom: 1px;
+  }
+  .nav-item:hover { background: var(--bg-cell-hover); color: var(--text); }
+  .nav-item.active {
+    background: var(--green-dim); color: var(--green);
+    font-weight: 600;
+  }
+  .nav-item .ni-icon { font-size: 13px; width: 18px; text-align: center; }
+  .nav-item .ni-badge {
+    margin-left: auto; font-size: 9px;
+    background: var(--bg-cell); padding: 1px 5px;
+    border-radius: 3px; color: var(--text-3);
+    font-family: var(--mono);
+  }
+
+  /* Task Queue in nav */
+  .task-queue {
+    padding: 8px;
+    border-top: 1px solid var(--border);
+  }
+  .tq-item {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 6px; border-radius: 3px;
+    font-size: 10px; margin-bottom: 2px;
+    font-family: var(--mono);
+  }
+  .tq-item .tq-dot { width:5px;height:5px;border-radius:50%;flex-shrink:0; }
+  .tq-item .tq-name { flex:1; color:var(--text-2); }
+  .tq-item .tq-time { color:var(--text-3); font-size:9px; }
+
+  /* Center Workspace */
+  .workspace-panel { }
+  .ws-tabs {
+    display: flex; gap: 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-cell);
+    flex-shrink: 0;
+  }
+  .ws-tab {
+    padding: 7px 14px;
+    font-size: 10px; font-weight: 600;
+    color: var(--text-3);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.1s;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .ws-tab:hover { color: var(--text-2); background: var(--bg-cell-hover); }
+  .ws-tab.active { color: var(--green); border-bottom-color: var(--green); }
+
+  .ws-content { flex: 1; overflow-y: auto; padding: 12px; }
+
+  /* Upload Zone */
+  .ws-upload {
+    border: 1px dashed var(--border-bright);
+    border-radius: 6px;
+    padding: 32px 20px; text-align: center;
+    cursor: pointer; transition: all 0.15s;
+    background: var(--bg-cell);
+    margin-bottom: 12px;
+  }
+  .ws-upload:hover { border-color: var(--green); background: var(--green-dim); }
+  .ws-upload .wu-icon { font-size: 32px; margin-bottom: 10px; opacity: 0.4; }
+  .ws-upload h3 { font-size: 13px; font-weight: 600; margin-bottom: 4px; color: var(--text-2); }
+  .ws-upload p { font-size: 10px; color: var(--text-3); line-height: 1.5; }
+
+  /* Data Table Style */
+  .data-grid {
+    display: grid;
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+  .data-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+  .data-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .data-grid.cols-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+  .dg-cell {
+    background: var(--bg-cell);
+    padding: 8px 10px;
+    font-size: 10.5px;
+  }
+  .dg-cell.header {
+    background: var(--bg-panel);
+    font-size: 9px; font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-3);
+  }
+  .dg-cell .dg-label { color: var(--text-3); font-size: 9px; margin-bottom: 2px; }
+  .dg-cell .dg-value { font-weight: 600; font-family: var(--mono); font-size: 11px; }
+  .dg-cell .dg-value.green { color: var(--green); }
+  .dg-cell .dg-value.amber { color: var(--amber); }
+  .dg-cell .dg-value.red { color: var(--red); }
+
+  /* Param Fields */
+  .param-block {
+    background: var(--bg-cell);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px;
+    margin-bottom: 8px;
+  }
+  .param-block-title {
+    font-size: 9px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--text-3);
+    margin-bottom: 8px; padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  .p-field { margin-bottom: 6px; }
+  .p-field:last-child { margin-bottom: 0; }
+  .p-field label {
+    font-size: 9px; color: var(--text-3); margin-bottom: 2px;
+    display: block; font-weight: 500; text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .p-field input, .p-field select {
+    width: 100%; height: 26px; padding: 0 8px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 3px; color: var(--text);
+    font-size: 11px; font-family: var(--mono);
+    outline: none;
+  }
+  .p-field input:focus, .p-field select:focus { border-color: var(--green); }
+  .p-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+  /* Right Metrics Panel */
+  .metrics-panel { }
+  .metric-card {
+    background: var(--bg-cell);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px;
+    margin-bottom: 6px;
+  }
+  .mc-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .mc-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-3); }
+  .mc-badge { font-size: 8px; padding: 1px 5px; border-radius: 3px; font-weight: 600; }
+  .mc-badge.ok { background: var(--green-dim); color: var(--green); }
+  .mc-badge.warn { background: var(--amber-dim); color: var(--amber); }
+  .mc-badge.err { background: var(--red-dim); color: var(--red); }
+  .mc-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 3px 0; font-size: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .mc-row:last-child { border-bottom: none; }
+  .mc-row .mc-l { color: var(--text-3); font-family: var(--mono); font-size: 9px; }
+  .mc-row .mc-v { font-weight: 600; font-family: var(--mono); font-size: 10px; }
+  .mc-bar {
+    width: 100%; height: 4px; background: var(--border);
+    border-radius: 2px; margin-top: 6px; overflow: hidden;
+  }
+  .mc-bar-fill { height: 100%; border-radius: 2px; }
+  .mc-sparkline {
+    width: 100%; height: 24px; margin-top: 6px;
+    display: flex; align-items: flex-end; gap: 1px;
+  }
+  .mc-sparkline .sp-bar {
+    flex: 1; background: var(--green); border-radius: 1px 1px 0 0;
+    min-height: 2px; opacity: 0.6;
+  }
+
+  /* Bottom Console Panel */
+  .console-panel { grid-column: 2 / 4; }
+  .console-body {
+    font-family: var(--mono);
+    font-size: 10px;
+    line-height: 1.6;
+    color: var(--text-3);
+    padding: 8px 12px;
+    overflow-y: auto;
+    flex: 1;
+  }
+  .console-body .log-line { margin-bottom: 2px; }
+  .console-body .log-time { color: var(--text-3); }
+  .console-body .log-info { color: var(--blue); }
+  .console-body .log-warn { color: var(--amber); }
+  .console-body .log-ok { color: var(--green); }
+  .console-body .log-err { color: var(--red); }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+    padding: 6px 12px; border-radius: 3px;
+    font-size: 10px; font-weight: 700; cursor: pointer;
+    border: none; transition: all 0.1s; font-family: var(--sans);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .btn-go { background: var(--green); color: #000; }
+  .btn-go:hover { filter: brightness(1.15); }
+  .btn-dim { background: var(--bg-cell); color: var(--text-2); border: 1px solid var(--border); }
+  .btn-dim:hover { background: var(--bg-cell-hover); color: var(--text); }
+  .btn-block { width: 100%; }
+
+  /* Page content areas */
+  .page-view { display: none; }
+  .page-view.active { display: block; }
+
+  /* Responsive */
+  @media (max-width: 1200px) {
+    .main-grid { grid-template-columns: 180px 1fr 240px; }
+  }
+  @media (max-width: 992px) {
+    .main-grid {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto;
+    }
+    .nav-panel, .metrics-panel { display: none; }
+    .console-panel { grid-column: 1; }
+  }
+  @media (max-width: 768px) {
+    .metrics-bar { font-size: 9px; }
+    .metric-item { padding: 0 8px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Top Metrics Bar -->
+<div class="metrics-bar">
+  <div class="metric-logo">SEEDVR2</div>
+  <div class="metric-item">
+    <span class="m-label">GPU</span>
+    <span class="m-value red">N/A</span>
+  </div>
+  <div class="metric-item">
+    <span class="m-label">VRAM</span>
+    <span class="m-value red">--</span>
+  </div>
+  <div class="metric-item">
+    <span class="m-label">MEM</span>
+    <div class="m-bar"><div class="m-bar-fill" style="width:69%;background:var(--amber);"></div></div>
+    <span class="m-value amber">69.2%</span>
+  </div>
+  <div class="metric-item">
+    <span class="m-label">MODEL</span>
+    <span class="m-value" style="color:var(--text-3);">IDLE</span>
+  </div>
+  <div class="metric-item">
+    <span class="m-label">TASKS</span>
+    <span class="m-value green">0</span>
+  </div>
+  <div class="metric-item">
+    <span class="m-label">UPTIME</span>
+    <span class="m-value blue">00:37:30</span>
+  </div>
+  <div class="metric-item">
+    <span class="m-label">PYTHON</span>
+    <span class="m-value">3.12.10</span>
+  </div>
+  <div class="metric-spacer"></div>
+  <div class="metric-item" style="border-right:none;">
+    <span class="m-value green">●</span>
+    <span class="m-value" style="color:var(--text-2);">RUNNING</span>
+  </div>
+</div>
+
+<!-- Main Grid -->
+<div class="main-grid">
+
+  <!-- Left: Navigation -->
+  <div class="panel nav-panel">
+    <div class="panel-header">
+      <span>Navigation</span>
+      <span class="ph-tag" style="background:var(--green-dim);color:var(--green);">LIVE</span>
+    </div>
+    <div class="panel-body" style="padding:4px 0;">
+      <div class="nav-section-label">Workspaces</div>
+      <div class="nav-section">
+        <div class="nav-item active" onclick="switchView('restore', this)">
+          <span class="ni-icon">⚡</span> 修复
+          <span class="ni-badge">ALT+1</span>
+        </div>
+        <div class="nav-item" onclick="switchView('home', this)">
+          <span class="ni-icon">🏠</span> 首页
+          <span class="ni-badge">ALT+2</span>
+        </div>
+        <div class="nav-item" onclick="switchView('history', this)">
+          <span class="ni-icon">🕐</span> 历史记录
+          <span class="ni-badge">0</span>
+        </div>
+      </div>
+      <div class="nav-section-label">System</div>
+      <div class="nav-section">
+        <div class="nav-item" onclick="switchView('status', this)">
+          <span class="ni-icon">📊</span> 系统状态
+        </div>
+        <div class="nav-item" onclick="switchView('settings', this)">
+          <span class="ni-icon">⚙️</span> 设置
+        </div>
+      </div>
+    </div>
+    <div class="task-queue">
+      <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-3);margin-bottom:6px;">Task Queue</div>
+      <div style="font-size:10px;color:var(--text-3);text-align:center;padding:8px 0;">No active tasks</div>
+    </div>
+  </div>
+
+  <!-- Center: Workspace -->
+  <div class="panel workspace-panel">
+    <div class="ws-tabs">
+      <div class="ws-tab active" onclick="switchTab(this,'upload')">Upload</div>
+      <div class="ws-tab" onclick="switchTab(this,'params')">Parameters</div>
+      <div class="ws-tab" onclick="switchTab(this,'preview')">Preview</div>
+      <div class="ws-tab" onclick="switchTab(this,'log')">Output Log</div>
+    </div>
+    <div class="ws-content">
+
+      <!-- Upload Tab -->
+      <div class="page-view active" id="tab-upload">
+        <div class="ws-upload">
+          <div class="wu-icon"></div>
+          <h3>DRAG & DROP FILES HERE</h3>
+          <p>PNG / JPG / BMP / WEBP · MP4 / AVI / MOV / MKV<br>SeedVR2 will auto-detect file type and process accordingly</p>
+        </div>
+        <div class="data-grid cols-2">
+          <div class="dg-cell header">Input Source</div>
+          <div class="dg-cell header">Status</div>
+          <div class="dg-cell">
+            <div class="dg-label">FOLDER PATH</div>
+            <div class="dg-value">C:\Users\HONOR\Seedvr2\inputs</div>
+          </div>
+          <div class="dg-cell">
+            <div class="dg-label">GPU STATUS</div>
+            <div class="dg-value red">NOT DETECTED</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:8px;">
+          <button class="btn btn-go btn-block">▶ EXECUTE RESTORE</button>
+          <button class="btn btn-dim">BATCH</button>
+          <button class="btn btn-dim">RESET</button>
+        </div>
+      </div>
+
+      <!-- Params Tab -->
+      <div class="page-view" id="tab-params">
+        <div class="param-block">
+          <div class="param-block-title">Model Configuration</div>
+          <div class="p-row-2">
+            <div class="p-field">
+              <label>MODEL</label>
+              <select><option>3B FP16</option><option>7B FP16</option><option>7B SHARP</option></select>
+            </div>
+            <div class="p-field">
+              <label>SEED</label>
+              <input value="1373201197" type="number">
+            </div>
+          </div>
+        </div>
+        <div class="param-block">
+          <div class="param-block-title">Output Settings</div>
+          <div class="p-row-2">
+            <div class="p-field">
+              <label>OUTPUT RES</label>
+              <input value="2160" type="number">
+            </div>
+            <div class="p-field">
+              <label>MAX RES</label>
+              <input value="0" type="number">
+            </div>
+          </div>
+        </div>
+        <div class="param-block">
+          <div class="param-block-title">Advanced Parameters</div>
+          <div class="p-row-2">
+            <div class="p-field">
+              <label>ATTENTION MODE</label>
+              <select><option>SDPA</option><option>xFormers</option></select>
+            </div>
+            <div class="p-field">
+              <label>BATCH SIZE</label>
+              <input value="1" type="number">
+            </div>
+          </div>
+          <div class="p-row-2">
+            <div class="p-field">
+              <label>TILE ENCODE</label>
+              <input value="512" type="number">
+            </div>
+            <div class="p-field">
+              <label>TILE DECODE</label>
+              <input value="512" type="number">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Preview Tab -->
+      <div class="page-view" id="tab-preview">
+        <div style="text-align:center;padding:48px 20px;color:var(--text-3);">
+          <div style="font-size:40px;margin-bottom:12px;opacity:0.3;">️</div>
+          <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-bottom:4px;">No Preview Available</div>
+          <div style="font-size:10px;">Upload a file to see before/after comparison</div>
+        </div>
+      </div>
+
+      <!-- Log Tab -->
+      <div class="page-view" id="tab-log">
+        <div style="font-family:var(--mono);font-size:10px;line-height:1.8;color:var(--text-3);">
+          <div><span class="log-time">[00:02:47]</span> <span class="log-info">INFO</span> Application started on 127.0.0.1:7870</div>
+          <div><span class="log-time">[00:02:47]</span> <span class="log-info">INFO</span> Loading configuration from config.yaml</div>
+          <div><span class="log-time">[00:02:48]</span> <span class="log-warn">WARN</span> No NVIDIA GPU detected - CUDA inference unavailable</div>
+          <div><span class="log-time">[00:02:48]</span> <span class="log-info">INFO</span> Model manager initialized: 3B, 7B, 7B_SHARP</div>
+          <div><span class="log-time">[00:02:49]</span> <span class="log-info">INFO</span> Database initialized: history.db</div>
+          <div><span class="log-time">[00:02:49]</span> <span class="log-ok">OK</span> Task queue worker started (single-thread)</div>
+          <div><span class="log-time">[00:02:50]</span> <span class="log-info">INFO</span> i18n loaded: zh, en, ja, fr</div>
+          <div><span class="log-time">[00:02:50]</span> <span class="log-ok">OK</span> Server ready. Waiting for connections...</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Right: Live Metrics -->
+  <div class="panel metrics-panel">
+    <div class="panel-header">
+      <span>Live Metrics</span>
+      <span class="ph-tag" style="background:var(--green-dim);color:var(--green);">REAL-TIME</span>
+    </div>
+    <div class="panel-body">
+      <!-- GPU -->
+      <div class="metric-card">
+        <div class="mc-header">
+          <span class="mc-title">GPU</span>
+          <span class="mc-badge err">UNAVAILABLE</span>
+        </div>
+        <div class="mc-row"><span class="mc-l">DEVICE</span><span class="mc-v" style="color:var(--red);">NOT FOUND</span></div>
+        <div class="mc-row"><span class="mc-l">VRAM</span><span class="mc-v">--</span></div>
+        <div class="mc-row"><span class="mc-l">UTIL</span><span class="mc-v">--</span></div>
+        <div class="mc-row"><span class="mc-l">TEMP</span><span class="mc-v">--</span></div>
+        <div class="mc-row"><span class="mc-l">CUDA</span><span class="mc-v">--</span></div>
+      </div>
+
+      <!-- Memory -->
+      <div class="metric-card">
+        <div class="mc-header">
+          <span class="mc-title">SYSTEM MEMORY</span>
+          <span class="mc-badge warn">69.2%</span>
+        </div>
+        <div class="mc-row"><span class="mc-l">TOTAL</span><span class="mc-v">15.47 GB</span></div>
+        <div class="mc-row"><span class="mc-l">USED</span><span class="mc-v amber">10.71 GB</span></div>
+        <div class="mc-row"><span class="mc-l">FREE</span><span class="mc-v">4.76 GB</span></div>
+        <div class="mc-bar"><div class="mc-bar-fill" style="width:69%;background:var(--amber);"></div></div>
+        <div class="mc-sparkline">
+          <div class="sp-bar" style="height:60%;background:var(--amber);"></div>
+          <div class="sp-bar" style="height:62%;background:var(--amber);"></div>
+          <div class="sp-bar" style="height:58%;background:var(--amber);"></div>
+          <div class="sp-bar" style="height:65%;background:var(--amber);"></div>
+          <div class="sp-bar" style="height:63%;background:var(--amber);"></div>
+          <div class="sp-bar" style="height:67%;background:var(--amber);"></div>
+          <div class="sp-bar" style="height:69%;background:var(--amber);"></div>
+          <div class="sp-bar" style="height:66%;background:var(--amber);"></div>
+          <div class="sp-bar" style="height:70%;background:var(--amber);"></div>
+          <div class="sp-bar" style="height:68%;background:var(--amber);"></div>
+          <div class="sp-bar" style="height:71%;background:var(--amber);"></div>
+          <div class="sp-bar" style="height:69%;background:var(--amber);"></div>
+        </div>
+      </div>
+
+      <!-- Model -->
+      <div class="metric-card">
+        <div class="mc-header">
+          <span class="mc-title">MODEL</span>
+          <span class="mc-badge" style="background:var(--blue-dim);color:var(--blue);">IDLE</span>
+        </div>
+        <div class="mc-row"><span class="mc-l">LOADED</span><span class="mc-v">NONE</span></div>
+        <div class="mc-row"><span class="mc-l">AVAILABLE</span><span class="mc-v">3B 7B 7B_S</span></div>
+        <div class="mc-row"><span class="mc-l">VRAM USE</span><span class="mc-v">--</span></div>
+        <div class="mc-row"><span class="mc-l">LOAD TIME</span><span class="mc-v">--</span></div>
+      </div>
+
+      <!-- Runtime -->
+      <div class="metric-card">
+        <div class="mc-header">
+          <span class="mc-title">RUNTIME</span>
+          <span class="mc-badge ok">HEALTHY</span>
+        </div>
+        <div class="mc-row"><span class="mc-l">UPTIME</span><span class="mc-v green">37m 30s</span></div>
+        <div class="mc-row"><span class="mc-l">PLATFORM</span><span class="mc-v" style="font-size:8px;">WIN11-26200</span></div>
+        <div class="mc-row"><span class="mc-l">PYTHON</span><span class="mc-v">3.12.10</span></div>
+        <div class="mc-row"><span class="mc-l">CPU CORES</span><span class="mc-v">18</span></div>
+        <div class="mc-row"><span class="mc-l">SERVICE</span><span class="mc-v green">● ACTIVE</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom: Console -->
+  <div class="panel console-panel">
+    <div class="panel-header">
+      <span>Console Output</span>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <span style="font-size:9px;color:var(--text-3);font-family:var(--mono);">8 lines</span>
+        <button class="btn btn-dim" style="padding:2px 8px;font-size:8px;">CLEAR</button>
+      </div>
+    </div>
+    <div class="console-body">
+      <div class="log-line"><span class="log-time">[00:02:47]</span> <span class="log-info">INFO</span> Application started on 127.0.0.1:7870</div>
+      <div class="log-line"><span class="log-time">[00:02:47]</span> <span class="log-info">INFO</span> Loading configuration from config.yaml</div>
+      <div class="log-line"><span class="log-time">[00:02:48]</span> <span class="log-warn">WARN</span> No NVIDIA GPU detected - CUDA inference unavailable</div>
+      <div class="log-line"><span class="log-time">[00:02:48]</span> <span class="log-info">INFO</span> Model manager initialized: 3B, 7B, 7B_SHARP</div>
+      <div class="log-line"><span class="log-time">[00:02:49]</span> <span class="log-info">INFO</span> Database initialized: history.db</div>
+      <div class="log-line"><span class="log-time">[00:02:49]</span> <span class="log-ok">OK</span> Task queue worker started (single-thread)</div>
+      <div class="log-line"><span class="log-time">[00:02:50]</span> <span class="log-info">INFO</span> i18n loaded: zh, en, ja, fr</div>
+      <div class="log-line"><span class="log-time">[00:02:50]</span> <span class="log-ok">OK</span> Server ready. Waiting for connections...</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  function switchView(view, el) {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    el.classList.add('active');
+    // For this prototype, we just highlight the nav item
+    // In a real app, this would switch the workspace content
+  }
+  function switchTab(el, tabId) {
+    document.querySelectorAll('.ws-tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    document.querySelectorAll('.page-view').forEach(p => p.classList.remove('active'));
+    document.getElementById('tab-' + tabId).classList.add('active');
+  }
+</script>
+</body>
+</html>
