@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeedVR2 配色方案选择器</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:#f4f5f7;color:#1a1a1a;line-height:1.6}
+.sp{background:#18181b;border-bottom:1px solid #2a2a2e;padding:14px 20px 10px;position:sticky;top:0;z-index:200}
+.sp-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.sp-t{font-size:.95rem;font-weight:700;color:#e4e4e7}.sp-t b{color:#818cf8}
+.sp-s{font-size:.68rem;color:#71717a}
+.mt{display:flex;background:#09090b;border:1px solid #27272a;border-radius:18px;padding:3px;cursor:pointer}
+.ml{font-size:.7rem;font-weight:500;padding:4px 10px;border-radius:14px;color:#71717a;display:flex;align-items:center;gap:4px;transition:all .2s}
+.ml.on{background:#818cf8;color:#fff}.mt svg{width:12px;height:12px}
+.sp-f{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px}
+.fb{font-size:.65rem;padding:3px 8px;border-radius:10px;border:1px solid #27272a;background:#09090b;color:#a1a1aa;cursor:pointer;transition:all .15s}
+.fb:hover{border-color:#52525b;color:#e4e4e7}.fb.on{background:#818cf8;color:#fff;border-color:#818cf8}
+.sg{display:grid;grid-template-columns:repeat(auto-fill,minmax(152px,1fr));gap:5px}
+.so{padding:7px 9px;border-radius:7px;border:2px solid #27272a;background:#18181b;cursor:pointer;transition:all .15s;position:relative}
+.so:hover{border-color:#3f3f46;transform:translateY(-1px)}
+.so.on{border-color:#818cf8;box-shadow:0 0 0 2px rgba(129,140,248,.15)}
+.so-n{font-size:.74rem;font-weight:600;color:#e4e4e7;margin-bottom:1px}
+.so-o{font-size:.55rem;color:#71717a;font-family:monospace;margin-bottom:2px}
+.so-tags{display:flex;gap:2px;margin-bottom:3px}
+.st{font-size:.5rem;padding:1px 4px;border-radius:2px;font-weight:500}
+.st-cat{background:#27272a;color:#a1a1aa}.st-h{background:rgba(129,140,248,.15);color:#818cf8}
+.so-sw{display:flex;gap:2px}.sw{width:15px;height:15px;border-radius:3px;border:1px solid rgba(255,255,255,.1)}
+.ab{display:none;position:absolute;top:4px;right:4px;width:13px;height:13px;border-radius:50%;background:#818cf8;color:#fff;font-size:7px;align-items:center;justify-content:center;font-weight:700}
+.so.on .ab{display:flex}
+
+/* ===== PREVIEW - all vars scoped to #pv ===== */
+#pv{min-height:600px;transition:all .35s}
+.pv-nav{padding:0 24px;height:46px;display:flex;align-items:center;justify-content:space-between;transition:all .35s}
+.pv-brand{display:flex;align-items:center;gap:8px;text-decoration:none}
+.pv-bi{width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700;transition:all .35s}
+.pv-bt{font-size:.92rem;font-weight:700;transition:color .35s}
+.pv-lk{display:flex;gap:1px}
+.pv-la{padding:5px 9px;border-radius:4px;border:none;background:0 0;font-size:.74rem;cursor:pointer;display:flex;align-items:center;gap:3px;font-family:inherit;transition:all .15s}
+.pv-la.on{font-weight:600}
+.pv-la i{font-size:.88rem}
+.pv-ab{width:28px;height:28px;border-radius:5px;border:1.5px solid;cursor:pointer;font-size:.82rem;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.pv-m{max-width:1060px;margin:0 auto;padding:16px 20px}
+.pv-bn{color:#fff;padding:16px 20px;border-radius:10px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;position:relative;overflow:hidden;transition:all .35s}
+.pv-bn::after{content:'';position:absolute;top:-50%;right:-8%;width:140px;height:140px;border-radius:50%;background:rgba(255,255,255,.1);pointer-events:none}
+.pv-bn h2{font-size:.9rem;font-weight:600;margin-bottom:1px}.pv-bn p{font-size:.68rem;opacity:.85}
+.pv-bs{display:flex;gap:6px;z-index:1}.pv-bsd{text-align:center}.pv-bsdot{width:32px;height:32px;border-radius:6px;border:2px solid rgba(255,255,255,.35);margin-bottom:2px;transition:all .3s}.pv-bsx{font-size:.5rem;opacity:.85;font-family:monospace}
+.pv-h{text-align:center;padding:22px 14px 18px;margin-bottom:14px;border-radius:10px;transition:all .35s}
+.pv-h h1{font-size:1.3rem;font-weight:700;margin-bottom:3px}
+.pv-h p{font-size:.78rem;margin-bottom:8px}
+.pv-hs{display:flex;align-items:center;justify-content:center;gap:6px;font-size:.7rem}
+.pv-dot{width:6px;height:6px;border-radius:50%;background:#22c55e}
+.pv-cards{display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:10px;margin-bottom:14px}
+.pv-c{border-radius:10px;padding:16px 14px;cursor:pointer;transition:all .2s;position:relative;border:1.5px solid}
+.pv-c:hover{transform:translateY(-2px);box-shadow:0 5px 16px rgba(0,0,0,.08)}
+.pv-cb{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:1rem;margin-bottom:8px;transition:all .35s}
+.pv-ct{font-size:.84rem;font-weight:600;margin-bottom:2px}.pv-cd{font-size:.68rem;line-height:1.4}
+.pv-ca{position:absolute;top:14px;right:14px;transition:all .2s}
+.pv-ov{margin-bottom:14px}.pv-ovt{font-size:.82rem;font-weight:600;margin-bottom:8px}
+.pv-ovg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.pv-rc{border-radius:10px;padding:14px;display:flex;align-items:center;gap:12px;transition:all .35s;border:1.5px solid}
+.pv-rw{position:relative;width:58px;height:58px;flex-shrink:0}
+.pv-rs{width:58px;height:58px;transform:rotate(-90deg)}
+.pv-rbg{fill:none;stroke-width:5}
+.pv-rf{fill:none;stroke-width:5;stroke-linecap:round;stroke-dasharray:150.8;transition:stroke .35s}
+.pv-rt{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:.78rem;font-weight:700}
+.pv-ri h4{font-size:.74rem;font-weight:600;margin-bottom:1px}.pv-ri p{font-size:.64rem}
+.pv-ic{border-radius:10px;padding:10px 14px;transition:all .35s;border:1.5px solid}
+.pv-ich{display:flex;align-items:center;gap:5px;margin-bottom:3px}
+.pv-ici{width:22px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:.72rem}
+.pv-icl{font-size:.64rem}.pv-icv{font-size:.78rem;font-weight:600}
+.pv-sb{border-top:1px solid;padding:0 24px;height:28px;display:flex;align-items:center;justify-content:space-between;font-size:.64rem;transition:all .35s}
+.pv-sbl,.pv-sbr{display:flex;align-items:center;gap:8px}
+.pv-dot2{width:4px;height:4px;border-radius:50%;background:#22c55e}
+
+@media(max-width:900px){.pv-cards{grid-template-columns:1fr}.pv-ovg{grid-template-columns:1fr 1fr}.pv-lk{display:none}.sg{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}}
+@media(max-width:600px){.pv-ovg{grid-template-columns:1fr}.sg{grid-template-columns:repeat(3,1fr)}.mt{display:none}.pv-bs{display:none}}
+</style>
+</head>
+<body>
+
+<div class="sp">
+<div class="sp-h"><div><div class="sp-t"><b>SeedVR2</b> 配色方案</div><div class="sp-s">跨色系搭配 · 全部颜色源自中国传统色</div></div>
+<div class="mt" id="mt"><div class="ml on" id="mL"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/></svg> 亮</div><div class="ml" id="mD"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg> 暗</div></div>
+</div>
+<div class="sp-f" id="filters"></div>
+<div class="sg" id="grid"></div>
+</div>
+
+<div id="pv">
+<nav class="pv-nav">
+<a class="pv-brand" href="#"><div class="pv-bi" id="pvBi">S</div><div class="pv-bt" id="pvBt">Seed<b>VR2</b></div></a>
+<div class="pv-lk">
+<button class="pv-la on" id="nav0"><i class="bi bi-house-door"></i>首页</button>
+<button class="pv-la" id="nav1"><i class="bi bi-lightning-charge"></i>修复</button>
+<button class="pv-la" id="nav2"><i class="bi bi-clock-history"></i>历史</button>
+<button class="pv-la" id="nav3"><i class="bi bi-cpu"></i>系统</button>
+<button class="pv-la" id="nav4"><i class="bi bi-gear"></i>设置</button>
+</div>
+<div style="display:flex;gap:5px"><button class="pv-ab" id="ab1"><i class="bi bi-moon"></i></button><button class="pv-ab" id="ab2"><i class="bi bi-translate"></i></button></div>
+</nav>
+<main class="pv-m">
+<div class="pv-bn" id="bn"><div><h2 id="bT">—</h2><p id="bS">—</p></div><div class="pv-bs" id="bW"></div></div>
+<div class="pv-h" id="hero"><h1>SeedVR2 视频/图像修复</h1><p>基于 AI 的高质量视频与图像修复工具箱</p><div class="pv-hs"><div class="pv-dot"></div><span>NVIDIA RTX 4060</span><span id="hSep">·</span><span id="hModel">模型: SeedVR2-4B (已加载)</span></div></div>
+<div class="pv-cards">
+<div class="pv-c" id="card1"><div class="pv-cb" id="cb1"><i class="bi bi-lightning-charge"></i></div><div class="pv-ct" id="ct1">开始修复</div><div class="pv-cd" id="cd1">上传视频或图片，AI 超分辨率修复</div><div class="pv-ca" id="ca1"><i class="bi bi-arrow-right"></i></div></div>
+<div class="pv-c" id="card2"><div class="pv-cb" id="cb2"><i class="bi bi-cpu"></i></div><div class="pv-ct" id="ct2">系统状态</div><div class="pv-cd" id="cd2">GPU / 内存 / 模型</div><div class="pv-ca" id="ca2"><i class="bi bi-arrow-right"></i></div></div>
+<div class="pv-c" id="card3"><div class="pv-cb" id="cb3"><i class="bi bi-clock-history"></i></div><div class="pv-ct" id="ct3">历史记录</div><div class="pv-cd" id="cd3">管理修复任务</div><div class="pv-ca" id="ca3"><i class="bi bi-arrow-right"></i></div></div>
+</div>
+<div class="pv-ov"><div class="pv-ovt">系统状态</div><div class="pv-ovg">
+<div class="pv-rc" id="rc1"><div class="pv-rw"><svg class="pv-rs" viewBox="0 0 72 72"><circle class="pv-rbg" id="rbg1" cx="36" cy="36" r="24"/><circle class="pv-rf" id="r1" cx="36" cy="36" r="24"/></svg><div class="pv-rt" id="p1">45%</div></div><div class="pv-ri" id="ri1"><h4>GPU</h4><p>6.2 / 12 GB</p></div></div>
+<div class="pv-rc" id="rc2"><div class="pv-rw"><svg class="pv-rs" viewBox="0 0 72 72"><circle class="pv-rbg" id="rbg2" cx="36" cy="36" r="24"/><circle class="pv-rf" id="r2" cx="36" cy="36" r="24"/></svg><div class="pv-rt" id="p2">50%</div></div><div class="pv-ri" id="ri2"><h4>内存</h4><p>16.2 / 32 GB</p></div></div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<div class="pv-ic" id="ic1"><div class="pv-ich"><div class="pv-ici" id="ici1"><i class="bi bi-cpu"></i></div><span class="pv-icl">模型</span></div><div class="pv-icv">SeedVR2-4B</div></div>
+<div class="pv-ic" id="ic2"><div class="pv-ich"><div class="pv-ici" id="ici2"><i class="bi bi-clock"></i></div><span class="pv-icl">运行</span></div><div class="pv-icv">2h 35m</div></div>
+<div class="pv-ic" id="ic3"><div class="pv-ich"><div class="pv-ici" id="ici3"><i class="bi bi-list-task"></i></div><span class="pv-icl">任务</span></div><div class="pv-icv">3 个操作</div></div>
+</div></div></div>
+</main>
+<div class="pv-sb" id="sb"><div class="pv-sbl"><div class="pv-dot2"></div><span>SeedVR2 v1.0</span><span id="sbM">模型: SeedVR2-4B</span></div><div class="pv-sbr"><span id="sbG">GPU: RTX 4060</span><span id="clk">--:--</span></div></div>
+</div>
+
+<script>
+// ==================== 24 THEMES ====================
+const T=[
+['暮紫苍穹','暮山紫','#5D4A7C','紫×蓝','类似色调和','暮山紫的深沉与钴蓝的冷冽相融。','#0047AB','#6495ED','#4A766E'],
+['丁香蔷薇','丁香紫','#C9ACE6','紫×粉','类似色调和','丁香紫的清新与蔷薇粉的娇艳层叠。','#F2C1C6','#F2B2C6','#8E7CC3'],
+['紫焰流金','菖蒲紫','#6A5ACD','紫×橙','分裂互补','菖蒲紫与珊瑚橙的戏剧性对比，暗金点缀。','#FF7F50','#FFD429','#5D4A7C'],
+['天青如玉','天青色','#56CCF2','蓝×绿','类似色调和','天青色与竹青的自然相接。','#789262','#5F9EA0','#FFBF00'],
+['钴蓝秋阳','钴蓝','#0047AB','蓝×黄','互补','钴蓝深邃与金盏黄的冷暖对比。','#F5CD2F','#4682B4','#DAA520'],
+['月白深蓝','月白','#D0E8FF','蓝×中性','近单色','月白洁净与钢蓝沉稳的极简科技。','#4682B4','#87CEEB','#6D7275'],
+['竹青大地','竹青','#789262','绿×棕','类似色调和','竹青苔绿与赤陶焦糖的大地色。','#8B4513','#556B2F','#CC7722'],
+['祖母暗金','祖母绿','#00A86B','绿×金','互补','祖母绿与暗金的古典华贵。','#B8860B','#3CB371','#DAA520'],
+['铜绿幽紫','铜绿','#4A766E','绿×紫','分裂互补','铜绿与暮山紫在灰调中相融。','#5D4A7C','#92A8A0','#967BB6'],
+['枫蓝对撞','枫叶红','#E44D2E','红×蓝','互补','枫叶红与道奇蓝的最强视觉张力。','#1E90FF','#F88379','#2A52BE'],
+['丹砂暗金','丹砂','#FF0800','红×金','互补','丹砂红与暗金的中国宫廷配色。','#B8860B','#E8372E','#FFD429'],
+['朱砂竹青','故宫红','#9B1B30','红×绿','分裂互补','故宫红与竹青的古典对撞。','#789262','#C62328','#556B2F'],
+['暗金菖蒲','暗金','#B8860B','黄×紫','互补','暗金与菖蒲紫的极致对比。','#6A5ACD','#DAA520','#8E7CC3'],
+['金盏苍翠','金盏黄','#F5CD2F','黄×绿','类似色调和','金盏黄与艾绿的丰收自然。','#B4CBA4','#FFD700','#BCB88A'],
+['芥末赤陶','芥末黄','#D99A1A','黄×棕','类似色调和','芥末黄到赤陶的暖色渐变。','#CC7722','#C19A49','#8B4513'],
+['海棠碧波','海棠红','#E8A8B0','粉×蓝','互补','海棠红柔美与天青色清透。','#56CCF2','#F2C1C6','#89CFF0'],
+['杨妃紫影','杨妃色','#F2B2C6','粉×紫','类似色调和','杨妃色与菖蒲紫的浪漫层叠。','#6A5ACD','#E8A8B0','#967BB6'],
+['蔷薇暗金','蔷薇粉','#F2C1C6','粉×金','互补','蔷薇粉温柔与暗金华丽的对比。','#B8860B','#F2B2C6','#DAA520'],
+['珊瑚竹青','珊瑚橙','#FF7F50','橙×绿','分裂互补','珊瑚橙温暖与竹青清雅平衡。','#789262','#FF8C42','#556B2F'],
+['赤陶碧海','赤陶','#CC7722','橙×蓝','互补','赤陶泥土暖调与钢蓝天空冷调互补。','#4682B4','#AF6E4D','#87CEEB'],
+['葡萄暖橙','葡萄紫','#6F2DA8','橙×紫','互补','葡萄紫浓郁与珊瑚橙热烈。','#FF7F50','#8B45C0','#B8860B'],
+['莫兰迪紫','莫兰迪灰','#B8B5A8','中性×紫','近单色','莫兰迪灰克制与堇紫微妙变化。','#967BB6','#C4BBAF','#5D4A7C'],
+['铅灰碧空','铅灰','#6D7275','中性×蓝','类似色调和','铅灰工业感与钢蓝天空调相融。','#4682B4','#808080','#56CCF2'],
+['岩灰苔藓','岩灰','#938A7F','中性×绿','类似色调和','岩灰质朴与苔绿深沉相融。','#556B2F','#6D7275','#4A766E'],
+];
+
+// ==================== HELPERS ====================
+const h2r=h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
+const r2h=(r,g,b)=>'#'+[r,g,b].map(v=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0')).join('');
+const mix=(h1,h2,t)=>{const[a,b,c]=h2r(h1),[d,e,f]=h2r(h2);return r2h(a+(d-a)*t,b+(e-b)*t,c+(f-c)*t)};
+const L=h=>{const[r,g,b]=h2r(h);return(.299*r+.587*g+.114*b)/255};
+const dk=(h,p)=>{const[r,g,b]=h2r(h);return r2h(r*(1-p),g*(1-p),b*(1-p))};
+const li=(h,p)=>{const[r,g,b]=h2r(h);return r2h(r+(255-r)*p,g+(255-g)*p,b+(255-b)*p)};
+const rgba=(h,a)=>{const[r,g,b]=h2r(h);return`rgba(${r},${g},${b},${a})`};
+const clamp01=v=>Math.max(0,Math.min(1,v));
+
+function bestTextColor(bgColor){
+  const L2=L(bgColor);
+  return L2>.4?'#111111':'#f0f0f0';
+}
+
+const CATEGORIES=['全部','紫','蓝','绿','红','黄','粉','橙','中性'];
+const themes=T.map(t=>({name:t[0],originName:t[1],primary:t[2],cat:t[3],harmony:t[4],theory:t[5],secondary:t[6],accent:t[7],complementary:t[8]}));
+
+function getCat(t){return t.cat.split('×')[0]}
+
+// ==================== THEME GENERATION ====================
+function genTheme(p,s,a,c,mode){
+  const dark=mode==='dark';
+
+  // === Dark mode ===
+  if(dark){
+    // Background: primary tinted into near-black. The more saturated, the more tint.
+    const bg=mix(p,'#0c0c12',.88);  // ~12% primary shows through
+    // Surface: slightly lighter, clearly tinted
+    const sf=mix(p,'#15151e',.85);   // ~15% primary
+    const sfH=mix(p,'#1a1a24',.82);
+    const bd=mix(p,'#252530',.78);   // ~22% primary
+    // Text: pure white/light gray for maximum contrast
+    const tx1='#e8e8ec';
+    const tx2='#a0a0aa';
+    const tx3='#6a6a74';
+    // Primary for UI: darkened if needed
+    const pL=L(p);
+    const ip=pL>.50?dk(p,.25):p;
+    const ipD=dk(ip,.20),ipL=li(ip,.20);
+
+    return{
+      bg,sf,sfH,bd,
+      p:ip,pD:ipD,pL:ipL,
+      pBg:rgba(ip,.18),glow:rgba(ip,.30),
+      s,sBg:rgba(s,.18),
+      a,aBg:rgba(a,.15),
+      co:c,coBg:rgba(c,.12),
+      tx1,tx2,tx3,
+    };
+  }
+
+  // === Light mode ===
+  // Mirror of dark: dark mixes into black, light mixes into white
+  const bg=mix(p,'#f0f0f5',.88);   // 88% near-white + 12% primary = tinted bg
+  const sf=mix(p,'#f8f8fc',.85);   // 85% near-white + 15% primary
+  const sfH=mix(p,'#f4f4f9',.82);
+  const bd=mix(p,'#e0e0e8',.78);
+  // Text: pure dark for maximum contrast
+  const tx1='#181820';
+  const tx2='#585868';
+  const tx3='#888898';
+  // Primary
+  const pL=L(p);
+  const ip=pL>.50?dk(p,.25):p;
+  const ipD=dk(ip,.18),ipL=li(ip,.18);
+
+  return{
+    bg,sf,sfH,bd,
+    p:ip,pD:ipD,pL:ipL,
+    pBg:rgba(ip,.10),glow:rgba(ip,.20),
+    s,sBg:rgba(s,.10),
+    a,aBg:rgba(a,.10),
+    co:c,coBg:rgba(c,.08),
+    tx1,tx2,tx3,
+  };
+}
+
+// ==================== RENDER ====================
+function render(t,mode){
+  const th=genTheme(t.primary,t.secondary,t.accent,t.complementary,mode);
+  const pv=document.getElementById('pv');
+
+  // Apply ALL styles directly to elements
+  pv.style.background=th.bg;
+  pv.style.color=th.tx1;
+
+  // Nav
+  pv.querySelector('.pv-nav').style.background=th.sf;
+  pv.querySelector('.pv-nav').style.borderBottomColor=th.bd;
+
+  // Brand icon
+  document.getElementById('pvBi').style.background=th.p;
+  // Brand text
+  document.getElementById('pvBt').style.color=th.tx1;
+  document.getElementById('pvBt').querySelector('b').style.color=th.p;
+  // Nav links
+  for(let i=0;i<5;i++){
+    const el=document.getElementById('nav'+i);
+    el.style.color=i===0?th.p:th.tx2;
+    el.style.background=i===0?th.pBg:'transparent';
+    el.onmouseenter=()=>el.style.background=th.sfH;
+    el.onmouseleave=()=>el.style.background=i===0?th.pBg:'transparent';
+  }
+  // Action buttons
+  for(const id of['ab1','ab2']){
+    const el=document.getElementById(id);
+    el.style.border=th.bd+'80';
+    el.style.background=th.bg;
+    el.style.color=th.tx2;
+    el.onmouseenter=()=>{el.style.borderColor=th.pL;el.style.color=th.p};
+    el.onmouseleave=()=>{el.style.borderColor=th.bd+'80';el.style.color=th.tx2};
+  }
+
+  // Banner
+  const bn=document.getElementById('bn');
+  bn.style.background=`linear-gradient(135deg,${th.pD},${th.p},${th.s})`;
+  document.getElementById('bT').textContent=t.name+' · '+(mode==='light'?'亮色':'暗色');
+  document.getElementById('bS').textContent=t.cat+' · '+t.harmony;
+  document.getElementById('bW').innerHTML=[t.primary,t.secondary,t.accent,t.complementary].map(c=>
+    `<div class="pv-bsd"><div class="pv-bsdot" style="background:${c}"></div><div class="pv-bsx">${c}</div></div>`).join('');
+
+  // Hero
+  const hero=document.getElementById('hero');
+  hero.style.background=th.sf;
+  hero.style.borderColor=th.bd;
+  hero.style.color=th.tx1;
+  hero.querySelector('h1').style.color=th.tx1;
+  hero.querySelector('p').style.color=th.tx2;
+  document.getElementById('hSep').style.color=th.bd;
+  document.getElementById('hModel').style.color=th.p;
+  document.getElementById('hModel').innerHTML='模型: <b style="color:'+th.p+'">SeedVR2-4B (已加载)</b>';
+
+  // Bento Cards - EACH uses a different color
+  const cardDefs=[
+    {bg:th.pBg, border:th.p, cbBg:th.p, ct:th.tx1, cd:th.tx2, ca:th.p},     // Card 1: primary
+    {bg:th.sBg, border:th.s, cbBg:th.s, ct:th.tx1, cd:th.tx2, ca:th.s},     // Card 2: secondary
+    {bg:th.aBg, border:th.a, cbBg:th.a, ct:th.tx1, cd:th.tx2, ca:th.a},     // Card 3: accent
+  ];
+  for(let i=0;i<3;i++){
+    const d=cardDefs[i], el=document.getElementById('card'+(i+1));
+    el.style.background=d.bg;
+    el.style.borderColor=d.border+'40';
+    document.getElementById('cb'+(i+1)).style.background=d.cbBg;
+    document.getElementById('ct'+(i+1)).style.color=d.ct;
+    document.getElementById('cd'+(i+1)).style.color=d.cd;
+    document.getElementById('ca'+(i+1)).style.color=d.ca;
+  }
+
+  // Ring charts
+  const C=150.8;
+  document.getElementById('rbg1').setAttribute('stroke',th.bd);
+  document.getElementById('r1').setAttribute('stroke',th.p);
+  document.getElementById('r1').style.strokeDashoffset=C-C*.45;
+  document.getElementById('p1').style.color=th.p;
+  document.getElementById('ri1').style.color=th.tx1;
+  document.getElementById('ri1').querySelector('p').style.color=th.tx3;
+
+  document.getElementById('rbg2').setAttribute('stroke',th.bd);
+  document.getElementById('r2').setAttribute('stroke',th.s);
+  document.getElementById('r2').style.strokeDashoffset=C-C*.50;
+  document.getElementById('p2').style.color=th.s;
+  document.getElementById('ri2').style.color=th.tx1;
+  document.getElementById('ri2').querySelector('p').style.color=th.tx3;
+
+  // Info cards - each uses different color
+  const icDefs=[
+    {bg:th.pBg,bd:th.p+'40',iconBg:th.pBg,iconColor:th.p},
+    {bg:th.sBg,bd:th.s+'40',iconBg:th.sBg,iconColor:th.s},
+    {bg:th.coBg,bd:th.co+'40',iconBg:th.coBg,iconColor:th.co},
+  ];
+  for(let i=0;i<3;i++){
+    const d=icDefs[i], el=document.getElementById('ic'+(i+1));
+    el.style.background=d.bg;
+    el.style.borderColor=d.bd;
+    document.getElementById('ici'+(i+1)).style.background=d.iconBg;
+    document.getElementById('ici'+(i+1)).style.color=d.iconColor;
+    el.querySelector('.pv-icl').style.color=th.tx3;
+    el.querySelector('.pv-icv').style.color=th.tx1;
+  }
+
+  // Status ring cards
+  for(const id of['rc1','rc2']){
+    document.getElementById(id).style.background=th.sf;
+    document.getElementById(id).style.borderColor=th.bd;
+  }
+
+  // Status bar
+  const sb=document.getElementById('sb');
+  sb.style.background=th.sf;
+  sb.style.borderTopColor=th.bd;
+  sb.style.color=th.tx3;
+  sb.querySelector('.pv-dot2').style.background='#22c55e';
+  document.getElementById('sbM').style.color=th.p;
+  document.getElementById('sbG').style.color=th.p;
+
+  // Clock
+  const now=new Date();
+  document.getElementById('clk').textContent=now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0');
+}
+
+// ==================== STATE ====================
+let cur=0,mode='dark',filter='全部';
+
+const filtersEl=document.getElementById('filters');
+CATEGORIES.forEach(c=>{
+  const b=document.createElement('button');
+  b.className='fb'+(c==='全部'?' on':'');
+  b.textContent=c;
+  b.onclick=()=>{filter=c;document.querySelectorAll('.fb').forEach(x=>x.classList.remove('on'));b.classList.add('on');renderGrid()};
+  filtersEl.appendChild(b);
+});
+
+function renderGrid(){
+  const g=document.getElementById('grid');
+  g.innerHTML='';
+  const list=filter==='全部'?themes:themes.filter(t=>getCat(t)===filter);
+  list.forEach(t=>{
+    const idx=themes.indexOf(t);
+    const d=document.createElement('div');
+    d.className='so'+(idx===cur?' on':'');
+    d.innerHTML=`<div class="ab">✓</div><div class="so-n">${t.name}</div><div class="so-o">${t.originName} ${t.primary}</div>
+      <div class="so-tags"><span class="st st-cat">${t.cat}</span><span class="st st-h">${t.harmony}</span></div>
+      <div class="so-sw">${[t.primary,t.secondary,t.accent,t.complementary].map(c=>`<div class="sw" style="background:${c}"></div>`).join('')}</div>`;
+    d.onclick=()=>{cur=idx;render(themes[cur],mode);renderGrid()};
+    g.appendChild(d);
+  });
+}
+
+document.getElementById('mt').onclick=()=>{mode=mode==='dark'?'light':'dark';document.getElementById('mL').classList.toggle('on',mode==='light');document.getElementById('mD').classList.toggle('on',mode==='dark');render(themes[cur],mode)};
+renderGrid();
+render(themes[cur],mode);
+setInterval(()=>{const n=new Date();document.getElementById('clk').textContent=n.getHours().toString().padStart(2,'0')+':'+n.getMinutes().toString().padStart(2,'0')},60000);
+</script>
+</body>
+</html>

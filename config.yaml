@@ -1,0 +1,102 @@
+cache:
+  max_size_mb: 500
+  ttl: 86400
+gpu:
+  backend: auto
+  enable_fp16: true
+  memory_strategy: performance
+history:
+  db_path: data/history.db
+  max_records: 10000
+i18n:
+  available_locales:
+  - zh
+  - en
+  default_locale: zh
+inference:
+  blocks_to_swap: 32
+  distilled_mode: false
+  fp8_enabled: false
+  swap_io_components: true
+  vae_overlap: 512
+  vae_tile_size: 1024
+logging:
+  backup_count: 3
+  file: logs/app.log
+  level: INFO
+  max_size_mb: 50
+model:
+  auto_load: true
+  default_precision: auto
+  default_size: 3b
+  device: auto
+  models:
+    3b:
+      checkpoint_fp16: seedvr2_ema_3b_fp16.safetensors
+      checkpoint_fp8: seedvr2_ema_3b_fp8_e4m3fn.safetensors
+      config_dir: configs_3b
+      min_vram_fp16_gb: 16
+      min_vram_fp8_gb: 8
+      name: SeedVR2-3B
+      neg_emb: neg_emb.pt
+      num_blocks: 32
+      pos_emb: pos_emb.pt
+      vae_checkpoint: ema_vae_fp16.safetensors
+    7b:
+      checkpoint_fp16: seedvr2_ema_7b_fp16.safetensors
+      checkpoint_fp8: seedvr2_ema_7b_fp8_e4m3fn.safetensors
+      config_dir: configs_7b
+      min_vram_fp16_gb: 24
+      min_vram_fp8_gb: 12
+      name: SeedVR2-7B
+      neg_emb: neg_emb.pt
+      num_blocks: 36
+      pos_emb: pos_emb.pt
+      vae_checkpoint: ema_vae_fp16.safetensors
+    7b_sharp:
+      checkpoint_fp16: seedvr2_ema_7b_sharp_fp16.safetensors
+      checkpoint_fp8: seedvr2_ema_7b_sharp_fp8_e4m3fn.safetensors
+      config_dir: configs_7b
+      min_vram_fp16_gb: 24
+      min_vram_fp8_gb: 12
+      name: SeedVR2-7B-Sharp
+      neg_emb: neg_emb.pt
+      num_blocks: 36
+      pos_emb: pos_emb.pt
+      vae_checkpoint: ema_vae_fp16.safetensors
+  pretrained_dir: pretrained_models
+restore:
+  default_resolution_h: 1080
+  default_resolution_w: 1920
+  default_scale_factor: 2.0
+  detail_enhancement: cinematic
+  seed: 42
+  sp_size: 1
+  temporal_consistency: 0.8
+# REFACTOR: 运行时参数外置，替代源码中的硬编码（SSE 超时、重试间隔、队列上限等）
+runtime:
+  batch:
+    max_retries: 2
+    retry_base_delay_seconds: 1.0
+    retry_max_delay_seconds: 30.0
+  security:
+    allowed_base_dirs:
+    - outputs/
+    - data/uploads/
+    rate_limit_per_minute: 30
+  sse:
+    heartbeat_interval_seconds: 30
+    max_duration_seconds: 300
+    poll_interval_seconds: 0.5
+  task:
+    id_length: 16
+    max_timeout_seconds: 3600
+    queue_maxsize: 100
+  upload:
+    chunk_size_bytes: 8192
+    large_file_threshold_mb: 10
+server:
+  auto_open_browser: true
+  debug: false
+  host: 127.0.0.1
+  port: 7870

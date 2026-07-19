@@ -1,0 +1,19 @@
+{
+  "name": "seedvr2-webui-tests",
+  "version": "1.0.0",
+  "description": "Playwright + TypeScript E2E test suite for SeedVR2 WebUI",
+  "private": true,
+  "scripts": {
+    "test": "npx playwright test",
+    "test:headed": "npx playwright test --headed",
+    "test:ui": "npx playwright test --ui",
+    "test:debug": "npx playwright test --debug",
+    "test:report": "npx playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@types/node": "^25.9.3",
+    "axe-core": "^4.10.0",
+    "typescript": "^5.7.0"
+  }
+}

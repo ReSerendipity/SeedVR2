@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeedVR2 - 原型 A：左侧导航栏 + 仪表板布局</title>
+<style>
+  :root {
+    --bg-primary: #12101f;
+    --bg-secondary: #1a1730;
+    --bg-surface: #221e3a;
+    --bg-surface-hover: #2a2548;
+    --bg-elevated: #2e2950;
+    --border-color: #363060;
+    --border-subtle: #2a2548;
+    --text-primary: #e8e4f0;
+    --text-secondary: #9892a8;
+    --text-muted: #6b6580;
+    --accent-primary: #7c6cf0;
+    --accent-primary-hover: #9082f4;
+    --accent-coral: #ff7f50;
+    --accent-green: #34d399;
+    --accent-amber: #fbbf24;
+    --accent-red: #f87171;
+    --accent-blue: #60a5fa;
+    --sidebar-width: 220px;
+    --sidebar-collapsed: 64px;
+    --topbar-height: 52px;
+    --radius: 10px;
+    --radius-sm: 6px;
+    --radius-lg: 14px;
+    --shadow: 0 2px 8px rgba(0,0,0,0.3);
+    --shadow-lg: 0 8px 24px rgba(0,0,0,0.4);
+    --transition: 0.2s ease;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    position: fixed; left: 0; top: 0; bottom: 0;
+    width: var(--sidebar-width);
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border-color);
+    display: flex; flex-direction: column;
+    z-index: 100;
+    transition: width var(--transition);
+  }
+  .sidebar-brand {
+    height: var(--topbar-height);
+    display: flex; align-items: center;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 16px; font-weight: 700;
+    color: var(--accent-primary);
+    letter-spacing: -0.3px;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .sidebar-brand .logo-icon {
+    width: 28px; height: 28px;
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-coral));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; color: #fff; font-weight: 800;
+  }
+  .sidebar-nav { flex: 1; padding: 12px 8px; overflow-y: auto; }
+  .nav-section-label {
+    font-size: 10px; font-weight: 600; text-transform: uppercase;
+    color: var(--text-muted); letter-spacing: 0.8px;
+    padding: 12px 12px 6px; margin-top: 4px;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px; border-radius: var(--radius-sm);
+    color: var(--text-secondary); cursor: pointer;
+    transition: all var(--transition); font-size: 13.5px;
+    margin-bottom: 2px; text-decoration: none;
+  }
+  .nav-item:hover { background: var(--bg-surface); color: var(--text-primary); }
+  .nav-item.active {
+    background: rgba(124,108,240,0.15); color: var(--accent-primary);
+    font-weight: 600;
+  }
+  .nav-item .nav-icon {
+    width: 20px; height: 20px; display: flex;
+    align-items: center; justify-content: center;
+    font-size: 16px; flex-shrink: 0;
+  }
+  .nav-item .nav-badge {
+    margin-left: auto; font-size: 10px;
+    background: var(--bg-elevated); padding: 2px 6px;
+    border-radius: 4px; color: var(--text-muted);
+  }
+  .sidebar-footer {
+    padding: 12px; border-top: 1px solid var(--border-color);
+    flex-shrink: 0;
+  }
+  .system-mini {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11px; color: var(--text-muted);
+    padding: 8px; background: var(--bg-surface);
+    border-radius: var(--radius-sm);
+  }
+  .system-mini .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent-green); flex-shrink: 0;
+  }
+  .system-mini .mini-bar {
+    flex: 1; height: 3px; background: var(--bg-elevated);
+    border-radius: 2px; overflow: hidden;
+  }
+  .system-mini .mini-bar-fill {
+    height: 100%; width: 69%; background: var(--accent-amber);
+    border-radius: 2px;
+  }
+
+  /* Top Bar */
+  .topbar {
+    position: fixed; top: 0; left: var(--sidebar-width); right: 0;
+    height: var(--topbar-height);
+    background: rgba(18,16,31,0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border-color);
+    display: flex; align-items: center;
+    padding: 0 24px; z-index: 90;
+    transition: left var(--transition);
+  }
+  .topbar-breadcrumb {
+    font-size: 13px; color: var(--text-muted);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .topbar-breadcrumb span { color: var(--text-primary); font-weight: 500; }
+  .topbar-actions {
+    margin-left: auto; display: flex; align-items: center; gap: 8px;
+  }
+  .topbar-btn {
+    width: 34px; height: 34px; border-radius: var(--radius-sm);
+    background: var(--bg-surface); border: 1px solid var(--border-subtle);
+    color: var(--text-secondary); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; transition: all var(--transition);
+  }
+  .topbar-btn:hover { background: var(--bg-surface-hover); color: var(--text-primary); }
+  .lang-select {
+    height: 34px; padding: 0 10px; border-radius: var(--radius-sm);
+    background: var(--bg-surface); border: 1px solid var(--border-subtle);
+    color: var(--text-secondary); font-size: 12px; cursor: pointer;
+    outline: none;
+  }
+
+  /* Main Content */
+  .main {
+    margin-left: var(--sidebar-width);
+    margin-top: var(--topbar-height);
+    padding: 24px;
+    min-height: calc(100vh - var(--topbar-height));
+    transition: margin-left var(--transition);
+  }
+  .page { display: none; }
+  .page.active { display: block; animation: fadeIn 0.25s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  /* Page Header */
+  .page-header { margin-bottom: 24px; }
+  .page-header h1 {
+    font-size: 22px; font-weight: 700; margin-bottom: 4px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .page-header p { color: var(--text-secondary); font-size: 13.5px; }
+
+  /* Cards */
+  .card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius);
+    padding: 20px;
+    transition: all var(--transition);
+  }
+  .card:hover { border-color: var(--border-color); }
+  .card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .card-title { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .card-badge {
+    font-size: 10px; padding: 2px 8px; border-radius: 10px;
+    font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .badge-unavailable { background: rgba(248,113,113,0.15); color: var(--accent-red); }
+  .badge-idle { background: rgba(152,146,168,0.15); color: var(--text-secondary); }
+
+  /* Dashboard Grid */
+  .dash-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px; margin-bottom: 24px;
+  }
+  .dash-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius);
+    padding: 20px;
+    cursor: pointer;
+    transition: all var(--transition);
+    position: relative; overflow: hidden;
+  }
+  .dash-card:hover {
+    border-color: var(--accent-primary);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+  }
+  .dash-card.featured {
+    grid-column: span 2;
+    background: linear-gradient(135deg, rgba(124,108,240,0.08), rgba(255,127,80,0.05));
+    border-color: rgba(124,108,240,0.2);
+  }
+  .dash-card-icon {
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; margin-bottom: 14px;
+  }
+  .dash-card-icon.purple { background: rgba(124,108,240,0.15); color: var(--accent-primary); }
+  .dash-card-icon.amber { background: rgba(251,191,36,0.15); color: var(--accent-amber); }
+  .dash-card-icon.blue { background: rgba(96,165,250,0.15); color: var(--accent-blue); }
+  .dash-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .dash-card p { font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; }
+  .dash-card .card-link {
+    display: inline-flex; align-items: center; gap: 4px;
+    margin-top: 14px; font-size: 12.5px; color: var(--accent-primary);
+    font-weight: 500; text-decoration: none;
+  }
+  .dash-card .card-link:hover { text-decoration: underline; }
+
+  /* Stat Cards Row */
+  .stat-row {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+  }
+  .stat-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .stat-ring {
+    width: 52px; height: 52px; flex-shrink: 0;
+    position: relative;
+  }
+  .stat-ring svg { transform: rotate(-90deg); }
+  .stat-ring .ring-bg { fill: none; stroke: var(--bg-elevated); stroke-width: 4; }
+  .stat-ring .ring-fill { fill: none; stroke-width: 4; stroke-linecap: round; transition: stroke-dashoffset 0.6s ease; }
+  .stat-ring .ring-text {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700;
+  }
+  .stat-info .stat-label { font-size: 11px; color: var(--text-muted); margin-bottom: 2px; }
+  .stat-info .stat-value { font-size: 15px; font-weight: 700; }
+  .stat-info .stat-sub { font-size: 11px; color: var(--text-secondary); }
+
+  /* Restore Page Layout */
+  .restore-layout {
+    display: grid;
+    grid-template-columns: 300px 1fr 340px;
+    gap: 16px;
+    min-height: calc(100vh - var(--topbar-height) - 80px);
+  }
+  .restore-panel {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius);
+    padding: 16px;
+    display: flex; flex-direction: column;
+  }
+  .restore-panel-title {
+    font-size: 13px; font-weight: 600; margin-bottom: 14px;
+    display: flex; align-items: center; gap: 8px;
+    padding-bottom: 10px; border-bottom: 1px solid var(--border-subtle);
+  }
+  .upload-zone {
+    border: 2px dashed var(--border-color);
+    border-radius: var(--radius);
+    padding: 32px 20px; text-align: center;
+    cursor: pointer; transition: all var(--transition);
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    min-height: 200px;
+  }
+  .upload-zone:hover { border-color: var(--accent-primary); background: rgba(124,108,240,0.04); }
+  .upload-zone .upload-icon { font-size: 32px; margin-bottom: 10px; color: var(--text-muted); }
+  .upload-zone h4 { font-size: 13px; margin-bottom: 4px; }
+  .upload-zone p { font-size: 11px; color: var(--text-muted); line-height: 1.5; }
+
+  .preview-area {
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bg-secondary);
+    border-radius: var(--radius);
+    min-height: 300px;
+  }
+  .workflow-steps {
+    display: flex; align-items: center; gap: 16px;
+  }
+  .workflow-step {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+  }
+  .workflow-step .step-icon {
+    width: 56px; height: 56px; border-radius: 14px;
+    background: var(--bg-surface); border: 1px solid var(--border-color);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; color: var(--text-muted);
+  }
+  .workflow-step .step-label { font-size: 11px; color: var(--text-secondary); }
+  .workflow-arrow { color: var(--text-muted); font-size: 18px; }
+
+  .form-group { margin-bottom: 14px; }
+  .form-label { font-size: 11.5px; color: var(--text-secondary); margin-bottom: 5px; display: block; font-weight: 500; }
+  .form-control {
+    width: 100%; height: 36px; padding: 0 10px;
+    background: var(--bg-primary); border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm); color: var(--text-primary);
+    font-size: 12.5px; outline: none; transition: border-color var(--transition);
+  }
+  .form-control:focus { border-color: var(--accent-primary); }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 8px 16px; border-radius: var(--radius-sm);
+    font-size: 12.5px; font-weight: 500; cursor: pointer;
+    border: none; transition: all var(--transition);
+    text-decoration: none;
+  }
+  .btn-primary { background: var(--accent-primary); color: #fff; }
+  .btn-primary:hover { background: var(--accent-primary-hover); }
+  .btn-secondary { background: var(--bg-elevated); color: var(--text-secondary); }
+  .btn-secondary:hover { background: var(--bg-surface-hover); color: var(--text-primary); }
+  .btn-ghost { background: transparent; color: var(--text-secondary); }
+  .btn-ghost:hover { background: var(--bg-surface); color: var(--text-primary); }
+  .btn-block { width: 100%; }
+  .btn-sm { padding: 6px 12px; font-size: 11.5px; }
+
+  /* History Table */
+  .toolbar {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 16px;
+  }
+  .search-input {
+    flex: 1; height: 36px; padding: 0 12px 0 34px;
+    background: var(--bg-surface); border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm); color: var(--text-primary);
+    font-size: 12.5px; outline: none;
+  }
+  .search-wrap { position: relative; flex: 1; }
+  .search-wrap::before {
+    content: '🔍'; position: absolute; left: 10px; top: 50%;
+    transform: translateY(-50%); font-size: 13px;
+  }
+  .filter-select {
+    height: 36px; padding: 0 10px;
+    background: var(--bg-surface); border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm); color: var(--text-secondary);
+    font-size: 12px; outline: none; cursor: pointer;
+  }
+  .data-table {
+    width: 100%; border-collapse: collapse;
+    background: var(--bg-surface);
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border-subtle);
+  }
+  .data-table th {
+    text-align: left; padding: 10px 14px;
+    font-size: 11px; font-weight: 600; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .data-table td {
+    padding: 10px 14px; font-size: 12.5px;
+    border-bottom: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+  }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table tr:hover td { background: var(--bg-surface-hover); }
+
+  .status-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 10px;
+    font-size: 11px; font-weight: 500;
+  }
+  .status-badge.pending { background: rgba(251,191,36,0.12); color: var(--accent-amber); }
+  .status-badge.completed { background: rgba(52,211,153,0.12); color: var(--accent-green); }
+  .status-badge.failed { background: rgba(248,113,113,0.12); color: var(--accent-red); }
+
+  /* Settings Layout */
+  .settings-layout {
+    display: grid; grid-template-columns: 180px 1fr; gap: 20px;
+  }
+  .settings-tabs {
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .settings-tab {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; border-radius: var(--radius-sm);
+    font-size: 13px; color: var(--text-secondary);
+    cursor: pointer; transition: all var(--transition);
+  }
+  .settings-tab:hover { background: var(--bg-surface); color: var(--text-primary); }
+  .settings-tab.active {
+    background: rgba(124,108,240,0.12); color: var(--accent-primary);
+    font-weight: 600;
+  }
+  .settings-content {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
+  .settings-section-title { font-size: 16px; font-weight: 600; margin-bottom: 20px; }
+  .setting-row {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 16px;
+  }
+  .setting-row label { font-size: 12.5px; color: var(--text-secondary); min-width: 80px; }
+  .setting-row .form-control { flex: 1; }
+  .setting-help { font-size: 11px; color: var(--text-muted); margin-top: -10px; margin-bottom: 16px; }
+
+  /* System Status Grid */
+  .status-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+  }
+  .status-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+  .status-card .card-header { margin-bottom: 12px; }
+  .status-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 0; font-size: 12.5px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .status-row:last-child { border-bottom: none; }
+  .status-row .label { color: var(--text-muted); }
+  .status-row .value { font-weight: 600; color: var(--text-primary); }
+
+  /* Empty State */
+  .empty-state {
+    text-align: center; padding: 60px 20px;
+    color: var(--text-muted);
+  }
+  .empty-state .empty-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
+  .empty-state h3 { font-size: 15px; color: var(--text-secondary); margin-bottom: 6px; }
+  .empty-state p { font-size: 12.5px; margin-bottom: 20px; }
+
+  /* Responsive */
+  @media (max-width: 1200px) {
+    .restore-layout { grid-template-columns: 260px 1fr 300px; }
+    .stat-row { grid-template-columns: repeat(2, 1fr); }
+    .status-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 992px) {
+    .sidebar { width: var(--sidebar-collapsed); }
+    .sidebar .nav-text, .sidebar .nav-badge, .sidebar .nav-section-label,
+    .sidebar-brand span, .sidebar-footer .system-mini span,
+    .sidebar-footer .mini-bar { display: none; }
+    .sidebar-brand { justify-content: center; padding: 0; }
+    .nav-item { justify-content: center; padding: 12px; }
+    .topbar { left: var(--sidebar-collapsed); }
+    .main { margin-left: var(--sidebar-collapsed); }
+    .restore-layout { grid-template-columns: 1fr; }
+    .dash-grid { grid-template-columns: 1fr; }
+    .dash-card.featured { grid-column: span 1; }
+  }
+  @media (max-width: 768px) {
+    .stat-row { grid-template-columns: 1fr; }
+    .status-grid { grid-template-columns: 1fr; }
+    .settings-layout { grid-template-columns: 1fr; }
+    .main { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="logo-icon">S</div>
+    <span>SeedVR2</span>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">主要功能</div>
+    <a class="nav-item active" data-page="home" onclick="switchPage('home')">
+      <span class="nav-icon">🏠</span>
+      <span class="nav-text">首页</span>
+    </a>
+    <a class="nav-item" data-page="restore" onclick="switchPage('restore')">
+      <span class="nav-icon">⚡</span>
+      <span class="nav-text">修复</span>
+    </a>
+    <a class="nav-item" data-page="history" onclick="switchPage('history')">
+      <span class="nav-icon">🕐</span>
+      <span class="nav-text">历史记录</span>
+      <span class="nav-badge">0</span>
+    </a>
+    <div class="nav-section-label">系统</div>
+    <a class="nav-item" data-page="status" onclick="switchPage('status')">
+      <span class="nav-icon">📊</span>
+      <span class="nav-text">系统状态</span>
+    </a>
+    <a class="nav-item" data-page="settings" onclick="switchPage('settings')">
+      <span class="nav-icon">⚙️</span>
+      <span class="nav-text">设置</span>
+    </a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="system-mini">
+      <span class="dot"></span>
+      <span>v1.0.0</span>
+      <div class="mini-bar"><div class="mini-bar-fill"></div></div>
+      <span>69%</span>
+    </div>
+  </div>
+</aside>
+
+<!-- Top Bar -->
+<header class="topbar">
+  <div class="topbar-breadcrumb">
+    🏠 &nbsp;/&nbsp; <span id="breadcrumb-page">首页</span>
+  </div>
+  <div class="topbar-actions">
+    <button class="topbar-btn" title="主题切换">🌙</button>
+    <select class="lang-select">
+      <option>中文</option>
+      <option>English</option>
+      <option>日本語</option>
+      <option>Français</option>
+    </select>
+  </div>
+</header>
+
+<!-- Main Content -->
+<main class="main">
+
+  <!-- Home Page -->
+  <div class="page active" id="page-home">
+    <div class="page-header">
+      <h1>SeedVR2 便携式视频/图像修复工具箱</h1>
+      <p>基于深度学习的视频/图像超分辨率修复工具</p>
+    </div>
+
+    <div class="dash-grid">
+      <div class="dash-card featured" onclick="switchPage('restore')">
+        <div class="dash-card-icon purple">⚡</div>
+        <h3>开始修复</h3>
+        <p>上传图片或视频，使用 SeedVR2 模型进行超分辨率增强</p>
+        <a class="card-link">开始修复 →</a>
+      </div>
+      <div class="dash-card" onclick="switchPage('status')">
+        <div class="dash-card-icon amber">🔆</div>
+        <h3>系统状态</h3>
+        <p>查看 GPU、模型和系统运行状态</p>
+        <a class="card-link">查看状态 →</a>
+      </div>
+      <div class="dash-card" onclick="switchPage('history')">
+        <div class="dash-card-icon blue">🕐</div>
+        <h3>历史记录</h3>
+        <p>搜索文件名、模型、状态...</p>
+        <a class="card-link">刷新 →</a>
+      </div>
+    </div>
+
+    <h2 style="font-size:16px;font-weight:700;margin-bottom:16px;">系统状态</h2>
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="stat-ring">
+          <svg width="52" height="52" viewBox="0 0 52 52">
+            <circle class="ring-bg" cx="26" cy="26" r="22"/>
+            <circle class="ring-fill" cx="26" cy="26" r="22"
+              stroke="#7c6cf0" stroke-dasharray="138.23" stroke-dashoffset="138.23"/>
+          </svg>
+          <div class="ring-text" style="color:var(--text-muted)">0%</div>
+        </div>
+        <div class="stat-info">
+          <div class="stat-label">GPU</div>
+          <div class="stat-value">未检测到 NVIDIA GPU</div>
+          <div class="stat-sub">N/A</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-ring">
+          <svg width="52" height="52" viewBox="0 0 52 52">
+            <circle class="ring-bg" cx="26" cy="26" r="22"/>
+            <circle class="ring-fill" cx="26" cy="26" r="22"
+              stroke="#fbbf24" stroke-dasharray="138.23" stroke-dashoffset="42.85"/>
+          </svg>
+          <div class="ring-text">69%</div>
+        </div>
+        <div class="stat-info">
+          <div class="stat-label">系统内存</div>
+          <div class="stat-value">10.78 / 15.47 GB</div>
+          <div class="stat-sub">69.2% 已使用</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div style="width:52px;height:52px;border-radius:12px;background:rgba(124,108,240,0.12);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;"></div>
+        <div class="stat-info">
+          <div class="stat-label">模型状态</div>
+          <div class="stat-value">未加载</div>
+          <div class="stat-sub">3B, 7B, 7B_SHARP</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div style="width:52px;height:52px;border-radius:12px;background:rgba(96,165,250,0.12);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">⏱️</div>
+        <div class="stat-info">
+          <div class="stat-label">运行时间</div>
+          <div class="stat-value">37分 30秒</div>
+          <div class="stat-sub">Windows-11-10.0.26200</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Restore Page -->
+  <div class="page" id="page-restore">
+    <div class="page-header">
+      <h1>⚡ 修复</h1>
+      <p>上传图片或视频，SeedVR2 将自动按类型处理</p>
+    </div>
+
+    <div class="restore-layout">
+      <!-- Left Panel: File Upload -->
+      <div class="restore-panel">
+        <div class="restore-panel-title">📁 选择文件</div>
+        <div class="upload-zone">
+          <div class="upload-icon">☁️</div>
+          <h4>拖拽文件到此处，或点击选择</h4>
+          <p>支持图片（PNG/JPG/BMP/WEBP）与视频（MP4/AVI/MOV/MKV）</p>
+        </div>
+        <div style="margin-top:14px;">
+          <div class="form-label">文件夹路径</div>
+          <div style="display:flex;gap:6px;">
+            <input class="form-control" value="C:\..." style="flex:1;">
+            <button class="btn btn-secondary btn-sm"></button>
+            <button class="btn btn-secondary btn-sm">🔍</button>
+          </div>
+        </div>
+        <div style="margin-top:auto;padding-top:14px;display:flex;flex-direction:column;gap:8px;">
+          <button class="btn btn-primary btn-block">▶ 上传并修复</button>
+          <button class="btn btn-secondary btn-block">🗂 从文件夹批量处理</button>
+          <button class="btn btn-ghost btn-block">↻ 重置</button>
+        </div>
+      </div>
+
+      <!-- Center: Preview -->
+      <div class="restore-panel" style="padding:0;overflow:hidden;">
+        <div class="preview-area" style="border-radius:0;height:100%;">
+          <div class="workflow-steps">
+            <div class="workflow-step">
+              <div class="step-icon">📤</div>
+              <div class="step-label">拖拽文件到此处<br>或点击选择</div>
+            </div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">
+              <div class="step-icon">️</div>
+              <div class="step-label">处理中...</div>
+            </div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">
+              <div class="step-icon">🖼️</div>
+              <div class="step-label">修复完成</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Panel: Settings -->
+      <div class="restore-panel">
+        <div class="restore-panel-title">
+          🎛 模型设置
+          <button class="btn btn-ghost btn-sm" style="margin-left:auto;">高级设置</button>
+        </div>
+
+        <div class="form-label" style="margin-top:4px;">输出设置</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">模型</label>
+            <select class="form-control"><option>3B FP16</option><option>7B FP16</option><option>7B SHARP</option></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">随机种子</label>
+            <input class="form-control" value="1373201197" type="number">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">输出分辨率</label>
+            <input class="form-control" value="2160" type="number">
+          </div>
+          <div class="form-group">
+            <label class="form-label">最大分辨率</label>
+            <input class="form-control" value="0" type="number">
+          </div>
+        </div>
+
+        <div style="margin-top:auto;">
+          <div class="form-label" style="color:var(--text-muted);font-size:11px;">提示：展开高级设置可调整注意力模式、批处理大小、VAE 等参数</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- History Page -->
+  <div class="page" id="page-history">
+    <div class="page-header">
+      <h1>🕐 历史记录</h1>
+      <p>查看所有修复任务的历史记录</p>
+    </div>
+
+    <div class="toolbar">
+      <div class="search-wrap">
+        <input class="search-input" placeholder="搜索文件名、模型、状态...">
+      </div>
+      <select class="filter-select"><option>全部类型</option><option>图片</option><option>视频</option></select>
+      <select class="filter-select"><option>全部状态</option><option>待处理</option><option>处理中</option><option>已完成</option><option>失败</option></select>
+      <button class="btn btn-secondary btn-sm">↻</button>
+      <button class="btn btn-ghost btn-sm" style="color:var(--accent-red);">🗑 清空历史</button>
+    </div>
+
+    <div class="empty-state" style="background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius);">
+      <div class="empty-icon">📂</div>
+      <h3>暂无记录</h3>
+      <p>修复任务完成后会自动记录在这里</p>
+      <button class="btn btn-primary" onclick="switchPage('restore')">⚡ 修复</button>
+    </div>
+  </div>
+
+  <!-- System Status Page -->
+  <div class="page" id="page-status">
+    <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div>
+        <h1> 系统状态</h1>
+        <p>实时监控系统运行状态和资源使用情况</p>
+      </div>
+      <button class="btn btn-secondary">↻ 刷新</button>
+    </div>
+
+    <div class="status-grid">
+      <div class="status-card">
+        <div class="card-header">
+          <div class="card-title">🎮 GPU 信息</div>
+          <span class="card-badge badge-unavailable">UNAVAILABLE</span>
+        </div>
+        <div style="font-size:12px;color:var(--accent-amber);margin-bottom:12px;padding:8px;background:rgba(251,191,36,0.06);border-radius:var(--radius-sm);">
+          ⚠ CPU 模式不受支持，SeedVR2 仅支持 NVIDIA GPU CUDA 推理
+        </div>
+        <div class="status-row"><span class="label">设备名称</span><span class="value">未检测到 NVIDIA GPU</span></div>
+        <div class="status-row"><span class="label">总显存</span><span class="value">--</span></div>
+        <div class="status-row"><span class="label">可用显存</span><span class="value">--</span></div>
+        <div class="status-row"><span class="label">显存使用率</span><span class="value">--</span></div>
+        <div class="status-row"><span class="label">GPU 利用率</span><span class="value">--</span></div>
+        <div class="status-row"><span class="label">CUDA 版本</span><span class="value">--</span></div>
+        <div class="status-row"><span class="label">驱动版本</span><span class="value">--</span></div>
+      </div>
+
+      <div class="status-card">
+        <div class="card-header">
+          <div class="card-title">📦 模型状态</div>
+          <span class="card-badge badge-idle">未加载</span>
+        </div>
+        <div class="status-row"><span class="label">加载状态</span><span class="value">未加载</span></div>
+        <div class="status-row"><span class="label">当前模型</span><span class="value">--</span></div>
+        <div class="status-row"><span class="label">可用模型</span><span class="value">3B, 7B, 7B_SHARP</span></div>
+        <div class="status-row"><span class="label">显存占用</span><span class="value" style="color:var(--text-muted);">--</span></div>
+        <div style="margin-top:12px;padding:12px;background:var(--bg-primary);border-radius:var(--radius-sm);text-align:center;">
+          <div style="font-size:11px;color:var(--text-muted);">模型加载时间</div>
+          <div style="font-size:18px;font-weight:700;margin-top:4px;">--</div>
+        </div>
+      </div>
+
+      <div class="status-card">
+        <div class="card-header">
+          <div class="card-title">🧠 系统内存</div>
+        </div>
+        <div class="status-row"><span class="label">总内存</span><span class="value">15.47 GB</span></div>
+        <div class="status-row"><span class="label">可用内存</span><span class="value">4.76 GB</span></div>
+        <div class="status-row"><span class="label">内存使用率</span><span class="value" style="color:var(--accent-amber);">69.2%</span></div>
+        <div style="display:flex;justify-content:center;padding:16px 0;">
+          <div class="stat-ring" style="width:80px;height:80px;">
+            <svg width="80" height="80" viewBox="0 0 80 80">
+              <circle class="ring-bg" cx="40" cy="40" r="34" stroke-width="6"/>
+              <circle class="ring-fill" cx="40" cy="40" r="34" stroke="#fbbf24" stroke-width="6"
+                stroke-dasharray="213.63" stroke-dashoffset="65.80" stroke-linecap="round"/>
+            </svg>
+            <div class="ring-text" style="font-size:14px;">69.2%</div>
+          </div>
+        </div>
+        <div class="status-row"><span class="label">CPU 核心数</span><span class="value">18</span></div>
+      </div>
+
+      <div class="status-card">
+        <div class="card-header">
+          <div class="card-title">⏱️ 运行信息</div>
+        </div>
+        <div class="status-row"><span class="label">运行时间</span><span class="value">37分 30秒</span></div>
+        <div class="status-row"><span class="label">平台</span><span class="value" style="font-size:11px;">Windows-11-10.0.26200-SP0</span></div>
+        <div class="status-row"><span class="label">Python 版本</span><span class="value">3.12.10</span></div>
+        <div class="status-row"><span class="label">服务状态</span><span class="value" style="color:var(--accent-green);">● 运行中</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Page -->
+  <div class="page" id="page-settings">
+    <div class="page-header">
+      <h1>⚙️ 设置</h1>
+      <p>配置模型和应用参数</p>
+    </div>
+
+    <div class="settings-layout">
+      <div class="settings-tabs">
+        <div class="settings-tab active" onclick="switchSettingsTab(this)">📁 路径配置</div>
+        <div class="settings-tab" onclick="switchSettingsTab(this)">🤖 模型设置</div>
+        <div class="settings-tab" onclick="switchSettingsTab(this)">🌐 语言设置</div>
+      </div>
+      <div class="settings-content">
+        <div class="settings-section-title">路径配置</div>
+        <div class="form-group">
+          <label class="form-label">模型目录</label>
+          <div class="setting-row">
+            <input class="form-control" value="pretrained_models">
+            <button class="btn btn-secondary btn-sm">📤 上传文件</button>
+          </div>
+          <div class="setting-help">settings.pretrained_dir_help</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">输出目录</label>
+          <div class="setting-row">
+            <input class="form-control" value="outputs">
+            <button class="btn btn-secondary btn-sm"> 上传文件</button>
+          </div>
+          <div class="setting-help">settings.output_dir_help</div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:20px;">
+          <button class="btn btn-primary">✓ 保存</button>
+          <button class="btn btn-secondary">↻ 重置</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  const pageNames = { home: '首页', restore: '修复', history: '历史记录', status: '系统状态', settings: '设置' };
+  function switchPage(page) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + page).classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelector(`.nav-item[data-page="${page}"]`).classList.add('active');
+    document.getElementById('breadcrumb-page').textContent = pageNames[page];
+  }
+  function switchSettingsTab(el) {
+    document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+  }
+</script>
+</body>
+</html>

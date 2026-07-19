@@ -1,0 +1,386 @@
+{% extends "base.html" %}
+
+{% block title %}SeedVR2 - {{ t('history.title') }}{% endblock %}
+
+{% block content %}
+<nav class="sv-breadcrumb">
+    <a href="/"><i class="bi bi-house"></i> {{ t('nav.home') }}</a>
+    <span class="separator"><i class="bi bi-chevron-right"></i></span>
+    <span class="current">{{ t('nav.history') }}</span>
+</nav>
+<div class="sv-page-header">
+    <h1><i class="bi bi-clock-history sv-text-info"></i> {{ t('history.title') }}</h1>
+    <p>{{ t('history.subtitle') }}</p>
+</div>
+
+<div class="sv-card">
+    <div class="sv-card-body">
+        <!-- 工具栏 -->
+        <div class="sv-history-toolbar">
+            <div class="search-box">
+                <i class="bi bi-search search-icon"></i>
+                <input type="text" id="searchInput" placeholder="{{ t('history.search_placeholder') }}"
+                       hx-get="/api/system/history/table"
+                       hx-trigger="keyup changed delay:500ms"
+                       hx-target="#historyBody"
+                       hx-swap="innerHTML"
+                       hx-indicator="#historyLoading"
+                       aria-label="{{ t('history.search_placeholder') }}">
+                <span id="historyLoading" class="htmx-indicator sv-spinner sv-spinner-sm" aria-hidden="true"></span>
+            </div>
+            <select class="sv-form-control sv-form-control-fit" id="filterType" aria-label="{{ t('history.filter_type') }}">
+                <option value="">{{ t('history.all_types') }}</option>
+                <option value="video">{{ t('history.video') }}</option>
+                <option value="image">{{ t('history.image') }}</option>
+            </select>
+            <select class="sv-form-control sv-form-control-fit" id="filterStatus" aria-label="{{ t('history.filter_status') }}">
+                <option value="">{{ t('history.all_status') }}</option>
+                <option value="pending">{{ t('status.pending') }}</option>
+                <option value="processing">{{ t('status.processing') }}</option>
+                <option value="completed">{{ t('status.completed') }}</option>
+                <option value="failed">{{ t('status.failed') }}</option>
+            </select>
+            <button class="sv-btn sv-btn-secondary" id="btnRefresh" data-tooltip="{{ t('common.refresh') }}" aria-label="{{ t('common.refresh') }}"
+                    hx-get="/api/system/history/table"
+                    hx-target="#historyBody"
+                    hx-swap="innerHTML"
+                    hx-indicator="#htmxIndicator"
+                    hx-disabled-elt="this">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+            <button class="sv-btn sv-btn-outline sv-btn-danger-text" id="btnClearHistory" data-tooltip="{{ t('history.clear') }}">
+                <i class="bi bi-trash"></i> {{ t('history.clear') }}
+            </button>
+        </div>
+
+        <!-- 表格 -->
+        <div class="sv-table-wrapper sv-history-table-wrapper">
+            <table class="sv-table">
+                <thead>
+                    <tr>
+                        <th>{{ t('history.id') }}</th>
+                        <th>{{ t('history.preview') if t('history.preview') else '预览' }}</th>
+                        <th>{{ t('history.type') }}</th>
+                        <th>{{ t('history.input_file') }}</th>
+                        <th>{{ t('history.model') }}</th>
+                        <th>{{ t('history.status') }}</th>
+                        <th>{{ t('history.processing_time') }}</th>
+                        <th>{{ t('history.created_at') }}</th>
+                        <th>{{ t('history.actions') }}</th>
+                    </tr>
+                </thead>
+                <tbody id="historyBody">
+                    <tr class="sv-skeleton-row">
+                        <td><div class="sv-skeleton sv-skeleton-text sv-skeleton-text--short"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-badge"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-text sv-skeleton-text--long"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-text sv-skeleton-text--medium"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-badge"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-text sv-skeleton-text--short"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-text sv-skeleton-text--medium"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-circle"></div></td>
+                    </tr>
+                    <tr class="sv-skeleton-row">
+                        <td><div class="sv-skeleton sv-skeleton-text sv-skeleton-text--short"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-badge"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-text sv-skeleton-text--long"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-text sv-skeleton-text--medium"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-badge"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-text sv-skeleton-text--short"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-text sv-skeleton-text--medium"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-circle"></div></td>
+                    </tr>
+                    <tr class="sv-skeleton-row">
+                        <td><div class="sv-skeleton sv-skeleton-text sv-skeleton-text--short"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-badge"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-text sv-skeleton-text--long"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-text sv-skeleton-text--medium"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-badge"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-text sv-skeleton-text--short"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-text sv-skeleton-text--medium"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-circle"></div></td>
+                    </tr>
+                    <tr class="sv-skeleton-row">
+                        <td><div class="sv-skeleton sv-skeleton-text sv-skeleton-text--short"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-badge"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-text sv-skeleton-text--long"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-text sv-skeleton-text--medium"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-badge"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-text sv-skeleton-text--short"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-text sv-skeleton-text--medium"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-circle"></div></td>
+                    </tr>
+                    <tr class="sv-skeleton-row">
+                        <td><div class="sv-skeleton sv-skeleton-text sv-skeleton-text--short"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-badge"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-text sv-skeleton-text--long"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-text sv-skeleton-text--medium"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-badge"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-text sv-skeleton-text--short"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-text sv-skeleton-text--medium"></div></td>
+                        <td><div class="sv-skeleton sv-skeleton-circle"></div></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 移动端卡片视图 -->
+        <div class="sv-history-cards" id="historyCards">
+            <div class="sv-text-center sv-text-muted sv-p-8">{{ t('common.loading') }}</div>
+        </div>
+
+        <!-- 分页 -->
+        <div class="sv-pagination sv-hidden" id="pagination">
+            <button class="page-btn" id="btnPrevPage" disabled aria-label="{{ t('history.prev_page') }}">
+                <i class="bi bi-chevron-left"></i> {{ t('history.prev_page') }}
+            </button>
+            <span class="page-info" id="pageInfo">1 / 1</span>
+            <button class="page-btn" id="btnNextPage" disabled aria-label="{{ t('history.next_page') }}">
+                <i class="bi bi-chevron-right"></i> {{ t('history.next_page') }}
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const I = window.__I18N__;
+    let currentPage = 1;
+    const pageSize = 20;
+    let totalRecords = 0;
+
+    // 事件委托：右键菜单
+    document.getElementById('historyBody').addEventListener('contextmenu', (e) => {
+        const row = e.target.closest('.sv-history-row');
+        if (row) {
+            e.preventDefault();
+            SeedVR2.showRowContextMenu(e, row);
+        }
+    });
+
+    async function loadHistory(page = 1) {
+        currentPage = page;
+        const taskType = document.getElementById('filterType').value;
+        const status = document.getElementById('filterStatus').value;
+        const search = document.getElementById('searchInput').value.trim();
+
+        let url = `/api/system/history?page=${page}&size=${pageSize}`;
+        if (taskType) url += `&task_type=${taskType}`;
+        if (status) url += `&status=${status}`;
+        if (search) url += `&search=${encodeURIComponent(search)}`;
+
+        try {
+            const data = await SeedVR2.api.get(url);
+
+            const records = data.records || [];
+            totalRecords = data.total || 0;
+            const totalPages = Math.ceil(totalRecords / pageSize) || 1;
+
+            const tbody = document.getElementById('historyBody');
+
+            if (records.length === 0) {
+                tbody.innerHTML = `
+                    <tr class="empty-row">
+                        <td colspan="8">
+                            <div class="sv-empty-state">
+                                <div class="empty-icon"><i class="bi bi-inbox"></i></div>
+                                <div class="empty-title">${I["history.no_records"]}</div>
+                                <div class="empty-desc">${I["history.no_records_desc"]}</div>
+                                <a href="/restore" class="sv-btn sv-btn-primary sv-btn-sm sv-mt-3">
+                                    <i class="bi bi-lightning-charge"></i> ${I["nav.restore"] || '开始第一次修复'}
+                                </a>
+                            </div>
+                        </td>
+                    </tr>`;
+                const cardsEl = document.getElementById('historyCards');
+                if (cardsEl) {
+                    cardsEl.innerHTML = `
+                        <div class="sv-empty-state">
+                            <div class="empty-icon"><i class="bi bi-inbox"></i></div>
+                            <div class="empty-title">${I["history.no_records"]}</div>
+                            <div class="empty-desc">${I["history.no_records_desc"]}</div>
+                            <a href="/restore" class="sv-btn sv-btn-primary sv-btn-sm sv-mt-3">
+                                <i class="bi bi-lightning-charge"></i> ${I["nav.restore"] || '开始第一次修复'}
+                            </a>
+                        </div>`;
+                }
+                document.getElementById('pagination').style.display = 'none';
+                return;
+            }
+
+            tbody.innerHTML = records.map(r => {
+                const statusMap = {
+                    pending: { badge: 'sv-badge-pending', text: I["status.pending"] },
+                    processing: { badge: 'sv-badge-processing', text: I["status.processing"] },
+                    completed: { badge: 'sv-badge-completed', text: I["status.completed"] },
+                    failed: { badge: 'sv-badge-failed', text: I["status.failed"] },
+                };
+                const s = statusMap[r.status] || { badge: 'sv-badge-secondary', text: SeedVR2.escapeHtml(r.status) };
+                const typeIcon = r.task_type === 'video' ? 'bi-play-circle' : 'bi-image';
+                const fileName = r.input_file ? SeedVR2.escapeHtml(r.input_file.split(/[\\/]/).pop()) : '--';
+                const procTime = r.processing_time > 0 ? `${r.processing_time.toFixed(1)}s` : '--';
+                const safeId = SeedVR2.escapeHtml(String(r.id));
+                const safeOutput = SeedVR2.escapeHtml(r.output_file || '');
+                const safeInputFile = SeedVR2.escapeHtml(r.input_file || '');
+                const safeModelSize = r.model_size ? SeedVR2.escapeHtml(r.model_size.toUpperCase()) : '--';
+                const safeTaskType = SeedVR2.escapeHtml(r.task_type);
+                const previewHtml = r.task_type === 'video' 
+                    ? `<div class="sv-thumb-preview"><i class="bi bi-camera-video"></i></div>`
+                    : `<div class="sv-thumb-preview"><i class="bi bi-image"></i></div>`;
+
+                const cancelButton = (r.status === 'pending' || r.status === 'processing')
+                    ? `<button class="sv-btn sv-btn-sm sv-btn-outline btn-cancel-record"
+                            hx-post="/api/system/history/${safeId}/cancel"
+                            hx-swap="none"
+                            hx-indicator="#historyLoading"
+                            hx-disabled-elt="this"
+                            hx-on::after-request="setTimeout(() => document.getElementById('btnRefresh').click(), 300)"
+                            title="${I["common.cancel"] || 'Cancel'}" aria-label="${I["common.cancel"] || 'Cancel'}">
+                        <i class="bi bi-x-circle"></i>
+                    </button>`
+                    : '';
+
+                return `
+                    <tr data-record-id="${safeId}" data-output="${safeOutput}" class="sv-history-row">
+                        <td>${safeId}</td>
+                        <td>${previewHtml}</td>
+                        <td><i class="bi ${typeIcon} sv-mr-1"></i>${safeTaskType === 'video' ? I["history.video"] : I["history.image"]}</td>
+                        <td title="${safeInputFile}">${fileName}</td>
+                        <td>${safeModelSize}</td>
+                        <td><span class="sv-badge ${s.badge}">${s.text}</span></td>
+                        <td>${procTime}</td>
+                        <td>${SeedVR2.formatTimestamp(r.created_at)}</td>
+                        <td>
+                            <div class="sv-flex sv-gap-1">
+                                ${r.status === 'completed' && r.output_file ? `<a href="/api/system/history/${safeId}/download" class="sv-btn sv-btn-sm sv-btn-outline" data-tooltip="${I["common.download"]}" aria-label="${I["common.download"]}"><i class="bi bi-download"></i></a>` : ''}
+                                ${cancelButton}
+                                <button class="sv-btn sv-btn-sm sv-btn-outline btn-delete-record" data-record-id="${safeId}" data-tooltip="${I["common.delete"]}" aria-label="${I["common.delete"]}">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>`;
+            }).join('');
+
+            // 填充移动端卡片视图
+            const cardsEl = document.getElementById('historyCards');
+            if (cardsEl) {
+                cardsEl.innerHTML = records.map(r => {
+                    const statusMap = {
+                        pending: { badge: 'sv-badge-pending', text: I["status.pending"] },
+                        processing: { badge: 'sv-badge-processing', text: I["status.processing"] },
+                        completed: { badge: 'sv-badge-completed', text: I["status.completed"] },
+                        failed: { badge: 'sv-badge-failed', text: I["status.failed"] },
+                    };
+                    const s = statusMap[r.status] || { badge: 'sv-badge-secondary', text: SeedVR2.escapeHtml(r.status) };
+                    const typeIcon = r.task_type === 'video' ? 'bi-play-circle' : 'bi-image';
+                    const fileName = r.input_file ? SeedVR2.escapeHtml(r.input_file.split(/[\\/]/).pop()) : '--';
+                    const procTime = r.processing_time > 0 ? `${r.processing_time.toFixed(1)}s` : '--';
+                    const safeId = SeedVR2.escapeHtml(String(r.id));
+                    const safeOutput = SeedVR2.escapeHtml(r.output_file || '');
+                    const safeModelSize = r.model_size ? SeedVR2.escapeHtml(r.model_size.toUpperCase()) : '--';
+                    const safeTaskType = SeedVR2.escapeHtml(r.task_type);
+
+                    const cancelButton = (r.status === 'pending' || r.status === 'processing')
+                        ? `<button class="sv-btn sv-btn-sm sv-btn-outline btn-cancel-record"
+                                hx-post="/api/system/history/${safeId}/cancel"
+                                hx-swap="none"
+                                hx-indicator="#historyLoading"
+                                hx-disabled-elt="this"
+                                hx-on::after-request="setTimeout(() => document.getElementById('btnRefresh').click(), 300)"
+                                title="${I["common.cancel"] || 'Cancel'}" aria-label="${I["common.cancel"] || 'Cancel'}">
+                            <i class="bi bi-x-circle"></i>
+                        </button>`
+                        : '';
+
+                    return `
+                        <div class="sv-history-card" data-record-id="${safeId}" data-output="${safeOutput}">
+                            <div class="sv-history-card-header sv-flex sv-items-center sv-justify-between">
+                                <div class="sv-flex sv-items-center sv-gap-2">
+                                    <i class="bi ${typeIcon} sv-text-primary"></i>
+                                    <span class="sv-text-sm sv-text-primary">${fileName}</span>
+                                </div>
+                                <span class="sv-badge ${s.badge}">${s.text}</span>
+                            </div>
+                            <div class="sv-history-card-body">
+                                <div class="sv-flex sv-gap-3 sv-text-sm sv-text-secondary">
+                                    <span><i class="bi bi-box-seam sv-mr-1"></i>${safeModelSize}</span>
+                                    <span><i class="bi bi-clock sv-mr-1"></i>${procTime}</span>
+                                </div>
+                                <div class="sv-text-xs sv-text-muted sv-mt-1">${SeedVR2.formatTimestamp(r.created_at)}</div>
+                            </div>
+                            <div class="sv-history-card-actions sv-flex sv-gap-1">
+                                ${r.status === 'completed' && r.output_file ? `<a href="/api/system/history/${safeId}/download" class="sv-btn sv-btn-sm sv-btn-outline" aria-label="${I["common.download"]}"><i class="bi bi-download"></i></a>` : ''}
+                                ${cancelButton}
+                                <button class="sv-btn sv-btn-sm sv-btn-outline btn-delete-record" data-record-id="${safeId}" aria-label="${I["common.delete"]}">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>`;
+                }).join('');
+            }
+
+            // 让 HTMX 处理动态生成的取消按钮
+            if (typeof htmx !== 'undefined') {
+                htmx.process(document.getElementById('historyBody'));
+            }
+
+            // 分页
+            document.getElementById('pagination').style.display = 'flex';
+            document.getElementById('pageInfo').textContent = `${currentPage} / ${totalPages}`;
+            document.getElementById('btnPrevPage').disabled = currentPage <= 1;
+            document.getElementById('btnNextPage').disabled = currentPage >= totalPages;
+
+        } catch (err) {
+            document.getElementById('historyBody').innerHTML = `
+                <tr class="empty-row">
+                    <td colspan="8">
+                        <div class="sv-empty-state">
+                            <div class="empty-icon"><i class="bi bi-exclamation-triangle"></i></div>
+                            <div class="empty-title">${I["history.load_failed"]}</div>
+                            <div class="empty-desc">${err.message}</div>
+                            <button class="sv-btn sv-btn-primary sv-btn-sm sv-mt-3" onclick="loadHistory(1)">
+                                <i class="bi bi-arrow-clockwise"></i> ${I["common.retry"] || 'Retry'}
+                            </button>
+                        </div>
+                    </td>
+                </tr>`;
+        }
+    }
+
+    // 事件绑定
+    document.getElementById('btnPrevPage').addEventListener('click', () => loadHistory(currentPage - 1));
+    document.getElementById('btnNextPage').addEventListener('click', () => loadHistory(currentPage + 1));
+    document.getElementById('filterType').addEventListener('change', () => loadHistory(1));
+    document.getElementById('filterStatus').addEventListener('change', () => loadHistory(1));
+
+    // 使用事件委托处理删除按钮点击
+    document.getElementById('historyBody').addEventListener('click', (e) => {
+        const btn = e.target.closest('.btn-delete-record');
+        if (btn) {
+            const recordId = btn.dataset.recordId;
+            if (recordId) {
+                SeedVR2.deleteHistoryRecord(recordId);
+            }
+        }
+    });
+
+    document.getElementById('btnClearHistory').addEventListener('click', () => {
+        SeedVR2.confirm(I["history.title"], I["history.clear_confirm"], async () => {
+            try {
+                await SeedVR2.api.delete('/api/system/history');
+                SeedVR2.toast(I["history.cleared"], 'success');
+                loadHistory(1);
+            } catch (err) {
+                SeedVR2.toast(I["history.clear_failed"] + ': ' + err.message, 'error');
+            }
+        });
+    });
+
+    // 初始加载
+    loadHistory(1);
+});
+</script>
+{% endblock %}
