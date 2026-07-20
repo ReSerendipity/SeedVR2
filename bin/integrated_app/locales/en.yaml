@@ -10,23 +10,29 @@ nav:
   settings: "Settings"
 
 home:
-  hero_title: "SeedVR2 Portable Video/Image Restoration Toolbox"
-  hero_subtitle: "Deep learning based video/image super-resolution restoration tool"
+  hero_title: "Every frame,"
+  hero_highlight: "restored."
+  hero_subtitle: "Deep-learning video & image super-resolution restoration powered by SeedVR2. One step, fully portable."
   restore_feature: "Start Restoration"
   restore_feature_desc: "Upload images or videos for SeedVR2 super-resolution enhancement"
   system_feature: "System Status"
   system_feature_desc: "View GPU, model and system runtime status"
   start: "Start Restore"
   view_status: "View Status"
+  recent_tasks: "Recent Tasks"
+  view_all: "View all"
+  no_tasks_desc: "No restoration tasks yet. Start your first one."
   empty_title: "Ready to Start"
   empty_desc: "Start your first restoration to see activity here."
   empty_cta: "Start Your First Restoration"
+  total_tasks: "total tasks"
 
 common:
   upload: "Upload File"
   start: "Start Restore"
   stop: "Stop"
   download: "Download"
+  browse: "Browse"
   preview: "Preview"
   delete: "Delete"
   search: "Search"
@@ -158,8 +164,8 @@ video:
   result_preview: "Result Preview"
 
 restore:
-  title: "Restore"
-  subtitle: "Upload images or videos, SeedVR2 will process them by type"
+  title: "Restore Workbench"
+  subtitle: "Import files, configure parameters, compare results"
   model_settings: "Model Settings"
   simple_mode: "Simple Mode"
   seed: "Random Seed"
@@ -199,11 +205,21 @@ restore:
   batch_success: "Success"
   batch_failed: "Failed"
   batch_current_processing: "Processing: {current}/{total}"
+  upload_single_hint: "Single-file upload restore"
+  compare_placeholder: "Before / after comparison appears when the restore completes"
+  compare_placeholder_hint: "Drag the slider to compare original vs restored"
+  batch_title: "Batch Processing"
+  folder_mode: "Folder mode"
+  param_config: "Parameters"
+  folder_path_placeholder: "Enter folder path"
 
 history:
   title: "History"
   subtitle: "View history of all restoration tasks"
   search_placeholder: "Search filename, model, status..."
+  view_mode: "View mode"
+  view_table: "Table"
+  view_cards: "Cards"
   no_records: "No records"
   no_records_desc: "Completed restoration tasks will be recorded here automatically"
   load_failed: "Load Failed"
@@ -230,6 +246,7 @@ history:
   actions: "Actions"
   clear: "Clear History"
   refresh: "Refresh"
+  preview: "Preview"
 
 system:
   title: "System Status"
@@ -310,6 +327,12 @@ settings:
   save_settings: "Save Settings"
   backend_auto: "Auto Detect"
   backend_cuda: "CUDA"
+  pretrained_dir_help: "Folder path for pretrained model files"
+  output_dir_help: "Output folder path for restored files"
+  default_model_size_help: "Model size to load by default at startup"
+  precision_help: "Numeric precision for inference; FP8 saves VRAM"
+  gpu_backend_help: "SeedVR2 only supports NVIDIA CUDA GPU inference"
+  language_help: "Switch the interface language; takes effect after reload"
 
 status:
   gpu_detecting: "Detecting GPU..."

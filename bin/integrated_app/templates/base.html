@@ -14,8 +14,8 @@
             document.documentElement.setAttribute('data-theme', theme);
         })();
     </script>
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%236a5acd'/%3E%3Cstop offset='100%25' stop-color='%23ff7f50'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='7' fill='url(%23g)'/%3E%3Ctext x='16' y='22' font-family='Inter,system-ui,sans-serif' font-size='16' font-weight='800' fill='white' text-anchor='middle'%3ES%3C/text%3E%3C/svg%3E">
-    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%236a5acd'/%3E%3Cstop offset='100%25' stop-color='%23ff7f50'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='180' height='180' rx='40' fill='url(%23g)'/%3E%3Ctext x='90' y='128' font-family='Inter,system-ui,sans-serif' font-size='96' font-weight='800' fill='white' text-anchor='middle'%3ES%3C/text%3E%3C/svg%3E">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%235e7d5a'/%3E%3Ctext x='16' y='22' font-family='Georgia,serif' font-size='17' font-style='italic' fill='%23faf7f2' text-anchor='middle'%3ES%3C/text%3E%3C/svg%3E">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%235e7d5a'/%3E%3Ctext x='90' y='126' font-family='Georgia,serif' font-size='96' font-style='italic' fill='%23faf7f2' text-anchor='middle'%3ES%3C/text%3E%3C/svg%3E">
 
     <!-- 将 i18n 翻译注入前端 JS -->
     <script>
@@ -152,14 +152,14 @@
           integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <!-- Bootstrap Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-    <!-- Inter Font (with China CDN fallback) -->
+    <!-- Warm Print 字体：DM Sans 正文 + Instrument Serif 展示体 (with China CDN fallback) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link href="https://fonts.loli.net/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+    <link href="https://fonts.loli.net/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 
     <!-- 自定义样式 -->
-    <link rel="stylesheet" href="/static/css/style.css?v=1.1.2">
+    <link rel="stylesheet" href="/static/css/style.css?v=2.0.2">
 
     {% block head %}{% endblock %}
 </head>
@@ -172,51 +172,37 @@
 
     <a href="#main-content" class="sv-skip-link">{{ t('common.skip_to_content') }}</a>
 
-    <!-- ===== 顶部导航栏 ===== -->
+    <!-- ===== 顶部导航栏（三区布局：品牌 / 标签 / 操作） ===== -->
     <nav class="sv-navbar">
         <a href="/" class="sv-navbar-brand">
-            <span class="brand-text">SeedVR2</span>
+            <span class="brand-text">SeedVR2<span class="brand-dot">.</span></span>
         </a>
 
         <ul class="sv-navbar-nav" id="mainNav">
             <li>
                 <a href="/" class="sv-nav-link {% if active_page == 'index' %}active{% endif %}">
-                    <i class="bi bi-house-door nav-icon"></i>
                     <span>{{ t('nav.home') }}</span>
-                    <span class="nav-shortcut">Alt+1</span>
                 </a>
             </li>
             <li>
                 <a href="/restore" class="sv-nav-link {% if active_page == 'restore' %}active{% endif %}">
-                    <i class="bi bi-lightning-charge nav-icon"></i>
                     <span>{{ t('nav.restore') }}</span>
-                    <span class="nav-shortcut">Alt+2</span>
                 </a>
             </li>
             <li>
                 <a href="/history" class="sv-nav-link {% if active_page == 'history' %}active{% endif %}">
-                    <i class="bi bi-clock-history nav-icon"></i>
                     <span>{{ t('nav.history') }}</span>
-                    <span class="nav-shortcut">Alt+3</span>
-                </a>
-            </li>
-            <li>
-                <a href="/system-status" class="sv-nav-link {% if active_page == 'system' %}active{% endif %}">
-                    <i class="bi bi-cpu nav-icon"></i>
-                    <span>{{ t('nav.system') }}</span>
-                    <span class="nav-shortcut">Alt+4</span>
-                </a>
-            </li>
-            <li>
-                <a href="/settings" class="sv-nav-link {% if active_page == 'settings' %}active{% endif %}">
-                    <i class="bi bi-gear nav-icon"></i>
-                    <span>{{ t('nav.settings') }}</span>
-                    <span class="nav-shortcut">Alt+5</span>
                 </a>
             </li>
         </ul>
 
         <div class="sv-navbar-actions">
+            <!-- 设置入口（齿轮图标） -->
+            <a href="/settings" class="sv-nav-icon-btn {% if active_page == 'settings' %}active{% endif %}"
+               title="{{ t('nav.settings') }}" aria-label="{{ t('nav.settings') }}">
+                <i class="bi bi-gear"></i>
+            </a>
+
             <!-- 主题切换按钮 -->
             <button class="sv-theme-toggle" id="btnThemeToggle" aria-label="切换主题" title="切换主题">
                 <i class="bi bi-moon-stars-fill" id="themeIcon"></i>
@@ -251,20 +237,19 @@
         {% block content %}{% endblock %}
     </main>
 
-    <!-- ===== 底部状态栏 ===== -->
-    <footer class="sv-statusbar">
-        <div class="sv-statusbar-left">
-            <span class="sv-statusbar-item">
-                <span class="sv-status-dot online" id="statusDot"></span>
-                SeedVR2 v1.0.0
-            </span>
-            <span class="sv-statusbar-item" id="statusModel">{{ t('settings.model_management') }}: {{ t('status.gpu_detecting') }}</span>
-        </div>
-        <div class="sv-statusbar-right">
-            <span class="sv-statusbar-item" id="statusGpu">GPU: --</span>
-            <span class="sv-statusbar-item" id="statusTime">--</span>
-        </div>
-    </footer>
+    <!-- ===== 浮动系统状态组件（右下角） ===== -->
+    <div class="sv-sys-widget" role="status" aria-label="System status">
+        <span class="sw-item">
+            <span class="sv-status-dot online" id="statusDot"></span> SeedVR2 v1.0.0
+        </span>
+        <span class="sw-item" id="statusModel">{{ t('settings.model_management') }}: {{ t('status.gpu_detecting') }}</span>
+        <span class="sw-item" id="statusGpu">GPU: --</span>
+        <span class="sw-item" id="statusTime">--</span>
+        <span class="sw-item" id="statusMem">
+            <span class="sw-bar"><span class="sw-bar-fill" id="statusMemFill" style="width:0%"></span></span>
+            <span id="statusMemText">--</span>
+        </span>
+    </div>
 
     <!-- ===== Toast 通知容器 ===== -->
     <div class="sv-toast-container" id="toastContainer" role="status" aria-live="polite"></div>
@@ -345,7 +330,7 @@
     <!-- HTMX -->
     <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
     <!-- 应用脚本 -->
-    <script src="/static/js/app.js?v=1.1.0"></script>
+    <script src="/static/js/app.js?v=2.0.0"></script>
 
     {% block scripts %}{% endblock %}
 </body>

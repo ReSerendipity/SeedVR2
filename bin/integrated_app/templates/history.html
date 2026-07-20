@@ -3,28 +3,18 @@
 {% block title %}SeedVR2 - {{ t('history.title') }}{% endblock %}
 
 {% block content %}
-<nav class="sv-breadcrumb">
-    <a href="/"><i class="bi bi-house"></i> {{ t('nav.home') }}</a>
-    <span class="separator"><i class="bi bi-chevron-right"></i></span>
-    <span class="current">{{ t('nav.history') }}</span>
-</nav>
-<div class="sv-page-header">
-    <h1><i class="bi bi-clock-history sv-text-info"></i> {{ t('history.title') }}</h1>
-    <p>{{ t('history.subtitle') }}</p>
+<div class="sv-page-head">
+    <span class="sv-eyebrow sv-anim-rise">{{ t('history.subtitle') }}</span>
+    <h1 class="sv-serif-title sv-anim-rise sv-anim-d1">{{ t('history.title') }}</h1>
 </div>
 
-<div class="sv-card">
+<div class="sv-card sv-anim-rise sv-anim-d2" id="historyRoot">
     <div class="sv-card-body">
         <!-- 工具栏 -->
         <div class="sv-history-toolbar">
             <div class="search-box">
                 <i class="bi bi-search search-icon"></i>
                 <input type="text" id="searchInput" placeholder="{{ t('history.search_placeholder') }}"
-                       hx-get="/api/system/history/table"
-                       hx-trigger="keyup changed delay:500ms"
-                       hx-target="#historyBody"
-                       hx-swap="innerHTML"
-                       hx-indicator="#historyLoading"
                        aria-label="{{ t('history.search_placeholder') }}">
                 <span id="historyLoading" class="htmx-indicator sv-spinner sv-spinner-sm" aria-hidden="true"></span>
             </div>
@@ -40,12 +30,15 @@
                 <option value="completed">{{ t('status.completed') }}</option>
                 <option value="failed">{{ t('status.failed') }}</option>
             </select>
-            <button class="sv-btn sv-btn-secondary" id="btnRefresh" data-tooltip="{{ t('common.refresh') }}" aria-label="{{ t('common.refresh') }}"
-                    hx-get="/api/system/history/table"
-                    hx-target="#historyBody"
-                    hx-swap="innerHTML"
-                    hx-indicator="#htmxIndicator"
-                    hx-disabled-elt="this">
+            <div class="sv-view-toggle" role="group" aria-label="{{ t('history.view_mode') }}">
+                <button type="button" class="active" id="btnViewTable">
+                    <i class="bi bi-list-ul"></i> {{ t('history.view_table') }}
+                </button>
+                <button type="button" id="btnViewCards">
+                    <i class="bi bi-grid"></i> {{ t('history.view_cards') }}
+                </button>
+            </div>
+            <button class="sv-btn sv-btn-secondary" id="btnRefresh" data-tooltip="{{ t('common.refresh') }}" aria-label="{{ t('common.refresh') }}">
                 <i class="bi bi-arrow-clockwise"></i>
             </button>
             <button class="sv-btn sv-btn-outline sv-btn-danger-text" id="btnClearHistory" data-tooltip="{{ t('history.clear') }}">
@@ -124,7 +117,7 @@
             </table>
         </div>
 
-        <!-- 移动端卡片视图 -->
+        <!-- 卡片视图 -->
         <div class="sv-history-cards" id="historyCards">
             <div class="sv-text-center sv-text-muted sv-p-8">{{ t('common.loading') }}</div>
         </div>
@@ -162,6 +155,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadHistory(page = 1) {
         currentPage = page;
+        const loadingEl = document.getElementById('historyLoading');
+        if (loadingEl) loadingEl.classList.add('htmx-request');
         const taskType = document.getElementById('filterType').value;
         const status = document.getElementById('filterStatus').value;
         const search = document.getElementById('searchInput').value.trim();
@@ -264,7 +259,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </tr>`;
             }).join('');
 
-            // 填充移动端卡片视图
+            // 填充卡片视图
             const cardsEl = document.getElementById('historyCards');
             if (cardsEl) {
                 cardsEl.innerHTML = records.map(r => {
@@ -275,13 +270,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         failed: { badge: 'sv-badge-failed', text: I["status.failed"] },
                     };
                     const s = statusMap[r.status] || { badge: 'sv-badge-secondary', text: SeedVR2.escapeHtml(r.status) };
-                    const typeIcon = r.task_type === 'video' ? 'bi-play-circle' : 'bi-image';
+                    const typeIcon = r.task_type === 'video' ? 'bi-camera-video' : 'bi-image';
                     const fileName = r.input_file ? SeedVR2.escapeHtml(r.input_file.split(/[\\/]/).pop()) : '--';
                     const procTime = r.processing_time > 0 ? `${r.processing_time.toFixed(1)}s` : '--';
                     const safeId = SeedVR2.escapeHtml(String(r.id));
                     const safeOutput = SeedVR2.escapeHtml(r.output_file || '');
+                    const safeInputFile = SeedVR2.escapeHtml(r.input_file || '');
                     const safeModelSize = r.model_size ? SeedVR2.escapeHtml(r.model_size.toUpperCase()) : '--';
-                    const safeTaskType = SeedVR2.escapeHtml(r.task_type);
 
                     const cancelButton = (r.status === 'pending' || r.status === 'processing')
                         ? `<button class="sv-btn sv-btn-sm sv-btn-outline btn-cancel-record"
@@ -297,21 +292,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     return `
                         <div class="sv-history-card" data-record-id="${safeId}" data-output="${safeOutput}">
-                            <div class="sv-history-card-header sv-flex sv-items-center sv-justify-between">
-                                <div class="sv-flex sv-items-center sv-gap-2">
-                                    <i class="bi ${typeIcon} sv-text-primary"></i>
-                                    <span class="sv-text-sm sv-text-primary">${fileName}</span>
-                                </div>
-                                <span class="sv-badge ${s.badge}">${s.text}</span>
-                            </div>
+                            <div class="sv-history-card-thumb"><i class="bi ${typeIcon}"></i></div>
                             <div class="sv-history-card-body">
-                                <div class="sv-flex sv-gap-3 sv-text-sm sv-text-secondary">
-                                    <span><i class="bi bi-box-seam sv-mr-1"></i>${safeModelSize}</span>
-                                    <span><i class="bi bi-clock sv-mr-1"></i>${procTime}</span>
+                                <div class="sv-history-card-name" title="${safeInputFile}">${fileName}</div>
+                                <div class="sv-history-card-meta">
+                                    <span class="sv-badge ${s.badge}">${s.text}</span>
+                                    <span>${safeModelSize} · ${procTime}</span>
                                 </div>
-                                <div class="sv-text-xs sv-text-muted sv-mt-1">${SeedVR2.formatTimestamp(r.created_at)}</div>
+                                <div class="sv-history-card-time">${SeedVR2.formatTimestamp(r.created_at)}</div>
                             </div>
-                            <div class="sv-history-card-actions sv-flex sv-gap-1">
+                            <div class="sv-history-card-actions">
                                 ${r.status === 'completed' && r.output_file ? `<a href="/api/system/history/${safeId}/download" class="sv-btn sv-btn-sm sv-btn-outline" aria-label="${I["common.download"]}"><i class="bi bi-download"></i></a>` : ''}
                                 ${cancelButton}
                                 <button class="sv-btn sv-btn-sm sv-btn-outline btn-delete-record" data-record-id="${safeId}" aria-label="${I["common.delete"]}">
@@ -320,6 +310,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                         </div>`;
                 }).join('');
+
+                // 让 HTMX 处理动态生成的取消按钮
+                if (typeof htmx !== 'undefined') {
+                    htmx.process(cardsEl);
+                }
             }
 
             // 让 HTMX 处理动态生成的取消按钮
@@ -347,6 +342,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </td>
                 </tr>`;
+        } finally {
+            if (loadingEl) loadingEl.classList.remove('htmx-request');
         }
     }
 
@@ -356,6 +353,29 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('filterType').addEventListener('change', () => loadHistory(1));
     document.getElementById('filterStatus').addEventListener('change', () => loadHistory(1));
 
+    // 表格 / 卡片视图切换
+    const historyRoot = document.getElementById('historyRoot');
+    const btnViewTable = document.getElementById('btnViewTable');
+    const btnViewCards = document.getElementById('btnViewCards');
+    function setHistoryView(mode) {
+        const cardsMode = mode === 'cards';
+        historyRoot.classList.toggle('sv-history-root-cards', cardsMode);
+        btnViewTable.classList.toggle('active', !cardsMode);
+        btnViewCards.classList.toggle('active', cardsMode);
+    }
+    btnViewTable.addEventListener('click', () => setHistoryView('table'));
+    btnViewCards.addEventListener('click', () => setHistoryView('cards'));
+
+    // 搜索（500ms 防抖，替代原 HTMX keyup 触发）
+    let searchTimer = null;
+    document.getElementById('searchInput').addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => loadHistory(1), 500);
+    });
+
+    // 刷新
+    document.getElementById('btnRefresh').addEventListener('click', () => loadHistory(currentPage));
+
     // 使用事件委托处理删除按钮点击
     document.getElementById('historyBody').addEventListener('click', (e) => {
         const btn = e.target.closest('.btn-delete-record');
@@ -364,6 +384,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (recordId) {
                 SeedVR2.deleteHistoryRecord(recordId);
             }
+        }
+    });
+
+    // 卡片视图同样使用事件委托处理删除
+    document.getElementById('historyCards').addEventListener('click', (e) => {
+        const btn = e.target.closest('.btn-delete-record');
+        if (btn && btn.dataset.recordId) {
+            SeedVR2.deleteHistoryRecord(btn.dataset.recordId);
         }
     });
 

@@ -73,7 +73,6 @@ restore:
   seed: 42
   sp_size: 1
   temporal_consistency: 0.8
-# REFACTOR: 运行时参数外置，替代源码中的硬编码（SSE 超时、重试间隔、队列上限等）
 runtime:
   batch:
     max_retries: 2
@@ -96,6 +95,9 @@ runtime:
     chunk_size_bytes: 8192
     large_file_threshold_mb: 10
 server:
+  allowed_origins:
+  - http://127.0.0.1:7870
+  - http://localhost:7870
   auto_open_browser: true
   debug: false
   host: 127.0.0.1

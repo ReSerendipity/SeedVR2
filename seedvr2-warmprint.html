@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeedVR2 · Warm Print</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=Instrument+Serif:ital@0;1&display=swap');
+
+:root {
+  --font-display: 'Instrument Serif', Georgia, serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+  --radius: 6px; --radius-sm: 4px; --radius-lg: 10px;
+  --nav-height: 56px;
+  --page-pad: clamp(24px, 3.5vw, 56px);
+}
+[data-theme="light"] {
+  --accent: #5e7d5a; --accent-hover: #506c4d; --accent-soft: rgba(94,125,90,0.09);
+  --secondary: #b5715a; --secondary-soft: rgba(181,113,90,0.07);
+  --tertiary: #a68b5b; --tertiary-soft: rgba(166,139,91,0.07);
+  --fg: #2c2420; --fg-2: #4a3f38; --muted: #8c8078;
+  --bg: #faf7f2; --surface: #ffffff; --surface-2: #f3efe8; --surface-hover: #f0ebe3;
+  --border: #e5ddd4; --border-strong: #d5cec4;
+  --card-bg: #ffffff; --card-border: 1px solid #e8e2da;
+  --nav-bg: rgba(250,247,242,0.94);
+  --input-bg: #faf7f2; --input-border: #d5cec4;
+  --table-border: #e8e2da; --progress-track: #e5ddd4;
+  --success: #5e7d5a; --success-soft: rgba(94,125,90,0.08);
+  --warning: #b89240; --warning-soft: rgba(184,146,64,0.08);
+  --danger: #b85a4a;  --danger-soft: rgba(184,90,74,0.07);
+  --info: #5a7d8a;    --info-soft: rgba(90,125,138,0.07);
+  --shadow-sm: 0 1px 3px rgba(44,36,32,0.04);
+  --shadow: 0 2px 8px rgba(44,36,32,0.06);
+  --grain-opacity: 0.02; --grain-blend: multiply;
+}
+[data-theme="dark"] {
+  --accent: #82a87e; --accent-hover: #96ba92; --accent-soft: rgba(130,168,126,0.10);
+  --secondary: #c98a72; --secondary-soft: rgba(201,138,114,0.09);
+  --tertiary: #c4a87a; --tertiary-soft: rgba(196,168,122,0.09);
+  --fg: #eae6e1; --fg-2: #c5bfb8; --muted: #97918a;
+  --bg: #1e1c20; --surface: #252328; --surface-2: #2b2930; --surface-hover: #322f37;
+  --border: rgba(234,230,225,0.10); --border-strong: rgba(234,230,225,0.15);
+  --card-bg: #252328; --card-border: 1px solid rgba(234,230,225,0.08);
+  --nav-bg: rgba(30,28,32,0.95);
+  --input-bg: #211f24; --input-border: rgba(234,230,225,0.12);
+  --table-border: rgba(234,230,225,0.07); --progress-track: rgba(234,230,225,0.10);
+  --success: #82a87e; --success-soft: rgba(130,168,126,0.10);
+  --warning: #d4b06a; --warning-soft: rgba(212,176,106,0.10);
+  --danger: #d47a6a;  --danger-soft: rgba(212,122,106,0.10);
+  --info: #7a9ab5;    --info-soft: rgba(122,154,181,0.10);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.20);
+  --shadow: 0 2px 8px rgba(0,0,0,0.26);
+  --grain-opacity: 0.012; --grain-blend: screen;
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-body);background:var(--bg);color:var(--fg);min-height:100vh;line-height:1.65;-webkit-font-smoothing:antialiased;font-weight:400;font-size:15px;transition:background .4s,color .35s}
+body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:999;opacity:var(--grain-opacity);mix-blend-mode:var(--grain-blend);background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 240 240' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");background-size:200px}
+
+/* ═══ NAV — three-zone: logo left / tabs center / actions right ═══ */
+.site-header{position:sticky;top:0;z-index:100;background:var(--nav-bg);border-bottom:1px solid var(--border-strong);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.site-header::after{content:'';position:absolute;left:0;right:0;bottom:-4px;height:1px;background:var(--border)}
+.header-inner{max-width:1600px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;height:var(--nav-height);padding:0 var(--page-pad)}
+.logo{font-family:var(--font-display);font-size:21px;font-style:italic;color:var(--fg);text-decoration:none;flex-shrink:0}
+.logo .dot{color:var(--tertiary)}
+.nav-tabs{display:flex;gap:6px;list-style:none}
+.nav-tab{font-size:14px;font-weight:400;padding:7px 18px;border:none;background:transparent;color:var(--muted);cursor:pointer;border-radius:var(--radius-sm);transition:color .2s,background .2s;min-height:36px}
+.nav-tab:hover{color:var(--fg);background:var(--surface-hover)}
+.nav-tab.active{color:var(--accent);background:var(--accent-soft);font-weight:500}
+.header-actions{display:flex;align-items:center;gap:8px}
+.icon-btn{width:34px;height:34px;border:1px solid var(--border);background:var(--surface);color:var(--muted);cursor:pointer;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.icon-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.icon-btn:active{transform:scale(.92)}
+.icon-btn svg{width:15px;height:15px}
+
+/* ═══ SHARED ═══ */
+.main-content{margin:0 auto;padding:0 var(--page-pad) 72px}
+.page{display:none}.page.active{display:block}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.page.active .anim{animation:rise .4s cubic-bezier(.22,.61,.36,1) both}
+.page.active .d1{animation-delay:.05s}.page.active .d2{animation-delay:.10s}.page.active .d3{animation-delay:.15s}.page.active .d4{animation-delay:.20s}
+.eyebrow{font-size:11px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--secondary);margin-bottom:8px;display:block}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;font-size:14px;font-weight:400;padding:10px 24px;border:1px solid var(--border-strong);background:var(--surface);color:var(--fg);cursor:pointer;border-radius:var(--radius);transition:all .2s;min-height:42px}
+.btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.btn:active{transform:scale(.97)}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn-primary:hover{background:var(--accent-hover);border-color:var(--accent-hover);color:#fff}
+[data-theme="dark"] .btn-primary{color:#1e1c20}[data-theme="dark"] .btn-primary:hover{color:#1e1c20}
+.btn-sm{padding:7px 14px;font-size:13px;min-height:34px}
+.btn-ghost{background:transparent;color:var(--muted);border-color:transparent}
+.btn-ghost:hover{background:var(--surface-2);color:var(--fg)}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 9px;font-size:11px;font-weight:500;border-radius:20px}
+.badge-success{color:var(--success);background:var(--success-soft)}
+.badge-warning{color:var(--warning);background:var(--warning-soft)}
+.badge-danger{color:var(--danger);background:var(--danger-soft)}
+.badge-info{color:var(--info);background:var(--info-soft)}
+
+/* ═══ HOME (max 1100px) ═══ */
+#page-home{max-width:1100px;margin:0 auto}
+.hero{padding:48px 0 40px}
+.hero-title{font-family:var(--font-display);font-size:clamp(36px,4vw,54px);font-style:italic;letter-spacing:0.01em;line-height:1.15;margin-bottom:16px;font-weight:400}
+.hero-title .hl{color:var(--accent);transition:color .3s}
+.hero-desc{font-size:17px;font-weight:300;color:var(--muted);max-width:440px;line-height:1.75;margin-bottom:28px}
+.hero-actions{display:flex;gap:10px}
+
+.home-section{margin-bottom:36px}
+.home-section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.home-section-title{font-size:11px;font-weight:500;letter-spacing:.10em;text-transform:uppercase;color:var(--secondary)}
+.home-section-link{font-size:13px;color:var(--muted);text-decoration:none;cursor:pointer;transition:color .2s}
+.home-section-link:hover{color:var(--accent)}
+
+/* Overview */
+.overview-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.ov-item{background:var(--card-bg);border:var(--card-border);border-radius:var(--radius-lg);padding:18px 20px;box-shadow:var(--shadow-sm);transition:border-color .25s,box-shadow .25s}
+.ov-item:hover{border-color:color-mix(in srgb,var(--accent) 35%,var(--border-strong));box-shadow:var(--shadow)}
+.ov-label{font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--secondary);margin-bottom:7px}
+.ov-value{font-family:var(--font-display);font-size:26px;font-style:italic;color:var(--fg);line-height:1.2}
+.ov-value.dim{color:var(--muted);font-size:18px}
+.ov-value.live{color:var(--accent)}
+.ov-sub{font-size:12px;color:var(--muted);margin-top:5px;display:flex;align-items:center;gap:5px}
+.ov-sub .dot{width:5px;height:5px;border-radius:50%}
+.dot-on{background:var(--accent)}.dot-off{background:var(--muted)}
+
+/* Recent tasks */
+.recent-list{list-style:none}
+.recent-item{display:flex;align-items:center;gap:14px;padding:12px 16px;background:var(--card-bg);border:var(--card-border);border-left:3px solid transparent;border-radius:var(--radius);margin-bottom:7px;box-shadow:var(--shadow-sm);cursor:pointer;transition:border-color .2s,border-left-color .2s}
+.recent-item:hover{border-color:var(--border-strong);border-left-color:var(--accent)}
+.recent-item:last-child{margin-bottom:0}
+.recent-icon{width:32px;height:32px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--secondary-soft);color:var(--secondary)}
+.recent-icon svg{width:15px;height:15px}
+.recent-info{flex:1;min-width:0}
+.recent-name{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.recent-meta{font-size:12px;color:var(--muted);margin-top:2px}
+
+/* ═══ RESTORE (max 1400px) ═══ */
+#page-restore{max-width:1400px;margin:0 auto}
+.restore-header{margin-bottom:20px}
+.restore-workspace{display:grid;grid-template-columns:1fr 270px;gap:20px}
+.upload-zone{border:2px dashed var(--border-strong);border-radius:var(--radius-lg);padding:30px;text-align:center;cursor:pointer;transition:border-color .3s,background .3s;margin-bottom:16px;background:var(--surface)}
+.upload-zone:hover{border-color:var(--accent);background:var(--accent-soft)}
+.upload-zone-icon{color:var(--secondary);margin-bottom:8px;transition:color .3s}
+.upload-zone:hover .upload-zone-icon{color:var(--accent)}
+.upload-zone-title{font-size:15px;margin-bottom:3px}
+.upload-zone-hint{font-size:13px;color:var(--muted)}
+.upload-zone-formats{font-size:11px;color:var(--muted);margin-top:6px;opacity:.7}
+.compare-area{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);min-height:360px;display:flex;align-items:center;justify-content:center;margin-bottom:16px}
+.compare-placeholder{text-align:center;color:var(--muted);font-size:14px}
+.compare-placeholder svg{display:block;margin:0 auto 10px;color:var(--accent);opacity:.35}
+.batch-section{margin-top:16px}
+.batch-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.batch-title{font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--secondary)}
+.batch-input-row{display:flex;gap:8px;margin-bottom:10px}
+.batch-input{flex:1;padding:9px 13px;font-size:13px;background:var(--input-bg);color:var(--fg);border:1px solid var(--input-border);border-radius:var(--radius-sm);outline:none;font-family:inherit;transition:border-color .2s,box-shadow .2s}
+.batch-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.batch-progress-bar{height:4px;background:var(--progress-track);border-radius:4px;overflow:hidden;margin-bottom:7px}
+.batch-progress-fill{height:100%;background:var(--accent);border-radius:4px;width:65%}
+.batch-stats{display:flex;gap:14px;font-size:12px;color:var(--muted)}
+.batch-stats .s-ok{color:var(--success)}.batch-stats .s-fail{color:var(--danger)}
+.batch-file-list{list-style:none;margin-top:8px;max-height:120px;overflow-y:auto}
+.batch-file-item{display:flex;align-items:center;gap:8px;padding:6px 10px;font-size:12px;border-radius:var(--radius-sm);margin-bottom:3px;background:var(--surface);border:1px solid var(--border)}
+.batch-file-item .bf-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.param-sidebar{background:var(--card-bg);border:var(--card-border);border-radius:var(--radius-lg);padding:20px;box-shadow:var(--shadow-sm);align-self:start;position:sticky;top:calc(var(--nav-height) + 16px)}
+.param-sidebar-title{font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--secondary);margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.param-group{margin-bottom:14px}
+.param-label{font-size:11px;font-weight:500;letter-spacing:.05em;text-transform:uppercase;color:var(--secondary);margin-bottom:5px;display:block}
+.param-select,.param-input{width:100%;padding:8px 11px;font-size:13px;font-family:inherit;background:var(--input-bg);color:var(--fg);border:1px solid var(--input-border);outline:none;border-radius:var(--radius-sm);transition:border-color .2s,box-shadow .2s}
+.param-select:focus,.param-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.advanced-toggle{display:flex;align-items:center;gap:6px;width:100%;font-size:12px;color:var(--muted);cursor:pointer;background:none;border:none;padding:10px 0;margin-top:6px;border-top:1px solid var(--border);text-align:left;transition:color .2s}
+.advanced-toggle:hover{color:var(--accent)}
+.advanced-toggle .arrow{transition:transform .25s;display:inline-block}
+.advanced-toggle.open .arrow{transform:rotate(90deg)}
+.advanced-params{display:none;padding-top:12px}.advanced-params.open{display:block}
+.param-actions{margin-top:16px;display:flex;flex-direction:column;gap:8px}
+.param-actions .btn{width:100%}
+
+/* ═══ HISTORY (max 1400px) ═══ */
+#page-history{max-width:1400px;margin:0 auto}
+.history-toolbar{display:flex;gap:10px;margin-bottom:16px;align-items:center;flex-wrap:wrap}
+.search-box{flex:1;position:relative;min-width:200px}
+.search-box input{width:100%;padding:9px 14px 9px 34px;font-size:13px;background:var(--input-bg);color:var(--fg);border:1px solid var(--input-border);outline:none;border-radius:var(--radius);transition:border-color .2s,box-shadow .2s}
+.search-box input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.search-box .si{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--muted)}
+.filter-select{padding:8px 13px;font-size:13px;background:var(--input-bg);color:var(--fg);border:1px solid var(--input-border);outline:none;border-radius:var(--radius)}
+.view-toggle{display:flex;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.view-toggle button{padding:7px 12px;border:none;background:var(--surface);color:var(--muted);cursor:pointer;font-size:12px;display:flex;align-items:center;gap:4px;transition:all .2s}
+.view-toggle button.active{background:var(--accent-soft);color:var(--accent)}
+.view-toggle button:not(:last-child){border-right:1px solid var(--border)}
+.data-table{width:100%;border-collapse:collapse;font-size:13px}
+.data-table th{text-align:left;padding:9px 14px;font-size:11px;font-weight:500;letter-spacing:.05em;text-transform:uppercase;color:var(--secondary);border-bottom:1px solid var(--table-border);background:var(--surface)}
+.data-table td{padding:9px 14px;border-bottom:1px solid var(--table-border);color:var(--fg-2)}
+.data-table tr:hover td{background:var(--surface-hover)}
+.history-cards{display:none;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+.history-cards.visible{display:grid}
+.history-card{background:var(--card-bg);border:var(--card-border);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-sm);transition:border-color .2s}
+.history-card:hover{border-color:color-mix(in srgb,var(--accent) 30%,var(--border-strong))}
+.history-card-thumb{height:100px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;color:var(--accent);opacity:.35}
+.history-card-body{padding:11px 13px}
+.history-card-name{font-size:13px;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.history-card-meta{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);flex-wrap:wrap}
+
+/* ═══ SETTINGS (max 720px, tab + form rows) ═══ */
+#page-settings{max-width:720px;margin:0 auto}
+.settings-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:24px}
+.settings-tab{padding:11px 22px;font-size:14px;color:var(--muted);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;transition:color .2s,border-color .2s}
+.settings-tab:hover{color:var(--fg)}
+.settings-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.settings-panel{display:none}
+.settings-panel.active{display:block}
+.form-row{display:flex;align-items:center;justify-content:space-between;padding:16px 0;border-bottom:1px solid var(--border)}
+.form-row:last-child{border-bottom:none}
+.form-row-left{flex:1;margin-right:20px}
+.form-row-label{font-size:14px;margin-bottom:3px}
+.form-row-help{font-size:12px;color:var(--muted)}
+.form-row-right{flex-shrink:0;display:flex;align-items:center;gap:8px}
+.form-input{width:210px;height:36px;padding:0 13px;background:var(--input-bg);border:1px solid var(--input-border);border-radius:var(--radius-sm);color:var(--fg);font-size:13px;outline:none;font-family:inherit;transition:border-color .2s,box-shadow .2s}
+.form-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.form-select{width:170px;height:36px;padding:0 13px;background:var(--input-bg);border:1px solid var(--input-border);border-radius:var(--radius-sm);color:var(--fg);font-size:13px;outline:none;font-family:inherit;appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%2397918a' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center;transition:border-color .2s}
+.form-select:focus{border-color:var(--accent)}
+.form-footer{display:flex;justify-content:flex-end;gap:10px;margin-top:24px;padding-top:16px;border-top:1px solid var(--border)}
+
+/* WIDGET */
+.sys-widget{position:fixed;bottom:14px;right:14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:8px 14px;display:flex;align-items:center;gap:12px;font-size:11px;z-index:50;backdrop-filter:blur(16px);box-shadow:var(--shadow)}
+.sys-widget .sw-item{display:flex;align-items:center;gap:5px;color:var(--muted)}
+.sys-widget .sw-dot{width:5px;height:5px;border-radius:50%}
+.sys-widget .sw-bar{width:40px;height:3px;background:var(--progress-track);border-radius:3px;overflow:hidden}
+.sys-widget .sw-bar-fill{height:100%;border-radius:3px}
+
+@media(max-width:1024px){.restore-workspace{grid-template-columns:1fr}.param-sidebar{position:static}.overview-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:768px){.hero-title{font-size:32px}.hero-actions{flex-direction:column}.overview-grid{grid-template-columns:1fr}.history-toolbar{flex-direction:column;align-items:stretch}.form-row{flex-direction:column;align-items:flex-start;gap:8px}.form-input{width:100%}.batch-input-row{flex-direction:column}.header-inner{justify-content:flex-start;gap:12px}.nav-tabs{margin-left:auto}}
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <a class="logo" href="#" onclick="navigate('home');return false">SeedVR2<span class="dot">.</span></a>
+    <nav class="nav-tabs">
+      <button class="nav-tab active" data-page="home" onclick="navigate('home')">首页</button>
+      <button class="nav-tab" data-page="restore" onclick="navigate('restore')">修复</button>
+      <button class="nav-tab" data-page="history" onclick="navigate('history')">历史记录</button>
+    </nav>
+    <div class="header-actions">
+      <button class="icon-btn" onclick="navigate('settings')" title="设置"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+      <button class="icon-btn" onclick="toggleTheme()" title="切换主题">
+        <svg id="themeIconSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        <svg id="themeIconMoon" style="display:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="main-content">
+
+<!-- HOME -->
+<div class="page active" id="page-home">
+  <div class="hero">
+    <span class="eyebrow anim">Video & Image Restoration</span>
+    <h1 class="hero-title anim d1">SeedVR2 便携式<br>视频与图像<span class="hl">修复</span>工具箱</h1>
+    <p class="hero-desc anim d2">基于深度学习的超分辨率修复工具，让老旧影像重获新生。</p>
+    <div class="hero-actions anim d3">
+      <button class="btn btn-primary" onclick="navigate('restore')">开始修复</button>
+      <button class="btn" onclick="navigate('history')">查看历史</button>
+    </div>
+  </div>
+
+  <div class="home-section anim d3">
+    <div class="home-section-header"><span class="home-section-title">系统概览</span></div>
+    <div class="overview-grid">
+      <div class="ov-item"><div class="ov-label">GPU</div><div class="ov-value dim">不可用</div><div class="ov-sub"><span class="dot dot-off"></span>未检测到 NVIDIA GPU</div></div>
+      <div class="ov-item"><div class="ov-label">模型</div><div class="ov-value dim">未加载</div><div class="ov-sub"><span class="dot dot-off"></span>可用: 3B · 7B · 7B_SHARP</div></div>
+      <div class="ov-item"><div class="ov-label">内存</div><div class="ov-value live">69%</div><div class="ov-sub"><span class="dot dot-on"></span>4.76 GB 可用 / 15.47 GB</div></div>
+      <div class="ov-item"><div class="ov-label">当前任务</div><div class="ov-value dim">空闲</div><div class="ov-sub"><span class="dot dot-on"></span>队列: 0 个等待中</div></div>
+    </div>
+  </div>
+
+  <div class="home-section anim d4">
+    <div class="home-section-header"><span class="home-section-title">最近任务</span><a class="home-section-link" onclick="navigate('history')">全部 →</a></div>
+    <ul class="recent-list">
+      <li class="recent-item" onclick="navigate('history')"><div class="recent-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div><div class="recent-info"><div class="recent-name">photo_001.png</div><div class="recent-meta">3B FP16 · 4.2s · 01-15 14:32</div></div><span class="badge badge-success">已完成</span></li>
+      <li class="recent-item" onclick="navigate('history')"><div class="recent-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div><div class="recent-info"><div class="recent-name">clip_final.mp4</div><div class="recent-meta">3B FP16 · 128.5s · 01-15 14:18</div></div><span class="badge badge-success">已完成</span></li>
+      <li class="recent-item" onclick="navigate('history')"><div class="recent-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div><div class="recent-info"><div class="recent-name">scan_page.tiff</div><div class="recent-meta">7B FP8 · 01-15 14:15</div></div><span class="badge badge-warning">处理中</span></li>
+    </ul>
+  </div>
+</div>
+
+<!-- RESTORE -->
+<div class="page" id="page-restore">
+  <div class="restore-header">
+    <span class="eyebrow anim">Restore</span>
+    <div style="font-family:var(--font-display);font-size:30px;font-style:italic;margin-bottom:4px" class="anim d1">修复工作台</div>
+    <p style="font-size:14px;color:var(--muted);font-weight:300" class="anim d1">导入文件、配置参数、对比修复效果</p>
+  </div>
+  <div class="restore-workspace anim d2">
+    <div>
+      <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
+        <input type="file" id="fileInput" style="display:none" accept=".png,.jpg,.jpeg,.bmp,.webp,.tiff,.mp4,.avi,.mov,.mkv">
+        <div class="upload-zone-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+        <div class="upload-zone-title">点击或拖拽文件到此处</div>
+        <div class="upload-zone-hint">支持单文件上传修复</div>
+        <div class="upload-zone-formats">PNG / JPG / BMP / WEBP / TIFF · MP4 / AVI / MOV / MKV</div>
+      </div>
+      <div class="compare-area"><div class="compare-placeholder"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>修复完成后展示前后对比<br><span style="font-size:12px;opacity:.6">拖动滑块比较原始与修复效果</span></div></div>
+      <div class="batch-section">
+        <div class="batch-header"><span class="batch-title">批量处理</span><span class="badge badge-info">文件夹模式</span></div>
+        <div class="batch-input-row"><input class="batch-input" placeholder="输入文件夹路径" value="D:\Photos\old_pictures"><button class="btn btn-sm">扫描</button><button class="btn btn-primary btn-sm">批量修复</button></div>
+        <div class="batch-progress-bar"><div class="batch-progress-fill"></div></div>
+        <div class="batch-stats"><span>13/20</span><span class="s-ok">成功 11</span><span class="s-fail">失败 2</span></div>
+        <ul class="batch-file-list">
+          <li class="batch-file-item"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg><span class="bf-name">photo_001.png</span><span style="color:var(--success)">完成</span></li>
+          <li class="batch-file-item"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span class="bf-name">photo_003.tiff</span><span style="color:var(--accent)">处理中</span></li>
+          <li class="batch-file-item"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg><span class="bf-name">corrupt_file.bmp</span><span style="color:var(--danger)">失败</span></li>
+        </ul>
+      </div>
+    </div>
+    <div class="param-sidebar">
+      <div class="param-sidebar-title">参数配置</div>
+      <div class="param-group"><span class="param-label">DiT 模型</span><select class="param-select"><option>3B FP16</option><option>3B FP8</option><option>7B FP16</option><option>7B FP8</option><option>7B Sharp FP16</option></select></div>
+      <div class="param-group"><span class="param-label">输出分辨率</span><input type="number" class="param-input" value="2160"></div>
+      <div class="param-group"><span class="param-label">最大分辨率 (0=不限)</span><input type="number" class="param-input" value="0"></div>
+      <div class="param-group"><span class="param-label">随机种子</span><input type="number" class="param-input" value="1373201197"></div>
+      <div class="param-group"><span class="param-label">色彩校正</span><select class="param-select"><option>LAB 匹配</option><option>无</option></select></div>
+      <button class="advanced-toggle" id="advToggle" onclick="toggleAdvanced()"><span class="arrow">›</span> 高级参数</button>
+      <div class="advanced-params" id="advParams">
+        <div class="param-group"><span class="param-label">注意力模式</span><select class="param-select"><option>SDPA</option><option>Flash Attention</option><option>xFormers</option></select></div>
+        <div class="param-group"><span class="param-label">Blocks to Swap</span><input type="number" class="param-input" value="32"></div>
+        <div class="param-group"><span class="param-label">Batch Size</span><input type="number" class="param-input" value="1"></div>
+        <div class="param-group"><span class="param-label">分块大小</span><input type="number" class="param-input" value="1024"></div>
+      </div>
+      <div class="param-actions"><button class="btn btn-primary">上传并修复</button><button class="btn btn-ghost btn-sm">重置参数</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- HISTORY -->
+<div class="page" id="page-history">
+  <span class="eyebrow anim">History</span>
+  <div style="font-family:var(--font-display);font-size:28px;font-style:italic;margin-bottom:14px" class="anim d1">历史记录</div>
+  <div class="history-toolbar anim d2">
+    <div class="search-box"><span class="si"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span><input type="text" placeholder="搜索文件名、模型、状态..."></div>
+    <select class="filter-select"><option>全部类型</option><option>图片</option><option>视频</option></select>
+    <select class="filter-select"><option>全部状态</option><option>已完成</option><option>处理中</option><option>失败</option></select>
+    <div class="view-toggle"><button class="active" id="viewTable" onclick="setHistoryView('table')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>表格</button><button id="viewCards" onclick="setHistoryView('cards')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>卡片</button></div>
+  </div>
+  <table class="data-table anim d3" id="historyTable">
+    <thead><tr><th>ID</th><th>类型</th><th>文件</th><th>模型</th><th>状态</th><th>耗时</th><th>时间</th></tr></thead>
+    <tbody>
+      <tr><td>#1024</td><td>图片</td><td>photo_001.png</td><td><span class="badge badge-info">3B FP16</span></td><td><span class="badge badge-success">已完成</span></td><td>4.2s</td><td>01-15 14:32</td></tr>
+      <tr><td>#1023</td><td>视频</td><td>clip_final.mp4</td><td><span class="badge badge-info">3B FP16</span></td><td><span class="badge badge-success">已完成</span></td><td>128.5s</td><td>01-15 14:18</td></tr>
+      <tr><td>#1022</td><td>图片</td><td>scan_page.tiff</td><td><span class="badge badge-info">7B FP8</span></td><td><span class="badge badge-warning">处理中</span></td><td>—</td><td>01-15 14:15</td></tr>
+      <tr><td>#1021</td><td>图片</td><td>old_photo.jpg</td><td><span class="badge badge-info">3B FP16</span></td><td><span class="badge badge-danger">失败</span></td><td>—</td><td>01-15 13:58</td></tr>
+      <tr><td>#1020</td><td>图片</td><td>portrait_02.png</td><td><span class="badge badge-info">7B Sharp</span></td><td><span class="badge badge-success">已完成</span></td><td>6.8s</td><td>01-15 13:41</td></tr>
+    </tbody>
+  </table>
+  <div class="history-cards" id="historyCards">
+    <div class="history-card"><div class="history-card-thumb"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div><div class="history-card-body"><div class="history-card-name">photo_001.png</div><div class="history-card-meta"><span class="badge badge-success">已完成</span><span>3B FP16 · 4.2s</span></div></div></div>
+    <div class="history-card"><div class="history-card-thumb"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div><div class="history-card-body"><div class="history-card-name">clip_final.mp4</div><div class="history-card-meta"><span class="badge badge-success">已完成</span><span>3B FP16 · 128.5s</span></div></div></div>
+    <div class="history-card"><div class="history-card-thumb"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div><div class="history-card-body"><div class="history-card-name">scan_page.tiff</div><div class="history-card-meta"><span class="badge badge-warning">处理中</span><span>7B FP8</span></div></div></div>
+    <div class="history-card"><div class="history-card-thumb"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div><div class="history-card-body"><div class="history-card-name">old_photo.jpg</div><div class="history-card-meta"><span class="badge badge-danger">失败</span><span>3B FP16</span></div></div></div>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div class="page" id="page-settings">
+  <span class="eyebrow anim">Settings</span>
+  <div style="font-family:var(--font-display);font-size:28px;font-style:italic;margin-bottom:18px" class="anim d1">设置</div>
+  <div class="settings-tabs anim d2">
+    <button class="settings-tab active" onclick="switchSettingsTab('paths',this)">路径配置</button>
+    <button class="settings-tab" onclick="switchSettingsTab('model',this)">模型设置</button>
+    <button class="settings-tab" onclick="switchSettingsTab('language',this)">语言</button>
+  </div>
+  <div class="settings-panel active anim d3" id="panel-paths">
+    <div class="form-row"><div class="form-row-left"><div class="form-row-label">预训练模型目录</div><div class="form-row-help">SeedVR2 模型文件的存放路径</div></div><div class="form-row-right"><input class="form-input" value="pretrained_models"><button class="btn btn-sm">浏览</button></div></div>
+    <div class="form-row"><div class="form-row-left"><div class="form-row-label">输出目录</div><div class="form-row-help">修复完成后文件的保存路径</div></div><div class="form-row-right"><input class="form-input" value="outputs"><button class="btn btn-sm">浏览</button></div></div>
+    <div class="form-footer"><button class="btn btn-ghost btn-sm">重置默认</button><button class="btn btn-primary btn-sm">保存</button></div>
+  </div>
+  <div class="settings-panel" id="panel-model">
+    <div class="form-row"><div class="form-row-left"><div class="form-row-label">默认模型大小</div><div class="form-row-help">启动时预加载的模型规模</div></div><div class="form-row-right"><select class="form-select"><option>3B</option><option>7B</option></select></div></div>
+    <div class="form-row"><div class="form-row-left"><div class="form-row-label">推理精度</div><div class="form-row-help">模型推理使用的数值精度</div></div><div class="form-row-right"><select class="form-select"><option>FP16</option><option>FP8</option></select></div></div>
+    <div class="form-row"><div class="form-row-left"><div class="form-row-label">GPU 后端</div><div class="form-row-help">推理使用的 GPU 后端</div></div><div class="form-row-right"><select class="form-select"><option>Auto</option><option>CUDA</option></select></div></div>
+    <div class="form-footer"><button class="btn btn-primary btn-sm">保存</button></div>
+  </div>
+  <div class="settings-panel" id="panel-language">
+    <div class="form-row"><div class="form-row-left"><div class="form-row-label">界面语言</div><div class="form-row-help">切换后页面将自动刷新</div></div><div class="form-row-right"><select class="form-select"><option>中文</option><option>English</option><option>日本語</option><option>Français</option></select></div></div>
+    <div class="form-footer"><button class="btn btn-primary btn-sm">保存</button></div>
+  </div>
+</div>
+
+</div>
+
+<div class="sys-widget">
+  <div class="sw-item"><span class="sw-dot" style="background:var(--success)"></span> v1.0.0</div>
+  <div class="sw-item"><div class="sw-bar"><div class="sw-bar-fill" style="width:69%;background:var(--accent)"></div></div> 69%</div>
+</div>
+
+<script>
+function navigate(p){document.querySelectorAll('.page').forEach(function(el){el.classList.remove('active')});document.getElementById('page-'+p).classList.add('active');document.querySelectorAll('.nav-tab').forEach(function(t){t.classList.remove('active')});var t=document.querySelector('.nav-tab[data-page="'+p+'"]');if(t)t.classList.add('active');}
+function toggleAdvanced(){document.getElementById('advParams').classList.toggle('open');document.getElementById('advToggle').classList.toggle('open');}
+function toggleTheme(){var h=document.documentElement,d=h.getAttribute('data-theme')==='dark';h.setAttribute('data-theme',d?'light':'dark');document.getElementById('themeIconSun').style.display=d?'':'none';document.getElementById('themeIconMoon').style.display=d?'none':'';}
+function setHistoryView(v){var t=document.getElementById('historyTable'),c=document.getElementById('historyCards'),bt=document.getElementById('viewTable'),bc=document.getElementById('viewCards');if(v==='table'){t.style.display='';c.classList.remove('visible');bt.classList.add('active');bc.classList.remove('active')}else{t.style.display='none';c.classList.add('visible');bt.classList.remove('active');bc.classList.add('active')}}
+function switchSettingsTab(tab,btn){document.querySelectorAll('.settings-panel').forEach(function(p){p.classList.remove('active')});document.getElementById('panel-'+tab).classList.add('active');document.querySelectorAll('.settings-tab').forEach(function(t){t.classList.remove('active')});btn.classList.add('active');}
+</script>
+</body>
+</html>
