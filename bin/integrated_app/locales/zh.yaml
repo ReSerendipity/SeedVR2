@@ -10,23 +10,29 @@ nav:
   settings: "设置"
 
 home:
-  hero_title: "SeedVR2 便携式视频/图像修复工具箱"
-  hero_subtitle: "基于深度学习的视频/图像超分辨率修复工具"
+  hero_title: "让每一帧画面，"
+  hero_highlight: "重获新生"
+  hero_subtitle: "基于 SeedVR2 深度学习模型的视频与图像超分辨率修复，单步操作，便携独立运行。"
   restore_feature: "开始修复"
   restore_feature_desc: "上传图片或视频，使用 SeedVR2 模型进行超分辨率增强"
   system_feature: "系统状态"
   system_feature_desc: "查看 GPU、模型和系统运行状态"
   start: "开始修复"
   view_status: "查看状态"
+  recent_tasks: "最近任务"
+  view_all: "查看全部"
+  no_tasks_desc: "还没有修复任务，开始你的第一次修复吧。"
   empty_title: "准备就绪"
   empty_desc: "开始你的第一次修复，这里将显示活动概览。"
   empty_cta: "开始你的第一次修复"
+  total_tasks: "累计任务"
 
 common:
   upload: "上传文件"
   start: "开始修复"
   stop: "停止"
   download: "下载"
+  browse: "浏览"
   preview: "预览"
   delete: "删除"
   search: "搜索"
@@ -158,8 +164,8 @@ video:
   result_preview: "结果预览"
 
 restore:
-  title: "修复"
-  subtitle: "上传图片或视频，SeedVR2 将自动按类型处理"
+  title: "修复工作台"
+  subtitle: "导入文件、配置参数、对比修复效果"
   model_settings: "模型设置"
   simple_mode: "简单模式"
   seed: "随机种子"
@@ -199,11 +205,21 @@ restore:
   batch_success: "成功"
   batch_failed: "失败"
   batch_current_processing: "当前处理: {current}/{total}"
+  upload_single_hint: "支持单文件上传修复"
+  compare_placeholder: "修复完成后展示前后对比"
+  compare_placeholder_hint: "拖动滑块比较原始与修复效果"
+  batch_title: "批量处理"
+  folder_mode: "文件夹模式"
+  param_config: "参数配置"
+  folder_path_placeholder: "输入文件夹路径"
 
 history:
   title: "历史记录"
   subtitle: "查看所有修复任务的历史记录"
   search_placeholder: "搜索文件名、模型、状态..."
+  view_mode: "视图模式"
+  view_table: "表格"
+  view_cards: "卡片"
   no_records: "暂无记录"
   no_records_desc: "修复任务完成后会自动记录在这里"
   load_failed: "加载失败"
@@ -230,6 +246,7 @@ history:
   actions: "操作"
   clear: "清空历史"
   refresh: "刷新"
+  preview: "预览"
 
 system:
   title: "系统状态"
@@ -310,6 +327,12 @@ settings:
   save_settings: "保存设置"
   backend_auto: "自动检测"
   backend_cuda: "CUDA"
+  pretrained_dir_help: "SeedVR2 模型文件的存放路径"
+  output_dir_help: "修复完成后文件的保存路径"
+  default_model_size_help: "启动时默认加载的模型大小"
+  precision_help: "模型推理精度，FP8 可节省显存"
+  gpu_backend_help: "SeedVR2 仅支持 NVIDIA CUDA GPU 推理"
+  language_help: "切换界面显示语言，保存后刷新页面生效"
 
 status:
   gpu_detecting: "正在检测 GPU..."

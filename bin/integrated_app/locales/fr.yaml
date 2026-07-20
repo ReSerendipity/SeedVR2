@@ -10,23 +10,29 @@ nav:
   settings: "Paramètres"
 
 home:
-  hero_title: "SeedVR2 Boîte à Outils Portable de Restauration Vidéo/Image"
-  hero_subtitle: "Outil de restauration par super-résolution vidéo/image basé sur l'apprentissage profond"
+  hero_title: "Chaque image,"
+  hero_highlight: "restaurée."
+  hero_subtitle: "Restauration vidéo & image par super-résolution basée sur SeedVR2. Une seule étape, entièrement portable."
   restore_feature: "Commencer la Restauration"
   restore_feature_desc: "Téléchargez des images ou vidéos pour l'amélioration par super-résolution SeedVR2"
   system_feature: "État Système"
   system_feature_desc: "Voir l'état du GPU, du modèle et du système en temps réel"
   start: "Commencer la Restauration"
   view_status: "Voir l'État"
+  recent_tasks: "Tâches récentes"
+  view_all: "Tout voir"
+  no_tasks_desc: "Aucune tâche de restauration pour le moment. Lancez la première."
   empty_title: "Prêt à Commencer"
   empty_desc: "Commencez votre première restauration pour voir l'activité ici."
   empty_cta: "Commencer Votre Première Restauration"
+  total_tasks: "tâches au total"
 
 common:
   upload: "Télécharger un Fichier"
   start: "Commencer la Restauration"
   stop: "Arrêter"
   download: "Télécharger"
+  browse: "Parcourir"
   preview: "Aperçu"
   delete: "Supprimer"
   search: "Rechercher"
@@ -158,8 +164,8 @@ video:
   result_preview: "Aperçu du Résultat"
 
 restore:
-  title: "Restauration"
-  subtitle: "Téléchargez des images ou vidéos, SeedVR2 les traitera selon leur type"
+  title: "Atelier de restauration"
+  subtitle: "Importez des fichiers, configurez les paramètres, comparez les résultats"
   model_settings: "Paramètres du Modèle"
   simple_mode: "Mode Simple"
   seed: "Graine Aléatoire"
@@ -199,11 +205,21 @@ restore:
   batch_success: "Succès"
   batch_failed: "Échoué"
   batch_current_processing: "En cours : {current}/{total}"
+  upload_single_hint: "Restauration par envoi de fichier unique"
+  compare_placeholder: "Comparaison avant/après affichée une fois la restauration terminée"
+  compare_placeholder_hint: "Faites glisser le curseur pour comparer"
+  batch_title: "Traitement par Lots"
+  folder_mode: "Mode dossier"
+  param_config: "Paramètres"
+  folder_path_placeholder: "Saisir le chemin du dossier"
 
 history:
   title: "Historique"
   subtitle: "Voir l'historique de toutes les tâches de restauration"
   search_placeholder: "Rechercher nom de fichier, modèle, statut..."
+  view_mode: "Mode d'affichage"
+  view_table: "Tableau"
+  view_cards: "Cartes"
   no_records: "Aucun enregistrement"
   no_records_desc: "Les tâches de restauration terminées seront enregistrées ici automatiquement"
   load_failed: "Échec du chargement"
@@ -230,6 +246,7 @@ history:
   actions: "Actions"
   clear: "Effacer l'Historique"
   refresh: "Actualiser"
+  preview: "Aperçu"
 
 system:
   title: "État Système"
@@ -310,6 +327,12 @@ settings:
   save_settings: "Enregistrer les Paramètres"
   backend_auto: "Détection Automatique"
   backend_cuda: "CUDA"
+  pretrained_dir_help: "Chemin du dossier des fichiers de modèle pré-entraîné"
+  output_dir_help: "Chemin du dossier de sortie des fichiers restaurés"
+  default_model_size_help: "Taille de modèle chargée par défaut au démarrage"
+  precision_help: "Précision numérique d'inférence ; FP8 économise la VRAM"
+  gpu_backend_help: "SeedVR2 ne prend en charge que l'inférence NVIDIA CUDA GPU"
+  language_help: "Changer la langue de l'interface ; effectif après rechargement"
 
 status:
   gpu_detecting: "Détection du GPU..."

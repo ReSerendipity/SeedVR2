@@ -3,355 +3,285 @@
 {% block title %}SeedVR2 - {{ t('restore.title') }}{% endblock %}
 
 {% block content %}
-<nav class="sv-breadcrumb">
-    <a href="/"><i class="bi bi-house"></i> {{ t('nav.home') }}</a>
-    <span class="separator"><i class="bi bi-chevron-right"></i></span>
-    <span class="current">{{ t('nav.restore') }}</span>
-</nav>
-
-<div class="sv-page-header">
-    <h1><i class="bi bi-lightning-charge sv-text-primary"></i> {{ t('restore.title') }}</h1>
-    <p>{{ t('restore.subtitle') }}</p>
+<div class="sv-page-head">
+    <span class="sv-eyebrow sv-anim-rise">{{ t('restore.subtitle') }}</span>
+    <h1 class="sv-serif-title sv-anim-rise sv-anim-d1">{{ t('restore.title') }}</h1>
 </div>
 
-<button type="button" class="sv-params-toggle" id="btnToggleParams" aria-label="Toggle parameters panel" title="Toggle parameters">
-    <i class="bi bi-layout-sidebar-inset"></i>
-</button>
-
-<div class="sv-workstation-layout sv-workstation">
-    <!-- 左侧文件浏览器 -->
-    <aside class="sv-workstation-sidebar sv-workstation-sidebar-left" id="fileSidebar">
-        <div class="sv-sidebar-header">
-            <h3><i class="bi bi-folder2-open"></i> {{ t('restore.select_file') }}</h3>
-            <button type="button" class="sv-btn sv-btn-sm sv-btn-ghost sv-sidebar-toggle" id="btnToggleFileSidebar" aria-label="Toggle sidebar">
-                <i class="bi bi-panel-left-close"></i>
-            </button>
+<div class="sv-restore-workspace sv-anim-rise sv-anim-d2">
+    <!-- ===== 主列：上传 + 对比 + 批量 ===== -->
+    <div class="sv-restore-main">
+        <!-- 上传区 -->
+        <div class="sv-dropzone" id="restoreUploadZone">
+            <div class="sv-dropzone-icon"><i class="bi bi-cloud-arrow-up"></i></div>
+            <div class="sv-dropzone-title">{{ t('restore.upload_hint') }}</div>
+            <div class="sv-dropzone-hint">{{ t('restore.upload_single_hint') }}</div>
+            <div class="sv-dropzone-formats">{{ t('restore.supported_formats') }}</div>
+            <div class="sv-dropzone-fileinfo" id="restoreFileInfo" style="display:none;"></div>
+            <input type="file" id="restoreFileInput" style="display:none;"
+                   accept="image/png,image/jpeg,image/jpg,image/bmp,image/webp,video/mp4,video/avi,video/quicktime,video/x-matroska,video/webm,video/x-flv">
         </div>
-        <div class="sv-sidebar-content">
-            <div class="sv-upload-zone sv-upload-zone-enhanced" id="restoreUploadZone">
-                <i class="bi bi-cloud-arrow-up upload-icon"></i>
-                <div class="upload-title">{{ t('restore.upload_hint') }}</div>
-                <div class="upload-hint">{{ t('restore.supported_formats') }}</div>
-                <div class="upload-file-info" id="restoreFileInfo" style="display:none;"></div>
-                <input type="file" id="restoreFileInput" accept="image/png,image/jpeg,image/jpg,image/bmp,image/webp,video/mp4,video/avi,video/quicktime,video/x-matroska,video/webm,video/x-flv">
+
+        <!-- 对比 / 预览区 -->
+        <div class="sv-compare-area" id="previewArea">
+            <!-- 空状态占位 -->
+            <div class="sv-compare-placeholder" id="workflowGuide" data-auto-hide="true">
+                <i class="bi bi-image"></i>
+                <div class="sv-compare-placeholder-title">{{ t('restore.compare_placeholder') }}</div>
+                <span class="sv-compare-placeholder-hint">{{ t('restore.compare_placeholder_hint') }}</span>
             </div>
 
-            <div class="sv-param-row sv-mt-3">
-                <div class="sv-form-group">
-                    <label class="sv-form-label" for="folderPath">{{ t('restore.folder_path') }}</label>
-                    <div class="sv-flex sv-gap-2">
-                        <input type="text" class="sv-form-control" id="folderPath" name="folder_path" placeholder="C:\\...">
-                        <button type="button" class="sv-btn sv-btn-outline sv-btn-sm" id="btnBrowseFolder"><i class="bi bi-folder-symlink"></i></button>
-                        <button type="button" class="sv-btn sv-btn-secondary sv-btn-sm" id="btnScanFolder"><i class="bi bi-search"></i></button>
+            <!-- 图片预览 -->
+            <div class="sv-preview-container" id="imagePreviewContainer" style="display:none;">
+                <img id="imagePreview" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:var(--sv-radius);" alt="{{ t('restore.before') }}">
+            </div>
+
+            <!-- 进度 -->
+            <div class="sv-preview-progress" id="progressCard" style="display:none;">
+                <div class="sv-card" style="width:100%;max-width:500px;">
+                    <div class="sv-card-header sv-flex sv-items-center sv-justify-between">
+                        <h3><i class="bi bi-activity"></i> {{ t('restore.processing') }}</h3>
+                        <span id="taskStatus" class="sv-badge sv-badge-processing">{{ t('status.processing') }}</span>
+                    </div>
+                    <div class="sv-card-body">
+                        <div class="sv-progress" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                            <div class="sv-progress-bar bg-primary animated" id="progressBar" style="width:0%;"></div>
+                        </div>
+                        <div class="sv-progress-label">
+                            <span id="progressText">{{ t('status.pending') }}</span>
+                            <span>
+                                <span id="progressPct">0%</span>
+                                <span id="progressFrames"></span>
+                                <span id="progressEta"></span>
+                            </span>
+                        </div>
                     </div>
                 </div>
+            </div>
+
+            <!-- 结果对比 -->
+            <div class="sv-preview-result" id="resultCard" style="display:none;">
+                <div class="sv-result-toolbar">
+                    <span class="sv-badge sv-badge-completed" id="resultStatus">{{ t('status.completed') }}</span>
+                    <div class="sv-flex sv-gap-2">
+                        <a id="btnDownload" class="sv-btn sv-btn-primary sv-btn-sm" href="#" download>
+                            <i class="bi bi-download"></i> {{ t('common.download') }}
+                        </a>
+                        <button type="button" class="sv-btn sv-btn-secondary sv-btn-sm" id="btnRestoreAgain">
+                            <i class="bi bi-arrow-counterclockwise"></i> {{ t('video.restore_again') }}
+                        </button>
+                    </div>
+                </div>
+                <div class="sv-compare-wrapper">
+                    <video id="resultVideo" controls style="display:none;width:100%;max-height:100%;border-radius:var(--sv-radius);"></video>
+                    <div id="compareCard" style="display:none;width:100%;height:100%;">
+                        <div class="sv-compare-container" id="compareContainer">
+                            <img id="compareBefore" alt="{{ t('restore.before') }}">
+                            <div class="sv-compare-after" id="compareAfter">
+                                <img id="compareAfterImg" alt="{{ t('restore.after') }}">
+                            </div>
+                            <div class="sv-compare-slider" id="compareSlider"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 批量处理 -->
+        <div class="sv-batch-section">
+            <div class="sv-batch-header">
+                <span class="sv-batch-title">{{ t('restore.batch_title') }}</span>
+                <span class="sv-badge sv-badge-info">{{ t('restore.folder_mode') }}</span>
+            </div>
+            <div class="sv-batch-input-row">
+                <input type="text" class="sv-batch-input" id="folderPath" name="folder_path"
+                       placeholder="{{ t('restore.folder_path_placeholder') }}" aria-label="{{ t('restore.folder_path') }}">
+                <button type="button" class="sv-btn sv-btn-outline sv-btn-sm" id="btnBrowseFolder"
+                        data-tooltip="{{ t('restore.browse') }}" aria-label="{{ t('restore.browse') }}">
+                    <i class="bi bi-folder-symlink"></i>
+                </button>
+                <button type="button" class="sv-btn sv-btn-secondary sv-btn-sm" id="btnScanFolder">
+                    <i class="bi bi-search"></i> {{ t('restore.scan') }}
+                </button>
+                <button type="button" class="sv-btn sv-btn-primary sv-btn-sm" id="btnStartBatch">
+                    <i class="bi bi-collection"></i> {{ t('restore.batch_from_folder') }}
+                </button>
             </div>
             <div id="folderScanResults" class="sv-mt-2"></div>
 
-            <div class="sv-restore-actions sv-mt-4">
-                <button type="button" class="sv-btn sv-btn-primary" id="btnStartRestore">
-                    <i class="bi bi-play-fill"></i> {{ t('restore.upload_and_restore') }}
-                </button>
-                <button type="button" class="sv-btn sv-btn-secondary" id="btnStartBatch">
-                    <i class="bi bi-collection"></i> {{ t('restore.batch_from_folder') }}
-                </button>
-                <button type="button" class="sv-btn sv-btn-outline" id="btnResetRestore">
-                    <i class="bi bi-arrow-counterclockwise"></i> {{ t('common.reset') }}
-                </button>
-            </div>
-
-        </div>
-    </aside>
-
-    <!-- 中央预览区 -->
-    <main class="sv-workstation-preview" id="previewArea">
-        <!-- 空状态：工作流引导 -->
-        <div class="sv-workflow-guide" id="workflowGuide" data-auto-hide="true">
-            <div class="sv-workflow-steps">
-                <div class="sv-workflow-step">
-                    <div class="sv-workflow-step-icon"><i class="bi bi-upload"></i></div>
-                    <div class="sv-workflow-step-text">{{ t('restore.upload_hint') if t('restore.upload_hint') else 'Upload' }}</div>
-                </div>
-                <div class="sv-workflow-arrow"><i class="bi bi-arrow-right"></i></div>
-                <div class="sv-workflow-step">
-                    <div class="sv-workflow-step-icon"><i class="bi bi-cpu"></i></div>
-                    <div class="sv-workflow-step-text">{{ t('restore.processing') if t('restore.processing') else 'Processing' }}</div>
-                </div>
-                <div class="sv-workflow-arrow"><i class="bi bi-arrow-right"></i></div>
-                <div class="sv-workflow-step">
-                    <div class="sv-workflow-step-icon"><i class="bi bi-image"></i></div>
-                    <div class="sv-workflow-step-text">{{ t('restore.completed') if t('restore.completed') else 'Result' }}</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 图片预览 -->
-        <div class="sv-preview-container" id="imagePreviewContainer" style="display:none;">
-            <img id="imagePreview" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:var(--sv-radius);" alt="{{ t('restore.before') }}">
-        </div>
-
-        <!-- 进度 -->
-        <div class="sv-preview-progress" id="progressCard" style="display:none;">
-            <div class="sv-card" style="width:100%;max-width:500px;">
-                <div class="sv-card-header sv-flex sv-items-center sv-justify-between">
-                    <h3><i class="bi bi-activity"></i> {{ t('restore.processing') }}</h3>
-                    <span id="taskStatus" class="sv-badge sv-badge-processing">{{ t('status.processing') }}</span>
-                </div>
-                <div class="sv-card-body">
-                    <div class="sv-progress" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                        <div class="sv-progress-bar bg-primary animated" id="progressBar" style="width:0%;"></div>
-                    </div>
-                    <div class="sv-progress-label">
-                        <span id="progressText">{{ t('status.pending') }}</span>
-                        <span>
-                            <span id="progressPct">0%</span>
-                            <span id="progressFrames"></span>
-                            <span id="progressEta"></span>
-                        </span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 批量进度 -->
-        <div class="sv-preview-progress" id="batchProgressCard" style="display:none;">
-            <div class="sv-card" style="width:100%;max-width:500px;">
-                <div class="sv-card-header sv-flex sv-items-center sv-justify-between">
-                    <h3><i class="bi bi-collection"></i> <span id="batchProgressTitle">{{ t('video.batch_progress') }}</span></h3>
+            <!-- 批量进度 -->
+            <div class="sv-batch-progress" id="batchProgressCard" style="display:none;">
+                <div class="sv-batch-progress-head">
+                    <span id="batchProgressTitle">{{ t('video.batch_progress') }}</span>
                     <span id="batchStatus" class="sv-badge sv-badge-processing">{{ t('status.processing') }}</span>
                 </div>
-                <div class="sv-card-body">
-                    <div class="sv-progress sv-mb-3" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                        <div class="sv-progress-bar bg-primary animated" id="batchProgressBar" style="width:0%;"></div>
-                    </div>
-                    <div class="sv-flex sv-justify-between sv-text-sm sv-text-secondary">
-                        <span id="batchProgressText">--</span>
-                        <span><span id="batchCompleted" class="sv-text-success">0</span> {{ t('video.batch_success') }} / <span id="batchFailed" class="sv-text-danger">0</span> {{ t('video.batch_failed') }}</span>
-                    </div>
+                <div class="sv-progress" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                    <div class="sv-progress-bar bg-primary animated" id="batchProgressBar" style="width:0%;"></div>
+                </div>
+                <div class="sv-batch-stats">
+                    <span id="batchProgressText">--</span>
+                    <span class="sv-text-success"><span id="batchCompleted">0</span> {{ t('video.batch_success') }}</span>
+                    <span class="sv-text-danger"><span id="batchFailed">0</span> {{ t('video.batch_failed') }}</span>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- 结果对比 -->
-        <div class="sv-preview-result" id="resultCard" style="display:none;">
-            <div class="sv-result-toolbar">
-                <span class="sv-badge sv-badge-completed" id="resultStatus">{{ t('status.completed') }}</span>
-                <div class="sv-flex sv-gap-2">
-                    <a id="btnDownload" class="sv-btn sv-btn-primary sv-btn-sm" href="#" download>
-                        <i class="bi bi-download"></i> {{ t('common.download') }}
-                    </a>
-                    <button type="button" class="sv-btn sv-btn-secondary sv-btn-sm" id="btnRestoreAgain">
-                        <i class="bi bi-arrow-counterclockwise"></i> {{ t('video.restore_again') }}
-                    </button>
-                </div>
-            </div>
-            <div class="sv-compare-wrapper">
-                <video id="resultVideo" controls style="display:none;width:100%;max-height:100%;border-radius:var(--sv-radius);"></video>
-                <div id="compareCard" style="display:none;width:100%;height:100%;">
-                    <div class="sv-compare-container" id="compareContainer">
-                        <img id="compareBefore" alt="{{ t('restore.before') }}">
-                        <div class="sv-compare-after" id="compareAfter">
-                            <img id="compareAfterImg" alt="{{ t('restore.after') }}">
-                        </div>
-                        <div class="sv-compare-slider" id="compareSlider"></div>
-                    </div>
-                </div>
-            </div>
+    <!-- ===== 右侧参数边栏 ===== -->
+    <aside class="sv-param-sidebar" id="paramsSidebar">
+        <div class="sv-param-sidebar-title">{{ t('restore.param_config') }}</div>
+
+        <div class="sv-param-group">
+            <label class="sv-param-label" for="ditModel">{{ t('video.model') }}</label>
+            <select class="sv-param-select" id="ditModel" name="dit_model">
+                <option value="3b_fp16" selected>3B FP16</option>
+                <option value="3b_fp8">3B FP8</option>
+                <option value="7b_fp16">7B FP16</option>
+                <option value="7b_fp8">7B FP8</option>
+                <option value="7b_sharp_fp16">7B-Sharp FP16</option>
+            </select>
         </div>
-    </main>
-
-    <!-- 右侧参数面板 -->
-    <aside class="sv-workstation-sidebar sv-workstation-sidebar-right" id="paramsSidebar">
-        <div class="sv-sidebar-header">
-            <h3><i class="bi bi-sliders"></i> {{ t('restore.model_settings') }}</h3>
-            <div class="sv-flex sv-gap-1">
-                <button type="button" class="sv-btn sv-btn-sm sv-btn-ghost sv-params-collapse-btn" id="btnParamsCollapse" aria-label="Toggle params panel">
-                    <i class="bi bi-panel-right"></i>
-                </button>
-                <button type="button" class="sv-btn sv-btn-sm sv-btn-ghost sv-sidebar-toggle" id="btnParamModeToggle" aria-label="Toggle advanced mode">
-                    <i class="bi bi-toggle-off"></i>
-                    <span id="paramModeLabel">{{ t('video.advanced_settings') if t('video.advanced_settings') else 'Advanced' }}</span>
-                </button>
-                <button type="button" class="sv-btn sv-btn-sm sv-btn-ghost sv-sidebar-toggle" id="btnToggleParamsSidebar" aria-label="Toggle params sidebar">
-                    <i class="bi bi-panel-right-close"></i>
-                </button>
-            </div>
+        <div class="sv-param-group">
+            <label class="sv-param-label" for="resolution">{{ t('restore.resolution') }}</label>
+            <input type="number" class="sv-param-input" id="resolution" name="resolution" value="2160" min="1">
         </div>
-        <div class="sv-sidebar-content">
-            <div class="sv-param-section">
-                <div class="sv-param-section-title">{{ t('restore.output_settings') if t('restore.output_settings') else '输出设置' }}</div>
-                <div class="sv-param-row">
-                    <div class="sv-form-group">
-                        <label class="sv-form-label" for="ditModel">{{ t('video.model') }}</label>
-                        <select class="sv-form-control" id="ditModel" name="dit_model">
-                            <option value="3b_fp16" selected>3B FP16</option>
-                            <option value="3b_fp8">3B FP8</option>
-                            <option value="7b_fp16">7B FP16</option>
-                            <option value="7b_fp8">7B FP8</option>
-                            <option value="7b_sharp_fp16">7B-Sharp FP16</option>
-                        </select>
-                    </div>
-                    <div class="sv-form-group">
-                        <label class="sv-form-label" for="seed">{{ t('restore.seed') }}</label>
-                        <input type="number" class="sv-form-control" id="seed" name="seed" value="1373201197">
-                    </div>
+        <div class="sv-param-group">
+            <label class="sv-param-label" for="maxResolution">{{ t('restore.max_resolution') }} (0=∞)</label>
+            <input type="number" class="sv-param-input" id="maxResolution" name="max_resolution" value="0" min="0">
+        </div>
+        <div class="sv-param-group">
+            <label class="sv-param-label" for="seed">{{ t('restore.seed') }}</label>
+            <input type="number" class="sv-param-input" id="seed" name="seed" value="1373201197">
+        </div>
+        <div class="sv-param-group">
+            <label class="sv-param-label" for="colorCorrection">{{ t('video.color_correction') }}</label>
+            <select class="sv-param-select" id="colorCorrection" name="color_correction">
+                <option value="lab" selected>LAB</option>
+                <option value="none">{{ t('common.none') if t('common.none') else 'None' }}</option>
+            </select>
+        </div>
+
+        <button type="button" class="sv-advanced-toggle" id="advToggle" aria-expanded="false" aria-controls="advParams">
+            <span class="arrow"><i class="bi bi-chevron-right"></i></span> {{ t('video.advanced_settings') }}
+        </button>
+
+        <div class="sv-advanced-params" id="advParams">
+            <div class="sv-adv-section">
+                <div class="sv-adv-section-title">{{ t('video.node_dit') }}</div>
+                <div class="sv-param-group">
+                    <label class="sv-param-label" for="attentionMode">{{ t('video.attention_mode') }}</label>
+                    <select class="sv-param-select" id="attentionMode" name="attention_mode">
+                        <option value="sdpa" selected>SDPA</option>
+                        <option value="flash_attn">Flash Attention</option>
+                        <option value="xformers">XFormers</option>
+                        <option value="sage">Sage</option>
+                    </select>
                 </div>
-                <div class="sv-param-row">
-                    <div class="sv-form-group">
-                        <label class="sv-form-label" for="resolution">{{ t('restore.resolution') }}</label>
-                        <input type="number" class="sv-form-control" id="resolution" name="resolution" value="2160" min="1">
-                    </div>
-                    <div class="sv-form-group">
-                        <label class="sv-form-label" for="maxResolution">{{ t('restore.max_resolution') }}</label>
-                        <input type="number" class="sv-form-control" id="maxResolution" name="max_resolution" value="0" min="0">
-                    </div>
+                <div class="sv-param-group">
+                    <label class="sv-param-label" for="blocksToSwap">{{ t('video.block_swap') }}</label>
+                    <input type="number" class="sv-param-input" id="blocksToSwap" name="blocks_to_swap" value="32" min="0" max="36">
+                </div>
+                <div class="sv-param-group">
+                    <label class="sv-param-label" for="batchSize">{{ t('video.batch_size') }}</label>
+                    <input type="number" class="sv-param-input" id="batchSize" name="batch_size" value="1" min="1">
+                </div>
+                <div class="sv-param-group">
+                    <label class="sv-param-check">
+                        <input type="checkbox" name="swap_io_components" checked>
+                        <span>{{ t('video.swap_io_components') }}</span>
+                    </label>
                 </div>
             </div>
 
-            <div class="sv-advanced-params">
-                <div class="sv-card" id="advancedParamsCard">
-                    <div class="sv-card-header collapsible" role="button" tabindex="0" aria-expanded="false">
-                        <h4><i class="bi bi-gear"></i> {{ t('video.advanced_settings') }}</h4>
-                    </div>
-                    <div class="sv-card-body" style="display:none;">
-                        <div class="sv-advanced-node-section">
-                            <div class="sv-param-section-title">{{ t('video.node_dit') }}</div>
-                            <div class="sv-param-row">
-                                <div class="sv-form-group">
-                                    <label class="sv-form-label" for="attentionMode">{{ t('video.attention_mode') }}</label>
-                                    <select class="sv-form-control" id="attentionMode" name="attention_mode">
-                                        <option value="sdpa" selected>SDPA</option>
-                                        <option value="flash_attn">Flash Attention</option>
-                                        <option value="xformers">XFormers</option>
-                                        <option value="sage">Sage</option>
-                                    </select>
-                                </div>
-                                <div class="sv-form-group">
-                                    <label class="sv-form-label" for="blocksToSwap">{{ t('video.block_swap') }}</label>
-                                    <input type="number" class="sv-form-control" id="blocksToSwap" name="blocks_to_swap" value="32" min="0" max="36">
-                                </div>
-                            </div>
-                            <div class="sv-param-row">
-                                <div class="sv-form-group">
-                                    <label class="sv-form-label" for="batchSize">{{ t('video.batch_size') }}</label>
-                                    <input type="number" class="sv-form-control" id="batchSize" name="batch_size" value="1" min="1">
-                                </div>
-                                <div class="sv-form-group sv-flex sv-items-end">
-                                    <label class="sv-form-checkbox sv-flex sv-gap-2 sv-items-center">
-                                        <input type="checkbox" name="swap_io_components" checked>
-                                        <span>{{ t('video.swap_io_components') }}</span>
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="sv-advanced-node-section">
-                            <div class="sv-param-section-title">{{ t('video.node_vae') }}</div>
-                            <div class="sv-param-row">
-                                <div class="sv-form-group">
-                                    <label class="sv-form-label" for="vaeModel">{{ t('video.vae_model') }}</label>
-                                    <select class="sv-form-control" id="vaeModel" name="vae_model">
-                                        <option value="ema_vae_fp16" selected>EMA VAE FP16</option>
-                                        <option value="ema_vae_fp8">EMA VAE FP8</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="sv-param-row">
-                                <div class="sv-form-group">
-                                    <label class="sv-form-label" for="encodeTileSize">{{ t('video.encode_tile_size') }}</label>
-                                    <input type="number" class="sv-form-control" id="encodeTileSize" name="encode_tile_size" value="1024" min="64">
-                                </div>
-                                <div class="sv-form-group">
-                                    <label class="sv-form-label" for="encodeTileOverlap">{{ t('video.encode_tile_overlap') }}</label>
-                                    <input type="number" class="sv-form-control" id="encodeTileOverlap" name="encode_tile_overlap" value="512" min="0">
-                                </div>
-                            </div>
-                            <div class="sv-param-row">
-                                <div class="sv-form-group">
-                                    <label class="sv-form-label" for="decodeTileSize">{{ t('video.decode_tile_size') }}</label>
-                                    <input type="number" class="sv-form-control" id="decodeTileSize" name="decode_tile_size" value="1024" min="64">
-                                </div>
-                                <div class="sv-form-group">
-                                    <label class="sv-form-label" for="decodeTileOverlap">{{ t('video.decode_tile_overlap') }}</label>
-                                    <input type="number" class="sv-form-control" id="decodeTileOverlap" name="decode_tile_overlap" value="512" min="0">
-                                </div>
-                            </div>
-                            <div class="sv-param-row">
-                                <div class="sv-form-group sv-flex sv-items-end">
-                                    <label class="sv-form-checkbox sv-flex sv-gap-2 sv-items-center">
-                                        <input type="checkbox" name="encode_tiled" checked>
-                                        <span>{{ t('video.encode_tiled') }}</span>
-                                    </label>
-                                </div>
-                                <div class="sv-form-group sv-flex sv-items-end">
-                                    <label class="sv-form-checkbox sv-flex sv-gap-2 sv-items-center">
-                                        <input type="checkbox" name="decode_tiled" checked>
-                                        <span>{{ t('video.decode_tiled') }}</span>
-                                    </label>
-                                </div>
-                                <div class="sv-form-group sv-flex sv-items-end">
-                                    <label class="sv-form-checkbox sv-flex sv-gap-2 sv-items-center">
-                                        <input type="checkbox" name="tile_debug" value="true">
-                                        <span>{{ t('video.tile_debug') }}</span>
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="sv-advanced-node-section">
-                            <div class="sv-param-section-title">{{ t('video.node_upscaler') }}</div>
-                            <div class="sv-param-row">
-                                <div class="sv-form-group">
-                                    <label class="sv-form-label" for="colorCorrection">{{ t('video.color_correction') }}</label>
-                                    <select class="sv-form-control" id="colorCorrection" name="color_correction">
-                                        <option value="lab" selected>LAB</option>
-                                        <option value="none">{{ t('common.none') if t('common.none') else 'None' }}</option>
-                                    </select>
-                                </div>
-                                <div class="sv-form-group sv-flex sv-items-end">
-                                    <label class="sv-form-checkbox sv-flex sv-gap-2 sv-items-center">
-                                        <input type="checkbox" name="uniform_batch_size">
-                                        <span>{{ t('video.uniform_batch_size') }}</span>
-                                    </label>
-                                </div>
-                            </div>
-                            <div class="sv-param-row">
-                                <div class="sv-form-group">
-                                    <label class="sv-form-label" for="temporalOverlap">{{ t('video.temporal_overlap') }}</label>
-                                    <input type="number" class="sv-form-control" id="temporalOverlap" name="temporal_overlap" value="0" min="0">
-                                </div>
-                                <div class="sv-form-group">
-                                    <label class="sv-form-label" for="prependFrames">{{ t('video.prepend_frames') }}</label>
-                                    <input type="number" class="sv-form-control" id="prependFrames" name="prepend_frames" value="0" min="0">
-                                </div>
-                            </div>
-                            <div class="sv-param-row">
-                                <div class="sv-form-group">
-                                    <label class="sv-form-label" for="inputNoiseScale">{{ t('video.input_noise_scale') }}</label>
-                                    <input type="number" class="sv-form-control" id="inputNoiseScale" name="input_noise_scale" value="0.0" min="0" step="0.01">
-                                </div>
-                                <div class="sv-form-group">
-                                    <label class="sv-form-label" for="latentNoiseScale">{{ t('video.latent_noise_scale') }}</label>
-                                    <input type="number" class="sv-form-control" id="latentNoiseScale" name="latent_noise_scale" value="0.0" min="0" step="0.01">
-                                </div>
-                            </div>
-                            <div class="sv-param-row">
-                                <div class="sv-form-group sv-flex sv-items-end">
-                                    <label class="sv-form-checkbox sv-flex sv-gap-2 sv-items-center">
-                                        <input type="checkbox" name="enable_debug">
-                                        <span>{{ t('video.debug_mode') }}</span>
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-                        <input type="hidden" name="dit_device" value="cuda:0">
-                        <input type="hidden" name="dit_offload_device" value="cpu">
-                        <input type="hidden" name="dit_cache_model" value="true">
-                        <input type="hidden" name="vae_device" value="cuda:0">
-                        <input type="hidden" name="vae_offload_device" value="cpu">
-                        <input type="hidden" name="vae_cache_model" value="true">
-                        <input type="hidden" name="offload_device" value="cpu">
-                    </div>
+            <div class="sv-adv-section">
+                <div class="sv-adv-section-title">{{ t('video.node_vae') }}</div>
+                <div class="sv-param-group">
+                    <label class="sv-param-label" for="vaeModel">{{ t('video.vae_model') }}</label>
+                    <select class="sv-param-select" id="vaeModel" name="vae_model">
+                        <option value="ema_vae_fp16" selected>EMA VAE FP16</option>
+                        <option value="ema_vae_fp8">EMA VAE FP8</option>
+                    </select>
+                </div>
+                <div class="sv-param-group">
+                    <label class="sv-param-label" for="encodeTileSize">{{ t('video.encode_tile_size') }}</label>
+                    <input type="number" class="sv-param-input" id="encodeTileSize" name="encode_tile_size" value="1024" min="64">
+                </div>
+                <div class="sv-param-group">
+                    <label class="sv-param-label" for="encodeTileOverlap">{{ t('video.encode_tile_overlap') }}</label>
+                    <input type="number" class="sv-param-input" id="encodeTileOverlap" name="encode_tile_overlap" value="512" min="0">
+                </div>
+                <div class="sv-param-group">
+                    <label class="sv-param-label" for="decodeTileSize">{{ t('video.decode_tile_size') }}</label>
+                    <input type="number" class="sv-param-input" id="decodeTileSize" name="decode_tile_size" value="1024" min="64">
+                </div>
+                <div class="sv-param-group">
+                    <label class="sv-param-label" for="decodeTileOverlap">{{ t('video.decode_tile_overlap') }}</label>
+                    <input type="number" class="sv-param-input" id="decodeTileOverlap" name="decode_tile_overlap" value="512" min="0">
+                </div>
+                <div class="sv-param-group sv-param-checks-row">
+                    <label class="sv-param-check">
+                        <input type="checkbox" name="encode_tiled" checked>
+                        <span>{{ t('video.encode_tiled') }}</span>
+                    </label>
+                    <label class="sv-param-check">
+                        <input type="checkbox" name="decode_tiled" checked>
+                        <span>{{ t('video.decode_tiled') }}</span>
+                    </label>
+                    <label class="sv-param-check">
+                        <input type="checkbox" name="tile_debug" value="true">
+                        <span>{{ t('video.tile_debug') }}</span>
+                    </label>
                 </div>
             </div>
+
+            <div class="sv-adv-section">
+                <div class="sv-adv-section-title">{{ t('video.node_upscaler') }}</div>
+                <div class="sv-param-group">
+                    <label class="sv-param-check">
+                        <input type="checkbox" name="uniform_batch_size">
+                        <span>{{ t('video.uniform_batch_size') }}</span>
+                    </label>
+                </div>
+                <div class="sv-param-group">
+                    <label class="sv-param-label" for="temporalOverlap">{{ t('video.temporal_overlap') }}</label>
+                    <input type="number" class="sv-param-input" id="temporalOverlap" name="temporal_overlap" value="0" min="0">
+                </div>
+                <div class="sv-param-group">
+                    <label class="sv-param-label" for="prependFrames">{{ t('video.prepend_frames') }}</label>
+                    <input type="number" class="sv-param-input" id="prependFrames" name="prepend_frames" value="0" min="0">
+                </div>
+                <div class="sv-param-group">
+                    <label class="sv-param-label" for="inputNoiseScale">{{ t('video.input_noise_scale') }}</label>
+                    <input type="number" class="sv-param-input" id="inputNoiseScale" name="input_noise_scale" value="0.0" min="0" step="0.01">
+                </div>
+                <div class="sv-param-group">
+                    <label class="sv-param-label" for="latentNoiseScale">{{ t('video.latent_noise_scale') }}</label>
+                    <input type="number" class="sv-param-input" id="latentNoiseScale" name="latent_noise_scale" value="0.0" min="0" step="0.01">
+                </div>
+                <div class="sv-param-group">
+                    <label class="sv-param-check">
+                        <input type="checkbox" name="enable_debug">
+                        <span>{{ t('video.debug_mode') }}</span>
+                    </label>
+                </div>
+            </div>
+
+            <input type="hidden" name="dit_device" value="cuda:0">
+            <input type="hidden" name="dit_offload_device" value="cpu">
+            <input type="hidden" name="dit_cache_model" value="true">
+            <input type="hidden" name="vae_device" value="cuda:0">
+            <input type="hidden" name="vae_offload_device" value="cpu">
+            <input type="hidden" name="vae_cache_model" value="true">
+            <input type="hidden" name="offload_device" value="cpu">
+        </div>
+
+        <div class="sv-param-actions">
+            <button type="button" class="sv-btn sv-btn-primary" id="btnStartRestore">
+                <i class="bi bi-play-fill"></i> {{ t('restore.upload_and_restore') }}
+            </button>
+            <button type="button" class="sv-btn sv-btn-ghost sv-btn-sm" id="btnResetRestore">
+                <i class="bi bi-arrow-counterclockwise"></i> {{ t('common.reset') }}
+            </button>
         </div>
     </aside>
 </div>
@@ -363,46 +293,31 @@ document.addEventListener('DOMContentLoaded', () => {
     const I = window.__I18N__ || {};
 
     const els = {
-        // Sidebar toggles
-        btnToggleFileSidebar: document.getElementById('btnToggleFileSidebar'),
-        btnToggleParamsSidebar: document.getElementById('btnToggleParamsSidebar'),
-        fileSidebar: document.getElementById('fileSidebar'),
-        paramsSidebar: document.getElementById('paramsSidebar'),
-        previewArea: document.getElementById('previewArea'),
-        imagePreviewContainer: document.getElementById('imagePreviewContainer'),
-        // Existing element references
         uploadZone: document.getElementById('restoreUploadZone'),
         fileInput: document.getElementById('restoreFileInput'),
         fileInfo: document.getElementById('restoreFileInfo'),
+        imagePreviewContainer: document.getElementById('imagePreviewContainer'),
         imagePreview: document.getElementById('imagePreview'),
         folderPath: document.getElementById('folderPath'),
         btnBrowseFolder: document.getElementById('btnBrowseFolder'),
         btnScanFolder: document.getElementById('btnScanFolder'),
         scanResults: document.getElementById('folderScanResults'),
         progressCard: document.getElementById('progressCard'),
-        progressBar: document.getElementById('progressBar'),
-        progressText: document.getElementById('progressText'),
-        progressPct: document.getElementById('progressPct'),
-        progressFrames: document.getElementById('progressFrames'),
-        progressEta: document.getElementById('progressEta'),
-        taskStatus: document.getElementById('taskStatus'),
-        batchProgressCard: document.getElementById('batchProgressCard'),
-        batchProgressBar: document.getElementById('batchProgressBar'),
-        batchProgressText: document.getElementById('batchProgressText'),
-        batchCompleted: document.getElementById('batchCompleted'),
-        batchFailed: document.getElementById('batchFailed'),
-        batchStatus: document.getElementById('batchStatus'),
         resultCard: document.getElementById('resultCard'),
         resultVideo: document.getElementById('resultVideo'),
         compareCard: document.getElementById('compareCard'),
-        compareBefore: document.getElementById('compareBefore'),
-        compareAfterImg: document.getElementById('compareAfterImg'),
         btnDownload: document.getElementById('btnDownload'),
         btnRestoreAgain: document.getElementById('btnRestoreAgain'),
         btnStartRestore: document.getElementById('btnStartRestore'),
         btnStartBatch: document.getElementById('btnStartBatch'),
         btnResetRestore: document.getElementById('btnResetRestore'),
-        advancedCard: document.getElementById('advancedParamsCard'),
+        batchProgressBar: document.getElementById('batchProgressBar'),
+        batchProgressText: document.getElementById('batchProgressText'),
+        batchCompleted: document.getElementById('batchCompleted'),
+        batchFailed: document.getElementById('batchFailed'),
+        batchStatus: document.getElementById('batchStatus'),
+        advToggle: document.getElementById('advToggle'),
+        advParams: document.getElementById('advParams'),
     };
 
     let previewObjectUrl = null;
@@ -414,7 +329,6 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const health = await SeedVR2.api.get('/api/system/health');
             if (health.gpu && !health.gpu.is_gpu_available) {
-                // 禁用推理按钮
                 if (els.btnStartRestore) {
                     els.btnStartRestore.disabled = true;
                     els.btnStartRestore.classList.add('disabled');
@@ -423,8 +337,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     els.btnStartBatch.disabled = true;
                     els.btnStartBatch.classList.add('disabled');
                 }
-                // 在页面顶部显示警告
-                const pageHeader = document.querySelector('.sv-page-header');
+                const pageHeader = document.querySelector('.sv-page-head');
                 if (pageHeader) {
                     const warning = document.createElement('div');
                     warning.className = 'sv-alert sv-alert-danger sv-mt-2';
@@ -458,7 +371,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 previewObjectUrl = URL.createObjectURL(file);
                 els.imagePreview.src = previewObjectUrl;
                 els.imagePreview.style.display = 'block';
-                // Show preview container, hide workflow guide
                 if (els.imagePreviewContainer) els.imagePreviewContainer.style.display = 'flex';
                 const wg = document.getElementById('workflowGuide');
                 if (wg) wg.style.display = 'none';
@@ -506,11 +418,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             const totalText = (I['restore.found_files'] || '找到 {total} 个文件').replace('{total}', scannedFiles.length);
-            const listHtml = scannedFiles.slice(0, 10).map(f => `<div class="sv-text-sm sv-text-secondary">${SeedVR2.escapeHtml(f.relative)}</div>`).join('');
+            const listHtml = scannedFiles.slice(0, 10).map(f => `<div class="sv-batch-file-item"><i class="bi bi-file-earmark sv-text-muted"></i><span class="bf-name">${SeedVR2.escapeHtml(f.relative)}</span></div>`).join('');
             const more = scannedFiles.length > 10 ? `<div class="sv-text-xs sv-text-muted">+${scannedFiles.length - 10} more</div>` : '';
             els.scanResults.innerHTML = `
                 <div class="sv-alert sv-alert-info sv-mb-2">${totalText}</div>
-                <div class="sv-p-2" style="max-height:200px;overflow:auto;background:var(--sv-bg-elevated);border-radius:var(--sv-radius-sm);">${listHtml}${more}</div>
+                <div class="sv-batch-file-list">${listHtml}${more}</div>
             `;
         } catch (err) {
             SeedVR2.toast((I['restore.scan_failed'] || '扫描失败') + ': ' + err.message, 'error');
@@ -530,10 +442,10 @@ document.addEventListener('DOMContentLoaded', () => {
         params.append('seed', document.getElementById('seed').value);
         params.append('resolution', document.getElementById('resolution').value);
         params.append('max_resolution', document.getElementById('maxResolution').value);
+        params.append('color_correction', document.getElementById('colorCorrection').value);
 
-        // 高级参数
-        const advancedBody = els.advancedCard.querySelector('.sv-card-body');
-        advancedBody.querySelectorAll('input, select').forEach(input => {
+        // 高级参数（含隐藏字段）
+        els.advParams.querySelectorAll('input, select').forEach(input => {
             if (input.type === 'checkbox') {
                 if (input.checked) {
                     params.append(input.name, input.value || 'true');
@@ -541,11 +453,6 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (input.name) {
                 params.append(input.name, input.value);
             }
-        });
-
-        // 隐藏字段（设备/缓存等固定值）
-        advancedBody.querySelectorAll('input[type="hidden"]').forEach(input => {
-            params.append(input.name, input.value);
         });
 
         return params;
@@ -651,41 +558,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // 高级参数折叠
-    if (els.advancedCard) {
-        const header = els.advancedCard.querySelector('.sv-card-header');
-        header.addEventListener('click', () => {
-            els.advancedCard.classList.toggle('expanded');
-            const expanded = els.advancedCard.classList.contains('expanded');
-            header.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-            const body = els.advancedCard.querySelector('.sv-card-body');
-            body.style.display = expanded ? 'block' : 'none';
-        });
-    }
-
-    // 简单/高级模式切换
-    const paramsCard = document.getElementById('paramsCard');
-    const btnParamMode = document.getElementById('btnParamModeToggle');
-    const paramModeLabel = document.getElementById('paramModeLabel');
-    if (btnParamMode && paramsCard) {
-        btnParamMode.addEventListener('click', () => {
-            const isAdvanced = paramsCard.classList.toggle('sv-param-mode-advanced');
-            const icon = btnParamMode.querySelector('i');
-            if (icon) icon.className = isAdvanced ? 'bi bi-toggle-on' : 'bi bi-toggle-off';
-            if (paramModeLabel) {
-                const I = window.__I18N__ || {};
-                paramModeLabel.textContent = isAdvanced
-                    ? (I['restore.simple_mode'] || 'Simple')
-                    : (I['video.advanced_settings'] || 'Advanced');
-            }
-            // 自动展开高级参数卡片
-            if (isAdvanced && els.advancedCard) {
-                els.advancedCard.classList.add('expanded');
-                const header = els.advancedCard.querySelector('.sv-card-header');
-                const body = els.advancedCard.querySelector('.sv-card-body');
-                if (header) header.setAttribute('aria-expanded', 'true');
-                if (body) body.style.display = 'block';
-            }
+    // 高级参数展开 / 收起
+    if (els.advToggle && els.advParams) {
+        els.advToggle.addEventListener('click', () => {
+            const open = els.advParams.classList.toggle('open');
+            els.advToggle.classList.toggle('open', open);
+            els.advToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
         });
     }
 
@@ -693,44 +571,6 @@ document.addEventListener('DOMContentLoaded', () => {
     els.btnStartBatch.addEventListener('click', startBatch);
     els.btnResetRestore.addEventListener('click', resetRestore);
     els.btnRestoreAgain.addEventListener('click', resetRestore);
-
-    // 参数面板折叠/展开
-    const btnToggleParams = document.getElementById('btnToggleParams');
-    const paramsPanel = document.getElementById('paramsSidebar');
-    if (btnToggleParams && paramsPanel) {
-        btnToggleParams.addEventListener('click', () => {
-            const collapsed = paramsPanel.classList.toggle('sv-restore-params--collapsed');
-            const icon = btnToggleParams.querySelector('i');
-            if (icon) icon.className = collapsed ? 'bi bi-layout-sidebar-inset-reverse' : 'bi bi-layout-sidebar-inset';
-            // Update main area width
-            const layout = document.querySelector('.sv-workstation');
-            if (layout) layout.classList.toggle('sv-workstation--expanded', collapsed);
-        });
-    }
-
-    // 工作流引导 - 开始任务时隐藏
-    const workflowGuide = document.getElementById('workflowGuide');
-    const origShowCard = SeedVR2.showCard;
-    // Override to auto-hide workflow guide
-    const origStartRestore = els.btnStartRestore.onclick;
-
-    // Sidebar toggle
-    if (els.btnToggleFileSidebar) {
-        els.btnToggleFileSidebar.addEventListener('click', () => {
-            els.fileSidebar.classList.toggle('sv-sidebar-collapsed');
-            const icon = els.btnToggleFileSidebar.querySelector('i');
-            if (icon) icon.className = els.fileSidebar.classList.contains('sv-sidebar-collapsed')
-                ? 'bi bi-panel-left-open' : 'bi bi-panel-left-close';
-        });
-    }
-    if (els.btnToggleParamsSidebar) {
-        els.btnToggleParamsSidebar.addEventListener('click', () => {
-            els.paramsSidebar.classList.toggle('sv-sidebar-collapsed');
-            const icon = els.btnToggleParamsSidebar.querySelector('i');
-            if (icon) icon.className = els.paramsSidebar.classList.contains('sv-sidebar-collapsed')
-                ? 'bi bi-panel-right-open' : 'bi bi-panel-right-close';
-        });
-    }
 });
 </script>
 {% endblock %}

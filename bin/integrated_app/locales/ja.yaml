@@ -10,23 +10,29 @@ nav:
   settings: "設定"
 
 home:
-  hero_title: "SeedVR2 ポータブル動画/画像修復ツールボックス"
-  hero_subtitle: "ディープラーニングベースの動画/画像超解像修復ツール"
+  hero_title: "すべてのフレームに、"
+  hero_highlight: "新たな命を"
+  hero_subtitle: "SeedVR2 ディープラーニングモデルによる動画・画像の超解像修復。ワンステップ、ポータブル。"
   restore_feature: "修復を開始"
   restore_feature_desc: "画像または動画をアップロードして、SeedVR2 モデルで超解像強化"
   system_feature: "システム状態"
   system_feature_desc: "GPU、モデル、システム実行状態を表示"
   start: "修復開始"
   view_status: "状態を表示"
+  recent_tasks: "最近のタスク"
+  view_all: "すべて表示"
+  no_tasks_desc: "修復タスクはまだありません。最初の修復を始めましょう。"
   empty_title: "準備完了"
   empty_desc: "最初の修復を開始すると、ここにアクティビティが表示されます。"
   empty_cta: "最初の修復を開始"
+  total_tasks: "累計タスク"
 
 common:
   upload: "ファイルをアップロード"
   start: "修復開始"
   stop: "停止"
   download: "ダウンロード"
+  browse: "参照"
   preview: "プレビュー"
   delete: "削除"
   search: "検索"
@@ -158,8 +164,8 @@ video:
   result_preview: "結果プレビュー"
 
 restore:
-  title: "修復"
-  subtitle: "画像または動画をアップロードすると、SeedVR2 がタイプ別に処理します"
+  title: "修復ワークベンチ"
+  subtitle: "ファイルの読み込み、パラメータ設定、修復効果の比較"
   model_settings: "モデル設定"
   simple_mode: "シンプルモード"
   seed: "ランダムシード"
@@ -199,11 +205,21 @@ restore:
   batch_success: "成功"
   batch_failed: "失敗"
   batch_current_processing: "処理中: {current}/{total}"
+  upload_single_hint: "単一ファイルのアップロード修復に対応"
+  compare_placeholder: "修復完了後にビフォーアフターを表示"
+  compare_placeholder_hint: "スライダーをドラッグして比較"
+  batch_title: "一括処理"
+  folder_mode: "フォルダモード"
+  param_config: "パラメータ設定"
+  folder_path_placeholder: "フォルダパスを入力"
 
 history:
   title: "履歴"
   subtitle: "すべての修復タスクの履歴を表示"
   search_placeholder: "ファイル名、モデル、ステータスで検索..."
+  view_mode: "表示モード"
+  view_table: "テーブル"
+  view_cards: "カード"
   no_records: "記録なし"
   no_records_desc: "修復タスクが完了すると自動的にここに記録されます"
   load_failed: "読み込み失敗"
@@ -230,6 +246,7 @@ history:
   actions: "操作"
   clear: "履歴をクリア"
   refresh: "更新"
+  preview: "プレビュー"
 
 system:
   title: "システム状態"
@@ -310,6 +327,12 @@ settings:
   save_settings: "設定を保存"
   backend_auto: "自動検出"
   backend_cuda: "CUDA"
+  pretrained_dir_help: "事前学習モデルファイルの保存パス"
+  output_dir_help: "修復完了ファイルの保存パス"
+  default_model_size_help: "起動時にデフォルトで読み込むモデルサイズ"
+  precision_help: "推論に使用する数値精度、FP8 は VRAM を節約"
+  gpu_backend_help: "SeedVR2 は NVIDIA CUDA GPU 推論のみサポート"
+  language_help: "界面言語を切り替え、保存後にリロードして反映"
 
 status:
   gpu_detecting: "GPU を検出中..."
