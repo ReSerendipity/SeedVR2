@@ -92,7 +92,9 @@ def register_page_routes(app: FastAPI):
 
     @app.get("/system-status", response_class=HTMLResponse)
     async def system_status_page(request: Request):
-        return render_page(request, "system_status.html", active_page="system")
+        # 系统状态已并入首页，保留路由做兼容重定向
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url="/", status_code=302)
 
     # 404 catch-all route
     @app.exception_handler(404)

@@ -1057,8 +1057,7 @@ const SeedVR2 = (() => {
             '1': { path: '/', label: '首页' },
             '2': { path: '/restore', label: '修复' },
             '3': { path: '/history', label: '历史记录' },
-            '4': { path: '/system-status', label: '系统状态' },
-            '5': { path: '/settings', label: '设置' },
+            '4': { path: '/settings', label: '设置' },
         };
 
         function isInputFocused() {
@@ -1081,6 +1080,23 @@ const SeedVR2 = (() => {
                 window.location.href = shortcut.path;
             }
         }, true); // 使用捕获阶段，优先于浏览器默认处理
+
+        // 更新 Widget 内存进度条
+        async function updateWidgetMemory() {
+            try {
+                const health = await api.get('/api/system/health');
+                if (health.system && health.system.memory_total_gb > 0) {
+                    const total = health.system.memory_total_gb;
+                    const avail = health.system.memory_available_gb;
+                    const usedPct = Math.round(((total - avail) / total) * 100);
+                    const fillEl = document.getElementById('statusMemFill');
+                    const textEl = document.getElementById('statusMemText');
+                    if (fillEl) fillEl.style.width = usedPct + '%';
+                    if (textEl) textEl.textContent = usedPct + '%';
+                }
+            } catch (e) { /* ignore */ }
+        }
+        updateWidgetMemory();
 
         // 定期更新状态栏时间（i18n 格式）
         const localeMap = { zh: 'zh-CN', en: 'en-US', ja: 'ja-JP', fr: 'fr-FR' };

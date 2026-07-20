@@ -3,11 +3,20 @@
 {% block title %}SeedVR2 - {{ t('nav.home') }}{% endblock %}
 
 {% block content %}
-<!-- 欢迎区域 -->
+<!-- Warm Print 编辑风 Hero：左对齐开放式排版 -->
 <div class="sv-hero">
-    <h1>{{ t('home.hero_title') }}</h1>
-    <p>{{ t('home.hero_subtitle') }}</p>
-    <div class="sv-hero-status" id="heroStatus">
+    <span class="sv-eyebrow sv-anim-rise">{{ t('app.subtitle') }}</span>
+    <h1 class="sv-anim-rise sv-anim-d1">{{ t('home.hero_title') }}<span class="hl">{{ t('home.hero_highlight') }}</span></h1>
+    <p class="sv-anim-rise sv-anim-d2">{{ t('home.hero_subtitle') }}</p>
+    <div class="sv-hero-actions sv-anim-rise sv-anim-d3">
+        <a href="/restore" class="sv-btn sv-btn-primary">
+            <i class="bi bi-lightning-charge"></i> {{ t('home.start') }}
+        </a>
+        <a href="/history" class="sv-btn sv-btn-outline">
+            {{ t('nav.history') }} <i class="bi bi-arrow-right"></i>
+        </a>
+    </div>
+    <div class="sv-hero-status sv-anim-rise sv-anim-d4" id="heroStatus">
         <span class="sv-hero-status-dot" id="heroStatusDot"></span>
         <span id="heroStatusText">{{ t('status.gpu_detecting') if t('status.gpu_detecting') else 'Detecting...' }}</span>
         <span class="sv-hero-status-sep">&middot;</span>
@@ -15,123 +24,46 @@
     </div>
 </div>
 
-<!-- 快速入口卡片 -->
-<div class="sv-bento-grid">
-    <a href="/restore" class="sv-quick-card sv-bento-featured">
-        <div class="card-icon icon-restore">
-            <i class="bi bi-lightning-charge-fill"></i>
-        </div>
-        <h3>{{ t('home.restore_feature') }}</h3>
-        <p>{{ t('home.restore_feature_desc') }}</p>
-        <div class="card-arrow">{{ t('home.start') }} <i class="bi bi-arrow-right"></i></div>
-    </a>
+<!-- 系统状态概览（原系统状态页并入首页）：Warm Print 四列文本卡 -->
+<div class="sv-home-section">
+    <div class="sv-section-header">
+        <h2 class="sv-section-title">{{ t('system.title') }}</h2>
+        <a href="/settings" class="sv-section-link">{{ t('nav.settings') }} <i class="bi bi-arrow-right"></i></a>
+    </div>
 
-    <a href="/system-status" class="sv-quick-card">
-        <div class="card-icon icon-system">
-            <i class="bi bi-cpu-fill"></i>
+    <div class="sv-overview-grid sv-anim-rise sv-anim-d3" id="overviewVisual">
+        <div class="sv-ov-item">
+            <div class="sv-ov-label">GPU</div>
+            <div class="sv-ov-value" id="gpuUsageValue">--</div>
+            <div class="sv-ov-sub"><span class="sv-ov-dot" id="gpuDot"></span><span id="overviewGpu">{{ t('status.gpu_detecting') }}</span></div>
         </div>
-        <h3>{{ t('home.system_feature') }}</h3>
-        <p>{{ t('home.system_feature_desc') }}</p>
-        <div class="card-arrow">{{ t('home.view_status') }} <i class="bi bi-arrow-right"></i></div>
-    </a>
-
-    <a href="/history" class="sv-quick-card">
-        <div class="card-icon icon-history">
-            <i class="bi bi-clock-history"></i>
+        <div class="sv-ov-item">
+            <div class="sv-ov-label">{{ t('system.model_status') }}</div>
+            <div class="sv-ov-value" id="overviewModel">{{ t('system.not_loaded') }}</div>
+            <div class="sv-ov-sub"><span class="sv-ov-dot" id="modelDot"></span><span>{{ t('system.available_models') }}: 3B · 7B · 7B-Sharp</span></div>
         </div>
-        <h3>{{ t('nav.history') }}</h3>
-        <p>{{ t('history.search_placeholder') }}</p>
-        <div class="card-arrow">{{ t('common.refresh') }} <i class="bi bi-arrow-right"></i></div>
-    </a>
+        <div class="sv-ov-item">
+            <div class="sv-ov-label">{{ t('system.system_memory') }}</div>
+            <div class="sv-ov-value" id="memUsageValue">--</div>
+            <div class="sv-ov-sub"><span class="sv-ov-dot" id="memDot"></span><span id="overviewMemory">-- / -- GB</span></div>
+        </div>
+        <div class="sv-ov-item">
+            <div class="sv-ov-label">{{ t('system.uptime') }}</div>
+            <div class="sv-ov-value" id="overviewUptime">--</div>
+            <div class="sv-ov-sub"><span class="sv-ov-dot"></span><span><span id="overviewTasks">--</span> {{ t('home.total_tasks') }}</span></div>
+        </div>
+    </div>
 </div>
 
-<!-- 系统状态概览 -->
-<div class="sv-mt-3">
-    <div class="sv-page-header sv-mb-4">
-        <h1 class="sv-text-lg">{{ t('system.title') }}</h1>
+<!-- 最近任务 -->
+<div class="sv-home-section">
+    <div class="sv-section-header">
+        <h2 class="sv-section-title">{{ t('home.recent_tasks') }}</h2>
+        <a href="/history" class="sv-section-link">{{ t('home.view_all') }} <i class="bi bi-arrow-right"></i></a>
     </div>
-
-    <div class="sv-overview-visual" id="overviewVisual">
-        <!-- GPU 环形进度 -->
-        <div class="sv-overview-ring-card">
-            <div class="sv-ring-progress" id="gpuRing">
-                <svg class="sv-ring-progress-svg" viewBox="0 0 36 36">
-                    <circle class="sv-ring-progress-track" cx="18" cy="18" r="15.91549431"/>
-                    <circle class="sv-ring-progress-fill" id="gpuRingFill" cx="18" cy="18" r="15.91549431"
-                        stroke-dasharray="0, 100" stroke-dashoffset="0"/>
-                </svg>
-                <div class="sv-ring-progress-label">
-                    <span class="sv-ring-progress-value" id="gpuUsageValue">--</span>
-                    <span class="sv-ring-progress-text">GPU</span>
-                </div>
-            </div>
-            <div class="sv-overview-ring-info">
-                <div class="sv-overview-ring-title" id="overviewGpu">{{ t('status.gpu_detecting') }}</div>
-                <div class="sv-overview-ring-detail" id="overviewVram">-- / -- GB</div>
-            </div>
-        </div>
-
-        <!-- 内存环形进度 -->
-        <div class="sv-overview-ring-card">
-            <div class="sv-ring-progress" id="memRing">
-                <svg class="sv-ring-progress-svg" viewBox="0 0 36 36">
-                    <circle class="sv-ring-progress-track" cx="18" cy="18" r="15.91549431"/>
-                    <circle class="sv-ring-progress-fill" id="memRingFill" cx="18" cy="18" r="15.91549431"
-                        stroke-dasharray="0, 100" stroke-dashoffset="0"/>
-                </svg>
-                <div class="sv-ring-progress-label">
-                    <span class="sv-ring-progress-value" id="memUsageValue">--</span>
-                    <span class="sv-ring-progress-text">RAM</span>
-                </div>
-            </div>
-            <div class="sv-overview-ring-info">
-                <div class="sv-overview-ring-title">{{ t('system.system_memory') }}</div>
-                <div class="sv-overview-ring-detail" id="overviewMemory">-- / -- GB</div>
-            </div>
-        </div>
-
-        <!-- 模型状态卡片 -->
-        <div class="sv-overview-info-card">
-            <div class="sv-overview-info-icon">
-                <i class="bi bi-cpu-fill"></i>
-            </div>
-            <div class="sv-overview-info-content">
-                <div class="item-label">{{ t('system.model_status') }}</div>
-                <div class="item-value" id="overviewModel">{{ t('system.not_loaded') }}</div>
-            </div>
-        </div>
-
-        <!-- 运行时间卡片 -->
-        <div class="sv-overview-info-card">
-            <div class="sv-overview-info-icon">
-                <i class="bi bi-clock-history"></i>
-            </div>
-            <div class="sv-overview-info-content">
-                <div class="item-label">{{ t('system.uptime') }}</div>
-                <div class="item-value" id="overviewUptime">--</div>
-            </div>
-        </div>
-
-        <!-- 任务数卡片 -->
-        <div class="sv-overview-info-card">
-            <div class="sv-overview-info-icon">
-                <i class="bi bi-list-task"></i>
-            </div>
-            <div class="sv-overview-info-content">
-                <div class="item-label">{{ t('history.action') }}</div>
-                <div class="item-value" id="overviewTasks">--</div>
-            </div>
-        </div>
-    </div>
-
-    <div class="sv-overview-empty" id="overviewEmpty" style="display:none;">
-        <div class="sv-empty-state">
-            <div class="empty-icon"><i class="bi bi-rocket-takeoff"></i></div>
-            <div class="empty-title">{{ t('home.empty_title') if t('home.empty_title') else 'Ready to Start' }}</div>
-            <div class="empty-desc">{{ t('home.empty_desc') if t('home.empty_desc') else 'Start your first restoration to see activity here.' }}</div>
-            <a href="/restore" class="sv-btn sv-btn-primary sv-btn-sm sv-mt-3">
-                <i class="bi bi-lightning-charge"></i> {{ t('home.empty_cta') if t('home.empty_cta') else 'Start Your First Restoration' }}
-            </a>
+    <div class="sv-recent-list sv-anim-rise sv-anim-d4" id="recentList">
+        <div class="sv-recent-empty" id="recentEmpty" style="display:none;">
+            {{ t('home.no_tasks_desc') if t('home.no_tasks_desc') else 'No restoration tasks yet.' }}
         </div>
     </div>
 </div>
@@ -145,25 +77,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     const heroStatusText = document.getElementById('heroStatusText');
     const heroModelStatus = document.getElementById('heroModelStatus');
 
-    function setRingProgress(fillId, valueId, pct) {
-        const fill = document.getElementById(fillId);
-        const val = document.getElementById(valueId);
-        if (!fill || !val) return;
+    function setDot(id, on) {
+        const el = document.getElementById(id);
+        if (el) el.className = 'sv-ov-dot ' + (on ? 'on' : 'off');
+    }
+    function setPct(id, pct) {
+        const el = document.getElementById(id);
+        if (!el) return;
         const clamped = Math.max(0, Math.min(100, Math.round(pct)));
-        fill.setAttribute('stroke-dasharray', clamped + ', 100');
-        fill.setAttribute('stroke-dashoffset', '0');
-        val.textContent = clamped + '%';
-        if (clamped >= 85) {
-            fill.classList.add('sv-ring-progress-fill--warning');
-        } else {
-            fill.classList.remove('sv-ring-progress-fill--warning');
-        }
+        el.textContent = clamped + '%';
+        el.classList.toggle('warn', clamped >= 85);
     }
 
     try {
         const health = await SeedVR2.api.get('/api/system/health');
 
-        // Hero status
+        // Hero 状态
         if (health.gpu?.is_gpu_available) {
             heroDot.className = 'sv-hero-status-dot online';
         } else {
@@ -172,26 +101,28 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // GPU
         const gpuName = health.gpu?.device_name || '--';
-        document.getElementById('overviewGpu').textContent = gpuName;
         heroStatusText.textContent = gpuName;
 
-        // 显存 + GPU 环形进度
+        // 显存 + GPU 使用率
         if (health.gpu?.is_gpu_available) {
+            document.getElementById('overviewGpu').textContent = gpuName;
+            setDot('gpuDot', true);
             try {
                 const gpuInfo = await SeedVR2.api.get('/api/system/gpu');
                 const totalGb = (gpuInfo.vram_total_mb / 1024).toFixed(1);
                 const availGb = (gpuInfo.vram_available_mb / 1024).toFixed(1);
-                document.getElementById('overviewVram').textContent = availGb + ' / ' + totalGb + ' GB';
                 const usedPct = gpuInfo.vram_total_mb > 0
                     ? ((gpuInfo.vram_total_mb - gpuInfo.vram_available_mb) / gpuInfo.vram_total_mb * 100)
                     : 0;
-                setRingProgress('gpuRingFill', 'gpuUsageValue', usedPct);
+                setPct('gpuUsageValue', usedPct);
+                document.getElementById('overviewGpu').textContent = gpuName + ' · ' + availGb + '/' + totalGb + ' GB';
             } catch (e) {
-                document.getElementById('overviewVram').textContent = 'N/A';
+                document.getElementById('gpuUsageValue').textContent = 'N/A';
             }
         } else {
-            document.getElementById('overviewVram').textContent = 'N/A';
-            setRingProgress('gpuRingFill', 'gpuUsageValue', 0);
+            document.getElementById('gpuUsageValue').textContent = 'N/A';
+            document.getElementById('overviewGpu').textContent = I["system.cpu_mode"] || 'CUDA unavailable';
+            setDot('gpuDot', false);
         }
 
         // 模型
@@ -201,20 +132,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('overviewModel').innerHTML =
                 '<span class="sv-text-success">SeedVR2-' + size.toUpperCase() + '</span>';
             heroModelStatus.innerHTML = '<span class="sv-text-success">SeedVR2-' + size.toUpperCase() + '</span>';
+            setDot('modelDot', true);
         } else {
             document.getElementById('overviewModel').innerHTML =
                 '<span class="sv-text-muted">' + (I["system.not_loaded"] || 'Not loaded') + '</span>';
             heroModelStatus.textContent = I["system.not_loaded"] || 'Not loaded';
+            setDot('modelDot', false);
         }
 
-        // 内存 + 内存环形进度
+        // 内存 + 使用率
         if (health.system) {
             document.getElementById('overviewMemory').textContent =
                 health.system.memory_available_gb + ' / ' + health.system.memory_total_gb + ' GB';
             const memUsedPct = health.system.memory_total_gb > 0
                 ? ((health.system.memory_total_gb - health.system.memory_available_gb) / health.system.memory_total_gb * 100)
                 : 0;
-            setRingProgress('memRingFill', 'memUsageValue', memUsedPct);
+            setPct('memUsageValue', memUsedPct);
+            setDot('memDot', true);
         }
 
         // 运行时间
@@ -226,6 +160,45 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error('Failed to load system overview:', err);
         heroDot.className = 'sv-hero-status-dot error';
         heroStatusText.textContent = 'Connection error';
+    }
+
+    // ===== 最近任务（取最新 5 条历史记录） =====
+    try {
+        const data = await SeedVR2.api.get('/api/system/history?page=1&page_size=5');
+        const records = data.records || [];
+        const list = document.getElementById('recentList');
+        const empty = document.getElementById('recentEmpty');
+        const total = data.total || 0;
+
+        // 概览区任务数
+        const overviewTasks = document.getElementById('overviewTasks');
+        if (overviewTasks) overviewTasks.textContent = String(total);
+
+        if (records.length === 0) {
+            empty.style.display = '';
+        } else {
+            const rows = records.map(r => {
+                const rawName = r.input_file || '--';
+                const name = rawName.split(/[\\/]/).pop();
+                const statusKey = 'status.' + r.status;
+                const statusText = I[statusKey] || r.status || '--';
+                const badgeClass = 'sv-badge-' + (r.status || 'pending');
+                const typeIcon = r.task_type === 'image' ? 'bi-image' : 'bi-camera-reels';
+                const time = r.created_at ? SeedVR2.formatTimestamp(r.created_at) : '';
+                return '<a class="sv-recent-item" href="/history">'
+                    + '<i class="bi ' + typeIcon + ' recent-type-icon"></i>'
+                    + '<span class="recent-name">' + SeedVR2.escapeHtml(name) + '</span>'
+                    + '<span class="sv-badge ' + badgeClass + '">' + SeedVR2.escapeHtml(statusText) + '</span>'
+                    + '<span class="recent-meta">' + SeedVR2.escapeHtml(time) + '</span>'
+                    + '<i class="bi bi-arrow-right recent-arrow"></i>'
+                    + '</a>';
+            }).join('');
+            list.insertAdjacentHTML('afterbegin', rows);
+        }
+    } catch (err) {
+        console.error('Failed to load recent tasks:', err);
+        const empty = document.getElementById('recentEmpty');
+        if (empty) empty.style.display = '';
     }
 });
 </script>
