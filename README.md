@@ -12,15 +12,17 @@
 
 *深色主题 — 首页仪表盘 / 修复工作台 / 系统状态*
 
-| 首页仪表盘 | 修复工作台 | 系统状态 |
-|:---:|:---:|:---:|
-| ![首页深色](docs/screenshots/current/dark/01-home-full.png) | ![修复深色](docs/screenshots/current/dark/02-restore-default.png) | ![系统状态深色](docs/screenshots/current/dark/07-system-status-full.png) |
+![首页深色](docs/screenshots/current/dark/01-home-full.png)
+
+![修复深色](docs/screenshots/current/dark/02-restore-default.png)
+
+![系统状态深色](docs/screenshots/current/dark/07-system-status-full.png)
 
 *浅色主题 — 首页仪表盘 / 修复工作台*
 
-| 首页仪表盘 | 修复工作台 |
-|:---:|:---:|
-| ![首页浅色](docs/screenshots/current/light/01-home-full.png) | ![修复浅色](docs/screenshots/current/light/02-restore-default.png) |
+![首页浅色](docs/screenshots/current/light/01-home-full.png)
+
+![修复浅色](docs/screenshots/current/light/02-restore-default.png)
 
 ---
 
