@@ -51,3 +51,6 @@ data/*.db
 # OS
 Thumbs.db
 .DS_Store
+
+# Reference repos (development reference only, not part of the project)
+repo/

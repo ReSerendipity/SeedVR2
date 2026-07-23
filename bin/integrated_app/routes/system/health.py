@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SeedVR2 工具箱 - 系统健康检查路由（仅支持 NVIDIA CUDA GPU）"""
+"""Klar - 系统健康检查路由（仅支持 NVIDIA CUDA GPU）"""
 import logging
 import platform
 import time

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SeedVR2 工具箱 - 修复路由公共模块
+"""Klar - 修复路由公共模块
 
 提取图像/视频修复路由的公共状态管理、常量与工具函数，
 供 upload/batch/task/scan/recovery 子路由复用。

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SeedVR2 工具箱 - 文件缓存管理"""
+"""Klar - 文件缓存管理"""
 import asyncio
 import logging
 import os

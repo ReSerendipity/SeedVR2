@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SeedVR2 工具箱 - 清理缓存启动脚本（仅使用项目自带 WinPython，完全隔离）"""
+"""Klar - 清理缓存启动脚本（仅使用项目自带 WinPython，完全隔离）"""
 import sys
 import os
 from pathlib import Path

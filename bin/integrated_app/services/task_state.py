@@ -1,4 +1,4 @@
-"""SeedVR2 工具箱 - 任务状态管理服务
+"""Klar - 任务状态管理服务
 
 封装内存缓存 + 数据库持久化的双层任务状态管理。
 替代 routes/restore/common.py 中的全局 OrderedDict（无锁保护，C8 内存泄漏风险）。

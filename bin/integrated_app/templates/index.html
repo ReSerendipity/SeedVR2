@@ -25,38 +25,38 @@
 </div>
 
 <!-- 系统状态概览（原系统状态页并入首页）：Warm Print 四列文本卡 -->
-<div class="sv-home-section">
+<section class="sv-home-section" aria-label="{{ t('system.title') }}">
     <div class="sv-section-header">
         <h2 class="sv-section-title">{{ t('system.title') }}</h2>
-        <a href="/settings" class="sv-section-link">{{ t('nav.settings') }} <i class="bi bi-arrow-right"></i></a>
+        <a href="/settings" class="sv-section-link">{{ t('settings.gpu_settings') }} <i class="bi bi-arrow-right"></i></a>
     </div>
 
     <div class="sv-overview-grid sv-anim-rise sv-anim-d3" id="overviewVisual">
         <div class="sv-ov-item">
             <div class="sv-ov-label">GPU</div>
-            <div class="sv-ov-value" id="gpuUsageValue">--</div>
+            <div class="sv-ov-value sv-skeleton-text" id="gpuUsageValue"></div>
             <div class="sv-ov-sub"><span class="sv-ov-dot" id="gpuDot"></span><span id="overviewGpu">{{ t('status.gpu_detecting') }}</span></div>
         </div>
         <div class="sv-ov-item">
             <div class="sv-ov-label">{{ t('system.model_status') }}</div>
-            <div class="sv-ov-value" id="overviewModel">{{ t('system.not_loaded') }}</div>
+            <div class="sv-ov-value sv-skeleton-text" id="overviewModel"></div>
             <div class="sv-ov-sub"><span class="sv-ov-dot" id="modelDot"></span><span>{{ t('system.available_models') }}: 3B · 7B · 7B-Sharp</span></div>
         </div>
         <div class="sv-ov-item">
             <div class="sv-ov-label">{{ t('system.system_memory') }}</div>
-            <div class="sv-ov-value" id="memUsageValue">--</div>
+            <div class="sv-ov-value sv-skeleton-text" id="memUsageValue"></div>
             <div class="sv-ov-sub"><span class="sv-ov-dot" id="memDot"></span><span id="overviewMemory">-- / -- GB</span></div>
         </div>
         <div class="sv-ov-item">
             <div class="sv-ov-label">{{ t('system.uptime') }}</div>
-            <div class="sv-ov-value" id="overviewUptime">--</div>
+            <div class="sv-ov-value sv-skeleton-text" id="overviewUptime"></div>
             <div class="sv-ov-sub"><span class="sv-ov-dot"></span><span><span id="overviewTasks">--</span> {{ t('home.total_tasks') }}</span></div>
         </div>
     </div>
-</div>
+</section>
 
 <!-- 最近任务 -->
-<div class="sv-home-section">
+<section class="sv-home-section" aria-label="{{ t('home.recent_tasks') }}">
     <div class="sv-section-header">
         <h2 class="sv-section-title">{{ t('home.recent_tasks') }}</h2>
         <a href="/history" class="sv-section-link">{{ t('home.view_all') }} <i class="bi bi-arrow-right"></i></a>
@@ -66,7 +66,7 @@
             {{ t('home.no_tasks_desc') if t('home.no_tasks_desc') else 'No restoration tasks yet.' }}
         </div>
     </div>
-</div>
+</section>
 {% endblock %}
 
 {% block scripts %}
@@ -86,7 +86,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!el) return;
         const clamped = Math.max(0, Math.min(100, Math.round(pct)));
         el.textContent = clamped + '%';
+        el.classList.remove('sv-skeleton-text');
         el.classList.toggle('warn', clamped >= 85);
+    }
+
+    function removeSkeleton(id) {
+        const el = document.getElementById(id);
+        if (el) el.classList.remove('sv-skeleton-text');
     }
 
     try {
@@ -139,6 +145,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             heroModelStatus.textContent = I["system.not_loaded"] || 'Not loaded';
             setDot('modelDot', false);
         }
+        removeSkeleton('overviewModel');
 
         // 内存 + 使用率
         if (health.system) {
@@ -155,6 +162,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (health.uptime_seconds !== undefined) {
             document.getElementById('overviewUptime').textContent =
                 SeedVR2.formatUptime(health.uptime_seconds);
+            removeSkeleton('overviewUptime');
         }
     } catch (err) {
         console.error('Failed to load system overview:', err);

@@ -22,6 +22,11 @@ from typing import Any
 
 import torch
 
+from bin.integrated_app.optimization.cache_manager import (
+    TensorCacheManager,
+    get_cache_manager,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -397,7 +402,14 @@ def _wrap_block_forward(
             # Execute forward pass
             output = original_forward(*args, **kwargs)
 
-            # Move back to offload device
+            # Auto-cache output to CPU if VRAM is low (RVRT-inspired CPU caching)
+            cache_manager = _get_cache_manager_for_blockswap(model)
+            if cache_manager is not None and isinstance(output, torch.Tensor) and output.is_cuda:
+                cache_manager.maybe_cache_tensor(
+                    output, f"block_{self._block_idx}_output"
+                )
+
+            # Move block back to offload device
             self.to(model.offload_device, non_blocking=False)
 
             # Log timing
@@ -415,6 +427,20 @@ def _wrap_block_forward(
 
     # Store reference to original forward for cleanup
     block._original_forward = original_forward
+
+
+def _get_cache_manager_for_blockswap(model: torch.nn.Module) -> TensorCacheManager | None:
+    """Get or create a TensorCacheManager attached to the model.
+
+    Attaches a cache manager to the model if one doesn't exist yet,
+    allowing per-model tensor caching during BlockSwap inference.
+    """
+    if not hasattr(model, '_tensor_cache_manager'):
+        try:
+            model._tensor_cache_manager = get_cache_manager()
+        except Exception:
+            return None
+    return getattr(model, '_tensor_cache_manager', None)
 
 
 # ---------------------------------------------------------------------------
@@ -725,6 +751,14 @@ def cleanup_blockswap(model: torch.nn.Module) -> None:
                  'offload_device', '_block_swap_config', '_blockswap_bypass_protection']:
         if hasattr(model, attr):
             delattr(model, attr)
+
+    # 6. Clear tensor cache if attached
+    if hasattr(model, '_tensor_cache_manager'):
+        cache_mgr = model._tensor_cache_manager
+        if cache_mgr is not None and cache_mgr.cache_size > 0:
+            _log_info(f"Clearing {cache_mgr.cache_size} cached tensors from CPU cache")
+            cache_mgr.clear()
+        delattr(model, '_tensor_cache_manager')
 
     _log_info("BlockSwap cleanup complete")
 

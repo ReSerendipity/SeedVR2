@@ -9,8 +9,33 @@
 </div>
 
 <div class="sv-restore-workspace sv-anim-rise sv-anim-d2">
+    <!-- 首次使用引导提示 -->
+    <div class="sv-onboarding-tip" id="onboardingTip" style="display:none;">
+        <div class="sv-onboarding-tip-content">
+            <i class="bi bi-lightbulb sv-onboarding-icon"></i>
+            <div>
+                <strong>{{ t('restore.onboarding_title') }}</strong>
+                <p>{{ t('restore.onboarding_desc') }}</p>
+            </div>
+        </div>
+        <button class="sv-onboarding-close" id="onboardingClose" aria-label="{{ t('common.close') }}">
+            <i class="bi bi-x"></i>
+        </button>
+    </div>
     <!-- ===== 主列：上传 + 对比 + 批量 ===== -->
     <div class="sv-restore-main">
+        <!-- 单文件/批量 模式切换 -->
+        <div class="sv-mode-tabs" role="tablist">
+            <button class="sv-mode-tab active" data-mode="single" role="tab" aria-selected="true">
+                <i class="bi bi-file-earmark"></i> {{ t('restore.single_mode') }}
+                <span class="sv-mode-tab-desc">{{ t('restore.single_mode_desc') }}</span>
+            </button>
+            <button class="sv-mode-tab" data-mode="batch" role="tab" aria-selected="false">
+                <i class="bi bi-folder2-open"></i> {{ t('restore.batch_mode') }}
+                <span class="sv-mode-tab-desc">{{ t('restore.batch_mode_desc') }}</span>
+            </button>
+        </div>
+
         <!-- 上传区 -->
         <div class="sv-dropzone" id="restoreUploadZone">
             <div class="sv-dropzone-icon"><i class="bi bi-cloud-arrow-up"></i></div>
@@ -54,6 +79,10 @@
                                 <span id="progressFrames"></span>
                                 <span id="progressEta"></span>
                             </span>
+                        </div>
+                        <div class="sv-progress-detail" id="progressDetail" style="display:none;">
+                            <span id="progressFps"></span>
+                            <span id="progressStage"></span>
                         </div>
                     </div>
                 </div>
@@ -132,7 +161,9 @@
         <div class="sv-param-sidebar-title">{{ t('restore.param_config') }}</div>
 
         <div class="sv-param-group">
-            <label class="sv-param-label" for="ditModel">{{ t('video.model') }}</label>
+            <label class="sv-param-label" for="ditModel">{{ t('video.model') }}
+                <span class="sv-param-help" data-tooltip="{{ t('restore.tip_model') }}"><i class="bi bi-info-circle"></i></span>
+            </label>
             <select class="sv-param-select" id="ditModel" name="dit_model">
                 <option value="3b_fp16" selected>3B FP16</option>
                 <option value="3b_fp8">3B FP8</option>
@@ -142,7 +173,9 @@
             </select>
         </div>
         <div class="sv-param-group">
-            <label class="sv-param-label" for="resolution">{{ t('restore.resolution') }}</label>
+            <label class="sv-param-label" for="resolution">{{ t('restore.resolution') }}
+                <span class="sv-param-help" data-tooltip="{{ t('restore.tip_resolution') }}"><i class="bi bi-info-circle"></i></span>
+            </label>
             <input type="number" class="sv-param-input" id="resolution" name="resolution" value="2160" min="1">
         </div>
         <div class="sv-param-group">
@@ -150,20 +183,31 @@
             <input type="number" class="sv-param-input" id="maxResolution" name="max_resolution" value="0" min="0">
         </div>
         <div class="sv-param-group">
-            <label class="sv-param-label" for="seed">{{ t('restore.seed') }}</label>
+            <label class="sv-param-label" for="seed">{{ t('restore.seed') }}
+                <span class="sv-param-help" data-tooltip="{{ t('restore.tip_seed') }}"><i class="bi bi-info-circle"></i></span>
+            </label>
             <input type="number" class="sv-param-input" id="seed" name="seed" value="1373201197">
         </div>
         <div class="sv-param-group">
-            <label class="sv-param-label" for="colorCorrection">{{ t('video.color_correction') }}</label>
+            <label class="sv-param-label" for="colorCorrection">{{ t('video.color_correction') }}
+                <span class="sv-param-help" data-tooltip="{{ t('restore.tip_color_correction') }}"><i class="bi bi-info-circle"></i></span>
+            </label>
             <select class="sv-param-select" id="colorCorrection" name="color_correction">
                 <option value="lab" selected>LAB</option>
-                <option value="none">{{ t('common.none') if t('common.none') else 'None' }}</option>
+                <option value="none">{{ t('video.none') }}</option>
             </select>
         </div>
 
         <button type="button" class="sv-advanced-toggle" id="advToggle" aria-expanded="false" aria-controls="advParams">
             <span class="arrow"><i class="bi bi-chevron-right"></i></span> {{ t('video.advanced_settings') }}
         </button>
+
+        <div class="sv-adv-presets" id="advPresets" style="display:none;">
+            <span class="sv-adv-presets-label">{{ t('restore.quick_presets') }}</span>
+            <button type="button" class="sv-btn sv-btn-outline sv-btn-xs" data-preset="balanced">{{ t('settings.strategy_balanced') }}</button>
+            <button type="button" class="sv-btn sv-btn-outline sv-btn-xs" data-preset="performance">{{ t('settings.strategy_performance') }}</button>
+            <button type="button" class="sv-btn sv-btn-outline sv-btn-xs" data-preset="conservative">{{ t('settings.strategy_conservative') }}</button>
+        </div>
 
         <div class="sv-advanced-params" id="advParams">
             <div class="sv-adv-section">
@@ -178,18 +222,22 @@
                     </select>
                 </div>
                 <div class="sv-param-group">
-                    <label class="sv-param-label" for="blocksToSwap">{{ t('video.block_swap') }}</label>
+                    <label class="sv-param-label" for="blocksToSwap">{{ t('video.blocks_to_swap') }}</label>
                     <input type="number" class="sv-param-input" id="blocksToSwap" name="blocks_to_swap" value="32" min="0" max="36">
                 </div>
                 <div class="sv-param-group">
                     <label class="sv-param-label" for="batchSize">{{ t('video.batch_size') }}</label>
                     <input type="number" class="sv-param-input" id="batchSize" name="batch_size" value="1" min="1">
                 </div>
-                <div class="sv-param-group">
-                    <label class="sv-param-check">
-                        <input type="checkbox" name="swap_io_components" checked>
-                        <span>{{ t('video.swap_io_components') }}</span>
-                    </label>
+                <div class="sv-adv-locked-group">
+                    <div class="sv-adv-locked-header">{{ t('restore.optimized_params') }}</div>
+                    <div class="sv-param-group">
+                        <label class="sv-param-check" data-tooltip="{{ t('restore.tip_swap_io') }}">
+                            <input type="checkbox" name="swap_io_components" checked disabled>
+                            <input type="hidden" name="swap_io_components" value="true">
+                            <span>{{ t('video.swap_io_components') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted"></i></span>
+                        </label>
+                    </div>
                 </div>
             </div>
 
@@ -218,29 +266,37 @@
                     <label class="sv-param-label" for="decodeTileOverlap">{{ t('video.decode_tile_overlap') }}</label>
                     <input type="number" class="sv-param-input" id="decodeTileOverlap" name="decode_tile_overlap" value="512" min="0">
                 </div>
-                <div class="sv-param-group sv-param-checks-row">
-                    <label class="sv-param-check">
-                        <input type="checkbox" name="encode_tiled" checked>
-                        <span>{{ t('video.encode_tiled') }}</span>
-                    </label>
-                    <label class="sv-param-check">
-                        <input type="checkbox" name="decode_tiled" checked>
-                        <span>{{ t('video.decode_tiled') }}</span>
-                    </label>
-                    <label class="sv-param-check">
-                        <input type="checkbox" name="tile_debug" value="true">
-                        <span>{{ t('video.tile_debug') }}</span>
-                    </label>
+                <div class="sv-adv-locked-group">
+                    <div class="sv-adv-locked-header">{{ t('restore.optimized_params') }}</div>
+                    <div class="sv-param-group sv-param-checks-row">
+                        <label class="sv-param-check" data-tooltip="{{ t('restore.tip_tiled_encode') }}">
+                            <input type="checkbox" name="encode_tiled" checked disabled>
+                            <input type="hidden" name="encode_tiled" value="true">
+                            <span>{{ t('video.encode_tiled') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted"></i></span>
+                        </label>
+                        <label class="sv-param-check" data-tooltip="{{ t('restore.tip_tiled_decode') }}">
+                            <input type="checkbox" name="decode_tiled" checked disabled>
+                            <input type="hidden" name="decode_tiled" value="true">
+                            <span>{{ t('video.decode_tiled') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted"></i></span>
+                        </label>
+                        <label class="sv-param-check" data-tooltip="{{ t('restore.tip_tile_debug') }}">
+                            <input type="checkbox" name="tile_debug" value="true" disabled>
+                            <span>{{ t('video.tile_debug') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted"></i></span>
+                        </label>
+                    </div>
                 </div>
             </div>
 
             <div class="sv-adv-section">
                 <div class="sv-adv-section-title">{{ t('video.node_upscaler') }}</div>
-                <div class="sv-param-group">
-                    <label class="sv-param-check">
-                        <input type="checkbox" name="uniform_batch_size">
-                        <span>{{ t('video.uniform_batch_size') }}</span>
-                    </label>
+                <div class="sv-adv-locked-group">
+                    <div class="sv-adv-locked-header">{{ t('restore.optimized_params') }}</div>
+                    <div class="sv-param-group">
+                        <label class="sv-param-check" data-tooltip="{{ t('restore.tip_uniform_batch') }}">
+                            <input type="checkbox" name="uniform_batch_size" disabled>
+                            <span>{{ t('video.uniform_batch_size') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted"></i></span>
+                        </label>
+                    </div>
                 </div>
                 <div class="sv-param-group">
                     <label class="sv-param-label" for="temporalOverlap">{{ t('video.temporal_overlap') }}</label>
@@ -259,9 +315,9 @@
                     <input type="number" class="sv-param-input" id="latentNoiseScale" name="latent_noise_scale" value="0.0" min="0" step="0.01">
                 </div>
                 <div class="sv-param-group">
-                    <label class="sv-param-check">
-                        <input type="checkbox" name="enable_debug">
-                        <span>{{ t('video.debug_mode') }}</span>
+                    <label class="sv-param-check" data-tooltip="{{ t('restore.tip_debug_mode') }}">
+                        <input type="checkbox" name="enable_debug" disabled>
+                        <span>{{ t('video.debug_mode') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted"></i></span>
                     </label>
                 </div>
             </div>
@@ -276,7 +332,7 @@
         </div>
 
         <div class="sv-param-actions">
-            <button type="button" class="sv-btn sv-btn-primary" id="btnStartRestore">
+            <button type="button" class="sv-btn sv-btn-primary" id="btnStartRestore" data-disabled-reason="{{ t('restore.please_select') }}">
                 <i class="bi bi-play-fill"></i> {{ t('restore.upload_and_restore') }}
             </button>
             <button type="button" class="sv-btn sv-btn-ghost sv-btn-sm" id="btnResetRestore">
@@ -447,6 +503,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // 高级参数（含隐藏字段）
         els.advParams.querySelectorAll('input, select').forEach(input => {
             if (input.type === 'checkbox') {
+                // Skip disabled checkboxes - their values are sent via hidden inputs
+                if (input.disabled) return;
                 if (input.checked) {
                     params.append(input.name, input.value || 'true');
                 }
@@ -475,9 +533,11 @@ document.addEventListener('DOMContentLoaded', () => {
             els.compareCard.style.display = 'none';
             els.resultVideo.style.display = 'none';
 
-            const data = await SeedVR2.api.uploadRestore(params);
+            await SeedVR2.api.submitWithLoading(els.btnStartRestore,
+                SeedVR2.api.uploadRestore(params),
+                { loadingText: I['restore.processing'] || 'Processing...' }
+            );
             SeedVR2.toast(I['restore.processing'] || '处理中...', 'info');
-            SeedVR2.startRestoreProgressSSE(data.task_id, data.task_type);
         } catch (err) {
             SeedVR2.toast((I['restore.failed'] || '修复失败') + ': ' + err.message, 'error');
             SeedVR2.hideCard('progressCard');
@@ -492,18 +552,38 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const params = collectParams();
-        params.append('folder_path', path);
+        // 批量处理预确认
+        const fileCount = scannedFiles.length || 0;
+        const confirmMsg = fileCount > 0
+            ? (I['restore.batch_confirm_msg'] || '即将处理 {count} 个文件，确认开始？').replace('{count}', fileCount)
+            : (I['restore.please_select'] || '请先扫描文件夹');
 
-        try {
-            SeedVR2.showCard('batchProgressCard');
-            const data = await SeedVR2.api.post('/api/restore/batch', params);
-            SeedVR2.toast(I['video.batch_started'] || '批量处理已启动', 'info');
-            pollBatchProgress(data.batch_id);
-        } catch (err) {
-            SeedVR2.toast((I['video.batch_start_failed'] || '批量处理启动失败') + ': ' + err.message, 'error');
-            SeedVR2.hideCard('batchProgressCard');
+        if (fileCount === 0) {
+            SeedVR2.toast(I['restore.please_select'] || '请先扫描文件夹', 'warning');
+            return;
         }
+
+        SeedVR2.confirm(
+            I['restore.batch_confirm_title'] || '确认批量修复',
+            confirmMsg,
+            async () => {
+                const params = collectParams();
+                params.append('folder_path', path);
+
+                try {
+                    SeedVR2.showCard('batchProgressCard');
+                    const data = await SeedVR2.api.submitWithLoading(els.btnStartBatch,
+                        SeedVR2.api.post('/api/restore/batch', params),
+                        { loadingText: I['common.processing'] || 'Processing...' }
+                    );
+                    SeedVR2.toast(I['video.batch_started'] || '批量处理已启动', 'info');
+                    pollBatchProgress(data.batch_id);
+                } catch (err) {
+                    SeedVR2.toast((I['video.batch_start_failed'] || '批量处理启动失败') + ': ' + err.message, 'error');
+                    SeedVR2.hideCard('batchProgressCard');
+                }
+            }
+        );
     }
 
     function pollBatchProgress(batchId) {
@@ -564,13 +644,75 @@ document.addEventListener('DOMContentLoaded', () => {
             const open = els.advParams.classList.toggle('open');
             els.advToggle.classList.toggle('open', open);
             els.advToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+            const presetsEl = document.getElementById('advPresets');
+            if (presetsEl) presetsEl.style.display = open ? '' : 'none';
         });
     }
+
+    // 快捷预设
+    const PRESETS = {
+        balanced: { blocksToSwap: 32, batchSize: 1, attentionMode: 'sdpa' },
+        performance: { blocksToSwap: 20, batchSize: 2, attentionMode: 'sdpa' },
+        conservative: { blocksToSwap: 36, batchSize: 1, attentionMode: 'sdpa' },
+    };
+    document.querySelectorAll('[data-preset]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const preset = PRESETS[btn.dataset.preset];
+            if (!preset) return;
+            if (document.getElementById('blocksToSwap')) document.getElementById('blocksToSwap').value = preset.blocksToSwap;
+            if (document.getElementById('batchSize')) document.getElementById('batchSize').value = preset.batchSize;
+            if (document.getElementById('attentionMode')) document.getElementById('attentionMode').value = preset.attentionMode;
+            // 高亮当前预设按钮
+            document.querySelectorAll('[data-preset]').forEach(b => b.classList.remove('sv-btn-active'));
+            btn.classList.add('sv-btn-active');
+            const tipKey = 'restore.preset_' + btn.dataset.preset + '_desc';
+            SeedVR2.toast(I[tipKey] || btn.textContent, 'success', 2000);
+        });
+    });
 
     els.btnStartRestore.addEventListener('click', startRestore);
     els.btnStartBatch.addEventListener('click', startBatch);
     els.btnResetRestore.addEventListener('click', resetRestore);
     els.btnRestoreAgain.addEventListener('click', resetRestore);
+
+    // ===== 首次使用引导 =====
+    const onboardingTip = document.getElementById('onboardingTip');
+    const onboardingClose = document.getElementById('onboardingClose');
+    if (onboardingTip && !localStorage.getItem('sv-onboarding-dismissed')) {
+        onboardingTip.style.display = 'flex';
+    }
+    if (onboardingClose) {
+        onboardingClose.addEventListener('click', () => {
+            onboardingTip.style.display = 'none';
+            localStorage.setItem('sv-onboarding-dismissed', '1');
+        });
+    }
+
+    // 模式切换标签（单文件/批量）+ URL hash 同步
+    function switchMode(mode) {
+        document.querySelectorAll('.sv-mode-tab').forEach(t => {
+            t.classList.toggle('active', t.dataset.mode === mode);
+            t.setAttribute('aria-selected', t.dataset.mode === mode ? 'true' : 'false');
+        });
+        if (mode === 'batch') {
+            const batchSection = document.querySelector('.sv-batch-section');
+            if (batchSection) {
+                batchSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                batchSection.classList.add('sv-batch-highlight');
+                setTimeout(() => batchSection.classList.remove('sv-batch-highlight'), 1500);
+            }
+        }
+        history.replaceState(null, '', mode === 'batch' ? '#batch' : '#single');
+    }
+
+    document.querySelectorAll('.sv-mode-tab').forEach(tab => {
+        tab.addEventListener('click', () => switchMode(tab.dataset.mode));
+    });
+
+    // 从 URL hash 恢复模式
+    if (location.hash === '#batch') {
+        switchMode('batch');
+    }
 });
 </script>
 {% endblock %}
