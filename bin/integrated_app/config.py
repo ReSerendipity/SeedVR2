@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SeedVR2 工具箱 - 配置加载模块"""
+"""Klar - 配置加载模块"""
 import contextlib
 import os
 import tempfile

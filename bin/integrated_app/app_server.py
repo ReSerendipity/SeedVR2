@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SeedVR2 工具箱 - 应用服务器入口"""
+"""Klar - 应用服务器入口"""
 import asyncio
 import logging
 import os
@@ -120,7 +120,7 @@ async def lifespan(app: FastAPI):
         asyncio.get_event_loop().call_later(1.5, lambda: webbrowser.open(url))
         logger.info(f"将在浏览器中打开: {url}")
 
-    logger.info(f"SeedVR2 工具箱已启动: http://{host}:{port}")
+    logger.info(f"Klar已启动: http://{host}:{port}")
 
     yield
 
@@ -150,7 +150,7 @@ async def lifespan(app: FastAPI):
     history_db = app.state.history_db
     await history_db.close()
 
-    logger.info("SeedVR2 工具箱已关闭")
+    logger.info("Klar已关闭")
 
 
 def create_app(config: dict = None) -> FastAPI:
@@ -159,8 +159,8 @@ def create_app(config: dict = None) -> FastAPI:
         config = load_config()
 
     app = FastAPI(
-        title="SeedVR2 工具箱",
-        description="SeedVR2 便携式视频修复工具箱",
+        title="Klar",
+        description="Klar - AI-powered video & image super-resolution toolkit",
         version="1.0.0",
         lifespan=lifespan,
     )
@@ -286,7 +286,7 @@ def main():
     port = config.get("server", {}).get("port", 7870)
     debug = config.get("server", {}).get("debug", False)
 
-    logger.info(f"SeedVR2 工具箱启动中... http://{host}:{port}")
+    logger.info(f"Klar启动中... http://{host}:{port}")
     try:
         uvicorn.run(
             app,

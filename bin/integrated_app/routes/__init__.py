@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SeedVR2 工具箱 - 路由注册与自动发现"""
+"""Klar - 路由注册与自动发现"""
 import importlib
 import logging
 

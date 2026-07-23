@@ -20,6 +20,13 @@ inference:
   swap_io_components: true
   vae_overlap: 512
   vae_tile_size: 1024
+  # Restoration guidance scale: controls fidelity-realism tradeoff (Vivid-VR inspired)
+  # 1.0 = default (no additional guidance), higher = more fidelity
+  restoration_guidance_scale: 1.0
+  # Temporal segment processing for long videos (0 = disabled, process all at once)
+  # Set to e.g. 32 to process 32-frame segments with overlap
+  temporal_segment_size: 0
+  temporal_segment_overlap: 8
 logging:
   backup_count: 3
   file: logs/app.log

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SeedVR2 工具箱 - 重构测试
+"""Klar - 重构测试
 
 覆盖本次重构的核心改动:
 1. InferenceCancelledError 异常属性 (提案 2B)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SeedVR2 工具箱 - CSRF 保护中间件"""
+"""Klar - CSRF 保护中间件"""
 import logging
 import re
 import secrets

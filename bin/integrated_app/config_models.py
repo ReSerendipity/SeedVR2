@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SeedVR2 工具箱 - 配置数据模型
+"""Klar - 配置数据模型
 
 使用 Pydantic 进行配置验证，支持:
 - ConfigDict(extra="ignore") 自动过滤未知 YAML 字段
