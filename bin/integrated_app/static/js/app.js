@@ -1,5 +1,5 @@
 /**
- * SeedVR2 工具箱 - 前端交互脚本
+ * Klar - 前端交互脚本
  * 包含：API 封装、文件上传、SSE 进度、对比滑块、Toast 通知、侧边栏状态等
  */
 
@@ -25,6 +25,7 @@ const SeedVR2 = (() => {
             'error.request_failed': '请求失败',
             'error.send_failed': '发送请求失败',
             'error.network_error': '网络错误',
+            'error.action_retry': '重试',
             'dir.empty': '空目录',
             'dir.enter_path': '请输入路径',
             'dir.opened': '已在文件管理器中打开',
@@ -61,6 +62,7 @@ const SeedVR2 = (() => {
             'error.request_failed': 'Request failed',
             'error.send_failed': 'Send request failed',
             'error.network_error': 'Network error',
+            'error.action_retry': 'Retry',
             'dir.empty': 'Empty directory',
             'dir.enter_path': 'Please enter a path',
             'dir.opened': 'Opened in file explorer',
@@ -200,6 +202,18 @@ const SeedVR2 = (() => {
             info: 'bi-info-circle-fill',
         };
 
+        // 错误类型行动建议
+        const actionMap = {
+            400: t('error.400'),
+            401: t('error.401'),
+            403: t('error.403'),
+            404: t('error.404'),
+            429: t('error.429'),
+            500: t('error.500'),
+            502: t('error.502'),
+            503: t('error.503'),
+        };
+
         const el = document.createElement('div');
         el.className = `sv-toast toast-${type}`;
 
@@ -208,7 +222,37 @@ const SeedVR2 = (() => {
 
         const msgSpan = document.createElement('span');
         msgSpan.style.flex = '1';
-        msgSpan.textContent = message;
+        // 两层错误展示：简要 + 可展开详情
+        if (type === 'error' && message.length > 60) {
+            const briefEnd = message.indexOf(':');
+            if (briefEnd > 0 && briefEnd < 40) {
+                const brief = message.substring(0, briefEnd);
+                const detail = message.substring(briefEnd + 1).trim();
+                msgSpan.innerHTML = `<span class="sv-toast-brief">${escapeHtml(brief)}</span><details class="sv-toast-details"><summary>${escapeHtml(brief)}</summary><span class="sv-toast-detail-text">${escapeHtml(detail)}</span></details>`;
+            } else {
+                msgSpan.textContent = message;
+            }
+        } else {
+            msgSpan.textContent = message;
+        }
+
+        // 错误消息添加行动建议
+        if (type === 'error') {
+            const actionHint = t('error.action_retry') || '';
+            if (actionHint) {
+                const actionBtn = document.createElement('button');
+                actionBtn.className = 'sv-toast-action';
+                actionBtn.textContent = actionHint;
+                actionBtn.addEventListener('click', () => {
+                    el.classList.add('toast-out');
+                    setTimeout(() => el.remove(), 300);
+                    // 尝试刷新当前页面数据
+                    const btnRefresh = document.getElementById('btnRefresh');
+                    if (btnRefresh) btnRefresh.click();
+                });
+                msgSpan.appendChild(actionBtn);
+            }
+        }
 
         const closeBtn = document.createElement('button');
         closeBtn.className = 'sv-toast-close';
@@ -379,11 +423,41 @@ const SeedVR2 = (() => {
 
     // ===== 全局 SSE 连接 =====
     let globalEventSource = null;
+    let _sseRetryCount = 0;
+    let _sseRetryTimer = null;
+    const SSE_MAX_RETRIES = 10;
+
+    function _updateSSEStatusUI(state) {
+        const dot = document.getElementById('statusDot');
+        if (!dot) return;
+        dot.classList.remove('online', 'reconnecting', 'offline');
+        if (state === 'online') {
+            dot.classList.add('online');
+            dot.title = '';
+        } else if (state === 'reconnecting') {
+            dot.classList.add('reconnecting');
+            dot.title = t('system.connection_failed');
+        } else {
+            dot.classList.add('offline');
+            dot.title = t('system.connection_failed');
+        }
+    }
 
     function initGlobalSSE() {
         if (globalEventSource) {
             globalEventSource.close();
             globalEventSource = null;
+        }
+        if (_sseRetryTimer) {
+            clearTimeout(_sseRetryTimer);
+            _sseRetryTimer = null;
+        }
+
+        if (_sseRetryCount >= SSE_MAX_RETRIES) {
+            console.error('SSE max retries reached, stopping reconnection');
+            _updateSSEStatusUI('offline');
+            toast(t('system.connection_failed') || 'Connection lost. Please refresh the page.', 'error', 8000);
+            return;
         }
 
         globalEventSource = new EventSource('/api/sse/events');
@@ -416,11 +490,34 @@ const SeedVR2 = (() => {
             }
         });
 
+        // 连接成功时重置重试计数
+        globalEventSource.onopen = () => {
+            if (_sseRetryCount > 0) {
+                console.warn('SSE reconnected after', _sseRetryCount, 'attempts');
+                toast(t('locale.switched') || 'Reconnected', 'success', 2000);
+            }
+            _sseRetryCount = 0;
+            _updateSSEStatusUI('online');
+        };
+
         globalEventSource.onerror = () => {
-            console.warn('SSE connection error, will retry automatically');
+            globalEventSource.close();
+            globalEventSource = null;
+            window.__sseConnection = null;
+            _sseRetryCount++;
+            _updateSSEStatusUI('reconnecting');
+            const delay = Math.min(1000 * Math.pow(2, _sseRetryCount - 1), 30000);
+            console.warn('SSE connection error, retrying in', delay, 'ms (attempt', _sseRetryCount, ')');
+            _sseRetryTimer = setTimeout(() => {
+                initGlobalSSE();
+            }, delay);
         };
 
         window.addEventListener('beforeunload', () => {
+            if (_sseRetryTimer) {
+                clearTimeout(_sseRetryTimer);
+                _sseRetryTimer = null;
+            }
             if (globalEventSource) {
                 globalEventSource.close();
                 globalEventSource = null;
@@ -444,12 +541,17 @@ const SeedVR2 = (() => {
         const progressPct = document.getElementById('progressPct');
         const progressFrames = document.getElementById('progressFrames');
         const progressEta = document.getElementById('progressEta');
+        const progressDetail = document.getElementById('progressDetail');
+        const progressFps = document.getElementById('progressFps');
+        const progressStage = document.getElementById('progressStage');
         const taskStatus = document.getElementById('taskStatus');
 
         const es = new EventSource(`/api/restore/${taskId}/progress`);
         currentRestoreEventSource = es;
 
         let startTime = Date.now();
+        let lastFrame = 0;
+        let lastFrameTime = Date.now();
         const _I = window.__I18N__ || {};
         const typeLabel = taskType === 'video' ? (_I['history.video'] || t('history.video')) : (_I['history.image'] || t('history.image'));
 
@@ -471,7 +573,7 @@ const SeedVR2 = (() => {
                 if (progressPct) progressPct.textContent = `${data.progress}%`;
                 if (progressFrames) {
                     if (taskType === 'video') {
-                        progressFrames.textContent = ` ${I['video.batch_current_processing']?.replace('{current}', data.current_frame).replace('{total}', data.total_frames) || `${data.current_frame} / ${data.total_frames}`}`;
+                        progressFrames.textContent = ` ${_I['video.batch_current_processing']?.replace('{current}', data.current_frame).replace('{total}', data.total_frames) || `${data.current_frame} / ${data.total_frames}`}`;
                     } else {
                         progressFrames.textContent = '';
                     }
@@ -482,6 +584,28 @@ const SeedVR2 = (() => {
                     const elapsed = (Date.now() - startTime) / 1000;
                     const eta = (elapsed / data.progress) * (100 - data.progress);
                     progressEta.textContent = `ETA: ${formatDuration(eta)}`;
+                }
+
+                // 详细信息行：FPS + 阶段
+                if (progressDetail && taskType === 'video' && data.current_frame) {
+                    progressDetail.style.display = '';
+                    // FPS 计算
+                    const now = Date.now();
+                    const framesDelta = (data.current_frame || 0) - lastFrame;
+                    const timeDelta = (now - lastFrameTime) / 1000;
+                    if (framesDelta > 0 && timeDelta > 0.5) {
+                        const fps = (framesDelta / timeDelta).toFixed(1);
+                        if (progressFps) progressFps.textContent = `${fps} FPS`;
+                        lastFrame = data.current_frame;
+                        lastFrameTime = now;
+                    }
+                    // 阶段
+                    if (progressStage) {
+                        const progress = data.progress || 0;
+                        if (progress < 10) progressStage.textContent = _I['restore.stage_encoding'] || 'Encoding';
+                        else if (progress < 85) progressStage.textContent = _I['restore.stage_denoising'] || 'Denoising';
+                        else progressStage.textContent = _I['restore.stage_decoding'] || 'Decoding';
+                    }
                 }
 
                 // 状态文本
@@ -499,6 +623,7 @@ const SeedVR2 = (() => {
                     currentRestoreEventSource = null;
                     if (progressText) progressText.textContent = _I['restore.completed'] || t('restore.completed');
                     if (progressEta) progressEta.textContent = '';
+                    if (progressDetail) progressDetail.style.display = 'none';
                     if (taskStatus) {
                         taskStatus.textContent = _I['status.completed'] || t('status.completed');
                         taskStatus.className = 'sv-badge sv-badge-completed';
@@ -514,6 +639,7 @@ const SeedVR2 = (() => {
                     es.close();
                     currentRestoreEventSource = null;
                     if (progressText) progressText.textContent = _I['restore.failed'] || t('restore.failed');
+                    if (progressDetail) progressDetail.style.display = 'none';
                     if (taskStatus) {
                         taskStatus.textContent = _I['status.failed'] || t('status.failed');
                         taskStatus.className = 'sv-badge sv-badge-failed';
@@ -857,8 +983,16 @@ const SeedVR2 = (() => {
         try {
             const data = await api.post('/api/system/locale', { locale: localeCode });
             toast(data.message || t('locale.switched'), 'success');
-            // 刷新当前页面以应用新语言
-            setTimeout(() => window.location.reload(), 500);
+            // Show transition overlay for smoother reload
+            const overlay = document.createElement('div');
+            overlay.style.cssText = 'position:fixed;inset:0;background:var(--sv-bg,rgba(15,20,15,0.95));z-index:9999;opacity:0;transition:opacity 0.2s ease;display:flex;align-items:center;justify-content:center;';
+            const spinner = document.createElement('span');
+            spinner.className = 'sv-spinner';
+            spinner.style.cssText = 'width:32px;height:32px;';
+            overlay.appendChild(spinner);
+            document.body.appendChild(overlay);
+            requestAnimationFrame(() => { overlay.style.opacity = '1'; });
+            setTimeout(() => window.location.reload(), 300);
         } catch (err) {
             toast((t('locale.switch_failed') + ': ' + err.message), 'error');
         }
@@ -873,8 +1007,8 @@ const SeedVR2 = (() => {
         const menu = document.getElementById('svContextMenu');
         if (!menu) return;
 
-        _contextMenuRecordId = row.dataset.recordId;
-        _contextMenuOutputPath = row.dataset.output;
+        _contextMenuRecordId = row.dataset ? row.dataset.recordId : row.getAttribute?.('data-record-id');
+        _contextMenuOutputPath = row.dataset ? row.dataset.output : row.getAttribute?.('data-output');
 
         const openBtn = document.getElementById('ctxOpenOutputDir');
         if (openBtn) {
@@ -912,6 +1046,18 @@ const SeedVR2 = (() => {
 
         // 初始化语言切换下拉菜单
         initLocaleDropdown();
+
+        // 系统状态栏折叠
+        const sysToggle = document.getElementById('sysWidgetToggle');
+        const sysBody = document.getElementById('sysWidgetBody');
+        if (sysToggle && sysBody) {
+            sysToggle.addEventListener('click', () => {
+                const collapsed = sysBody.classList.toggle('collapsed');
+                sysToggle.querySelector('i').className = collapsed ? 'bi bi-chevron-up' : 'bi bi-chevron-down';
+                const widget = sysToggle.closest('.sv-sys-widget');
+                if (widget) widget.classList.toggle('collapsed', collapsed);
+            });
+        }
 
         // HTMX 全局错误联动 Toast
         if (typeof htmx !== 'undefined') {

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SeedVR2 工具箱 - FastAPI 依赖注入
+"""Klar - FastAPI 依赖注入
 
 提供基于 Request.app.state 的可复用依赖函数，供路由通过 Depends 注入使用。
 """

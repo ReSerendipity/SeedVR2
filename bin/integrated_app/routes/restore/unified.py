@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SeedVR2 工具箱 - 统一修复路由（聚合入口）
+"""Klar - 统一修复路由（聚合入口）
 
 同时处理图像与视频修复请求，根据文件类型或显式 task_type 自动分发。
 旧的 /api/restore/image 与 /api/restore/video 由本模块统一接管。

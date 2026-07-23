@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SeedVR2 工具箱 - GPU 信息路由"""
+"""Klar - GPU 信息路由"""
 import logging
 
 from fastapi import APIRouter, Depends

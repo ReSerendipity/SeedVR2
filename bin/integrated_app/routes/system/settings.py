@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SeedVR2 工具箱 - 设置管理路由"""
+"""Klar - 设置管理路由"""
 import asyncio
 import logging
 import os

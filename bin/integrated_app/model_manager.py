@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SeedVR2 工具箱 - 模型管理器"""
+"""Klar - 模型管理器"""
 import logging
 import os
 

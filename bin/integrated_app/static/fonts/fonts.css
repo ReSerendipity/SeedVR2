@@ -1,0 +1,42 @@
+/* SeedVR2 Local Fonts - DM Sans + Instrument Serif */
+/* Replaces Google Fonts / loli.net external dependency */
+
+@font-face {
+    font-family: 'DM Sans';
+    font-style: normal;
+    font-weight: 300;
+    font-display: swap;
+    src: url('/static/fonts/DMSans-Regular.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'DM Sans';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('/static/fonts/DMSans-Regular.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'DM Sans';
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url('/static/fonts/DMSans-Medium.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Instrument Serif';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('/static/fonts/InstrumentSerif-Regular.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Instrument Serif';
+    font-style: italic;
+    font-weight: 400;
+    font-display: swap;
+    src: url('/static/fonts/InstrumentSerif-Italic.woff2') format('woff2');
+}

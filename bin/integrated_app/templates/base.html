@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://fonts.googleapis.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com https://fonts.loli.net; font-src 'self' https://cdn.jsdelivr.net https://fonts.gstatic.com https://gstatic.loli.net https://fonts.loli.net; img-src 'self' data: blob:; connect-src 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self';">
     <title>{% block title %}SeedVR2{% endblock %}</title>
     <!-- 主题初始化（防止闪烁） -->
     <script>
@@ -37,6 +37,9 @@
         "common.close": "{{ t('common.close') }}",
         "common.refresh": "{{ t('common.refresh') }}",
         "common.delete": "{{ t('common.delete') }}",
+        "common.switch_theme": "{{ t('common.switch_theme') }}",
+        "common.saving": "{{ t('common.saving') }}",
+        "common.retry": "{{ t('common.retry') }}",
         "status.restore_completed": "{{ t('status.restore_completed') }}",
         "status.restore_failed": "{{ t('status.restore_failed') }}",
         "status.pending": "{{ t('status.pending') }}",
@@ -57,6 +60,8 @@
         "restore.max_resolution": "{{ t('restore.max_resolution') }}",
         "restore.upload_hint": "{{ t('restore.upload_hint') }}",
         "restore.supported_formats": "{{ t('restore.supported_formats') }}",
+        "restore.single_mode": "{{ t('restore.single_mode') }}",
+        "restore.batch_mode": "{{ t('restore.batch_mode') }}",
         "history.title": "{{ t('history.title') }}",
         "history.no_records": "{{ t('history.no_records') }}",
         "history.no_records_desc": "{{ t('history.no_records_desc') }}",
@@ -66,6 +71,10 @@
         "history.clear_failed": "{{ t('history.clear_failed') }}",
         "history.video": "{{ t('history.video') }}",
         "history.image": "{{ t('history.image') }}",
+        "history.filter_type": "{{ t('history.filter_type') }}",
+        "history.filter_status": "{{ t('history.filter_status') }}",
+        "history.prev_page": "{{ t('history.prev_page') }}",
+        "history.next_page": "{{ t('history.next_page') }}",
         "system.loaded": "{{ t('system.loaded') }}",
         "system.not_loaded": "{{ t('system.not_loaded') }}",
         "system.nvidia_ready": "{{ t('system.nvidia_ready') }}",
@@ -147,16 +156,12 @@
     };
     </script>
 
-    <!-- Bootstrap 5 CSS (深色主题覆盖) -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
-          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-    <!-- Bootstrap Icons -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-    <!-- Warm Print 字体：DM Sans 正文 + Instrument Serif 展示体 (with China CDN fallback) -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
-    <link href="https://fonts.loli.net/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+    <!-- Bootstrap 5 CSS (本地) -->
+    <link href="/static/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons (本地) -->
+    <link href="/static/vendor/bootstrap-icons/bootstrap-icons.min.css" rel="stylesheet">
+    <!-- Warm Print 字体：DM Sans 正文 + Instrument Serif 展示体 (本地) -->
+    <link rel="stylesheet" href="/static/fonts/fonts.css">
 
     <!-- 自定义样式 -->
     <link rel="stylesheet" href="/static/css/style.css?v=2.0.2">
@@ -173,8 +178,10 @@
     <a href="#main-content" class="sv-skip-link">{{ t('common.skip_to_content') }}</a>
 
     <!-- ===== 顶部导航栏（三区布局：品牌 / 标签 / 操作） ===== -->
+    <header class="sv-navbar-wrapper">
     <nav class="sv-navbar">
         <a href="/" class="sv-navbar-brand">
+            <svg class="brand-logo" width="22" height="22" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="7" fill="currentColor"/><text x="16" y="22" font-family="Georgia,serif" font-size="17" font-style="italic" fill="#faf7f2" text-anchor="middle">S</text></svg>
             <span class="brand-text">SeedVR2<span class="brand-dot">.</span></span>
         </a>
 
@@ -204,16 +211,14 @@
             </a>
 
             <!-- 主题切换按钮 -->
-            <button class="sv-theme-toggle" id="btnThemeToggle" aria-label="切换主题" title="切换主题">
+            <button class="sv-theme-toggle" id="btnThemeToggle" aria-label="{{ t('common.switch_theme') }}" title="{{ t('common.switch_theme') }}">
                 <i class="bi bi-moon-stars-fill" id="themeIcon"></i>
             </button>
 
             <!-- 语言切换下拉菜单 -->
             <div class="sv-locale-dropdown" id="localeDropdown">
-                <button class="sv-btn sv-btn-outline" id="btnLocaleSwitch" aria-label="Switch language" aria-haspopup="true" aria-expanded="false">
+                <button class="sv-nav-icon-btn" id="btnLocaleSwitch" aria-label="{{ t('common.switch_language') }}" aria-haspopup="true" aria-expanded="false">
                     <i class="bi bi-translate"></i>
-                    <span id="currentLocaleName">{{ locale_name }}</span>
-                    <i class="bi bi-chevron-down sv-text-xs sv-ml-1"></i>
                 </button>
                 <div class="sv-locale-menu" id="localeMenu" role="menu">
                     <button class="sv-locale-item {% if current_locale == 'zh' %}active{% endif %}" data-locale="zh" role="menuitem">中文</button>
@@ -224,11 +229,12 @@
             </div>
 
             <button class="sv-btn sv-btn-icon sv-btn-outline sv-md-hidden" id="btnToggleNav"
-                    aria-label="Toggle menu" title="菜单">
+                    aria-label="{{ t('common.menu') }}" title="{{ t('common.menu') }}">
                 <i class="bi bi-list"></i>
             </button>
         </div>
     </nav>
+    </header>
 
     <div class="sv-mobile-nav-overlay" id="mobileNavOverlay" aria-hidden="true"></div>
 
@@ -239,16 +245,21 @@
 
     <!-- ===== 浮动系统状态组件（右下角） ===== -->
     <div class="sv-sys-widget" role="status" aria-label="System status">
-        <span class="sw-item">
-            <span class="sv-status-dot online" id="statusDot"></span> SeedVR2 v1.0.0
-        </span>
-        <span class="sw-item" id="statusModel">{{ t('settings.model_management') }}: {{ t('status.gpu_detecting') }}</span>
-        <span class="sw-item" id="statusGpu">GPU: --</span>
-        <span class="sw-item" id="statusTime">--</span>
-        <span class="sw-item" id="statusMem">
-            <span class="sw-bar"><span class="sw-bar-fill" id="statusMemFill" style="width:0%"></span></span>
-            <span id="statusMemText">--</span>
-        </span>
+        <button class="sv-sys-widget-toggle" id="sysWidgetToggle" aria-label="Toggle system status" title="Toggle">
+            <i class="bi bi-chevron-down"></i>
+        </button>
+        <div class="sv-sys-widget-body" id="sysWidgetBody">
+            <span class="sw-item sw-item-hide-mobile">
+                <span class="sv-status-dot online" id="statusDot"></span> SeedVR2 v1.0.0
+            </span>
+            <span class="sw-item" id="statusModel">{{ t('settings.model_management') }}: {{ t('status.gpu_detecting') }}</span>
+            <span class="sw-item" id="statusGpu">GPU: --</span>
+            <span class="sw-item sw-item-hide-mobile" id="statusTime">--</span>
+            <span class="sw-item" id="statusMem">
+                <span class="sw-bar"><span class="sw-bar-fill" id="statusMemFill" style="width:0%"></span></span>
+                <span id="statusMemText">--</span>
+            </span>
+        </div>
     </div>
 
     <!-- ===== Toast 通知容器 ===== -->
@@ -324,11 +335,10 @@
     </div>
 
     <!-- ===== 脚本 ===== -->
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
-            integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-    <!-- HTMX -->
-    <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
+    <!-- Bootstrap JS (本地) -->
+    <script src="/static/vendor/bootstrap/bootstrap.bundle.min.js"></script>
+    <!-- HTMX (本地) -->
+    <script src="/static/vendor/htmx/htmx.min.js"></script>
     <!-- 应用脚本 -->
     <script src="/static/js/app.js?v=2.0.0"></script>
 

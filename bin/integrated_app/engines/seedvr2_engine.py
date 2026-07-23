@@ -47,10 +47,14 @@ from bin.integrated_app.color_fix import apply_color_correction  # noqa: E402
 from bin.integrated_app.engine_interface import RestoreEngine, RestoreResult  # noqa: E402
 from bin.integrated_app.exceptions import InferenceCancelledError  # noqa: E402
 from bin.integrated_app.optimization.blockswap import apply_block_swap_to_dit, cleanup_blockswap  # noqa: E402
+from bin.integrated_app.optimization.cache_manager import get_cache_manager  # noqa: E402
 from bin.integrated_app.optimization.memory_manager import (  # noqa: E402
     clear_memory,
     clear_rope_lru_caches,
     release_model_memory,
+)
+from bin.integrated_app.optimization.tile_blend import (  # noqa: E402
+    compute_temporal_segments,
 )
 from bin.integrated_app.video_processor import FFmpegWrapper, VideoProcessor  # noqa: E402
 
@@ -689,6 +693,20 @@ class SeedVR2Engine(RestoreEngine):
             "cfg_scale": kwargs.get("cfg_scale", default_cfg_scale),
             "cfg_rescale": kwargs.get("cfg_rescale", 0.0),
             "sample_steps": kwargs.get("sample_steps", default_steps),
+            # Restoration guidance scale (Vivid-VR inspired): controls fidelity-realism tradeoff
+            "restoration_guidance_scale": kwargs.get(
+                "restoration_guidance_scale",
+                inf_cfg.get("restoration_guidance_scale", 1.0),
+            ),
+            # Temporal segment processing for long videos (RVRT/DiffVSR inspired)
+            "temporal_segment_size": kwargs.get(
+                "temporal_segment_size",
+                inf_cfg.get("temporal_segment_size", 0),
+            ),
+            "temporal_segment_overlap": kwargs.get(
+                "temporal_segment_overlap",
+                inf_cfg.get("temporal_segment_overlap", 8),
+            ),
         }
 
     async def infer_video(self, video_path: str, output_dir: str, **kwargs) -> RestoreResult:
@@ -924,6 +942,12 @@ class SeedVR2Engine(RestoreEngine):
                     "output_resolution": f"{res_w}x{res_h}",
                     "fps": out_fps,
                     "blockswap_active": self._blockswap_active,
+                    # Processing statistics (quality metrics)
+                    "processing_fps": total_frames / processing_time if processing_time > 0 else 0,
+                    "avg_frame_time_ms": (processing_time / total_frames * 1000) if total_frames > 0 else 0,
+                    "cfg_scale": cfg_scale,
+                    "sample_steps": sample_steps,
+                    "inference_mode": inf["inference_mode"],
                 }
             )
 

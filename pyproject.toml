@@ -1,7 +1,7 @@
 [project]
-name = "seedvr2-toolkit"
+name = "klar"
 version = "1.0.0"
-description = "SeedVR2 便携式视频修复工具箱"
+description = "Klar - AI-powered video & image super-resolution toolkit"
 requires-python = ">=3.10"
 
 [tool.ruff]

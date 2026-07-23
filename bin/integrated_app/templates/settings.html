@@ -32,7 +32,7 @@
         <div class="sv-form-row-right">
             <input type="text" class="sv-form-input" id="pretrainedDir" value="pretrained_models"
                    placeholder="{{ t('settings.pretrained_dir') }}">
-            <button type="button" class="sv-btn sv-btn-outline sv-btn-sm btn-browse-dir" data-target="pretrainedDir">
+            <button type="button" class="sv-btn sv-btn-outline sv-btn-sm btn-browse-dir" data-target="pretrainedDir" data-tooltip="{{ t('video.browse_folder') }}" aria-label="{{ t('video.browse_folder') }}">
                 <i class="bi bi-folder-symlink"></i> {{ t('common.browse') }}
             </button>
         </div>
@@ -45,7 +45,7 @@
         <div class="sv-form-row-right">
             <input type="text" class="sv-form-input" id="outputDir" value="outputs"
                    placeholder="{{ t('settings.output_dir') }}">
-            <button type="button" class="sv-btn sv-btn-outline sv-btn-sm btn-browse-dir" data-target="outputDir">
+            <button type="button" class="sv-btn sv-btn-outline sv-btn-sm btn-browse-dir" data-target="outputDir" data-tooltip="{{ t('video.browse_folder') }}" aria-label="{{ t('video.browse_folder') }}">
                 <i class="bi bi-folder-symlink"></i> {{ t('common.browse') }}
             </button>
         </div>
@@ -95,6 +95,19 @@
             <select class="sv-form-select" id="gpuBackend">
                 <option value="auto">{{ t('settings.backend_auto') }}</option>
                 <option value="cuda">{{ t('settings.backend_cuda') }}</option>
+            </select>
+        </div>
+    </div>
+    <div class="sv-form-row">
+        <div class="sv-form-row-left">
+            <div class="sv-form-row-label">{{ t('settings.memory_strategy') }}</div>
+            <div class="sv-form-row-help">{{ t('settings.strategy_balanced') }}</div>
+        </div>
+        <div class="sv-form-row-right">
+            <select class="sv-form-select" id="memoryStrategy">
+                <option value="balanced">{{ t('settings.strategy_balanced') }}</option>
+                <option value="performance">{{ t('settings.strategy_performance') }}</option>
+                <option value="conservative">{{ t('settings.strategy_conservative') }}</option>
             </select>
         </div>
     </div>
@@ -195,6 +208,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     SeedVR2.api.post('/api/system/settings', settings),
                     { loadingText: I["common.saving"] || 'Saving' }
                 );
+                _showSaveSuccess(btnSavePaths);
                 SeedVR2.toast(result.message || I["settings.save_success"] || 'Saved', 'success');
             } catch (err) {
                 SeedVR2.toast(I["common.failed"] + ': ' + err.message, 'error');
@@ -225,6 +239,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 },
                 gpu: {
                     backend: document.getElementById('gpuBackend').value,
+                    memory_strategy: document.getElementById('memoryStrategy').value,
                 }
             };
             try {
@@ -233,6 +248,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     SeedVR2.api.post('/api/system/settings', settings),
                     { loadingText: I["common.saving"] || 'Saving' }
                 );
+                _showSaveSuccess(btnSaveModel);
                 SeedVR2.toast(result.message || I["settings.save_success"] || 'Saved', 'success');
             } catch (err) {
                 SeedVR2.toast(I["common.failed"] + ': ' + err.message, 'error');
@@ -251,12 +267,25 @@ document.addEventListener('DOMContentLoaded', async () => {
                     SeedVR2.api.post('/api/system/locale', { locale }),
                     { loadingText: I["common.saving"] || 'Saving' }
                 );
+                _showSaveSuccess(btnSaveLanguage);
                 SeedVR2.toast(data.message || I["settings.save_success"] || 'Saved', 'success');
                 setTimeout(() => window.location.reload(), 500);
             } catch (err) {
                 SeedVR2.toast(I["common.failed"] + ': ' + err.message, 'error');
             }
         });
+    }
+
+    // 保存成功按钮反馈：短暂切换为绿色勾
+    function _showSaveSuccess(btn) {
+        if (!btn) return;
+        const orig = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-check-circle-fill"></i> ' + (I["settings.save_success"] || 'Saved');
+        btn.classList.add('sv-btn-save-success');
+        setTimeout(() => {
+            btn.innerHTML = orig;
+            btn.classList.remove('sv-btn-save-success');
+        }, 1500);
     }
 
     // Load current settings
@@ -268,6 +297,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         if (settings.gpu) {
             if (document.getElementById('gpuBackend')) document.getElementById('gpuBackend').value = settings.gpu.backend || 'auto';
+            if (document.getElementById('memoryStrategy')) document.getElementById('memoryStrategy').value = settings.gpu.memory_strategy || 'balanced';
         }
         if (settings.i18n) {
             if (document.getElementById('locale')) document.getElementById('locale').value = settings.i18n.default_locale || 'zh';
