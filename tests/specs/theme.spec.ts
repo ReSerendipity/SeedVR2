@@ -172,11 +172,11 @@ test.describe('Theme Switching', () => {
     // Define all page routes and their corresponding Page Object constructors
     const pageConfigs = [
       { name: 'Home (index)', path: '/', PageObject: IndexPage },
-      { name: 'Video Restore', path: '/video-restore', PageObject: VideoRestorePage },
-      { name: 'Image Restore', path: '/image-restore', PageObject: ImageRestorePage },
+      { name: 'Video Restore', path: '/restore', PageObject: VideoRestorePage },
+      { name: 'Image Restore', path: '/restore', PageObject: ImageRestorePage },
       { name: 'Settings', path: '/settings', PageObject: SettingsPage },
       { name: 'History', path: '/history', PageObject: HistoryPage },
-      { name: 'System Status', path: '/system-status', PageObject: SystemStatusPage },
+      { name: 'System Status', path: '/', PageObject: SystemStatusPage },
     ];
 
     for (const config of pageConfigs) {

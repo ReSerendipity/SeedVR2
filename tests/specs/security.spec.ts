@@ -111,7 +111,7 @@ test.describe('Security - XSS Prevention', () => {
       });
     });
 
-    await page.goto('/video-restore');
+    await page.goto('/restore');
     await page.waitForLoadState('networkidle');
 
     // Set up XSS detection
@@ -154,7 +154,7 @@ test.describe('Security - XSS Prevention', () => {
   });
 
   test('XSS in file info display: HTML in uploaded filename is displayed as text', async ({ page }) => {
-    await page.goto('/video-restore');
+    await page.goto('/restore');
     await page.waitForLoadState('networkidle');
 
     // Upload a file with HTML in the filename
@@ -275,7 +275,7 @@ test.describe('Security - Path Traversal Prevention', () => {
       }
     });
 
-    await page.goto('/video-restore');
+    await page.goto('/restore');
     await page.waitForLoadState('networkidle');
 
     // Attempt to make a browse-dir request with path traversal
@@ -452,8 +452,8 @@ test.describe('Security - Inline Event Handlers', () => {
 
     const pages = [
       { path: '/', name: 'Home' },
-      { path: '/video-restore', name: 'Video Restore' },
-      { path: '/image-restore', name: 'Image Restore' },
+      { path: '/restore', name: 'Video Restore' },
+      { path: '/restore', name: 'Image Restore' },
       { path: '/settings', name: 'Settings' },
       { path: '/history', name: 'History' },
     ];

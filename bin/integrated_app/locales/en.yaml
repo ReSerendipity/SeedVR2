@@ -43,6 +43,7 @@ common:
   completed: "Completed"
   failed: "Failed"
   switch_language: "Switch language"
+  pending: "Pending"
   cancel: "Cancel"
   confirm: "Confirm"
   close: "Close"
@@ -59,6 +60,9 @@ common:
   action_retry: "Please check your input and retry"
   action_check_settings: "Please check settings or retry"
   action_refresh: "Please refresh the page and retry"
+  browse_folder: "Browse folder"
+  open_explorer: "Open in explorer"
+  select_folder: "Select folder"
 
 video:
   title: "Video Restoration"
@@ -333,6 +337,7 @@ system:
   running: "Running"
   connection_failed: "Connection Failed"
   cpu_mode: "CUDA Unavailable"
+  model_load_time: "Model Load Time"
 
 settings:
   title: "Settings"

@@ -44,6 +44,24 @@ const SeedVR2 = (() => {
             'history.delete_failed': '删除失败',
             'locale.switched': '语言已切换',
             'locale.switch_failed': '语言切换失败',
+            'form.min_value': '最小值为 {min}',
+            'form.max_value': '最大值为 {max}',
+            'system.connection_failed': '连接失败',
+            'history.video': '视频',
+            'history.image': '图像',
+            'video.batch_current_processing': '当前处理: {current}/{total}',
+            'restore.stage_encoding': '编码阶段',
+            'restore.stage_denoising': '去噪阶段',
+            'restore.stage_decoding': '解码阶段',
+            'status.pending': '等待中',
+            'restore.processing': '处理中...',
+            'restore.completed': '修复完成',
+            'restore.failed': '修复失败',
+            'status.completed': '已完成',
+            'status.failed': '失败',
+            'common.confirm': '确认',
+            'history.delete_confirm': '确定要删除此记录吗？',
+            'common.delete': '删除',
         },
         en: {
             'error.400': 'Invalid request parameters',
@@ -81,14 +99,148 @@ const SeedVR2 = (() => {
             'history.delete_failed': 'Delete failed',
             'locale.switched': 'Language switched',
             'locale.switch_failed': 'Language switch failed',
+            'form.min_value': 'Minimum value is {min}',
+            'form.max_value': 'Maximum value is {max}',
+            'system.connection_failed': 'Connection failed',
+            'history.video': 'Video',
+            'history.image': 'Image',
+            'video.batch_current_processing': 'Processing: {current}/{total}',
+            'restore.stage_encoding': 'Encoding',
+            'restore.stage_denoising': 'Denoising',
+            'restore.stage_decoding': 'Decoding',
+            'status.pending': 'Pending',
+            'restore.processing': 'Processing...',
+            'restore.completed': 'Restore completed',
+            'restore.failed': 'Restore failed',
+            'status.completed': 'Completed',
+            'status.failed': 'Failed',
+            'common.confirm': 'Confirm',
+            'history.delete_confirm': 'Delete this record?',
+            'common.delete': 'Delete',
+        },
+        ja: {
+            'error.400': 'リクエストパラメータが無効です',
+            'error.401': '先にログインしてください',
+            'error.403': '権限がありません',
+            'error.404': 'リソースが見つかりません',
+            'error.408': 'リクエストがタイムアウトしました。再試行してください',
+            'error.409': '操作が競合しています。更新して再試行してください',
+            'error.422': 'データ形式が無効です',
+            'error.429': 'リクエストが多すぎます。しばらく待ってから再試行してください',
+            'error.500': 'サーバー内部エラー。しばらく待ってから再試行してください',
+            'error.502': 'サービスが一時的に利用できません',
+            'error.503': 'サービスがメンテナンス中です',
+            'error.504': 'リクエストがタイムアウトしました。再試行してください',
+            'error.default': 'リクエストに失敗しました',
+            'error.request_failed': 'リクエストに失敗しました',
+            'error.send_failed': 'リクエストの送信に失敗しました',
+            'error.network_error': 'ネットワークエラー',
+            'error.action_retry': '再試行',
+            'dir.empty': '空のディレクトリ',
+            'dir.enter_path': 'パスを入力してください',
+            'dir.opened': 'ファイルエクスプローラーで開きました',
+            'dir.open_failed': '開けませんでした',
+            'dir.loading': '読み込み中...',
+            'dir.error': '読み込みに失敗しました',
+            'time.day': '日',
+            'time.hour': '時間',
+            'time.minute': '分',
+            'time.second': '秒',
+            'task.canceled': 'タスクがキャンセルされました',
+            'task.cancel_failed': 'キャンセルに失敗しました',
+            'history.delete_confirm_title': '記録を削除',
+            'history.delete_confirm_msg': 'この記録を削除してもよろしいですか？',
+            'history.record_deleted': '記録が削除されました',
+            'history.delete_failed': '削除に失敗しました',
+            'locale.switched': '言語が切り替わりました',
+            'locale.switch_failed': '言語の切り替えに失敗しました',
+            'form.min_value': '最小値は {min} です',
+            'form.max_value': '最大値は {max} です',
+            'system.connection_failed': '接続に失敗しました',
+            'history.video': '動画',
+            'history.image': '画像',
+            'video.batch_current_processing': '現在の処理: {current}/{total}',
+            'restore.stage_encoding': 'エンコード中',
+            'restore.stage_denoising': 'デノイズ中',
+            'restore.stage_decoding': 'デコード中',
+            'status.pending': '待機中',
+            'restore.processing': '処理中...',
+            'restore.completed': '修復完了',
+            'restore.failed': '修復失敗',
+            'status.completed': '完了',
+            'status.failed': '失敗',
+            'common.confirm': '確認',
+            'history.delete_confirm': 'この記録を削除しますか？',
+            'common.delete': '削除',
+        },
+        fr: {
+            'error.400': 'Paramètres de requête invalides',
+            'error.401': 'Veuillez vous connecter d\'abord',
+            'error.403': 'Permission refusée',
+            'error.404': 'Ressource non trouvée',
+            'error.408': 'Délai d\'attente dépassé, veuillez réessayer',
+            'error.409': 'Conflit, veuillez actualiser et réessayer',
+            'error.422': 'Format de données invalide',
+            'error.429': 'Trop de requêtes, veuillez réessayer plus tard',
+            'error.500': 'Erreur interne du serveur, veuillez réessayer plus tard',
+            'error.502': 'Service temporairement indisponible',
+            'error.503': 'Service en maintenance',
+            'error.504': 'Délai d\'attente dépassé, veuillez réessayer',
+            'error.default': 'Requête échouée',
+            'error.request_failed': 'Requête échouée',
+            'error.send_failed': 'Échec de l\'envoi de la requête',
+            'error.network_error': 'Erreur réseau',
+            'error.action_retry': 'Réessayer',
+            'dir.empty': 'Répertoire vide',
+            'dir.enter_path': 'Veuillez entrer un chemin',
+            'dir.opened': 'Ouvert dans l\'explorateur de fichiers',
+            'dir.open_failed': 'Échec de l\'ouverture',
+            'dir.loading': 'Chargement...',
+            'dir.error': 'Échec du chargement',
+            'time.day': 'j',
+            'time.hour': 'h',
+            'time.minute': 'min',
+            'time.second': 's',
+            'task.canceled': 'Tâche annulée',
+            'task.cancel_failed': 'Échec de l\'annulation',
+            'history.delete_confirm_title': 'Supprimer l\'enregistrement',
+            'history.delete_confirm_msg': 'Êtes-vous sûr de vouloir supprimer cet enregistrement ?',
+            'history.record_deleted': 'Enregistrement supprimé',
+            'history.delete_failed': 'Échec de la suppression',
+            'locale.switched': 'Langue changée',
+            'locale.switch_failed': 'Échec du changement de langue',
+            'form.min_value': 'La valeur minimale est {min}',
+            'form.max_value': 'La valeur maximale est {max}',
+            'system.connection_failed': 'Connexion échouée',
+            'history.video': 'Vidéo',
+            'history.image': 'Image',
+            'video.batch_current_processing': 'Traitement: {current}/{total}',
+            'restore.stage_encoding': 'Encodage',
+            'restore.stage_denoising': 'Débruitage',
+            'restore.stage_decoding': 'Décodage',
+            'status.pending': 'En attente',
+            'restore.processing': 'Traitement...',
+            'restore.completed': 'Restauration terminée',
+            'restore.failed': 'Échec de la restauration',
+            'status.completed': 'Terminé',
+            'status.failed': 'Échoué',
+            'common.confirm': 'Confirmer',
+            'history.delete_confirm': 'Supprimer cet enregistrement ?',
+            'common.delete': 'Supprimer',
         }
     };
 
-    // Simple i18n lookup - falls back to Chinese if translation not found
-    function t(key) {
+    // Simple i18n lookup with optional placeholder replacement
+    function t(key, params) {
         const locale = window.__LOCALE__ || 'zh';
         const dict = _translations[locale] || _translations.zh;
-        return dict[key] || _translations.zh[key] || key;
+        let value = dict[key] || _translations.zh[key] || key;
+        if (params && typeof value === 'string') {
+            for (const [k, v] of Object.entries(params)) {
+                value = value.replace(`{${k}}`, String(v));
+            }
+        }
+        return value;
     }
 
     // ===== API 封装 =====
@@ -856,21 +1008,21 @@ const SeedVR2 = (() => {
                 if (locale) locale.value = settings.i18n.default_locale || 'zh';
             }
         } catch (err) {
-            console.error('加载设置失败:', err);
+            console.error('Load settings failed:', err);
         }
     }
 
     // ===== 历史记录 =====
     async function deleteHistoryRecord(id) {
-        confirm('删除记录', '确定要删除此记录吗？', async () => {
+        confirm(t('history.delete_confirm_title'), t('history.delete_confirm_msg'), async () => {
             try {
                 await api.delete(`/api/system/history/${id}`);
-                toast('记录已删除', 'success');
+                toast(t('history.record_deleted'), 'success');
                 // 触发刷新
                 const btnRefresh = document.getElementById('btnRefresh');
                 if (btnRefresh) btnRefresh.click();
             } catch (err) {
-                toast('删除失败: ' + err.message, 'error');
+                toast(t('history.delete_failed') + ': ' + err.message, 'error');
             }
         });
     }
@@ -1399,10 +1551,10 @@ const SeedVR2 = (() => {
 
                 let errorMsg = '';
                 if (!isNaN(min) && val < min) {
-                    errorMsg = `最小值为 ${min}`;
+                    errorMsg = t('form.min_value', {min});
                 }
                 if (!isNaN(max) && val > max) {
-                    errorMsg = `最大值为 ${max}`;
+                    errorMsg = t('form.max_value', {max});
                 }
 
                 if (errorMsg) {
@@ -1570,6 +1722,55 @@ const SeedVR2 = (() => {
         return div.innerHTML;
     }
 
+    // ===== 用户偏好持久化 =====
+    async function loadUserPreferences() {
+        try {
+            const data = await api.get('/api/ui/preferences');
+            if (data.success && data.data) {
+                return data.data;
+            }
+        } catch (e) {
+            console.debug('Load user preferences failed:', e);
+        }
+        return null;
+    }
+
+    async function saveUserPreferences(values) {
+        try {
+            const data = await api.post('/api/ui/preferences', values);
+            return data.success;
+        } catch (e) {
+            console.error('Save user preferences failed:', e);
+            return false;
+        }
+    }
+
+    // ===== 参数预设 API =====
+    async function loadParameterPresets() {
+        try {
+            const data = await api.get('/api/ui/parameters');
+            if (data.success && data.data) {
+                return data.data;
+            }
+        } catch (e) {
+            console.debug('加载参数预设失败:', e);
+        }
+        return null;
+    }
+
+    async function getParameterRecommendations(cfgScale, denoisingStrength, steps) {
+        try {
+            const url = `/api/ui/parameters/recommendations?cfg_scale=${cfgScale}&denoising_strength=${denoisingStrength}&steps=${steps}`;
+            const data = await api.get(url);
+            if (data.success && data.data) {
+                return data.data.recommendations;
+            }
+        } catch (e) {
+            console.debug('获取参数推荐失败:', e);
+        }
+        return [];
+    }
+
     // ===== 卡片显示/隐藏动画 =====
     function showCard(elementId) {
         const el = document.getElementById(elementId);
@@ -1619,5 +1820,9 @@ const SeedVR2 = (() => {
         initFormValidation,
         getCsrfToken,
         csrfHeaders,
+        loadUserPreferences,
+        saveUserPreferences,
+        loadParameterPresets,
+        getParameterRecommendations,
     };
 })();

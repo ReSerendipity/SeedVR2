@@ -12,6 +12,12 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
+"""NaDiT 序列操作工具函数。
+
+提供 flatten/unflatten、concat/unconcat、rearrange、repeat、
+window 等序列变换操作，用于处理变长视频/文本序列的拼接、拆分与重排。
+"""
+
 from itertools import chain
 from typing import Callable, Dict, List, Tuple
 import einops

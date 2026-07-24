@@ -12,6 +12,11 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
+"""图像整除裁剪变换模块。
+
+将图像尺寸裁剪为指定因子的整数倍，确保后续卷积/池化操作不会出现尺寸不匹配。
+"""
+
 from typing import Union
 import torch
 from PIL import Image
@@ -19,6 +24,7 @@ from torchvision.transforms import functional as TVF
 
 
 class DivisibleCrop:
+    """将图像宽高裁剪为指定因子的整数倍。"""
     def __init__(self, factor):
         if not isinstance(factor, tuple):
             factor = (factor, factor)

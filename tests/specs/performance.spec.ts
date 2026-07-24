@@ -151,11 +151,11 @@ test.describe('Performance - Core Web Vitals', () => {
   test('First Contentful Paint (FCP) is under 2s on each page', async ({ page }) => {
     const pages = [
       { path: '/', name: 'Home' },
-      { path: '/video-restore', name: 'Video Restore' },
-      { path: '/image-restore', name: 'Image Restore' },
+      { path: '/restore', name: 'Video Restore' },
+      { path: '/restore', name: 'Image Restore' },
       { path: '/settings', name: 'Settings' },
       { path: '/history', name: 'History' },
-      { path: '/system-status', name: 'System Status' },
+      { path: '/', name: 'System Status' },
     ];
 
     for (const { path, name } of pages) {
@@ -186,7 +186,7 @@ test.describe('Performance - Core Web Vitals', () => {
   test('Cumulative Layout Shift (CLS) is under 0.1 across pages', async ({ page }) => {
     const pages = [
       { path: '/', name: 'Home' },
-      { path: '/video-restore', name: 'Video Restore' },
+      { path: '/restore', name: 'Video Restore' },
       { path: '/settings', name: 'Settings' },
     ];
 
@@ -219,11 +219,11 @@ test.describe('Performance - Page Load Time', () => {
 
     const pages = [
       { path: '/', name: 'Home' },
-      { path: '/video-restore', name: 'Video Restore' },
-      { path: '/image-restore', name: 'Image Restore' },
+      { path: '/restore', name: 'Video Restore' },
+      { path: '/restore', name: 'Image Restore' },
       { path: '/settings', name: 'Settings' },
       { path: '/history', name: 'History' },
-      { path: '/system-status', name: 'System Status' },
+      { path: '/', name: 'System Status' },
     ];
 
     for (const { path, name } of pages) {
@@ -324,7 +324,7 @@ test.describe('Performance - Progress Bar Animation', () => {
       });
     });
 
-    await page.goto('/video-restore');
+    await page.goto('/restore');
     await page.waitForLoadState('networkidle');
 
     // Measure frame rate during progress updates using requestAnimationFrame
@@ -394,7 +394,7 @@ test.describe('Performance - Memory Usage', () => {
     // page.metrics() is only available in Chromium
     test.skip(browserName !== 'chromium', 'page.metrics() is only available in Chromium');
     // Navigate through several pages to build up potential memory usage
-    const pages = ['/', '/video-restore', '/image-restore', '/settings', '/history', '/system-status'];
+    const pages = ['/', '/restore', '/restore', '/settings', '/history', '/'];
     for (const path of pages) {
       await page.goto(path);
       await page.waitForLoadState('networkidle');

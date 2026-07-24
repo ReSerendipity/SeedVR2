@@ -189,8 +189,10 @@ class NaDiT(nn.Module):
 
 
 class NaDiTUpscaler(nn.Module):
-    """
-    Native Resolution Diffusion Transformer (NaDiT)
+    """NaDiT 超分辨率变体，额外接收 downscale 参数控制缩放嵌入。
+
+    与 NaDiT 结构基本一致，但增加 emb_scale 嵌入用于编码缩放因子，
+    适用于图像/视频超分辨率任务。
     """
 
     gradient_checkpointing = False
