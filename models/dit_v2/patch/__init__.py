@@ -12,6 +12,11 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
+"""NaDiT v2 Patch 层工厂模块。
+
+提供 get_na_patch_layers 函数，根据 patch_type 返回对应的 NaPatchIn/NaPatchOut 类。
+"""
+
 def get_na_patch_layers(patch_type="v1"):
     assert patch_type in ["v1"]
     if patch_type == "v1":

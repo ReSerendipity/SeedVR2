@@ -12,6 +12,12 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
+"""多模态窗口 Transformer block 模块。
+
+提供 MMWindowAttention（窗口注意力）和 MMWindowTransformerBlock（完整 block）
+两个核心组件，支持视频/文本双分支处理。
+"""
+
 from typing import Tuple, Union
 import torch
 from einops import rearrange
@@ -35,6 +41,7 @@ from ..rope import RotaryEmbedding3d
 
 
 class MMWindowAttention(nn.Module):
+    """多模态窗口注意力，对视频序列做窗口分区、对文本做全局注意力。"""
     def __init__(
         self,
         vid_dim: int,
@@ -161,6 +168,7 @@ class MMWindowAttention(nn.Module):
 
 
 class MMWindowTransformerBlock(nn.Module):
+    """多模态窗口 Transformer block，包含注意力 + MLP + 自适应调制。"""
     def __init__(
         self,
         *,

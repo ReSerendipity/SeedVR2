@@ -12,6 +12,11 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
+"""旋转位置编码 (RoPE) 模块。
+
+提供 3D 旋转位置编码的基础类和 NaDiT 变长序列版本。
+"""
+
 from functools import lru_cache
 from typing import Tuple
 import torch
@@ -23,6 +28,7 @@ from common.cache import Cache
 
 
 class RotaryEmbeddingBase(nn.Module):
+    """旋转位置编码基础类，封装 rotary_embedding_torch 库。"""
     def __init__(self, dim: int, rope_dim: int):
         super().__init__()
         self.rope = RotaryEmbedding(
@@ -47,6 +53,7 @@ class RotaryEmbeddingBase(nn.Module):
 
 
 class RotaryEmbedding3d(RotaryEmbeddingBase):
+    """3D 旋转位置编码，适用于固定形状的视频序列 (b h t*h*w d)。"""
     def __init__(self, dim: int):
         super().__init__(dim, rope_dim=3)
 
@@ -71,6 +78,7 @@ class RotaryEmbedding3d(RotaryEmbeddingBase):
 
 
 class NaRotaryEmbedding3d(RotaryEmbedding3d):
+    """支持变长序列的 3D 旋转位置编码，兼容 NaDiT 的 flatten 格式。"""
     def forward(
         self,
         q: torch.FloatTensor,  # L h d

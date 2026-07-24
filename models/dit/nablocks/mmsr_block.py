@@ -32,6 +32,7 @@ from ..window import get_window_op
 
 
 class NaSwinAttention(MMWindowAttention):
+    """NaDiT 版 Swin 窗口注意力，支持变长序列和 Flash Attention。"""
     def __init__(
         self,
         vid_dim: int,
@@ -156,6 +157,7 @@ class NaSwinAttention(MMWindowAttention):
 
 
 class NaMMSRTransformerBlock(MMWindowTransformerBlock):
+    """NaDiT MMSR Transformer block，使用 NaSwinAttention 替代标准窗口注意力。"""
     def __init__(
         self,
         *,

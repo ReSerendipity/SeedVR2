@@ -12,6 +12,11 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
+"""DIT transformer block 注册表。
+
+提供 get_block 函数，根据 block_type 名称返回对应的 transformer block 类。
+"""
+
 from .mmdit_window_block import MMWindowTransformerBlock
 
 dit_blocks = {
@@ -20,6 +25,7 @@ dit_blocks = {
 
 
 def get_block(block_type: str):
+    """根据 block_type 名称返回 DIT transformer block 类。"""
     if block_type in dit_blocks:
         return dit_blocks[block_type]
     raise NotImplementedError(f"{block_type} is not supported")

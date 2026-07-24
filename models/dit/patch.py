@@ -12,6 +12,12 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
+"""图像/视频 Patch 嵌入与还原模块。
+
+提供将连续张量拆分为 patch 序列（PatchIn）及反向还原（PatchOut）的功能，
+以及支持序列并行的 NaDiT 版本 (NaPatchIn / NaPatchOut)。
+"""
+
 from typing import Tuple, Union
 import torch
 from einops import rearrange
@@ -25,6 +31,7 @@ from . import na
 
 
 class PatchIn(nn.Module):
+    """将输入张量按 patch_size 分块并线性投影到 dim 维度。"""
     def __init__(
         self,
         in_channels: int,
@@ -47,6 +54,7 @@ class PatchIn(nn.Module):
 
 
 class PatchOut(nn.Module):
+    """将 dim 维度的 patch 序列线性投影还原为原始通道数并重组。"""
     def __init__(
         self,
         out_channels: int,
@@ -69,6 +77,7 @@ class PatchOut(nn.Module):
 
 
 class NaPatchIn(PatchIn):
+    """支持变长序列的 Patch 嵌入，兼容序列并行切分。"""
     def forward(
         self,
         vid: torch.Tensor,  # l c
@@ -86,6 +95,7 @@ class NaPatchIn(PatchIn):
 
 
 class NaPatchOut(PatchOut):
+    """支持变长序列的 Patch 还原，兼容序列并行聚合。"""
     def forward(
         self,
         vid: torch.FloatTensor,  # l c

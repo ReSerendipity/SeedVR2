@@ -12,6 +12,11 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
+"""NaDiT v2 Patch 嵌入与还原模块 (v1 实现)。
+
+支持变长序列的 patch 嵌入和还原，兼容因果时序卷积的帧数填充处理。
+"""
+
 from typing import Tuple, Union
 import torch
 from einops import rearrange

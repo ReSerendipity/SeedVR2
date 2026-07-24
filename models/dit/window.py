@@ -12,11 +12,18 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
+"""窗口分区工具模块。
+
+提供将视频序列按 720P 等效面积自动计算窗口大小并分区的函数，
+支持固定窗口和偏移窗口两种策略。
+"""
+
 from math import ceil
 from typing import Tuple
 import math
 
 def get_window_op(name: str):
+    """根据名称返回窗口分区函数。"""
     if name == "720pwin_by_size_bysize":
         return make_720Pwindows_bysize
     if name == "720pswin_by_size_bysize":

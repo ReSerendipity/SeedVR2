@@ -28,6 +28,7 @@ from ..mlp import get_mlp
     
 
 class NaMMSRTransformerBlock(nn.Module):
+    """NaDiT v2 MMSR Transformer block，支持共享/独立权重和 vid-only MLP。"""
     def __init__(
         self,
         *,

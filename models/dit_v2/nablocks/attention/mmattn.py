@@ -32,6 +32,7 @@ from itertools import chain
 
 
 class NaMMAttention(nn.Module):
+    """NaDiT v2 多模态全局注意力，支持可选的多模态 RoPE。"""
     def __init__(
         self,
         vid_dim: int,
@@ -140,6 +141,7 @@ class NaMMAttention(nn.Module):
 
 
 class NaSwinAttention(NaMMAttention):
+    """NaDiT v2 多模态窗口注意力，支持窗口分区和多模态 RoPE。"""
     def __init__(
         self,
         *args,
