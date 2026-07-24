@@ -23,6 +23,10 @@ def emb_add(emb1: torch.Tensor, emb2: Optional[torch.Tensor]):
 
 
 class TimeEmbedding(nn.Module):
+    """时间步嵌入层，将扩散时间步转换为高维特征向量。
+
+    使用正弦位置编码 + 两层 MLP 投影。
+    """
     def __init__(
         self,
         sinusoidal_dim: int,

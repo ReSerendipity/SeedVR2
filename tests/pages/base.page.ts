@@ -6,10 +6,8 @@ export class BasePage {
   // Mapping English nav names to Chinese text rendered in the UI
   private static readonly NAV_TEXT_MAP: Record<string, string> = {
     'Home': '首页',
-    'Video Restore': '视频修复',
-    'Image Restore': '图像修复',
+    'Restore': '修复',
     'History': '历史记录',
-    'System Status': '系统状态',
     'Settings': '设置',
   };
 

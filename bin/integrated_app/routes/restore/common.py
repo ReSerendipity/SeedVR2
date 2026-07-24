@@ -30,8 +30,9 @@ from bin.integrated_app.services.task_state import task_state_store
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tiff", ".tif"}
 VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv", ".webm", ".flv"}
 
-# 允许上传的扩展名（不含 .tif，仅用于扫描）
+# 允许上传的图片扩展名（不含 .tif，用于上传验证）
 ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tiff"}
+# 允许上传的视频扩展名（含 .wmv，用于上传验证）
 ALLOWED_VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv", ".webm", ".flv", ".wmv"}
 
 # 文件大小限制

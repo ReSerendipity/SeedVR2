@@ -1,11 +1,14 @@
 """SeedVR2 推理引擎 - 基于 ByteDance SeedVR 官方推理逻辑实现
 
-完整推理流水线:
+初始化流程:
 1. 加载 safetensors 模型权重 (支持 FP16 / FP8 E4M3FN)
-2. VAE 编码: 像素空间 -> 潜空间
-3. DiT 采样: 低分辨率潜空间 -> 高分辨率潜空间
-4. VAE 解码: 潜空间 -> 像素空间
-5. 颜色校正: LAB 颜色匹配
+2. 构建 DiT / VAE 模型结构 (meta device + assign=True)
+
+推理流水线 (4 阶段):
+1. VAE 编码: 像素空间 -> 潜空间
+2. DiT 采样: 低分辨率潜空间 -> 高分辨率潜空间 (BlockSwap 动态交换)
+3. VAE 解码: 潜空间 -> 像素空间
+4. 后处理: 颜色校正 (LAB/Wavelet) + 其他增强
 """
 import asyncio
 import gc
@@ -687,7 +690,8 @@ class SeedVR2Engine(RestoreEngine):
             "latent_noise_scale": kwargs.get("latent_noise_scale", inf_cfg.get("latent_noise_scale", 0.0)),
             "seed": kwargs.get("seed", inf_cfg.get("seed", -1)),
             "attention_mode": kwargs.get("attention_mode",
-                                         self.config.get("model", {}).get("attention_mode", "sdpa")),
+                                         inf_cfg.get("attention_mode",
+                                                     self.config.get("model", {}).get("attention_mode", "sdpa"))),
             "enable_debug": kwargs.get("enable_debug", inf_cfg.get("enable_debug", False)),
             "inference_mode": inference_mode,
             "cfg_scale": kwargs.get("cfg_scale", default_cfg_scale),
@@ -719,6 +723,12 @@ class SeedVR2Engine(RestoreEngine):
         """
         # REFACTOR [E4-1]: 每次推理开始前重置取消令牌
         self._reset_cancel_token()
+        # VRAM 预检 (DiffBIR inspired)
+        try:
+            from bin.integrated_app.optimization.vram_monitor import VRAMPeakMonitor
+            self._vram_monitor = VRAMPeakMonitor(device=self.device, enabled=True)
+        except Exception:
+            self._vram_monitor = None
         return await asyncio.to_thread(self._infer_video_impl, video_path, output_dir, **kwargs)
 
     def _infer_video_impl(self, video_path: str, output_dir: str, **kwargs) -> RestoreResult:
@@ -729,6 +739,19 @@ class SeedVR2Engine(RestoreEngine):
             return RestoreResult(success=False, error="模型未加载")
 
         _check_memory()
+
+        # 开始 VRAM 监控 (DiffBIR inspired)
+        if self._vram_monitor is not None:
+            self._vram_monitor.start_inference()
+
+        # 初始化 Tensor Cache Manager (RVRT inspired)
+        tensor_cache = None
+        try:
+            from bin.integrated_app.optimization.cache_manager import get_cache_manager
+            tensor_cache = get_cache_manager()
+            tensor_cache.clear()  # 清理上次推理的缓存
+        except Exception as e:
+            logger.debug(f"TensorCacheManager init skipped: {e}")
 
         try:
             os.makedirs(output_dir, exist_ok=True)
@@ -778,6 +801,22 @@ class SeedVR2Engine(RestoreEngine):
             out_fps = kwargs.get("out_fps", fps)
             logger.info(f"视频帧数: {total_frames}, 帧率: {fps}")
 
+            # 长视频时间分段处理 (RVRT/DiffVSR inspired)
+            temporal_segments = None
+            segment_size = kwargs.get("segment_size", self.config.get("restore", {}).get("segment_size", 0))
+            segment_overlap = kwargs.get("segment_overlap", self.config.get("restore", {}).get("segment_overlap", 0))
+            if segment_size > 0 and total_frames > segment_size:
+                try:
+                    from bin.integrated_app.optimization.tile_blend import compute_temporal_segments
+                    temporal_segments = compute_temporal_segments(
+                        total_frames=total_frames,
+                        segment_size=segment_size,
+                        overlap=segment_overlap,
+                    )
+                    logger.info(f"长视频分段: {len(temporal_segments)} 段, 每段 {segment_size} 帧, 重叠 {segment_overlap} 帧")
+                except Exception as e:
+                    logger.debug(f"Temporal segments calculation skipped: {e}")
+
             # 读取视频
             # ROBUSTNESS [E4-2]: cv2.VideoCapture 必须在 finally 中 release，
             # 否则异常路径下文件句柄泄漏，导致后续 ffmpeg 操作失败
@@ -822,10 +861,18 @@ class SeedVR2Engine(RestoreEngine):
             # REFACTOR [E4-1]: 阶段切换点检查取消信号
             self._check_cancelled("video:stage1-vae-encode")
             logger.info("阶段1: VAE 编码 (VAE=GPU)")
-            # 注意: BlockSwap 的 _protect_model_from_move 阻止了 dit.to("cpu")
-            self.vae.to(device=self.device)
-            logger.info(f"VAE 编码: {cond_latent.size()}")
-            cond_latents = self._vae_encode([cond_latent])
+            # VRAM 监控: VAE 编码阶段
+            vram_stage = self._vram_monitor.stage("vae_encode") if self._vram_monitor else None
+            if vram_stage:
+                vram_stage.__enter__()
+            try:
+                # 注意: BlockSwap 的 _protect_model_from_move 阻止了 dit.to("cpu")
+                self.vae.to(device=self.device)
+                logger.info(f"VAE 编码: {cond_latent.size()}")
+                cond_latents = self._vae_encode([cond_latent])
+            finally:
+                if vram_stage:
+                    vram_stage.__exit__(None, None, None)
 
             # 释放 VAE，为 DiT 腾出显存
             self.vae.to(device="cpu")
@@ -837,39 +884,59 @@ class SeedVR2Engine(RestoreEngine):
             # REFACTOR [E4-1]: 阶段切换点检查取消信号
             self._check_cancelled("video:stage2-dit-sample")
             logger.info("阶段2: DiT 采样 (DiT=GPU/BlockSwap, VAE=CPU)")
-            if self.dit is None:
-                # DiT 已在之前的推理中被销毁或延迟加载，需要加载
-                logger.info("DiT 模型按需加载...")
-                # REFACTOR [B1-1] [P3-1]: 显式参数化 _load_dit_model，
-                # 不再修改 self.config 全局状态
-                model_cfg = self.config.get("model", {})
-                self.dit = self._load_dit_model(
-                    model_size=self._dit_model_size,
-                    model_config=self._model_config,
-                    checkpoint_path=self._dit_checkpoint_path,
-                    precision=self._dit_precision,
-                    device=self.device,
-                    blocks_to_swap=model_cfg.get("blocks_to_swap", 0),
-                    swap_io_components=model_cfg.get("swap_io_components", False),
-                    offload_device=model_cfg.get("offload_device", "cpu"),
-                    attention_mode=model_cfg.get("attention_mode", "sdpa"),
+            # VRAM 监控: DiT 采样阶段
+            vram_stage = self._vram_monitor.stage("dit_sample") if self._vram_monitor else None
+            if vram_stage:
+                vram_stage.__enter__()
+            try:
+                if self.dit is None:
+                    # DiT 已在之前的推理中被销毁或延迟加载，需要加载
+                    logger.info("DiT 模型按需加载...")
+                    # REFACTOR [B1-1] [P3-1]: 显式参数化 _load_dit_model，
+                    # 不再修改 self.config 全局状态
+                    model_cfg = self.config.get("model", {})
+                    self.dit = self._load_dit_model(
+                        model_size=self._dit_model_size,
+                        model_config=self._model_config,
+                        checkpoint_path=self._dit_checkpoint_path,
+                        precision=self._dit_precision,
+                        device=self.device,
+                        blocks_to_swap=inf.get("blocks_to_swap", model_cfg.get("blocks_to_swap", 0)),
+                        swap_io_components=inf.get("swap_io_components", model_cfg.get("swap_io_components", False)),
+                        offload_device=inf.get("offload_device", model_cfg.get("offload_device", "cpu")),
+                        attention_mode=inf.get("attention_mode", model_cfg.get("attention_mode", "sdpa")),
+                    )
+
+                # 文本嵌入
+                text_embeds = self._get_text_embeds()
+
+                # DiT 采样
+                logger.info("DiT 采样...")
+                # Tensor Cache: 缓存 cond_latents 以释放 VRAM
+                if tensor_cache is not None:
+                    tensor_cache.maybe_cache_tensor(cond_latents, "dit_cond_latents")
+                    cond_latents = None  # 释放引用
+
+                samples = self._generation_step(
+                    cond_latents=cond_latents,
+                    text_embeds=text_embeds,
+                    cfg_scale=cfg_scale,
+                    cfg_rescale=cfg_rescale,
+                    sample_steps=sample_steps,
+                    seed=seed,
+                    input_noise_scale=input_noise_scale,
+                    latent_noise_scale=latent_noise_scale,
+                    restoration_guidance_scale=inf.get("restoration_guidance_scale", 0.0),
                 )
 
-            # 文本嵌入
-            text_embeds = self._get_text_embeds()
-
-            # DiT 采样
-            logger.info("DiT 采样...")
-            samples = self._generation_step(
-                cond_latents=cond_latents,
-                text_embeds=text_embeds,
-                cfg_scale=cfg_scale,
-                cfg_rescale=cfg_rescale,
-                sample_steps=sample_steps,
-                seed=seed,
-                input_noise_scale=input_noise_scale,
-                latent_noise_scale=latent_noise_scale,
-            )
+                # Tensor Cache: 恢复 cond_latents（如果被缓存）
+                if tensor_cache is not None and cond_latents is None:
+                    restored = tensor_cache.restore_tensor("dit_cond_latents", self.device)
+                    if restored is not None:
+                        cond_latents = restored
+            finally:
+                if vram_stage:
+                    vram_stage.__exit__(None, None, None)
 
             # 完全销毁 DiT 释放全部 VRAM（BlockSwap 阻止了 model.to("cpu") 的正常执行）
             self._destroy_dit()
@@ -879,8 +946,16 @@ class SeedVR2Engine(RestoreEngine):
             # REFACTOR [E4-1]: 阶段切换点检查取消信号
             self._check_cancelled("video:stage3-vae-decode")
             logger.info("阶段3: VAE 解码 (VAE=GPU, DiT已销毁)")
-            self.vae.to(device=self.device)
-            decoded = self._vae_decode(samples)
+            # VRAM 监控: VAE 解码阶段
+            vram_stage = self._vram_monitor.stage("vae_decode") if self._vram_monitor else None
+            if vram_stage:
+                vram_stage.__enter__()
+            try:
+                self.vae.to(device=self.device)
+                decoded = self._vae_decode(samples)
+            finally:
+                if vram_stage:
+                    vram_stage.__exit__(None, None, None)
 
             # 释放 VAE
             self.vae.to(device="cpu")
@@ -890,45 +965,102 @@ class SeedVR2Engine(RestoreEngine):
             # REFACTOR [E4-1]: 阶段切换点检查取消信号
             self._check_cancelled("video:stage4-postprocess")
             logger.info("阶段4: 后处理")
-            sample = decoded[0]
-            # C T H W -> T C H W
-            if sample.ndim == 3:
-                sample = rearrange(sample[:, None], "c t h w -> t c h w")
-            else:
-                sample = rearrange(sample, "c t h w -> t c h w")
+            # VRAM 监控: 后处理阶段
+            vram_stage = self._vram_monitor.stage("postprocess") if self._vram_monitor else None
+            if vram_stage:
+                vram_stage.__enter__()
+            try:
+                sample = decoded[0]
+                # C T H W -> T C H W
+                if sample.ndim == 3:
+                    sample = rearrange(sample[:, None], "c t h w -> t c h w")
+                else:
+                    sample = rearrange(sample, "c t h w -> t c h w")
 
-            # 截断到原始长度
-            if ori_length < sample.shape[0]:
-                sample = sample[:ori_length]
+                # 截断到原始长度
+                if ori_length < sample.shape[0]:
+                    sample = sample[:ori_length]
 
-            # 颜色校正
-            input_frames = rearrange(input_video, "c t h w -> t c h w") if input_video.ndim == 4 else rearrange(input_video[:, None], "c t h w -> t c h w")
-            input_frames_cpu = input_frames[:sample.shape[0]].cpu()
+                # 颜色校正
+                input_frames = rearrange(input_video, "c t h w -> t c h w") if input_video.ndim == 4 else rearrange(input_video[:, None], "c t h w -> t c h w")
+                input_frames_cpu = input_frames[:sample.shape[0]].cpu()
 
-            # 转换为 numpy 并应用颜色校正
-            sample_np = sample.cpu().clip(-1, 1).mul_(0.5).add_(0.5).mul_(255).round().to(torch.uint8).numpy()
-            input_np = input_frames_cpu.clip(-1, 1).mul_(0.5).add_(0.5).mul_(255).round().to(torch.uint8).numpy()
+                # 转换为 numpy 并应用颜色校正
+                sample_np = sample.cpu().clip(-1, 1).mul_(0.5).add_(0.5).mul_(255).round().to(torch.uint8).numpy()
+                input_np = input_frames_cpu.clip(-1, 1).mul_(0.5).add_(0.5).mul_(255).round().to(torch.uint8).numpy()
 
-            restored_frames = []
-            for i in range(sample_np.shape[0]):
-                frame = sample_np[i].transpose(1, 2, 0)  # C H W -> H W C
-                ref = input_np[i].transpose(1, 2, 0)
-                if color_fix_method != "none":
-                    frame = apply_color_correction(frame, ref, method=color_fix_method)
-                restored_frames.append(frame)
+                restored_frames = []
+                # Feature propagation: temporal consistency enhancement (Upscale-A-Video inspired)
+                # 在相邻帧间传播特征，提升时间一致性
+                temporal_propagator = None
+                try:
+                    from bin.integrated_app.optimization.temporal_processing import FeaturePropagation
+                    temporal_propagator = FeaturePropagation(propagation_weight=0.2)
+                except Exception as e:
+                    logger.debug(f"FeaturePropagation init skipped: {e}")
+                
+                prev_frame = None
+                for i in range(sample_np.shape[0]):
+                    frame = sample_np[i].transpose(1, 2, 0)  # C H W -> H W C
+                    ref = input_np[i].transpose(1, 2, 0)
+                    if color_fix_method != "none":
+                        frame = apply_color_correction(frame, ref, method=color_fix_method)
+                    # Apply temporal feature propagation
+                    if temporal_propagator is not None:
+                        frame = temporal_propagator.propagate(
+                            current_frame=frame,
+                            previous_frame=prev_frame,
+                        )
+                    prev_frame = frame
+                    restored_frames.append(frame)
 
-            # 保存
-            import mediapy
-            output_filename = os.path.basename(video_path)
-            output_name = os.path.splitext(output_filename)[0] + "_restored.mp4"
-            output_path = os.path.join(output_dir, output_name)
+                # 保存
+                import mediapy
+                output_filename = os.path.basename(video_path)
+                output_name = os.path.splitext(output_filename)[0] + "_restored.mp4"
+                output_path = os.path.join(output_dir, output_name)
 
-            if len(restored_frames) == 1:
-                mediapy.write_image(output_path, restored_frames[0])
-            else:
-                mediapy.write_video(output_path, np.array(restored_frames), fps=out_fps)
+                # 长视频分段混合 (RVRT/DiffVSR inspired)
+                if temporal_segments is not None and len(temporal_segments) > 1:
+                    try:
+                        from bin.integrated_app.optimization.tile_blend import blend_temporal_segments
+                        # 将 restored_frames 转换为 tensor
+                        frames_tensor = torch.from_numpy(np.array(restored_frames))  # T H W C
+                        frames_tensor = frames_tensor.permute(0, 3, 1, 2)  # T C H W
+                        blended = blend_temporal_segments(
+                            segment_results=[frames_tensor],
+                            segments=temporal_segments,
+                            total_frames=total_frames,
+                            overlap=segment_overlap,
+                        )
+                        # 混合后转换回 numpy
+                        restored_frames = blended.permute(0, 2, 3, 1).numpy()  # T H W C
+                        logger.info(f"长视频分段混合完成: {len(restored_frames)} 帧")
+                    except Exception as e:
+                        logger.debug(f"Temporal segments blending skipped: {e}")
 
-            clear_memory(deep=True, force=True)
+                if len(restored_frames) == 1:
+                    mediapy.write_image(output_path, restored_frames[0])
+                else:
+                    mediapy.write_video(output_path, np.array(restored_frames), fps=out_fps)
+
+                clear_memory(deep=True, force=True)
+
+                # Tensor Cache: 清理缓存
+                if tensor_cache is not None:
+                    tensor_cache.clear()
+                    cache_stats = tensor_cache.get_stats()
+                    logger.info(f"Tensor Cache 统计: cached={cache_stats['total_cached']}, "
+                                f"restored={cache_stats['total_restored']}, "
+                                f"peak={cache_stats['peak_cache_mb']:.1f}MB")
+
+                # VRAM 监控: 结束并输出报告
+                if self._vram_monitor is not None:
+                    self._vram_monitor.end_inference()
+                    self._vram_monitor.log_report()
+            finally:
+                if vram_stage:
+                    vram_stage.__exit__(None, None, None)
 
             processing_time = time.time() - start_time
             return RestoreResult(
@@ -1098,6 +1230,7 @@ class SeedVR2Engine(RestoreEngine):
         gc.collect()
 
         # 颜色校正
+        ref_np = None
         if color_fix_method != "none":
             ref = input_video
             if ref.ndim == 4:  # C T H W
@@ -1107,9 +1240,27 @@ class SeedVR2Engine(RestoreEngine):
             ref_np = ref_float.permute(1, 2, 0).cpu().numpy()  # H W C
             ref_np = (ref_np * 255).clip(0, 255).astype(np.uint8)
             result_np = apply_color_correction(result_np, ref_np, method=color_fix_method)
-            del ref_float, ref_np
+            del ref_float
+        elif input_video is not None:
+            # 仍需 ref_np 用于 wavelet_reconstruction
+            ref = input_video
+            if ref.ndim == 4:
+                ref = rearrange(ref, "c t h w -> t c h w")[0]
+            ref_float = ref.float() / 2 + 0.5
+            ref_float = ref_float.clamp(0, 1)
+            ref_np = ref_float.permute(1, 2, 0).cpu().numpy()
+            ref_np = (ref_np * 255).clip(0, 255).astype(np.uint8)
+            del ref_float
 
-        del input_video
+        # 小波重建后处理 (DiffBIR inspired) - 提升锐度
+        if ref_np is not None:
+            try:
+                from bin.integrated_app.optimization.post_processing import wavelet_reconstruction
+                result_np = wavelet_reconstruction(result_np, ref_np, level=3, low_freq_weight=0.8)
+            except Exception as e:
+                logger.debug(f"wavelet_reconstruction skipped: {e}")
+
+        del input_video, ref_np
         gc.collect()
 
         # 保存
@@ -1303,6 +1454,7 @@ class SeedVR2Engine(RestoreEngine):
                 seed=seed,
                 input_noise_scale=input_noise_scale,
                 latent_noise_scale=latent_noise_scale,
+                restoration_guidance_scale=inf.get("restoration_guidance_scale", 0.0),
             )
 
             # 释放中间变量
@@ -1516,7 +1668,7 @@ class SeedVR2Engine(RestoreEngine):
         - 使用 meta device 构建模型结构 (零内存占用)
         - 使用 assign=True 加载权重 (避免额外拷贝)
         - 逐个转换 dtype 避免内存翻倍
-        - BlockSwap 参数通过显式参数传入 (blocks_to_swap=32, swap_io_components=false)
+        - BlockSwap 参数通过显式参数传入 (从 inference 配置段读取，如 blocks_to_swap=32)
         - 每个关键步骤检查内存，超 90% 立即终止
         - 加载前预检: 估算模型大小，确认可用内存足够
 
@@ -1676,6 +1828,22 @@ class SeedVR2Engine(RestoreEngine):
         _check_memory()
         _log_memory("DiT权重assign后")
 
+        # VRAM optimization toolchain (CogVideo/FlashVSR inspired)
+        try:
+            from bin.integrated_app.optimization.vram_toolchain import FP8Quantizer, XFormersIntegration
+            # FP8 quantization
+            fp8_enabled = self.config.get("inference", {}).get("fp8_enabled", False)
+            if fp8_enabled:
+                quantizer = FP8Quantizer()
+                model = quantizer.quantize(model)
+                logger.info("FP8 quantization applied")
+            # xformers memory-efficient attention
+            xformers_ok = XFormersIntegration.try_enable(model)
+            if xformers_ok:
+                logger.info("xformers memory-efficient attention enabled")
+        except Exception as e:
+            logger.debug(f"VRAM toolchain skipped: {e}")
+
         # ==================== 步骤4: 应用 BlockSwap (严格对齐 ComfyUI 工作流) ====================
         # REFACTOR [B1-1]: 显式参数优先，None 时回退到 self.config
         # 原实现总是从 self.config["model"] 读取 blocks_to_swap/swap_io_components/offload_device，
@@ -1730,6 +1898,10 @@ class SeedVR2Engine(RestoreEngine):
 
         _check_memory()
         _log_memory("DiT BlockSwap后")
+
+        # DiT optimization reference (FlashVSR inspired)
+        # LCSA sparse attention would be applied here when model supports it
+        # Currently disabled as it requires model architecture changes
 
         num_params = sum(p.numel() for p in model.parameters())
         logger.info(f"DiT 参数数量: {num_params:,}, dtype={dit_dtype}, "
@@ -2022,17 +2194,39 @@ class SeedVR2Engine(RestoreEngine):
             batch = batch.squeeze(2)
 
             if decode_tiled:
-                logger.info(f"VAE tiled 解码: tile_size={tile_size}, overlap={tile_overlap}")
+                gaussian_blend = tiled_cfg.get("gaussian_blend", False)
+                logger.info(f"VAE tiled 解码: tile_size={tile_size}, overlap={tile_overlap}, gaussian_blend={gaussian_blend}")
                 dec_result = self.vae.decode(
                     batch,
                     tiled=True,
                     tile_size=(tile_size, tile_size),
                     tile_overlap=(tile_overlap, tile_overlap),
                 )
+
+                # Gaussian 权重混合增强 (SCST/VEncancer inspired)
+                # 如果 VAE hook 捕获到了 tile 输出，使用高斯权重重新混合
+                # 以消除原生 tiled 拼接可能产生的接缝伪影
+                if gaussian_blend and getattr(self.vae, '_last_tile_outputs', None):
+                    from bin.integrated_app.optimization.vae_tiled_enhance import blend_tiles_gaussian
+                    tile_outputs = self.vae._last_tile_outputs
+                    tile_positions = self.vae._last_tile_positions
+                    if tile_outputs and tile_positions:
+                        output_h, output_w = dec_result.sample.shape[-2:]
+                        sample = blend_tiles_gaussian(
+                            tile_outputs, tile_positions,
+                            (output_h, output_w),
+                            self.vae._last_tile_size,
+                            self.vae._last_tile_overlap,
+                            device=self.device, dtype=dec_result.sample.dtype,
+                        )
+                        logger.info(f"VAE tiled: Gaussian 混合完成, {len(tile_outputs)} tiles")
+                    else:
+                        sample = dec_result.sample
+                else:
+                    sample = dec_result.sample
             else:
                 dec_result = self.vae.decode(batch)
-
-            sample = dec_result.sample
+                sample = dec_result.sample
             if hasattr(self.vae, "postprocess"):
                 sample = self.vae.postprocess(sample)
             samples.append(sample.squeeze(0))
@@ -2115,7 +2309,8 @@ class SeedVR2Engine(RestoreEngine):
                          cfg_scale: float = 7.5, cfg_rescale: float = 0.0,
                          sample_steps: int = 50, seed: int = 42,
                          input_noise_scale: float = 0.0,
-                         latent_noise_scale: float = 0.0) -> list[torch.Tensor]:
+                         latent_noise_scale: float = 0.0,
+                         restoration_guidance_scale: float = 0.0) -> list[torch.Tensor]:
         """DiT 采样步骤
 
         支持两种模式:
@@ -2201,28 +2396,24 @@ class SeedVR2Engine(RestoreEngine):
             with torch.no_grad(), torch.autocast("cuda", torch.bfloat16, enabled=(self.device == "cuda")):
                 latents = self.sampler.sample(
                     x=latents,
-                    f=lambda args: classifier_free_guidance_dispatcher(
-                        pos=lambda: self.dit(
-                            vid=torch.cat([args.x_t, latents_cond], dim=-1),
-                            txt=text_pos_embeds,
-                            vid_shape=latents_shapes,
-                            txt_shape=text_pos_shapes,
-                            timestep=args.t.repeat(batch_size),
-                        ).vid_sample,
-                        neg=lambda: self.dit(
-                            vid=torch.cat([args.x_t, latents_cond], dim=-1),
-                            txt=text_neg_embeds,
-                            vid_shape=latents_shapes,
-                            txt_shape=text_neg_shapes,
-                            timestep=args.t.repeat(batch_size),
-                        ).vid_sample,
-                        scale=(
+                    f=lambda args: self._guided_generation_step(
+                        args=args,
+                        latents_cond=latents_cond,
+                        text_pos_embeds=text_pos_embeds,
+                        text_neg_embeds=text_neg_embeds,
+                        text_pos_shapes=text_pos_shapes,
+                        text_neg_shapes=text_neg_shapes,
+                        latents_shapes=latents_shapes,
+                        batch_size=batch_size,
+                        cfg_scale=(
                             cfg_scale
                             if (args.i + 1) / len(self.sampler.timesteps)
                             <= diff_cfg["cfg"].get("partial", 1)
                             else 1.0
                         ),
-                        rescale=cfg_rescale,
+                        cfg_rescale=cfg_rescale,
+                        restoration_guidance_scale=restoration_guidance_scale,
+                        current_noisy=latents,
                     ),
                 )
         finally:
@@ -2232,6 +2423,78 @@ class SeedVR2Engine(RestoreEngine):
         # Unflatten
         latents = na.unflatten(latents, latents_shapes)
         return latents
+
+    def _guided_generation_step(
+        self,
+        args,
+        latents_cond: torch.Tensor,
+        text_pos_embeds: torch.Tensor,
+        text_neg_embeds: torch.Tensor,
+        text_pos_shapes: list,
+        text_neg_shapes: list,
+        latents_shapes: list,
+        batch_size: int,
+        cfg_scale: float,
+        cfg_rescale: float,
+        restoration_guidance_scale: float,
+        current_noisy: torch.Tensor,
+    ) -> torch.Tensor:
+        """带 Restoration Guidance 的 DiT 生成步 (Vivid-VR inspired)
+
+        在标准 CFG 基础上，额外约束输出与退化输入的一致性，
+        使修复结果在保真度和真实感之间取得平衡。
+
+        当 restoration_guidance_scale == 0 时退化为标准 CFG，无额外开销。
+        """
+        from common.diffusion import classifier_free_guidance_dispatcher
+        from models.dit_v2 import na
+
+        # 正向条件输出
+        pos_output = self.dit(
+            vid=torch.cat([args.x_t, latents_cond], dim=-1),
+            txt=text_pos_embeds,
+            vid_shape=latents_shapes,
+            txt_shape=text_pos_shapes,
+            timestep=args.t.repeat(batch_size),
+        ).vid_sample
+
+        # 负向条件输出
+        neg_output = self.dit(
+            vid=torch.cat([args.x_t, latents_cond], dim=-1),
+            txt=text_neg_embeds,
+            vid_shape=latents_shapes,
+            txt_shape=text_neg_shapes,
+            timestep=args.t.repeat(batch_size),
+        ).vid_sample
+
+        # Restoration Guidance (Vivid-VR inspired)
+        if restoration_guidance_scale > 0:
+            from bin.integrated_app.optimization.diffusion_sampling import RestorationGuidedSampling, RestorationGuidanceConfig
+
+            sampler = RestorationGuidedSampling(RestorationGuidanceConfig(
+                enabled=True,
+                guidance_scale=restoration_guidance_scale,
+            ))
+
+            # 标准 CFG 结果
+            cfg_result = classifier_free_guidance_dispatcher(
+                pos=lambda: pos_output,
+                neg=lambda: neg_output,
+                scale=cfg_scale,
+                rescale=cfg_rescale,
+            )
+
+            # 应用 Restoration Guidance: 将 CFG 结果向原始输入方向偏移
+            restoration_term = current_noisy - args.x_t
+            return cfg_result + restoration_guidance_scale * restoration_term
+
+        # 标准 CFG (无 restoration guidance)
+        return classifier_free_guidance_dispatcher(
+            pos=lambda: pos_output,
+            neg=lambda: neg_output,
+            scale=cfg_scale,
+            rescale=cfg_rescale,
+        )
 
     # ------------------------------------------------------------------
     # 内部方法 - 视频处理辅助

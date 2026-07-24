@@ -12,6 +12,12 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
+"""图像区域自适应缩放变换模块。
+
+提供基于目标面积、随机裁剪和固定缩放比例三种图像缩放策略，
+支持 PIL Image 和 torch Tensor 输入。
+"""
+
 import math
 import random
 from typing import Union
@@ -22,6 +28,11 @@ from torchvision.transforms.functional import InterpolationMode
 
 
 class AreaResize:
+    """按目标面积等比缩放图像。
+
+    保持原始宽高比，将图像面积缩放到 max_area 以下。
+    downsample_only=True 时，小于此面积的图像不放大。
+    """
     def __init__(
         self,
         max_area: float,
@@ -56,6 +67,10 @@ class AreaResize:
 
 
 class AreaRandomCrop:
+    """按目标面积随机裁剪图像。
+
+    将图像缩放到目标面积后进行随机中心裁剪。
+    """
     def __init__(
         self,
         max_area: float,
@@ -93,16 +108,13 @@ class AreaRandomCrop:
         resized_height = math.sqrt(self.max_area / (width / height))
         resized_width = (width / height) * resized_height
 
-        # print('>>>>>>>>>>>>>>>>>>>>>')
-        # print((height, width))
-        # print( (resized_height, resized_width))
-
         resized_height, resized_width = round(resized_height), round(resized_width)
         i, j, h, w = self.get_params((height, width), (resized_height, resized_width))
         image = TVF.crop(image, i, j, h, w)
         return image
 
 class ScaleResize:
+    """按固定缩放比例缩放图像。"""
     def __init__(
         self,
         scale: float,

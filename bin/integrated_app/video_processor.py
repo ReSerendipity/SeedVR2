@@ -424,3 +424,25 @@ class VideoProcessor:
 
         logger.info(f"视频处理完成: {output_path}")
         return True, output_path
+
+
+# RIFE frame interpolation reference (CogVideo inspired)
+def rife_interpolate_video(input_path: str, output_path: str, multiplier: int = 2) -> bool:
+    """Attempt RIFE-based frame interpolation for video rate enhancement.
+    
+    Args:
+        input_path: Input video path
+        output_path: Output video path  
+        multiplier: Frame rate multiplier (2 = double fps)
+    
+    Returns:
+        True if interpolation succeeded, False otherwise
+    """
+    try:
+        from bin.integrated_app.optimization.video_processing_enhance import RIFEInterpolator
+        interpolator = RIFEInterpolator()
+        return interpolator.interpolate_file(input_path, output_path, multiplier)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).debug(f"RIFE interpolation not available: {e}")
+        return False

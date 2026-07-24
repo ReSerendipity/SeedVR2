@@ -3,7 +3,7 @@ import torch.nn.functional as F
 
 def safe_pad_operation(x, padding, mode='constant', value=0.0):
     """Safe padding operation that handles Half precision only for problematic modes"""
-    # Modes qui nécessitent le fix Half precision
+    # Modes that require the Half precision fix
     problematic_modes = ['replicate', 'reflect', 'circular']
     
     if mode in problematic_modes:
@@ -16,13 +16,13 @@ def safe_pad_operation(x, padding, mode='constant', value=0.0):
             else:
                 raise e
     else:
-        # Pour 'constant' et autres modes compatibles, pas de fix nécessaire
+        # For 'constant' and other compatible modes, no fix needed
         return F.pad(x, padding, mode=mode, value=value)
 
 
 def safe_interpolate_operation(x, size=None, scale_factor=None, mode='nearest', align_corners=None, recompute_scale_factor=None):
     """Safe interpolate operation that handles Half precision for problematic modes"""
-    # Modes qui peuvent causer des problèmes avec Half precision
+    # Modes that can cause problems with Half precision
     problematic_modes = ['bilinear', 'bicubic', 'trilinear']
     
     if mode in problematic_modes:
@@ -50,7 +50,7 @@ def safe_interpolate_operation(x, size=None, scale_factor=None, mode='nearest', 
             else:
                 raise e
     else:
-        # Pour 'nearest' et autres modes compatibles, pas de fix nécessaire
+        # For 'nearest' and other compatible modes, no fix needed
         return F.interpolate(
             x, 
             size=size, 

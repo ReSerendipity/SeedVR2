@@ -101,7 +101,7 @@ test.describe('Accessibility - Page Scans', () => {
   });
 
   test('Video restore page has no critical accessibility violations', async ({ page }) => {
-    await page.goto('/video-restore');
+    await page.goto('/restore');
     await page.waitForLoadState('networkidle');
 
     const results = await runAxeAudit(page);
@@ -116,7 +116,7 @@ test.describe('Accessibility - Page Scans', () => {
   });
 
   test('Image restore page has no critical accessibility violations', async ({ page }) => {
-    await page.goto('/image-restore');
+    await page.goto('/restore');
     await page.waitForLoadState('networkidle');
 
     const results = await runAxeAudit(page);
@@ -161,7 +161,7 @@ test.describe('Accessibility - Page Scans', () => {
   });
 
   test('System status page has no critical accessibility violations', async ({ page }) => {
-    await page.goto('/system-status');
+    await page.goto('/');
     await page.waitForLoadState('networkidle');
 
     const results = await runAxeAudit(page);
@@ -186,7 +186,7 @@ test.describe('Accessibility - Keyboard Navigation', () => {
   });
 
   test('Tab through interactive elements on video restore page maintains logical focus order', async ({ page }) => {
-    await page.goto('/video-restore');
+    await page.goto('/restore');
     await page.waitForLoadState('networkidle');
 
     // Click the page body to establish a starting focus point
@@ -234,7 +234,7 @@ test.describe('Accessibility - Keyboard Navigation', () => {
   });
 
   test('Focus indicators are visible on all interactive elements', async ({ page }) => {
-    await page.goto('/video-restore');
+    await page.goto('/restore');
     await page.waitForLoadState('networkidle');
 
     // Click body to establish starting focus point
@@ -323,7 +323,7 @@ test.describe('Accessibility - ARIA Roles', () => {
 
   test('Progress bars have correct ARIA progressbar role and value attributes', async ({ page }) => {
     // Navigate to video restore and trigger a task to show progress
-    await page.goto('/video-restore');
+    await page.goto('/restore');
     await page.waitForLoadState('networkidle');
 
     // Check for any progress bar elements on the page
@@ -421,7 +421,7 @@ test.describe('Accessibility - Form Labels', () => {
   });
 
   test('All form controls have associated labels (for/id or aria-labelledby)', async ({ page }) => {
-    await page.goto('/video-restore');
+    await page.goto('/restore');
     await page.waitForLoadState('networkidle');
 
     // Check all form controls for label associations
@@ -531,7 +531,7 @@ test.describe('Accessibility - Color Contrast', () => {
   });
 
   test('Video restore page passes WCAG 2.1 AA color contrast', async ({ page }) => {
-    await page.goto('/video-restore');
+    await page.goto('/restore');
     await page.waitForLoadState('networkidle');
 
     const results = await runAxeAuditWithOptions(page, {

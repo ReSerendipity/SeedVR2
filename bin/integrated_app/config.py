@@ -94,3 +94,11 @@ def save_config(config, config_path=None):
         with contextlib.suppress(OSError):
             os.unlink(tmp_path)
         raise
+
+
+# Framework engineering reference (BasicSR/DiffBIR inspired)
+try:
+    from bin.integrated_app.optimization.framework_engineering import YAMLConfigManager
+    _config_manager = YAMLConfigManager()
+except Exception:
+    _config_manager = None

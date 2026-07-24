@@ -688,6 +688,79 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ===== 后端预设加载 =====
+    async function loadBackendPresets() {
+        try {
+            const data = await SeedVR2.loadParameterPresets();
+            if (data && data.presets && data.presets.length > 0) {
+                const advPresets = document.getElementById('advPresets');
+                if (!advPresets) return;
+                data.presets.forEach(preset => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'sv-btn sv-btn-outline sv-btn-xs';
+                    btn.dataset.preset = 'backend_' + preset.name;
+                    btn.dataset.backendValues = JSON.stringify(preset.values);
+                    btn.textContent = preset.name;
+                    btn.title = preset.description;
+                    const label = advPresets.querySelector('.sv-adv-presets-label');
+                    if (label) label.after(btn);
+                    btn.addEventListener('click', () => {
+                        const values = JSON.parse(btn.dataset.backendValues || '{}');
+                        Object.entries(values).forEach(([key, val]) => {
+                            const elMap = {
+                                blocks_to_swap: 'blocksToSwap',
+                                batch_size: 'batchSize',
+                                attention_mode: 'attentionMode',
+                                cfg_scale: 'cfgScale',
+                                denoising_strength: 'denoisingStrength',
+                                steps: 'steps',
+                                seed: 'seed',
+                                resolution: 'resolution',
+                            };
+                            const elId = elMap[key];
+                            if (elId) {
+                                const el = document.getElementById(elId);
+                                if (el) el.value = val;
+                            }
+                        });
+                        document.querySelectorAll('[data-preset]').forEach(b => b.classList.remove('sv-btn-active'));
+                        btn.classList.add('sv-btn-active');
+                        SeedVR2.toast(preset.description || preset.name, 'success', 2000);
+                        SeedVR2.saveUserPreferences(values);
+                    });
+                });
+            }
+        } catch (e) {
+            console.debug('后端预设加载失败:', e);
+        }
+    }
+
+    // ===== 加载用户偏好并应用到表单 =====
+    async function applyUserPreferences() {
+        try {
+            const prefs = await SeedVR2.loadUserPreferences();
+            if (!prefs) return;
+            if (prefs.default_resolution) {
+                const resEl = document.getElementById('resolution');
+                if (resEl) resEl.value = prefs.default_resolution;
+            }
+            if (prefs.default_seed && prefs.default_seed !== -1) {
+                const seedEl = document.getElementById('seed');
+                if (seedEl) seedEl.value = prefs.default_seed;
+            }
+            if (prefs.blocks_to_swap) {
+                const bsEl = document.getElementById('blocksToSwap');
+                if (bsEl) bsEl.value = prefs.blocks_to_swap;
+            }
+        } catch (e) {
+            console.debug('应用用户偏好失败:', e);
+        }
+    }
+
+    applyUserPreferences();
+    loadBackendPresets();
+
     // 模式切换标签（单文件/批量）+ URL hash 同步
     function switchMode(mode) {
         document.querySelectorAll('.sv-mode-tab').forEach(t => {

@@ -16,6 +16,7 @@ ROUTE_MODULES = [
     ("bin.integrated_app.routes.system.settings", "/api/system", "设置"),
     ("bin.integrated_app.routes.system.history", "/api/system", "历史记录"),
     ("bin.integrated_app.routes.system.sse", "", "SSE事件流"),
+    ("bin.integrated_app.routes.ui.parameters", "/api/ui", "UI参数与偏好"),
 ]
 
 

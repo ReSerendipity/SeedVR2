@@ -118,7 +118,7 @@ async function captureHistoryPage(page, viewportName, theme) {
 
 async function captureSystemStatusPage(page, viewportName, theme) {
   console.log(`Capturing System Status Page (${viewportName}, ${theme})...`);
-  await page.goto(`${BASE_URL}/system-status`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.goto(`${BASE_URL}/`, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForTimeout(4000);
   
   await screenshotPage(page, '07-system-status-full', { viewportName, theme });

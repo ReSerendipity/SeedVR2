@@ -24,6 +24,7 @@ except ImportError:
 from torch import nn
 
 class TorchAttention(nn.Module):
+    """基于 PyTorch 原生 SDPA 的注意力实现，作为 Flash Attention 不可用时的回退。"""
     def tflops(self, args, kwargs, output) -> float:
         assert len(args) == 0 or len(args) > 2, "query, key should both provided by args / kwargs"
         q = kwargs.get("query") or args[0]
@@ -37,6 +38,10 @@ class TorchAttention(nn.Module):
 
 
 class FlashAttentionVarlen(nn.Module):
+    """支持变长序列的 Flash Attention 实现。
+
+    当 flash_attn 不可用时自动回退到 SDPA 逐段计算。
+    """
     def tflops(self, args, kwargs, output) -> float:
         cu_seqlens_q = kwargs["cu_seqlens_q"]
         cu_seqlens_k = kwargs["cu_seqlens_k"]

@@ -83,12 +83,21 @@ class SettingsUpdateRequest(BaseModel):
 
 @router.get("/settings")
 async def get_settings(config: dict = Depends(get_config)):
-    """获取当前设置"""
+    """获取当前设置（含用户偏好）"""
+    # 加载用户偏好
+    try:
+        from bin.integrated_app.optimization.webui_enhancement import SettingsPersistence
+        persistence = SettingsPersistence()
+        user_prefs = persistence.load().to_dict()
+    except Exception:
+        user_prefs = {}
+
     return JSONResponse({
         "model": config.get("model", {}),
         "gpu": config.get("gpu", {}),
         "i18n": config.get("i18n", {}),
         "restore": config.get("restore", {}),
+        "user_preferences": user_prefs,
     })
 
 
@@ -120,6 +129,21 @@ async def update_settings(
         config.setdefault("restore", {})["seed"] = settings.seed
 
     await run_in_threadpool(save_config, config)
+
+    # 同步保存用户偏好到 user_preferences 段
+    try:
+        from bin.integrated_app.optimization.webui_enhancement import SettingsPersistence
+        persistence = SettingsPersistence()
+        prefs = persistence.load()
+        # 将设置值映射到偏好
+        if settings.default_resolution_h is not None:
+            prefs.default_resolution = settings.default_resolution_h
+        if settings.seed is not None:
+            prefs.default_seed = settings.seed
+        persistence.save(prefs)
+    except Exception as e:
+        logger.debug(f"用户偏好同步保存跳过: {e}")
+
     return JSONResponse({"status": "ok", "message": "设置已更新"})
 
 

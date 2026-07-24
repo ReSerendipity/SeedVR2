@@ -12,6 +12,11 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
+"""图像短边缩放变换模块。
+
+按短边目标尺寸等比缩放图像，支持仅缩小模式。
+"""
+
 from typing import Union
 import torch
 from PIL import Image
@@ -20,6 +25,11 @@ from torchvision.transforms import functional as TVF
 
 
 class SideResize:
+    """按短边目标尺寸等比缩放图像。
+
+    将图像短边缩放到指定 size，保持宽高比不变。
+    downsample_only=True 时，短边已小于 size 的图像不放大。
+    """
     def __init__(
         self,
         size: int,
