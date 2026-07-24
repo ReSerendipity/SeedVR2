@@ -38,7 +38,7 @@ export class SystemStatusPage extends BasePage {
   readonly pythonVer: Locator;
   readonly serviceStatus: Locator;
 
-  readonly path = '/system-status';
+  readonly path = '/';
 
   constructor(page: Page) {
     super(page);

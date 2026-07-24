@@ -86,7 +86,7 @@ export class ImageRestorePage extends BasePage {
   readonly offloadDevice: Locator;
   readonly enableDebug: Locator;
 
-  readonly path = '/image-restore';
+  readonly path = '/restore';
 
   constructor(page: Page) {
     super(page);

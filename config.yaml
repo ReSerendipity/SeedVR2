@@ -12,21 +12,20 @@ i18n:
   available_locales:
   - zh
   - en
+  - ja
+  - fr
   default_locale: zh
 inference:
   blocks_to_swap: 32
+  color_correction: wavelet
   distilled_mode: false
   fp8_enabled: false
+  restoration_guidance_scale: 1.0
   swap_io_components: true
+  temporal_segment_overlap: 8
+  temporal_segment_size: 0
   vae_overlap: 512
   vae_tile_size: 1024
-  # Restoration guidance scale: controls fidelity-realism tradeoff (Vivid-VR inspired)
-  # 1.0 = default (no additional guidance), higher = more fidelity
-  restoration_guidance_scale: 1.0
-  # Temporal segment processing for long videos (0 = disabled, process all at once)
-  # Set to e.g. 32 to process 32-frame segments with overlap
-  temporal_segment_size: 0
-  temporal_segment_overlap: 8
 logging:
   backup_count: 3
   file: logs/app.log
@@ -109,3 +108,23 @@ server:
   debug: false
   host: 127.0.0.1
   port: 7870
+user_preferences:
+  accordion_expanded_groups:
+  - basic
+  - condition
+  blocks_to_swap: 0
+  blockswap_enabled: false
+  default_cfg_scale: 3.0
+  default_denoising_strength: 0.6
+  default_resolution: 2048
+  default_sampler: dpmpp_2m_sde
+  default_seed: -1
+  default_steps: 20
+  output_format: png
+  output_path_template: '{input_dir}/restored/{input_name}{ext}'
+  output_quality: 95
+  recent_model_path: ''
+  slider_comparison_enabled: true
+  step_execution_enabled: false
+  vae_tile_size: 512
+  vae_tiling_enabled: false

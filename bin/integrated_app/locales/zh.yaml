@@ -60,6 +60,9 @@ common:
   action_retry: "请检查输入后重试"
   action_check_settings: "请检查设置或重试"
   action_refresh: "请刷新页面重试"
+  browse_folder: "浏览文件夹"
+  open_explorer: "在资源管理器中打开"
+  select_folder: "选择文件夹"
 
 video:
   title: "视频修复"
@@ -334,6 +337,7 @@ system:
   running: "运行中"
   connection_failed: "连接失败"
   cpu_mode: "CUDA 不可用"
+  model_load_time: "模型加载时间"
 
 settings:
   title: "设置"

@@ -101,6 +101,17 @@ async def lifespan(app: FastAPI):
     backend_value = gpu_manager.backend.value if gpu_manager.backend else 'unavailable'
     logger.info(f"GPU 后端: {backend_value}, 设备: {gpu_manager.device_name}")
 
+    # GPU compatibility check (Anime4KCPP/Waifu2x inspired)
+    try:
+        from bin.integrated_app.optimization.gpu_compatibility import GPUCompatibilityDetector
+        detector = GPUCompatibilityDetector()
+        gpu_info = detector.detect()
+        logger.info(f"GPU detected: {gpu_info.get('name', 'unknown')}, "
+                    f"VRAM: {gpu_info.get('vram_gb', '?')}GB, "
+                    f"Compute capability: {gpu_info.get('compute_capability', '?')}")
+    except Exception as e:
+        logger.debug(f"GPU compatibility check skipped: {e}")
+
     # 后台模型预加载（仅在有 GPU 时执行）
     if gpu_manager.is_gpu_available and config.get("model", {}).get("auto_load", True):
         try:
@@ -242,6 +253,105 @@ def create_app(config: dict = None) -> FastAPI:
 
     # 注册页面路由
     register_page_routes(app)
+
+    # Engine Scheduler API (multi-engine scheduling)
+    try:
+        from bin.integrated_app.optimization.engine_scheduler import EngineScheduler, EngineRegistry
+        _engine_scheduler = EngineScheduler()
+        logger.info("Engine Scheduler initialized")
+    except Exception as e:
+        _engine_scheduler = None
+        logger.debug(f"Engine Scheduler not available: {e}")
+
+    # Register specialized engines
+    if _engine_scheduler is not None:
+        try:
+            from bin.integrated_app.optimization.specialized_engines import (
+                FaceRestorationEngine, AnimeEngine, CPULightweightEngine,
+            )
+            # Engines are auto-registered via @EngineRegistry.register() decorator
+            logger.info("Specialized engines registered")
+        except Exception as e:
+            logger.debug(f"Specialized engines registration skipped: {e}")
+
+    # Engine Scheduler API routes (Waifu2x-Extension-GUI inspired)
+    if _engine_scheduler is not None:
+        from fastapi import APIRouter
+        engine_router = APIRouter(prefix="/api/engine", tags=["engine"])
+
+        @engine_router.get("/list")
+        async def list_engines():
+            """列出所有注册的引擎"""
+            from bin.integrated_app.optimization.engine_scheduler import EngineRegistry
+            all_engines = EngineRegistry.get_all_registered()
+            available_engines = EngineRegistry.get_available_engines()
+            return {
+                "success": True,
+                "data": {
+                    "engines": list(all_engines.keys()),
+                    "available": available_engines,
+                }
+            }
+
+        @engine_router.get("/detect")
+        async def detect_engines():
+            """检测所有引擎的可用性"""
+            try:
+                status = _engine_scheduler.detect_available_engines()
+                return {
+                    "success": True,
+                    "data": {k: v.value for k, v in status.items()}
+                }
+            except Exception as e:
+                return {"success": False, "error": str(e)}
+
+        @engine_router.post("/submit")
+        async def submit_task(
+            engine_name: str = None,
+            input_path: str = "",
+            output_path: str = "",
+        ):
+            """提交推理任务"""
+            try:
+                task_id = _engine_scheduler.submit(
+                    engine_name=engine_name,
+                    input_path=input_path,
+                    output_path=output_path,
+                )
+                return {
+                    "success": True,
+                    "data": {"task_id": task_id}
+                }
+            except Exception as e:
+                return {"success": False, "error": str(e)}
+
+        @engine_router.get("/task/{task_id}")
+        async def get_task_status(task_id: str):
+            """获取任务状态"""
+            status = _engine_scheduler.get_task_status(task_id)
+            result = _engine_scheduler.get_result(task_id)
+            return {
+                "success": True,
+                "data": {
+                    "task_id": task_id,
+                    "status": status,
+                    "result": result.__dict__ if result else None,
+                }
+            }
+
+        app.include_router(engine_router)
+        logger.info("Engine Scheduler API routes registered")
+
+    # WebUI Enhancement reference (SUPIR/Waifu2x-Extension-GUI inspired)
+    try:
+        from bin.integrated_app.optimization.webui_enhancement import FileListManager, SettingsPersistence
+        _file_list_manager = FileListManager()
+        _settings_persistence = SettingsPersistence()
+        logger.info("WebUI Enhancement modules loaded")
+    except Exception as e:
+        _file_list_manager = None
+        _settings_persistence = None
+        logger.debug(f"WebUI Enhancement not available: {e}")
 
     return app
 

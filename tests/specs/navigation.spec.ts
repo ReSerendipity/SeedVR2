@@ -21,13 +21,12 @@ import { setupAllMocks } from '../fixtures/api-mocks';
 import { assertUrlPath } from '../utils/assertion-helpers';
 
 // Map of nav item names to their expected URL paths
+// Note: only text nav links (.sv-nav-link) are tested here.
+// Settings is an icon button (.sv-nav-icon-btn), tested separately.
 const NAV_ITEMS: Array<{ name: string; path: string }> = [
   { name: 'Home', path: '/' },
-  { name: 'Video Restore', path: '/video-restore' },
-  { name: 'Image Restore', path: '/image-restore' },
+  { name: 'Restore', path: '/restore' },
   { name: 'History', path: '/history' },
-  { name: 'System Status', path: '/system-status' },
-  { name: 'Settings', path: '/settings' },
 ];
 
 test.describe('Navigation and Routing', () => {
@@ -60,7 +59,7 @@ test.describe('Navigation and Routing', () => {
 
     test('nav items display Chinese text by default', async ({ page }) => {
       // Verify that the rendered nav links contain the expected Chinese text
-      const expectedChineseTexts = ['首页', '视频修复', '图像修复', '历史记录', '系统状态', '设置'];
+      const expectedChineseTexts = ['首页', '修复', '历史记录'];
       const navTexts = await basePage.navLinks.allTextContents();
       for (const zh of expectedChineseTexts) {
         const found = navTexts.some((t) => t.includes(zh));
@@ -76,10 +75,10 @@ test.describe('Navigation and Routing', () => {
   test.describe('Direct URL access', () => {
     const directPages: Array<{ path: string; PageClass: any; description: string }> = [
       { path: '/', PageClass: IndexPage, description: 'Home page' },
-      { path: '/video-restore', PageClass: VideoRestorePage, description: 'Video Restore page' },
-      { path: '/image-restore', PageClass: ImageRestorePage, description: 'Image Restore page' },
+      { path: '/restore', PageClass: VideoRestorePage, description: 'Video Restore page' },
+      { path: '/restore', PageClass: ImageRestorePage, description: 'Image Restore page' },
       { path: '/history', PageClass: HistoryPage, description: 'History page' },
-      { path: '/system-status', PageClass: SystemStatusPage, description: 'System Status page' },
+      { path: '/', PageClass: SystemStatusPage, description: 'System Status page' },
       { path: '/settings', PageClass: SettingsPage, description: 'Settings page' },
     ];
 
@@ -100,19 +99,19 @@ test.describe('Navigation and Routing', () => {
 
   test.describe('Browser back/forward', () => {
     test('navigating through pages then going back returns to previous page', async ({ page }) => {
-      // Navigate: Home -> Video Restore -> Image Restore
-      await basePage.clickNavItem('Video Restore');
+      // Navigate: Home -> Restore -> History
+      await basePage.clickNavItem('Restore');
       await page.waitForLoadState('networkidle');
-      await assertUrlPath(page, '/video-restore');
+      await assertUrlPath(page, '/restore');
 
-      await basePage.clickNavItem('Image Restore');
+      await basePage.clickNavItem('History');
       await page.waitForLoadState('networkidle');
-      await assertUrlPath(page, '/image-restore');
+      await assertUrlPath(page, '/history');
 
-      // Go back should return to Video Restore
+      // Go back should return to Restore
       await page.goBack();
       await page.waitForLoadState('networkidle');
-      await assertUrlPath(page, '/video-restore');
+      await assertUrlPath(page, '/restore');
 
       // Go back again should return to Home
       await page.goBack();
@@ -138,26 +137,27 @@ test.describe('Navigation and Routing', () => {
     });
 
     test('multiple back/forward navigations maintain correct history', async ({ page }) => {
-      // Build a navigation history: Home -> History -> System Status -> Settings
+      // Build a navigation history: Home -> History -> Restore
       await basePage.clickNavItem('History');
       await page.waitForLoadState('networkidle');
-      await basePage.clickNavItem('System Status');
+      await basePage.clickNavItem('Restore');
       await page.waitForLoadState('networkidle');
-      await basePage.clickNavItem('Settings');
-      await page.waitForLoadState('networkidle');
-      await assertUrlPath(page, '/settings');
+      await assertUrlPath(page, '/restore');
 
-      // Back twice should land on History
-      await page.goBack(); // -> System
-      await page.waitForLoadState('networkidle');
-      await page.goBack(); // -> History
+      // Back should land on History
+      await page.goBack();
       await page.waitForLoadState('networkidle');
       await assertUrlPath(page, '/history');
 
-      // Forward once should land on System
+      // Back again should land on Home
+      await page.goBack();
+      await page.waitForLoadState('networkidle');
+      await assertUrlPath(page, '/');
+
+      // Forward once should land on History
       await page.goForward();
       await page.waitForLoadState('networkidle');
-      await assertUrlPath(page, '/system-status');
+      await assertUrlPath(page, '/history');
     });
   });
 
@@ -176,7 +176,7 @@ test.describe('Navigation and Routing', () => {
     }
 
     test('only one nav item is active at a time', async ({ page }) => {
-      await basePage.clickNavItem('Video Restore');
+      await basePage.clickNavItem('Restore');
       const activeCount = await page.locator('#mainNav .sv-nav-link.active').count();
       expect(activeCount).toBe(1);
     });
@@ -212,20 +212,19 @@ test.describe('Navigation and Routing', () => {
     });
 
     test('breadcrumb updates when navigating between pages', async ({ page }) => {
-      // Navigate to Video Restore
-      await basePage.clickNavItem('Video Restore');
+      // Navigate to Restore
+      await basePage.clickNavItem('Restore');
       let crumbs = await basePage.getBreadcrumb();
 
-      // Navigate to Image Restore
-      await basePage.clickNavItem('Image Restore');
+      // Navigate to History
+      await basePage.clickNavItem('History');
       const newCrumbs = await basePage.getBreadcrumb();
 
       // Breadcrumb should reflect the new page
-      // (At minimum, the crumbs should differ or contain "图像修复" / "Image Restore")
-      const hasImageRestore = newCrumbs.some((c) =>
-        c.includes('图像') || c.toLowerCase().includes('image'),
+      const hasHistory = newCrumbs.some((c) =>
+        c.includes('历史') || c.toLowerCase().includes('history'),
       );
-      expect(hasImageRestore).toBe(true);
+      expect(hasHistory).toBe(true);
     });
   });
 

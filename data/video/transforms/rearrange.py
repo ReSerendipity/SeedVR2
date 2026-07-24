@@ -12,10 +12,16 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
+"""视频帧张量重排布变换模块。
+
+基于 einops.rearrange 封装的可调用变换类，用于视频帧维度重排。
+"""
+
 from einops import rearrange
 
 
 class Rearrange:
+    """基于 einops 模式字符串的可调用张量重排布变换。"""
     def __init__(self, pattern: str, **kwargs):
         self.pattern = pattern
         self.kwargs = kwargs

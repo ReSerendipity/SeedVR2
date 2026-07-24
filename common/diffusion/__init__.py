@@ -37,7 +37,6 @@ __all__ = [
     "create_schedule_from_config",
     # Schedules
     "Schedule",
-    "DiscreteVariancePreservingSchedule",
     "LinearInterpolationSchedule",
     # Samplers
     "Sampler",

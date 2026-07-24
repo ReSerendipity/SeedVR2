@@ -48,11 +48,11 @@ const ALL_PAGES: Array<{
   PageObject: typeof BasePage;
 }> = [
   { name: 'Home', path: '/', PageObject: IndexPage as any },
-  { name: 'Video Restore', path: '/video-restore', PageObject: VideoRestorePage as any },
-  { name: 'Image Restore', path: '/image-restore', PageObject: ImageRestorePage as any },
+  { name: 'Video Restore', path: '/restore', PageObject: VideoRestorePage as any },
+  { name: 'Image Restore', path: '/restore', PageObject: ImageRestorePage as any },
   { name: 'Settings', path: '/settings', PageObject: SettingsPage as any },
   { name: 'History', path: '/history', PageObject: HistoryPage as any },
-  { name: 'System Status', path: '/system-status', PageObject: SystemStatusPage as any },
+  { name: 'System Status', path: '/', PageObject: SystemStatusPage as any },
 ];
 
 /**
@@ -567,7 +567,7 @@ test.describe('Responsive layout - Mobile (375x812)', () => {
 
   test('all interactive elements are at least 44x44px touch targets', async ({ page }) => {
     // Test on the video restore page which has many interactive elements
-    await page.goto('/video-restore');
+    await page.goto('/restore');
     await page.waitForLoadState('networkidle');
 
     const interactiveRects = await getInteractiveElementRects(page);
@@ -811,7 +811,7 @@ test.describe('Visual regression tests', () => {
 
   test.skip('Video Restore page - dark theme visual regression', async ({ page }) => {
     const basePage = new BasePage(page);
-    await basePage.navigate('/video-restore');
+    await basePage.navigate('/restore');
     await basePage.switchTheme('dark');
 
     await expect(page).toHaveScreenshot('video-restore-dark.png', {
@@ -822,7 +822,7 @@ test.describe('Visual regression tests', () => {
 
   test.skip('Image Restore page - dark theme visual regression', async ({ page }) => {
     const basePage = new BasePage(page);
-    await basePage.navigate('/image-restore');
+    await basePage.navigate('/restore');
     await basePage.switchTheme('dark');
 
     await expect(page).toHaveScreenshot('image-restore-dark.png', {
@@ -855,7 +855,7 @@ test.describe('Visual regression tests', () => {
 
   test.skip('System Status page - dark theme visual regression', async ({ page }) => {
     const basePage = new BasePage(page);
-    await basePage.navigate('/system-status');
+    await basePage.navigate('/');
     await basePage.switchTheme('dark');
 
     await expect(page).toHaveScreenshot('system-status-dark.png', {
@@ -879,7 +879,7 @@ test.describe('Visual regression tests', () => {
 
   test.skip('Video Restore page - light theme visual regression', async ({ page }) => {
     const basePage = new BasePage(page);
-    await basePage.navigate('/video-restore');
+    await basePage.navigate('/restore');
     await basePage.switchTheme('light');
 
     await expect(page).toHaveScreenshot('video-restore-light.png', {
@@ -890,7 +890,7 @@ test.describe('Visual regression tests', () => {
 
   test.skip('Image Restore page - light theme visual regression', async ({ page }) => {
     const basePage = new BasePage(page);
-    await basePage.navigate('/image-restore');
+    await basePage.navigate('/restore');
     await basePage.switchTheme('light');
 
     await expect(page).toHaveScreenshot('image-restore-light.png', {
@@ -923,7 +923,7 @@ test.describe('Visual regression tests', () => {
 
   test.skip('System Status page - light theme visual regression', async ({ page }) => {
     const basePage = new BasePage(page);
-    await basePage.navigate('/system-status');
+    await basePage.navigate('/');
     await basePage.switchTheme('light');
 
     await expect(page).toHaveScreenshot('system-status-light.png', {
@@ -1093,7 +1093,7 @@ test.describe('Touch target compliance', () => {
   });
 
   test('touch target compliance on video restore page', async ({ page }) => {
-    await page.goto('/video-restore');
+    await page.goto('/restore');
     await page.waitForLoadState('networkidle');
 
     const interactiveRects = await getInteractiveElementRects(page);

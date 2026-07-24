@@ -94,7 +94,7 @@ export class VideoRestorePage extends BasePage {
   readonly outputFormat: Locator;
   readonly outputCrf: Locator;
 
-  readonly path = '/video-restore';
+  readonly path = '/restore';
 
   constructor(page: Page) {
     super(page);

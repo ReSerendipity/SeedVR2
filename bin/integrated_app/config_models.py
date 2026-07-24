@@ -7,6 +7,8 @@
 - 完整的应用配置模型
 """
 
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -92,7 +94,7 @@ class HistoryConfig(BaseModel):
 class I18nConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     default_locale: str = "zh"
-    available_locales: list[str] = Field(default_factory=lambda: ["zh", "en"])
+    available_locales: list[str] = Field(default_factory=lambda: ["zh", "en", "ja", "fr"])
 
 
 class LoggingConfig(BaseModel):
@@ -111,14 +113,42 @@ class CacheConfig(BaseModel):
 
 
 class InferenceConfig(BaseModel):
-    """推理优化配置"""
+    """推理优化配置
+
+    字段名与默认值对齐 seedvr2_engine._get_inference_config() 实际读取逻辑。
+    """
     model_config = ConfigDict(extra="ignore")
+    # BlockSwap
     blocks_to_swap: int = 0
     swap_io_components: bool = False
-    vae_tile_size: int = 1024
-    vae_overlap: int = 512
+    offload_device: str = "cpu"
+    attention_mode: str = "sdpa"
+    # 推理模式
+    inference_mode: str = "distilled"
+    # 分辨率与批处理
+    resolution: int = 2048
+    max_resolution: int = 0
+    batch_size: int = 1
+    uniform_batch_size: bool = False
+    # 时序与帧控制
+    temporal_overlap: int = 0
+    prepend_frames: int = 0
+    temporal_segment_size: int = 0
+    temporal_segment_overlap: int = 8
+    # 噪声与引导
+    input_noise_scale: float = 0.0
+    latent_noise_scale: float = 0.0
+    restoration_guidance_scale: float = 1.0
+    # 色彩校正
+    color_correction: str = "lab"
+    # 其他
+    seed: int = -1
+    enable_debug: bool = False
+    # 兼容 config.yaml 中的额外字段（引擎通过原始字典读取）
     fp8_enabled: bool = False
     distilled_mode: bool = False
+    vae_tile_size: int = 1024
+    vae_overlap: int = 512
 
 
 # ---------------------------------------------------------------------------
@@ -250,6 +280,8 @@ class AppConfig(BaseModel):
     inference: InferenceConfig = Field(default_factory=InferenceConfig)
     # REFACTOR: 注册运行时配置，替代源码中散落的硬编码（SSE/重试/队列/上传/安全）
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
+    # 用户偏好（前端 WebUI 通过 SettingsPersistence 独立管理，此处仅防止 model_dump() 丢失）
+    user_preferences: dict[str, Any] = Field(default_factory=dict)
 
 
 def load_validated_config(config_path: str) -> AppConfig:

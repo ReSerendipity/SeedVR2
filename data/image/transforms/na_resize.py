@@ -12,6 +12,12 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
+"""原生分辨率(Native Aspect)图像缩放变换模块。
+
+提供 area / side / square 三种缩放模式，根据目标分辨率自动选择
+等面积缩放、短边缩放或中心裁剪策略。
+"""
+
 from typing import Literal
 from torchvision.transforms import CenterCrop, Compose, InterpolationMode, Resize
 
@@ -25,6 +31,7 @@ def NaResize(
     downsample_only: bool,
     interpolation: InterpolationMode = InterpolationMode.BICUBIC,
 ):
+    """根据模式创建对应的图像缩放变换。"""
     if mode == "area":
         return AreaResize(
             max_area=resolution**2,
