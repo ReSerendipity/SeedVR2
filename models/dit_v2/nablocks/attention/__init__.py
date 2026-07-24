@@ -12,6 +12,11 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
+"""NaDiT v2 注意力模块注册表。
+
+提供 get_attn 函数，根据 attn_type 名称返回对应的注意力类。
+"""
+
 from .mmattn import NaMMAttention
 
 attns = {
@@ -20,6 +25,7 @@ attns = {
 
 
 def get_attn(attn_type: str):
+    """根据 attn_type 名称返回注意力类。"""
     if attn_type in attns:
         return attns[attn_type]
     raise NotImplementedError(f"{attn_type} is not supported")

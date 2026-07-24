@@ -12,6 +12,8 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
+"""MLP 子模块，提供标准 MLP 和 SwiGLU 变体。"""
+
 from typing import Optional
 import torch
 import torch.nn.functional as F
@@ -26,6 +28,7 @@ def get_mlp(mlp_type: Optional[str] = "normal"):
 
 
 class MLP(nn.Module):
+    """标准两层 MLP：Linear -> GELU -> Linear。"""
     def __init__(
         self,
         dim: int,
@@ -44,6 +47,7 @@ class MLP(nn.Module):
 
 
 class SwiGLUMLP(nn.Module):
+    """SwiGLU 门控 MLP 变体，使用 SwiGLU 激活替代标准 GELU。"""
     def __init__(
         self,
         dim: int,

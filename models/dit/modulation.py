@@ -41,6 +41,7 @@ def expand_dims(x: torch.Tensor, dim: int, ndim: int):
 
 
 class AdaSingle(nn.Module):
+    """自适应单分支调制层，通过时间步嵌入对隐藏状态进行 shift/scale/gate 调制。"""
     def __init__(
         self,
         dim: int,

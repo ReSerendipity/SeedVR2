@@ -12,6 +12,11 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
+"""NaDiT transformer block 注册表。
+
+提供 get_nablock 函数，根据 block_type 名称返回对应的 transformer block 类。
+"""
+
 from .mmsr_block import NaMMSRTransformerBlock
 
 nadit_blocks = {
@@ -20,6 +25,7 @@ nadit_blocks = {
 
 
 def get_nablock(block_type: str):
+    """根据 block_type 名称返回 NaDiT transformer block 类。"""
     if block_type in nadit_blocks:
         return nadit_blocks[block_type]
     raise NotImplementedError(f"{block_type} is not supported")

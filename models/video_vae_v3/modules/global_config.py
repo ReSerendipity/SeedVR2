@@ -12,6 +12,11 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
+"""Video VAE 全局配置模块。
+
+管理归一化层内存限制等全局运行时参数。
+"""
+
 from typing import Optional
 
 _NORM_LIMIT = float("inf")
