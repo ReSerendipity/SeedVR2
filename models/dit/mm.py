@@ -12,6 +12,12 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
+"""多模态(Multi-Modal)模块包装工具。
+
+提供 MMArg 数据类和 MMModule 包装器，用于统一处理视频/文本双分支
+参数传递，支持共享权重和独立权重两种模式。
+"""
+
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Tuple
 import torch
@@ -20,6 +26,7 @@ from torch import nn
 
 @dataclass
 class MMArg:
+    """多模态参数容器，携带 vid 和 txt 两个分支的值。"""
     vid: Any
     txt: Any
 
@@ -33,6 +40,7 @@ def get_kwargs(key: str, kwargs: Dict[str, Any]) -> Dict[str, Any]:
 
 
 class MMModule(nn.Module):
+    """多模态模块包装器，为视频和文本分支提供独立或共享的子模块。"""
     def __init__(
         self,
         module: Callable[..., nn.Module],

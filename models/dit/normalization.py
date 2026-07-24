@@ -12,6 +12,12 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
+"""归一化层工厂模块。
+
+提供 get_norm_layer 函数，根据类型名称创建对应的归一化层，
+支持 LayerNorm / RMSNorm / Apex 融合变体。
+"""
+
 from typing import Callable, Optional
 from diffusers.models.normalization import RMSNorm
 from torch import nn
@@ -29,6 +35,10 @@ except ImportError:
 
 
 def get_norm_layer(norm_type: Optional[str]) -> norm_layer_type:
+    """根据类型名称返回归一化层构造函数。
+
+    支持: None(Identity), 'layer', 'rms', 'fusedln', 'fusedrms'。
+    """
 
     def _norm_layer(dim: int, eps: float, elementwise_affine: bool):
         if norm_type is None:

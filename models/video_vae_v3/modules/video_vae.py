@@ -706,6 +706,10 @@ class Decoder3D(nn.Module):
 
 
 class VideoAutoencoderKL(nn.Module):
+    """基于 3D 因果卷积的视频变分自编码器。
+
+    支持时序/空间下采样、序列切片编码解码、内存限制控制等功能。
+    """
     def __init__(
         self,
         in_channels: int = 3,
@@ -901,6 +905,7 @@ class VideoAutoencoderKL(nn.Module):
 
 
 class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
+    """VideoAutoencoderKL 的简化包装器，提供适配外部调用的 encode/decode 接口。"""
     def __init__(
         self, *args, spatial_downsample_factor: int, temporal_downsample_factor: int, **kwargs
     ):
