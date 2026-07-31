@@ -1,0 +1,47 @@
+2026-07-31 17:19:54,377 [INFO] bin.integrated_app.app_server: SeedVR2启动中... http://127.0.0.1:7870
+INFO:     Started server process [1668]
+INFO:     Waiting for application startup.
+2026-07-31 17:19:54,432 [INFO] bin.integrated_app.history_db: 历史数据库已初始化: data/history.db
+2026-07-31 17:19:54,434 [INFO] bin.integrated_app.app_server: 历史数据库已初始化
+2026-07-31 17:19:54,436 [INFO] bin.integrated_app.task_queue: 任务队列 worker 已启动
+2026-07-31 17:19:54,439 [INFO] bin.integrated_app.app_server: 任务队列已启动
+2026-07-31 17:19:54,441 [INFO] bin.integrated_app.app_server: 已注册模型状态 SSE 桥接监听器
+2026-07-31 17:19:54,442 [INFO] bin.integrated_app.cache: 缓存自动清理任务已启动，间隔: 3600s
+2026-07-31 17:19:54,442 [INFO] bin.integrated_app.app_server: GPU 后端: cuda, 设备: NVIDIA GeForce RTX 5070 Ti Laptop GPU
+2026-07-31 17:19:54,446 [INFO] bin.integrated_app.model_manager: 正在加载模型: SeedVR2-3B/fp8, 设备: auto
+2026-07-31 17:19:54,453 [INFO] bin.integrated_app.engines.seedvr2_engine: 初始化 SeedVR2-3B/fp8，设备: cuda
+2026-07-31 17:19:54,454 [INFO] bin.integrated_app.engines.seedvr2_engine: 加载文本嵌入: C:\Users\Doro\Seedvr2\pretrained_models\pos_emb.pt, C:\Users\Doro\Seedvr2\pretrained_models\neg_emb.pt
+2026-07-31 17:19:55,259 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=50
+2026-07-31 17:19:55,259 [INFO] bin.integrated_app.engines.seedvr2_engine: SeedVR2-3B/fp8 配置加载完成 (模型延迟加载)
+2026-07-31 17:19:55,259 [INFO] bin.integrated_app.model_manager: 模型加载完成: 3b/fp8
+2026-07-31 17:19:55,259 [INFO] bin.integrated_app.app_server: 模型自动加载完成
+2026-07-31 17:19:55,260 [INFO] bin.integrated_app.app_server: 将在浏览器中打开: http://127.0.0.1:7870
+2026-07-31 17:19:55,260 [INFO] bin.integrated_app.app_server: SeedVR2已启动: http://127.0.0.1:7870
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:7870 (Press CTRL+C to quit)
+2026-07-31 17:20:22,491 [INFO] bin.integrated_app.optimization.webui_enhancement: 用户偏好已加载: 17 项设置
+2026-07-31 17:20:22,673 [WARNING] bin.integrated_app.routes.restore.scan: 扫描路径被白名单拒绝: Z:\InvalidPathTest123
+2026-07-31 17:20:22,691 [WARNING] bin.integrated_app.routes.restore.scan: 扫描路径被白名单拒绝: C:\Windows
+2026-07-31 17:20:22,692 [ERROR] asyncio: Exception in callback _ProactorBasePipeTransport._call_connection_lost(None)
+handle: <Handle _ProactorBasePipeTransport._call_connection_lost(None)>
+Traceback (most recent call last):
+  File "C:\Users\Doro\Seedvr2\WPy64-312101\python\Lib\asyncio\events.py", line 88, in _run
+    self._context.run(self._callback, *self._args)
+  File "C:\Users\Doro\Seedvr2\WPy64-312101\python\Lib\asyncio\proactor_events.py", line 165, in _call_connection_lost
+    self._sock.shutdown(socket.SHUT_RDWR)
+ConnectionResetError: [WinError 10054] 远程主机强迫关闭了一个现有的连接。
+2026-07-31 17:20:23,781 [INFO] bin.integrated_app.optimization.webui_enhancement: 用户偏好已加载: 17 项设置
+2026-07-31 17:20:23,931 [WARNING] bin.integrated_app.routes.restore.scan: 扫描路径被白名单拒绝: Z:\InvalidPathTest123
+2026-07-31 17:20:23,934 [WARNING] bin.integrated_app.routes.restore.scan: 扫描路径被白名单拒绝: C:\Windows
+2026-07-31 17:20:25,033 [INFO] bin.integrated_app.optimization.webui_enhancement: 用户偏好已加载: 17 项设置
+2026-07-31 17:20:25,184 [WARNING] bin.integrated_app.routes.restore.scan: 扫描路径被白名单拒绝: Z:\InvalidPathTest123
+2026-07-31 17:20:25,199 [WARNING] bin.integrated_app.routes.restore.scan: 扫描路径被白名单拒绝: C:\Windows
+2026-07-31 17:20:25,199 [ERROR] asyncio: Exception in callback _ProactorBasePipeTransport._call_connection_lost(None)
+handle: <Handle _ProactorBasePipeTransport._call_connection_lost(None)>
+Traceback (most recent call last):
+  File "C:\Users\Doro\Seedvr2\WPy64-312101\python\Lib\asyncio\events.py", line 88, in _run
+    self._context.run(self._callback, *self._args)
+  File "C:\Users\Doro\Seedvr2\WPy64-312101\python\Lib\asyncio\proactor_events.py", line 165, in _call_connection_lost
+    self._sock.shutdown(socket.SHUT_RDWR)
+ConnectionResetError: [WinError 10054] 远程主机强迫关闭了一个现有的连接。
+2026-07-31 17:20:52,083 [INFO] bin.integrated_app.optimization.webui_enhancement: 用户偏好已加载: 17 项设置

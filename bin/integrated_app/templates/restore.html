@@ -15,7 +15,12 @@
             <i class="bi bi-lightbulb sv-onboarding-icon"></i>
             <div>
                 <strong>{{ t('restore.onboarding_title') }}</strong>
-                <p>{{ t('restore.onboarding_desc') }}</p>
+                <div class="sv-onboarding-steps">
+                    <p><i class="bi bi-1-circle"></i> {{ t('restore.onboarding_step1') }}</p>
+                    <p><i class="bi bi-2-circle"></i> {{ t('restore.onboarding_step2') }}</p>
+                    <p><i class="bi bi-3-circle"></i> {{ t('restore.onboarding_step3') }}</p>
+                </div>
+                <p class="sv-onboarding-shortcut"><i class="bi bi-keyboard"></i> {{ t('restore.onboarding_shortcut') }}</p>
             </div>
         </div>
         <button class="sv-onboarding-close" id="onboardingClose" aria-label="{{ t('common.close') }}">
@@ -156,6 +161,7 @@
                 <div class="sv-batch-progress-head">
                     <span id="batchProgressTitle">{{ t('video.batch_progress') }}</span>
                     <div class="sv-flex sv-items-center sv-gap-2">
+                        <span id="batchPercentText" class="sv-text-xs sv-text-muted">0%</span>
                         <span id="batchStatus" class="sv-badge sv-badge-processing">{{ t('status.processing') }}</span>
                         <button type="button" class="sv-progress-cancel" id="btnCancelBatch" aria-label="{{ t('common.cancel') }}" title="{{ t('restore.cancel_batch_task') }}">
                             <i class="bi bi-x-lg"></i>
@@ -165,10 +171,14 @@
                 <div class="sv-progress" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
                     <div class="sv-progress-bar bg-primary animated" id="batchProgressBar" style="transform:scaleX(0);"></div>
                 </div>
+                <div id="batchCurrentFile" class="sv-text-xs sv-text-muted sv-mt-1 sv-truncate" style="display:none;">
+                    <i class="bi bi-file-earmark-play"></i> <span></span>
+                </div>
                 <div class="sv-batch-stats">
                     <span id="batchProgressText">--</span>
                     <span class="sv-text-success"><span id="batchCompleted">0</span> {{ t('video.batch_success') }}</span>
                     <span class="sv-text-danger"><span id="batchFailed">0</span> {{ t('video.batch_failed') }}</span>
+                    <span id="batchEta" class="sv-text-xs sv-text-muted sv-ml-auto"></span>
                 </div>
             </div>
         </div>
@@ -393,10 +403,13 @@ document.addEventListener('DOMContentLoaded', () => {
         btnCancelBatch: document.getElementById('btnCancelBatch'),
         batchProgressBar: document.getElementById('batchProgressBar'),
         batchProgressText: document.getElementById('batchProgressText'),
+        batchPercentText: document.getElementById('batchPercentText'),
         batchCompleted: document.getElementById('batchCompleted'),
         batchFailed: document.getElementById('batchFailed'),
         batchStatus: document.getElementById('batchStatus'),
         batchProgressCard: document.getElementById('batchProgressCard'),
+        batchCurrentFile: document.getElementById('batchCurrentFile'),
+        batchEta: document.getElementById('batchEta'),
         advToggle: document.getElementById('advToggle'),
         advParams: document.getElementById('advParams'),
     };
@@ -406,6 +419,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let batchInterval = null;
     let currentBatchId = null;
     let gpuAvailable = null;
+    let batchStartTime = null;
 
     // 降级模式检查：无 NVIDIA GPU 时禁用推理功能
     async function checkGpuAvailability() {
@@ -575,6 +589,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     checkGpuAvailability();
 
+    // GPU状态定时刷新：每60秒自动重新检测，避免长时间空闲后状态过期
+    let gpuRefreshInterval = setInterval(() => {
+        if (document.visibilityState === 'visible') {
+            checkGpuAvailability();
+        }
+    }, 60000);
+
+    // 页面从后台切回时立即刷新GPU状态
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            checkGpuAvailability();
+        }
+    });
+
+    // 页面离开时清除定时器
+    window.addEventListener('beforeunload', () => {
+        if (gpuRefreshInterval) clearInterval(gpuRefreshInterval);
+        if (batchInterval) clearInterval(batchInterval);
+    });
+
     // 首次使用引导：仅首次访问显示
     const onboarding = document.getElementById('onboardingTip');
     const onboardingClose = document.getElementById('onboardingClose');
@@ -588,11 +622,6 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem('sv_onboarding_seen', '1');
         });
     }
-
-    // 页面离开时清除批量进度轮询
-    window.addEventListener('beforeunload', () => {
-        if (batchInterval) clearInterval(batchInterval);
-    });
 
     // 上传区
     SeedVR2.setupUploadZone(els.uploadZone, els.fileInput, {
@@ -683,30 +712,67 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 扫描文件夹
+    // 扫描文件夹（带防重复提交保护）
+    let isScanning = false;
     async function scanFolder() {
+        if (isScanning) return; // 防止重入
         const path = els.folderPath.value.trim();
         if (!path) {
             SeedVR2.toast(I['restore.please_select_folder'] || '请输入或选择文件夹路径', 'warning');
             return;
         }
+        isScanning = true;
+        const originalHtml = els.btnScanFolder.innerHTML;
+        els.btnScanFolder.disabled = true;
+        els.btnScanFolder.innerHTML = '<span class="sv-spinner sv-spinner-sm"></span> ' + (I['restore.scanning'] || 'Scanning...');
+        // 扫描开始时清空之前的结果
+        els.scanResults.innerHTML = `<div class="sv-alert sv-alert-info"><span class="sv-spinner sv-spinner-sm"></span> ${I['restore.scanning'] || 'Scanning...'}</div>`;
         try {
-            SeedVR2.toast(I['restore.scanning'] || '扫描中...', 'info');
             const data = await SeedVR2.api.get(`/api/restore/scan-folder?folder_path=${encodeURIComponent(path)}`);
             scannedFiles = data.files || [];
             if (scannedFiles.length === 0) {
-                els.scanResults.innerHTML = `<div class="sv-alert sv-alert-warning">${I['restore.no_files_found'] || '未找到可处理文件'}</div>`;
+                els.scanResults.innerHTML = `<div class="sv-alert sv-alert-warning"><i class="bi bi-exclamation-triangle"></i> ${I['restore.no_files_found'] || '未找到可处理文件'}</div>`;
+                SeedVR2.toast(I['restore.no_files_found'] || '未找到可处理文件', 'warning', 5000);
                 return;
             }
+            // 统计文件类型
+            const videoCount = scannedFiles.filter(f => f.type === 'video').length;
+            const imageCount = scannedFiles.filter(f => f.type === 'image').length;
+            const totalSize = scannedFiles.reduce((sum, f) => sum + (f.size || 0), 0);
+            const totalSizeMB = (totalSize / 1024 / 1024).toFixed(1);
             const totalText = (I['restore.found_files'] || '找到 {total} 个文件').replace('{total}', scannedFiles.length);
-            const listHtml = scannedFiles.slice(0, 10).map(f => `<div class="sv-batch-file-item"><i class="bi bi-file-earmark sv-text-muted"></i><span class="bf-name">${SeedVR2.escapeHtml(f.relative)}</span></div>`).join('');
-            const more = scannedFiles.length > 10 ? `<div class="sv-text-xs sv-text-muted">+${scannedFiles.length - 10} more</div>` : '';
+            const typeStats = [];
+            if (videoCount > 0) typeStats.push(`<i class="bi bi-film"></i> ${videoCount} ${I['restore.video_files'] || '视频'}`);
+            if (imageCount > 0) typeStats.push(`<i class="bi bi-image"></i> ${imageCount} ${I['restore.image_files'] || '图片'}`);
+            const listHtml = scannedFiles.slice(0, 10).map(f => {
+                const icon = f.type === 'video' ? 'bi-film' : 'bi-image';
+                const sizeText = f.size ? (f.size / 1024 / 1024).toFixed(2) + ' MB' : '';
+                return `<div class="sv-batch-file-item"><i class="bi ${icon} sv-text-muted"></i><span class="bf-name">${SeedVR2.escapeHtml(f.relative)}</span>${sizeText ? `<span class="sv-text-xs sv-text-muted sv-ml-auto">${sizeText}</span>` : ''}</div>`;
+            }).join('');
+            const more = scannedFiles.length > 10 ? `<div class="sv-text-xs sv-text-muted sv-mt-1">... ${I['restore.and_more'] || '还有'} ${scannedFiles.length - 10} ${I['restore.more_files'] || '个文件'}</div>` : '';
             els.scanResults.innerHTML = `
-                <div class="sv-alert sv-alert-info sv-mb-2">${totalText}</div>
+                <div class="sv-alert sv-alert-success sv-mb-2">
+                    <i class="bi bi-check-circle-fill"></i>
+                    <div>
+                        <strong>${totalText}</strong>
+                        <div class="sv-text-xs sv-mt-1 sv-flex sv-gap-3">${typeStats.join('')}<span><i class="bi bi-hdd"></i> ${totalSizeMB} MB</span></div>
+                    </div>
+                </div>
                 <div class="sv-batch-file-list">${listHtml}${more}</div>
             `;
+            // 启用批量开始按钮
+            if (els.btnStartBatch) {
+                els.btnStartBatch.disabled = false;
+                els.btnStartBatch.classList.remove('is-disabled');
+            }
+            SeedVR2.toast(totalText, 'success', 3000);
         } catch (err) {
-            SeedVR2.toast((I['restore.scan_failed'] || '扫描失败') + ': ' + err.message, 'error');
+            els.scanResults.innerHTML = '';
+            SeedVR2.toast((I['restore.scan_failed'] || '扫描失败') + ': ' + err.message, 'error', 8000);
+        } finally {
+            els.btnScanFolder.disabled = false;
+            els.btnScanFolder.innerHTML = originalHtml;
+            isScanning = false;
         }
     }
 
@@ -826,6 +892,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         { loadingText: I['common.processing'] || 'Processing...' }
                     );
                     currentBatchId = data.batch_id;
+                    batchStartTime = Date.now();
+                    if (els.batchPercentText) els.batchPercentText.textContent = '0%';
+                    if (els.batchEta) els.batchEta.textContent = '';
+                    if (els.batchCurrentFile) els.batchCurrentFile.style.display = 'none';
                     SeedVR2.toast(I['video.batch_started'] || '批量处理已启动', 'info');
                     pollBatchProgress(data.batch_id);
                 } catch (err) {
@@ -846,24 +916,53 @@ document.addEventListener('DOMContentLoaded', () => {
                     completed: data.completed || 0,
                     failed: data.failed || 0,
                     current_index: data.current_index || 0,
+                    current_file: data.current_file || '',
                 };
                 const total = cached.total || 0;
                 const completed = cached.completed || 0;
                 const failed = cached.failed || 0;
-                const current = (cached.current_index || 0) + 1;
-                const progress = total > 0 ? Math.round((current / total) * 100) : 0;
+                const current = Math.min((cached.current_index || 0) + 1, total);
+                const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
 
                 els.batchProgressBar.style.transform = `scaleX(${progress / 100})`;
                 els.batchProgressBar.setAttribute('aria-valuenow', progress);
-                els.batchProgressText.textContent = `${current} / ${total}`;
+                els.batchProgressText.textContent = `${completed} / ${total}`;
                 els.batchCompleted.textContent = completed;
                 els.batchFailed.textContent = failed;
+                if (els.batchPercentText) els.batchPercentText.textContent = progress + '%';
+
+                // 显示当前处理文件名
+                if (els.batchCurrentFile && cached.current_file) {
+                    els.batchCurrentFile.style.display = '';
+                    const nameSpan = els.batchCurrentFile.querySelector('span');
+                    if (nameSpan) nameSpan.textContent = cached.current_file;
+                    els.batchCurrentFile.title = cached.current_file;
+                }
+
+                // 计算预计剩余时间(ETA)
+                if (els.batchEta && batchStartTime && completed > 0 && progress < 100) {
+                    const elapsedMs = Date.now() - batchStartTime;
+                    const msPerFile = elapsedMs / completed;
+                    const remainingFiles = total - completed;
+                    const etaMs = msPerFile * remainingFiles;
+                    if (etaMs < 60000) {
+                        els.batchEta.textContent = (I['restore.eta'] || '预计剩余') + ': ' + Math.ceil(etaMs / 1000) + 's';
+                    } else {
+                        const etaMin = Math.floor(etaMs / 60000);
+                        const etaSec = Math.ceil((etaMs % 60000) / 1000);
+                        els.batchEta.textContent = (I['restore.eta'] || '预计剩余') + ': ' + etaMin + 'm ' + etaSec + 's';
+                    }
+                }
 
                 if (data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') {
                     clearInterval(batchInterval);
                     batchInterval = null;
+                    batchStartTime = null;
                     els.batchStatus.className = data.status === 'completed' ? 'sv-badge sv-badge-completed' : 'sv-badge sv-badge-failed';
                     els.batchStatus.textContent = I[`status.${data.status}`] || data.status;
+                    if (els.batchPercentText) els.batchPercentText.textContent = data.status === 'completed' ? '100%' : progress + '%';
+                    if (els.batchEta) els.batchEta.textContent = data.status === 'completed' ? (I['restore.completed'] || '完成') : '';
+                    if (els.batchCurrentFile) els.batchCurrentFile.style.display = 'none';
                     SeedVR2.toast(I['video.batch_completed']?.replace('{completed}', completed).replace('{failed}', failed) || '批量处理完成', data.status === 'completed' ? 'success' : 'error');
                 }
             } catch (err) {
@@ -932,6 +1031,37 @@ document.addEventListener('DOMContentLoaded', () => {
     if (els.btnCancelBatch) {
         els.btnCancelBatch.addEventListener('click', cancelBatch);
     }
+
+    // 键盘快捷键：Ctrl+Enter 开始修复，Esc 取消任务
+    document.addEventListener('keydown', (e) => {
+        // 忽略输入框内的Enter（除了Ctrl组合）
+        const target = e.target;
+        const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable;
+
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            if (isInput) return; // 在输入框时不触发，避免提交表单冲突
+            // 判断当前模式：单文件或批量
+            const activeTab = document.querySelector('.sv-mode-tab.active');
+            const mode = activeTab ? activeTab.dataset.mode : 'single';
+            if (mode === 'batch' && scannedFiles.length > 0 && !els.btnStartBatch.disabled) {
+                startBatch();
+            } else if (mode === 'single' && els.fileInput.files.length > 0 && !els.btnStartRestore.disabled) {
+                startRestore();
+            }
+        } else if (e.key === 'Escape') {
+            // Esc键取消确认框或进行中的任务
+            const confirmModal = document.getElementById('confirmModal');
+            if (confirmModal && confirmModal.classList.contains('show')) {
+                SeedVR2.closeModal('confirmModal');
+                return;
+            }
+            // 如果有正在进行的批量任务，取消批量
+            if (currentBatchId && els.batchProgressCard.style.display !== 'none') {
+                cancelBatch();
+            }
+        }
+    });
 
     // ===== 后端预设加载 =====
     async function loadBackendPresets() {
