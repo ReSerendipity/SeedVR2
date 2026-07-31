@@ -12,236 +12,128 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
-"""NaDiT 序列操作工具函数。
+"""Native (分辨率无关) 序列处理模块。
 
-提供 flatten/unflatten、concat/unconcat、rearrange、repeat、
-window 等序列变换操作，用于处理变长视频/文本序列的拼接、拆分与重排。
+为 NaDiT (Native Resolution DiT) 提供变长序列处理工具：
+
+- **na_concat**: 将多模态变长序列（vid/txt）沿序列维度拼接，返回拼接后张量和各部分长度信息。
+- **na_split**: 将拼接后的序列按模态拆分回 vid/txt 各部分。
+- **unpatchify**: 变长版本的 unpatchify，支持每个样本有不同的视频尺寸。
+
+NaDiT (Native Resolution Diffusion Transformer) 是一种支持原生分辨率的
+视频扩散 Transformer 架构，通过变长序列处理、动态 padding 和位置编码插值，
+使得模型可以处理任意分辨率和长度的视频输入，无需固定尺寸裁剪或 padding。
 """
 
-from itertools import chain
-from typing import Callable, Dict, List, Tuple
-import einops
+from typing import List, Optional, Tuple
 import torch
+import torch.nn.functional as F
 
 
-def flatten(
-    hid: List[torch.FloatTensor],  # List of (*** c)
+def na_concat(
+    vid: torch.FloatTensor,
+    txt: torch.FloatTensor,
+    vid_len: torch.LongTensor,
+    txt_len: torch.LongTensor,
 ) -> Tuple[
-    torch.FloatTensor,  # (L c)
-    torch.LongTensor,  # (b n)
+    torch.FloatTensor,
+    torch.LongTensor,
+    torch.LongTensor,
 ]:
-    assert len(hid) > 0
-    shape = torch.stack([torch.tensor(x.shape[:-1], device=hid[0].device) for x in hid])
-    hid = torch.cat([x.flatten(0, -2) for x in hid])
-    return hid, shape
+    """将视频和文本变长序列拼接为单一序列，用于联合注意力计算。
+
+    将 batch 内所有视频和文本 token 按 [vid_0, txt_0, vid_1, txt_1, ...] 顺序
+    拼接为一个大序列，并计算累积长度用于后续拆分。
+
+    Args:
+        vid (torch.FloatTensor): 视频 token，形状 (sum_vid_len, c)，所有样本的视频 token 已展平拼接。
+        txt (torch.FloatTensor): 文本 token，形状 (sum_txt_len, c)，所有样本的文本 token 已展平拼接。
+        vid_len (torch.LongTensor): 每个样本的视频 token 长度，形状 (b,)。
+        txt_len (torch.LongTensor): 每个样本的文本 token 长度，形状 (b,)。
+
+    Returns:
+        Tuple[torch.FloatTensor, torch.LongTensor, torch.LongTensor]:
+            - x (torch.FloatTensor): 拼接后的序列，形状 (sum(vid_len+txt_len), c)。
+            - cu_seqlens (torch.LongTensor): 累积序列长度，形状 (b+1,)，用于 Flash Attention v2 变长 API。
+            - seq_lens (torch.LongTensor): 每个样本的总长度 (vid_len + txt_len)，形状 (b,)。
+    """
+    b = vid_len.shape[0]
+    device = vid.device
+    seq_lens = vid_len + txt_len
+    max_seqlen = seq_lens.max().item()
+
+    pad_num = max_seqlen * b - seq_lens.sum().item()
+    x = torch.empty(max_seqlen * b, vid.shape[-1], dtype=vid.dtype, device=device)
+    vid_cu = F.pad(vid_len.cumsum(0), (1, 0))
+    txt_cu = F.pad(txt_len.cumsum(0), (1, 0))
+    cu = F.pad(seq_lens.cumsum(0), (1, 0))
+    for i in range(b):
+        x[cu[i] : cu[i] + vid_len[i]] = vid[vid_cu[i] : vid_cu[i + 1]]
+        x[cu[i] + vid_len[i] : cu[i + 1]] = txt[txt_cu[i] : txt_cu[i + 1]]
+    if pad_num > 0:
+        x[-pad_num:] = 0
+    x = x.view(b, max_seqlen, -1)
+    cu_seqlens = F.pad(seq_lens.cumsum(0, dtype=torch.int32), (1, 0))
+    return x, cu_seqlens, seq_lens
 
 
-def unflatten(
-    hid: torch.FloatTensor,  # (L c) or (L ... c)
-    hid_shape: torch.LongTensor,  # (b n)
-) -> List[torch.Tensor]:  # List of (*** c) or (*** ... c)
-    hid_len = hid_shape.prod(-1)
-    hid = hid.split(hid_len.tolist())
-    hid = [x.unflatten(0, s.tolist()) for x, s in zip(hid, hid_shape)]
-    return hid
-
-
-def concat(
-    vid: torch.FloatTensor,  # (VL ... c)
-    txt: torch.FloatTensor,  # (TL ... c)
-    vid_len: torch.LongTensor,  # (b)
-    txt_len: torch.LongTensor,  # (b)
-) -> torch.FloatTensor:  # (L ... c)
-    vid = torch.split(vid, vid_len.tolist())
-    txt = torch.split(txt, txt_len.tolist())
-    return torch.cat(list(chain(*zip(vid, txt))))
-
-
-def concat_idx(
-    vid_len: torch.LongTensor,  # (b)
-    txt_len: torch.LongTensor,  # (b)
+def na_split(
+    x: torch.FloatTensor,
+    vid_len: torch.LongTensor,
+    txt_len: torch.LongTensor,
 ) -> Tuple[
-    Callable,
-    Callable,
+    torch.FloatTensor,
+    torch.FloatTensor,
 ]:
-    device = vid_len.device
-    vid_idx = torch.arange(vid_len.sum(), device=device)
-    txt_idx = torch.arange(len(vid_idx), len(vid_idx) + txt_len.sum(), device=device)
-    tgt_idx = concat(vid_idx, txt_idx, vid_len, txt_len)
-    src_idx = torch.argsort(tgt_idx)
-    return (
-        lambda vid, txt: torch.index_select(torch.cat([vid, txt]), 0, tgt_idx),
-        lambda all: torch.index_select(all, 0, src_idx).split([len(vid_idx), len(txt_idx)]),
-    )
+    """将拼接的联合序列拆分回视频和文本部分。
 
+    Args:
+        x (torch.FloatTensor): 拼接后的序列，形状 (b, max_seqlen, c)。
+        vid_len (torch.LongTensor): 每个样本的视频 token 长度，形状 (b,)。
+        txt_len (torch.LongTensor): 每个样本的文本 token 长度，形状 (b,)。
 
-def unconcat(
-    all: torch.FloatTensor,  # (L ... c)
-    vid_len: torch.LongTensor,  # (b)
-    txt_len: torch.LongTensor,  # (b)
-) -> Tuple[
-    torch.FloatTensor,  # (VL ... c)
-    torch.FloatTensor,  # (TL ... c)
-]:
-    interleave_len = list(chain(*zip(vid_len.tolist(), txt_len.tolist())))
-    all = all.split(interleave_len)
-    vid = torch.cat(all[0::2])
-    txt = torch.cat(all[1::2])
+    Returns:
+        Tuple[torch.FloatTensor, torch.FloatTensor]:
+            - vid (torch.FloatTensor): 视频 token，形状 (sum_vid_len, c)，已按样本拼接。
+            - txt (torch.FloatTensor): 文本 token，形状 (sum_txt_len, c)，已按样本拼接。
+    """
+    b = x.shape[0]
+    seq_lens = vid_len + txt_len
+    cu = F.pad(seq_lens.cumsum(0), (1, 0))
+    vid = torch.cat([x[i, : vid_len[i]] for i in range(b)])
+    txt = torch.cat([x[i, vid_len[i] : vid_len[i] + txt_len[i]] for i in range(b)])
     return vid, txt
 
 
-def repeat_concat(
-    vid: torch.FloatTensor,  # (VL ... c)
-    txt: torch.FloatTensor,  # (TL ... c)
-    vid_len: torch.LongTensor,  # (n*b)
-    txt_len: torch.LongTensor,  # (b)
-    txt_repeat: List,  # (n)
-) -> torch.FloatTensor:  # (L ... c)
-    vid = torch.split(vid, vid_len.tolist())
-    txt = torch.split(txt, txt_len.tolist())
-    txt = [[x] * n for x, n in zip(txt, txt_repeat)]
-    txt = list(chain(*txt))
-    return torch.cat(list(chain(*zip(vid, txt))))
-
-
-def repeat_concat_idx(
-    vid_len: torch.LongTensor,  # (n*b)
-    txt_len: torch.LongTensor,  # (b)
-    txt_repeat: torch.LongTensor,  # (n)
-) -> Tuple[
-    Callable,
-    Callable,
-]:
-    device = vid_len.device
-    vid_idx = torch.arange(vid_len.sum(), device=device)
-    txt_idx = torch.arange(len(vid_idx), len(vid_idx) + txt_len.sum(), device=device)
-    txt_repeat_list = txt_repeat.tolist()
-    tgt_idx = repeat_concat(vid_idx, txt_idx, vid_len, txt_len, txt_repeat)
-    src_idx = torch.argsort(tgt_idx)
-    txt_idx_len = len(tgt_idx) - len(vid_idx)
-    repeat_txt_len = (txt_len * txt_repeat).tolist()
-
-    def unconcat_coalesce(all):
-        """
-        Un-concat vid & txt, and coalesce the repeated txt.
-        e.g. vid [0 1 2 3 4 5 6 7 8] -> 3 splits -> [0 1 2] [3 4 5] [6 7 8]
-             txt [9 10]
-             repeat_concat ==> [0 1 2 9 10 3 4 5 9 10 6 7 8 9 10]
-             1. argsort re-index ==> [0 1 2 3 4 5 6 7 8 9 9 9 10 10 10]
-                           split ==> vid_out [0 1 2 3 4 5 6 7 8] txt_out [9 9 9 10 10 10]
-             2. reshape & mean for each sample to coalesce the repeated txt.
-        """
-        vid_out, txt_out = all[src_idx].split([len(vid_idx), txt_idx_len])
-        txt_out_coalesced = []
-        for txt, repeat_time in zip(txt_out.split(repeat_txt_len), txt_repeat_list):
-            txt = txt.reshape(-1, repeat_time, *txt.shape[1:]).mean(1)
-            txt_out_coalesced.append(txt)
-        return vid_out, torch.cat(txt_out_coalesced)
-
-    # Note: Backward of torch.index_select is non-deterministic when existing repeated index,
-    # the difference may cumulative like torch.repeat_interleave, so we use vanilla index here.
-    return (
-        lambda vid, txt: torch.cat([vid, txt])[tgt_idx],
-        lambda all: unconcat_coalesce(all),
-    )
-
-
-def rearrange(
-    hid: torch.FloatTensor,  # (L c)
-    hid_shape: torch.LongTensor,  # (b n)
-    pattern: str,
-    **kwargs: Dict[str, int],
-) -> Tuple[
-    torch.FloatTensor,
-    torch.LongTensor,
-]:
-    return flatten([einops.rearrange(h, pattern, **kwargs) for h in unflatten(hid, hid_shape)])
-
-
-def rearrange_idx(
-    hid_shape: torch.LongTensor,  # (b n)
-    pattern: str,
-    **kwargs: Dict[str, int],
-) -> Tuple[Callable, Callable, torch.LongTensor]:
-    hid_idx = torch.arange(hid_shape.prod(-1).sum(), device=hid_shape.device).unsqueeze(-1)
-    tgt_idx, tgt_shape = rearrange(hid_idx, hid_shape, pattern, **kwargs)
-    tgt_idx = tgt_idx.squeeze(-1)
-    src_idx = torch.argsort(tgt_idx)
-    return (
-        lambda hid: torch.index_select(hid, 0, tgt_idx),
-        lambda hid: torch.index_select(hid, 0, src_idx),
-        tgt_shape,
-    )
-
-
-def repeat(
-    hid: torch.FloatTensor,  # (L c)
-    hid_shape: torch.LongTensor,  # (b n)
-    pattern: str,
-    **kwargs: Dict[str, torch.LongTensor],  # (b)
-) -> Tuple[
-    torch.FloatTensor,
-    torch.LongTensor,
-]:
-    hid = unflatten(hid, hid_shape)
-    kwargs = [{k: v[i].item() for k, v in kwargs.items()} for i in range(len(hid))]
-    return flatten([einops.repeat(h, pattern, **a) for h, a in zip(hid, kwargs)])
-
-
-def pack(
-    samples: List[torch.Tensor],  # List of (h w c).
-) -> Tuple[
-    List[torch.Tensor],  # groups [(b1 h1 w1 c1), (b2 h2 w2 c2)]
-    List[List[int]],  # reversal indices.
-]:
-    batches = {}
-    indices = {}
-    for i, sample in enumerate(samples):
-        shape = sample.shape
-        batches[shape] = batches.get(shape, [])
-        indices[shape] = indices.get(shape, [])
-        batches[shape].append(sample)
-        indices[shape].append(i)
-
-    batches = list(map(torch.stack, batches.values()))
-    indices = list(indices.values())
-    return batches, indices
-
-
-def unpack(
-    batches: List[torch.Tensor],
-    indices: List[List[int]],
-) -> List[torch.Tensor]:
-    samples = [None] * (max(chain(*indices)) + 1)
-    for batch, index in zip(batches, indices):
-        for sample, i in zip(batch.unbind(), index):
-            samples[i] = sample
-    return samples
-
-
-def window(
-    hid: torch.FloatTensor,  # (L c)
-    hid_shape: torch.LongTensor,  # (b n)
-    window_fn: Callable[[torch.Tensor], List[torch.Tensor]],
+def unpatchify(
+    x: torch.FloatTensor,
+    window_sizes: torch.LongTensor,
+    patch_size,
 ):
-    hid = unflatten(hid, hid_shape)
-    hid = list(map(window_fn, hid))
-    hid_windows = torch.tensor(list(map(len, hid)), device=hid_shape.device)
-    hid, hid_shape = flatten(list(chain(*hid)))
-    return hid, hid_shape, hid_windows
+    """变长版本的 unpatchify，支持每个样本有不同的窗口数量（即不同的 t/h/w）。
 
+    Args:
+        x (torch.FloatTensor): 输入 token 序列，形状 (sum_nw*wt*wh*ww, c) 或 (b, sum_nw*wt*wh*ww, c)。
+        window_sizes (torch.LongTensor): 每个样本的窗口数量，形状 (b, 3)，分别为 (nt, nh, nw)。
+        patch_size: 窗口大小 (wt, wh, ww)。
 
-def window_idx(
-    hid_shape: torch.LongTensor,  # (b n)
-    window_fn: Callable[[torch.Tensor], List[torch.Tensor]],
-):
-    hid_idx = torch.arange(hid_shape.prod(-1).sum(), device=hid_shape.device).unsqueeze(-1)
-    tgt_idx, tgt_shape, tgt_windows = window(hid_idx, hid_shape, window_fn)
-    tgt_idx = tgt_idx.squeeze(-1)
-    src_idx = torch.argsort(tgt_idx)
-    return (
-        lambda hid: torch.index_select(hid, 0, tgt_idx),
-        lambda hid: torch.index_select(hid, 0, src_idx),
-        tgt_shape,
-        tgt_windows,
-    )
+    Returns:
+        List[torch.FloatTensor]: 每个样本恢复后的视频张量列表，每个元素形状为 (c, t, h, w)。
+    """
+    wt, wh, ww = patch_size
+    if x.dim() == 2:
+        x = x.unsqueeze(0)
+        window_sizes = window_sizes.unsqueeze(0)
+    b = x.shape[0]
+    nws = window_sizes.tolist()
+    nw_cu = F.pad((window_sizes[:, 0] * window_sizes[:, 1] * window_sizes[:, 2]).cumsum(0), (1, 0))
+    outs = []
+    for i in range(b):
+        nt, nh, nw = nws[i]
+        n_windows = nt * nh * nw
+        xi = x[i : i + 1, nw_cu[i] * wt * wh * ww : nw_cu[i + 1] * wt * wh * ww]
+        xi = xi.reshape(-1, nt, nh, nw, wt, wh, ww, xi.shape[-1])
+        xi = torch.einsum("b t h w p q r c -> b c t p h q w r", xi)
+        t, h, w = nt * wt, nh * wh, nw * ww
+        outs.append(xi.reshape(-1, t, h, w))
+    return outs

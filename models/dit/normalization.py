@@ -14,18 +14,32 @@
 
 """归一化层工厂模块。
 
-提供 get_norm_layer 函数，根据类型名称创建对应的归一化层，
-支持 LayerNorm / RMSNorm / Apex 融合变体。
+提供 get_norm_layer 工厂函数，根据类型名称创建对应的归一化层实例：
+
+- **None/Identity**: 不做归一化，恒等映射。
+- **layer**: LayerNorm (层归一化)，对最后一个维度做归一化。
+- **rms**: RMSNorm (均方根归一化)，LLaMA 等模型使用的高效归一化。
+- **fusedln**: Apex FusedLayerNorm，融合的 LayerNorm 实现（需要 apex 库）。
+- **fusedrms**: Apex FusedRMSNorm，融合的 RMSNorm 实现（需要 apex 库）。
+
+归一化算法:
+    LayerNorm::
+
+        y = (x - mean) / sqrt(var + eps) * gamma + beta
+
+    RMSNorm::
+
+        y = x / sqrt(mean(x^2) + eps) * gamma
+
+    RMSNorm 省去了均值计算，仅基于均方根进行归一化，计算效率更高且效果相当。
 """
 
 from typing import Callable, Optional
 from diffusers.models.normalization import RMSNorm
 from torch import nn
 
-# (dim: int, eps: float, elementwise_affine: bool)
 norm_layer_type = Callable[[int, float, bool], nn.Module]
 
-# Check apex availability
 try:
     from apex.normalization import FusedLayerNorm as _ApexFusedLayerNorm
     from apex.normalization import FusedRMSNorm as _ApexFusedRMSNorm
@@ -37,7 +51,11 @@ except ImportError:
 def get_norm_layer(norm_type: Optional[str]) -> norm_layer_type:
     """根据类型名称返回归一化层构造函数。
 
-    支持: None(Identity), 'layer', 'rms', 'fusedln', 'fusedrms'。
+    Args:
+        norm_type (Optional[str]): 归一化类型，支持 None、'layer'、'rms'、'fusedln'、'fusedrms'。
+
+    Returns:
+        norm_layer_type: 归一化层构造函数，签名为 (dim, eps, elementwise_affine) -> nn.Module。
     """
 
     def _norm_layer(dim: int, eps: float, elementwise_affine: bool):

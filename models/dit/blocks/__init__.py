@@ -12,9 +12,12 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
-"""DIT transformer block 注册表。
+"""标准 DiT Transformer Block 注册表。
 
-提供 get_block 函数，根据 block_type 名称返回对应的 transformer block 类。
+提供 get_block 工厂函数，根据 block_type 字符串返回对应的 Transformer block 类。
+
+已注册的 block 类型:
+    - "mmdit_window": MMWindowTransformerBlock，多模态窗口注意力 Transformer block。
 """
 
 from .mmdit_window_block import MMWindowTransformerBlock
@@ -25,7 +28,17 @@ dit_blocks = {
 
 
 def get_block(block_type: str):
-    """根据 block_type 名称返回 DIT transformer block 类。"""
+    """根据 block_type 名称返回 DiT Transformer block 类。
+
+    Args:
+        block_type (str): Block 类型名称，如 "mmdit_window"。
+
+    Returns:
+        Type[nn.Module]: 对应的 Transformer block 类（未实例化）。
+
+    Raises:
+        NotImplementedError: 不支持的 block 类型。
+    """
     if block_type in dit_blocks:
         return dit_blocks[block_type]
     raise NotImplementedError(f"{block_type} is not supported")

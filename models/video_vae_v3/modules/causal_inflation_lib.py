@@ -12,6 +12,23 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
+"""完整版膨胀因果3D卷积库。
+
+提供生产级的 InflatedCausalConv3d 实现，相比基础版增加了：
+1. 内存限制卷积（memory_limit_conv）：递归沿 H/W 维度分片计算大张量，避免 OOM。
+2. 序列并行支持（slicing_forward）：跨多GPU的环形缓存通信。
+3. 流式切片推理：沿时间维切片处理长视频，缓存跨片上下文。
+4. CPU 卸载：推理时将时序记忆卸载到 CPU 以节省 GPU 显存。
+5. GroupNorm 分块计算：大张量归一化时分通道计算，降低峰值显存。
+
+核心算法：
+- 因果卷积：时间维 kernel_size=3, stride=1 时，输出 t 帧仅依赖输入 t-2, t-1, t 帧；
+  首帧重复填充2次以确保第一帧输出有效。
+- 权重膨胀：2D预训练权重 [Cout,Cin,kH,kW] → 3D [Cout,Cin,kT,kH,kW]，
+  'tail' 模式仅在时间末位赋2D权重（初始等价于2D卷积看当前帧），
+  'replicate' 模式复制并平均（初始等价于时间维平均池化+2D卷积）。
+"""
+
 import math
 from contextlib import contextmanager
 from typing import List, Optional, Union
@@ -41,6 +58,17 @@ logger = get_logger(__name__)
 
 @contextmanager
 def ignore_padding(model):
+    """临时将卷积的padding设为(0,0,0)的上下文管理器。
+
+    在 memory_limit_conv 递归分片时，内部padding已手动处理，
+    需要临时禁用Conv3d自带的padding以避免双重填充。
+
+    Args:
+        model: nn.Conv3d 实例，将临时修改其 padding 属性。
+
+    Yields:
+        None: 进入上下文时 padding=(0,0,0)，退出时恢复原值。
+    """
     orig_padding = model.padding
     model.padding = (0, 0, 0)
     try:
@@ -50,6 +78,12 @@ def ignore_padding(model):
 
 
 class InflatedCausalConv3d(Conv3d):
+    """完整版膨胀因果3D卷积层。
+
+    支持内存限制分片、序列并行、流式推理和CPU卸载。
+    前向流程分为 basic_forward（简单模式）和 slicing_forward（分片/并行模式）。
+    """
+
     def __init__(
         self,
         *args,
@@ -57,6 +91,14 @@ class InflatedCausalConv3d(Conv3d):
         memory_device: _memory_device_t = "same",
         **kwargs,
     ):
+        """初始化完整版因果3D卷积层。
+
+        Args:
+            *args: 传递给 nn.Conv3d 的位置参数。
+            inflation_mode: 权重膨胀模式。
+            memory_device: 缓存设备，'cpu' 卸载到CPU，'same' 保留在GPU。
+            **kwargs: 传递给 nn.Conv3d 的关键字参数。
+        """
         self.inflation_mode = inflation_mode
         self.memory = None
         super().__init__(*args, **kwargs)
@@ -66,9 +108,21 @@ class InflatedCausalConv3d(Conv3d):
         self.memory_limit = float("inf")
 
     def set_memory_limit(self, value: float):
+        """设置单卷积的显存上限（GiB）。
+
+        超过该限制时，memory_limit_conv 会自动递归沿空间维度分片计算。
+
+        Args:
+            value: 显存限制（GiB），float('inf') 表示不分片。
+        """
         self.memory_limit = value
 
     def set_memory_device(self, memory_device: _memory_device_t):
+        """设置时序记忆缓存的存储设备。
+
+        Args:
+            memory_device: 'cpu' 卸载到CPU；'same' 保留在GPU。
+        """
         self.memory_device = memory_device
 
     def memory_limit_conv(
@@ -79,6 +133,25 @@ class InflatedCausalConv3d(Conv3d):
         padding=(0, 0, 0, 0, 0, 0),
         prev_cache=None,
     ):
+        """带显存限制的递归分卷积计算。
+
+        当输入+padding+缓存预估显存超过 memory_limit 时，沿 split_dim 维度
+        将输入切分为多块递归计算，每块内部再沿更高维度递归分片，直到显存
+        满足限制或到达最后一维（通道维不切分）。各块计算后拼接为完整输出。
+
+        分片策略：按预估显存比例计算切分数，等长切分（最后一块取余数）。
+        跨块边界处自动保存尾部 cache_len 个元素作为下一块的前缀缓存，
+        确保卷积在块边界处的正确性。
+
+        Args:
+            x: 输入张量 [B, C, T, H, W]。
+            split_dim: 当前递归切分维度（3=H, 4=W，初始从H开始）。
+            padding: 6维填充 (left,right,top,bottom,front,back) 展平为元组。
+            prev_cache: 来自前一块的前缀缓存，拼接到当前块前部。
+
+        Returns:
+            Tensor: 卷积输出，形状与不分片时一致。
+        """
         # Compatible with no limit.
         if math.isinf(self.memory_limit):
             if prev_cache is not None:
@@ -167,6 +240,17 @@ class InflatedCausalConv3d(Conv3d):
         input: Union[Tensor, List[Tensor]],
         memory_state: MemoryState = MemoryState.UNSET,
     ) -> Tensor:
+        """因果3D卷积前向入口。
+
+        根据配置选择 basic_forward 或 slicing_forward。
+
+        Args:
+            input: 输入张量 [B,C,T,H,W] 或张量列表（分片模式）。
+            memory_state: 记忆状态。
+
+        Returns:
+            Tensor: 卷积输出。
+        """
         assert memory_state != MemoryState.UNSET
         if memory_state != MemoryState.ACTIVE:
             self.memory = None
@@ -179,6 +263,17 @@ class InflatedCausalConv3d(Conv3d):
         return self.slicing_forward(input, memory_state)
 
     def basic_forward(self, input: Tensor, memory_state: MemoryState = MemoryState.UNSET):
+        """基础前向：无分片、无序列并行的简单因果卷积。
+
+        适用于小张量或单卡推理场景。
+
+        Args:
+            input: 输入张量 [B,C,T,H,W]。
+            memory_state: 记忆状态。
+
+        Returns:
+            Tensor: 卷积输出。
+        """
         mem_size = self.stride[0] - self.kernel_size[0]
         if (self.memory is not None) and (memory_state == MemoryState.ACTIVE):
             input = extend_head(input, memory=self.memory, times=-1)
@@ -204,6 +299,21 @@ class InflatedCausalConv3d(Conv3d):
         input: Union[Tensor, List[Tensor]],
         memory_state: MemoryState = MemoryState.UNSET,
     ) -> Tensor:
+        """分片前向：支持序列并行和流式切片推理。
+
+        流程：
+        1. 通过 cache_send_recv 在相邻GPU间传递时序缓存（序列并行模式）。
+        2. 沿时间维将输入切成多个切片，逐片调用 memory_limit_conv。
+        3. 维护跨片缓存 cache，拼接到下一片输入前部以保持卷积连续性。
+        4. 首尾GPU维护流式记忆 self.memory，支持超长视频的流式处理。
+
+        Args:
+            input: 输入张量或张量列表。
+            memory_state: 记忆状态。
+
+        Returns:
+            Tensor: 拼接后的卷积输出。
+        """
         squeeze_out = False
         if torch.is_tensor(input):
             input = [input]
@@ -281,6 +391,18 @@ class InflatedCausalConv3d(Conv3d):
         return input[0] if squeeze_out else input
 
     def tflops(self, args, kwargs, output) -> float:
+        """估计该卷积层的 TFLOPs。
+
+        公式：2 * Kt*Kh*Kw * Cin * Numel_out / 1e12。
+
+        Args:
+            args: 前向调用位置参数（未使用）。
+            kwargs: 前向调用关键字参数（未使用）。
+            output: 前向输出张量。
+
+        Returns:
+            float: 浮点运算量（百万次）。
+        """
         if torch.is_tensor(output):
             output_numel = output.numel()
         elif isinstance(output, list):
@@ -292,6 +414,7 @@ class InflatedCausalConv3d(Conv3d):
     def _load_from_state_dict(
         self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs
     ):
+        """加载state_dict时自动膨胀2D权重到3D（完整版）。"""
         if self.inflation_mode != "none":
             state_dict = modify_state_dict(
                 self,
@@ -316,18 +439,36 @@ def init_causal_conv3d(
     inflation_mode: _inflation_mode_t,
     **kwargs,
 ):
-    """
-    Initialize a Causal-3D convolution layer.
-    Parameters:
-        inflation_mode: Listed as below. It's compatible with all the 3D-VAE checkpoints we have.
-            - none: No inflation will be conducted.
-                    The loading logic of state dict will fall back to default.
-            - tail / replicate: Refer to the definition of `InflatedCausalConv3d`.
+    """初始化完整版因果3D卷积层。
+
+    Args:
+        *args: 位置参数。
+        inflation_mode: 膨胀模式：
+            - 'none': 不膨胀（原生3D权重）。
+            - 'tail': 2D权重放在时间核尾部（初始仅看当前帧）。
+            - 'replicate': 2D权重复制到时间核并平均（初始等价于时间平均+2D卷积）。
+        **kwargs: 关键字参数。
+
+    Returns:
+        InflatedCausalConv3d: 因果3D卷积层实例。
     """
     return InflatedCausalConv3d(*args, inflation_mode=inflation_mode, **kwargs)
 
 
 def causal_norm_wrapper(norm_layer: nn.Module, x: torch.Tensor) -> torch.Tensor:
+    """完整版因果归一化包装器，支持大张量分块GroupNorm。
+
+    相比基础版增加了：当GroupNorm处理的(B*T, C, H, W)张量超过全局norm_limit时，
+    按通道维度分成2或4块独立计算GroupNorm后拼接，避免大显存峰值。
+    fp16时分2块，fp32时分4块。
+
+    Args:
+        norm_layer: 归一化层。
+        x: 输入张量 4D 或 5D。
+
+    Returns:
+        torch.Tensor: 归一化结果。
+    """
     input_dtype = x.dtype
     if isinstance(norm_layer, (nn.LayerNorm, RMSNorm)):
         if x.ndim == 4:
@@ -368,8 +509,17 @@ def causal_norm_wrapper(norm_layer: nn.Module, x: torch.Tensor) -> torch.Tensor:
 
 
 def remove_head(tensor: Tensor, times: int = 1) -> Tensor:
-    """
-    Remove duplicated first frame features in the up-sampling process.
+    """移除上采样过程中重复的首帧特征。
+
+    时序上采样（pixel shuffle式）会在时间维产生重复首帧，此函数裁剪多余帧。
+    序列并行模式下，非首rank（sp_rank>0）不做裁剪（无重复首帧问题）。
+
+    Args:
+        tensor: 输入 [B,C,T,H,W]。
+        times: 重复帧数。
+
+    Returns:
+        Tensor: 裁剪后的张量。
     """
     sp_rank = get_sequence_parallel_rank()
     if times == 0 or sp_rank > 0:
@@ -378,11 +528,19 @@ def remove_head(tensor: Tensor, times: int = 1) -> Tensor:
 
 
 def extend_head(tensor: Tensor, times: int = 2, memory: Optional[Tensor] = None) -> Tensor:
-    """
-    When memory is None:
-        - Duplicate first frame features in the down-sampling process.
-    When memory is not None:
-        - Concatenate memory features with the input features to keep temporal consistency.
+    """在因果卷积前扩展输入的时序头部。
+
+    - memory 不为 None：拼接前序缓存帧（流式推理）。
+    - times > 0：重复首帧 times 次作为因果填充（首次推理或非流式）。
+    - times = -1：使用memory但不重复首帧（内部状态）。
+
+    Args:
+        tensor: 输入 [B,C,T,H,W]。
+        times: 首帧重复次数，默认2（对应kernel_t=3的因果填充）。
+        memory: 前序缓存帧。
+
+    Returns:
+        Tensor: 扩展后的输入。
     """
     if memory is not None:
         return torch.cat((memory.to(tensor), tensor), dim=2)
@@ -396,12 +554,17 @@ def extend_head(tensor: Tensor, times: int = 2, memory: Optional[Tensor] = None)
 
 
 def inflate_weight(weight_2d: torch.Tensor, weight_3d: torch.Tensor, inflation_mode: str):
-    """
-    Inflate a 2D convolution weight matrix to a 3D one.
-    Parameters:
-        weight_2d:      The weight matrix of 2D conv to be inflated.
-        weight_3d:      The weight matrix of 3D conv to be initialized.
-        inflation_mode: the mode of inflation
+    """完整版权重膨胀函数。
+
+    与 inflated_lib 版本的区别：膨胀模式名称使用 'tail' 而非 'constant'。
+
+    Args:
+        weight_2d: 2D权重 [Cout,Cin,kH,kW]。
+        weight_3d: 3D权重 [Cout,Cin,kT,kH,kW]。
+        inflation_mode: 'replicate' 或 'tail'。
+
+    Returns:
+        torch.Tensor: 膨胀后的3D权重。
     """
     assert inflation_mode in ["tail", "replicate"]
     assert weight_3d.shape[:2] == weight_2d.shape[:2]
@@ -416,12 +579,15 @@ def inflate_weight(weight_2d: torch.Tensor, weight_3d: torch.Tensor, inflation_m
 
 
 def inflate_bias(bias_2d: torch.Tensor, bias_3d: torch.Tensor, inflation_mode: str):
-    """
-    Inflate a 2D convolution bias tensor to a 3D one
-    Parameters:
-        bias_2d:        The bias tensor of 2D conv to be inflated.
-        bias_3d:        The bias tensor of 3D conv to be initialized.
-        inflation_mode: Placeholder to align `inflate_weight`.
+    """偏置膨胀函数，直接复制2D偏置到3D。
+
+    Args:
+        bias_2d: 2D偏置 [Cout]。
+        bias_3d: 3D偏置 [Cout]。
+        inflation_mode: 膨胀模式占位符。
+
+    Returns:
+        torch.Tensor: 3D偏置。
     """
     assert bias_3d.shape == bias_2d.shape
     with torch.no_grad():
@@ -430,8 +596,17 @@ def inflate_bias(bias_2d: torch.Tensor, bias_3d: torch.Tensor, inflation_mode: s
 
 
 def modify_state_dict(layer, state_dict, prefix, inflate_weight_fn, inflate_bias_fn):
-    """
-    the main function to inflated 2D parameters to 3D.
+    """完整版state_dict修改函数，2D→3D权重自动膨胀。
+
+    Args:
+        layer: 目标层（需有inflation_mode属性）。
+        state_dict: 待加载的state_dict。
+        prefix: 参数前缀。
+        inflate_weight_fn: 权重膨胀函数。
+        inflate_bias_fn: 偏置膨胀函数。
+
+    Returns:
+        dict: 修改后的state_dict。
     """
     weight_name = prefix + "weight"
     bias_name = prefix + "bias"

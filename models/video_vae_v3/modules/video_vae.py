@@ -9,6 +9,34 @@
 #
 # This modified file is released under the same license.
 
+"""Causal Video VAE 主模型实现。
+
+实现基于 3D 因果卷积的视频变分自编码器（VideoAutoencoderKL），架构参考 Stable Diffusion VAE
+并扩展到时序维度。核心特点：
+
+架构设计：
+- Encoder3D: 4个下采样块（每个含2个ResnetBlock3D），后3个同时进行时序2x下采样 + 空间2x下采样，
+  中间 UNetMidBlock3D（无注意力），输出高斯分布参数（μ, logσ²）。
+- Decoder3D: 对称结构，中间块 + 4个上采样块（pixel shuffle式上采样），前3个同时时序上采样。
+- ResnetBlock3D: 两卷积残差块，GroupNorm + SiLU，使用因果3D卷积。
+- Upsample3D: 1x1 Conv3d 通道扩展 + pixel shuffle 重排实现上采样，identity初始化保持恒等映射。
+- Downsample3D: 步长为2的因果3D卷积下采样，右下角补零对齐。
+
+关键特性：
+1. 因果卷积（Causal Conv）：时间维不使用未来帧信息，支持流式/在线推理。
+2. 权重膨胀（Weight Inflation）：可从2D图像VAE checkpoint加载，自动膨胀到3D。
+3. 选择性梯度检查点（Selective Checkpointing）：coarse块级/fine模块级梯度检查点节省训练显存。
+4. 时序切片推理（Temporal Slicing）：长视频沿时间维切片处理，缓存跨片上下文。
+5. 空间分块推理（Spatial Tiling）：大分辨率视频分空间tile处理，余弦窗渐变融合。
+6. 内存限制卷积：递归沿空间维度分片卷积计算，避免大激活值OOM。
+7. 序列并行（Context Parallel）：多GPU分布时序维度，环形通信传递缓存。
+8. CPU卸载：推理时将时序记忆卸载到CPU。
+
+VAE 潜变量空间：
+- 默认配置 (s8_c16_t4): 空间压缩 16x (8x8)，时序压缩 8x，通道数 16。
+- 输入视频 [B,3,T,H,W] → 潜变量 [B,16,T/8,H/8,W/8]。
+"""
+
 from contextlib import nullcontext
 from typing import Optional, Tuple, Literal, Callable, Union
 
@@ -45,20 +73,33 @@ from models.video_vae_v3.modules.types import (
 
 logger = get_logger(__name__)  # pylint: disable=invalid-name
 
-# Fake func, no checkpointing is required for inference
+
 def gradient_checkpointing(module: Union[Callable, nn.Module], *args, enabled: bool, **kwargs):
+    """梯度检查点包装函数（推理时直接执行，不重计算）。
+
+    训练时若 enabled=True 使用 torch 梯度检查点节省显存；推理时直接前向。
+
+    Args:
+        module: 要执行的模块或函数。
+        *args: 传递给 module 的位置参数。
+        enabled: 是否启用梯度检查点。
+        **kwargs: 传递给 module 的关键字参数。
+
+    Returns:
+        module(*args, **kwargs) 的输出。
+    """
     return module(*args, **kwargs)
 
+
 class ResnetBlock2D(nn.Module):
-    r"""
-    A Resnet block.
+    r"""2D 残差块（用于构建 ResnetBlock3D 的基类）。
+
+    标准 Pre-Norm 残差块：GroupNorm → SiLU → Conv → GroupNorm → SiLU → Dropout → Conv + Shortcut。
 
     Parameters:
-        in_channels (`int`): The number of channels in the input.
-        out_channels (`int`, *optional*, default to be `None`):
-            The number of output channels for the first conv2d layer.
-            If None, same as `in_channels`.
-        dropout (`float`, *optional*, defaults to `0.0`): The dropout probability to use.
+        in_channels: 输入通道数。
+        out_channels: 输出通道数，默认与 in_channels 相同。
+        dropout: Dropout 概率。
     """
 
     def __init__(
@@ -93,6 +134,14 @@ class ResnetBlock2D(nn.Module):
             )
 
     def forward(self, input_tensor: torch.Tensor) -> torch.Tensor:
+        """2D残差块前向传播。
+
+        Args:
+            input_tensor: 输入 [B, C, H, W]。
+
+        Returns:
+            输出 [B, Cout, H, W]。
+        """
         hidden = input_tensor
 
         hidden = self.norm1(hidden)
@@ -111,8 +160,15 @@ class ResnetBlock2D(nn.Module):
 
         return output_tensor
 
+
 class Upsample3D(nn.Module):
-    """A 3D upsampling layer."""
+    """3D 上采样层（pixel shuffle 风格）。
+
+    使用 1x1 Conv3d 将通道数扩展 upscale_ratio 倍（spatial²*temporal），
+    然后通过 einops rearrange 重排为上采样后的时空分辨率。
+    权重初始化为identity矩阵，保证初始时上采样等价于最近邻插值。
+    后接 3x3 因果卷积平滑。
+    """
 
     def __init__(
         self,
@@ -122,6 +178,15 @@ class Upsample3D(nn.Module):
         spatial_up: bool = True,
         slicing: bool = False,
     ):
+        """初始化3D上采样层。
+
+        Args:
+            channels: 输入/输出通道数。
+            inflation_mode: 卷积权重膨胀模式。
+            temporal_up: 是否在时间维进行2x上采样。
+            spatial_up: 是否在空间维进行2x上采样。
+            slicing: 是否启用时序切片上采样（大分辨率时节省显存）。
+        """
         super().__init__()
         self.channels = channels
         self.conv = init_causal_conv3d(
@@ -163,6 +228,17 @@ class Upsample3D(nn.Module):
         hidden_states: torch.FloatTensor,
         memory_state: MemoryState,
     ) -> torch.FloatTensor:
+        """上采样前向实现。
+
+        流程：1x1 conv扩展通道 → pixel shuffle 重排 → （时序上采样时）移除重复首帧 → 3x3平滑卷积。
+
+        Args:
+            hidden_states: 输入 [B, C, T, H, W]。
+            memory_state: 因果记忆状态。
+
+        Returns:
+            上采样输出 [B, C, T*z, H*x, W*y]，其中 z=temporal_ratio, x/y=spatial_ratio。
+        """
         assert hidden_states.shape[1] == self.channels
 
         if self.slicing:
@@ -183,7 +259,6 @@ class Upsample3D(nn.Module):
                 z=self.temporal_ratio,
             )
 
-        # [Overridden] For causal temporal conv
         if self.temporal_up and memory_state != MemoryState.ACTIVE:
             hidden_states[0] = remove_head(hidden_states[0])
 
@@ -195,7 +270,11 @@ class Upsample3D(nn.Module):
 
 
 class Downsample3D(nn.Module):
-    """A 3D downsampling layer."""
+    """3D 下采样层（步长卷积）。
+
+    使用 (kT,3,3) 卷积核，步长 (sT,sH,sW)=(2,2,2) 进行时空下采样。
+    卷积前在右下角补零以对齐步长卷积的尺寸。
+    """
 
     def __init__(
         self,
@@ -204,6 +283,14 @@ class Downsample3D(nn.Module):
         temporal_down: bool = False,
         spatial_down: bool = True,
     ):
+        """初始化3D下采样层。
+
+        Args:
+            channels: 输入/输出通道数。
+            inflation_mode: 权重膨胀模式。
+            temporal_down: 是否在时间维2x下采样。
+            spatial_down: 是否在空间维2x下采样。
+        """
         super().__init__()
         self.channels = channels
         self.temporal_down = temporal_down
@@ -242,7 +329,17 @@ class Downsample3D(nn.Module):
         hidden_states: torch.FloatTensor,
         memory_state: MemoryState,
     ) -> torch.FloatTensor:
+        """下采样前向实现。
 
+        空间下采样时在右侧/底部补1个零 → 因果卷积（时间/空间步长2）。
+
+        Args:
+            hidden_states: 输入 [B, C, T, H, W]。
+            memory_state: 记忆状态。
+
+        Returns:
+            下采样输出 [B, C, T/sT, H/sH, W/sW]。
+        """
         assert hidden_states.shape[1] == self.channels
 
         if self.spatial_down:
@@ -253,6 +350,13 @@ class Downsample3D(nn.Module):
 
 
 class ResnetBlock3D(ResnetBlock2D):
+    """3D 残差块，使用因果3D卷积。
+
+    在 ResnetBlock2D 基础上将 conv1/conv2/conv_shortcut 替换为 InflatedCausalConv3d。
+    支持配置时间感受野：'half' 对应第二卷积核 (1,3,3)（仅空间），
+    'full' 对应 (3,3,3)（时空）。
+    """
+
     def __init__(
         self,
         *args,
@@ -260,6 +364,14 @@ class ResnetBlock3D(ResnetBlock2D):
         time_receptive_field: _receptive_field_t = "half",
         **kwargs,
     ):
+        """初始化3D残差块。
+
+        Args:
+            *args: 传递给 ResnetBlock2D 的参数。
+            inflation_mode: 卷积权重膨胀模式。
+            time_receptive_field: 时间感受野类型。
+            **kwargs: 传递给 ResnetBlock2D 的参数。
+        """
         super().__init__(*args, **kwargs)
         self.conv1 = init_causal_conv3d(
             self.in_channels,
@@ -302,6 +414,18 @@ class ResnetBlock3D(ResnetBlock2D):
     def custom_forward(
         self, input_tensor: torch.Tensor, memory_state: MemoryState = MemoryState.UNSET
     ):
+        """3D残差块前向实现。
+
+        流程：GN → SiLU → CausalConv3d → GN → SiLU → Dropout → CausalConv3d + Shortcut。
+        使用 causal_norm_wrapper 处理 GroupNorm 的5D张量维度。
+
+        Args:
+            input_tensor: 输入 [B, C, T, H, W]。
+            memory_state: 因果记忆状态。
+
+        Returns:
+            输出 [B, Cout, T, H, W]。
+        """
         assert memory_state != MemoryState.UNSET
         hidden_states = input_tensor
 
@@ -323,6 +447,12 @@ class ResnetBlock3D(ResnetBlock2D):
 
 
 class DownEncoderBlock3D(nn.Module):
+    """3D 编码器下采样块。
+
+    由 num_layers 个 ResnetBlock3D 加一个可选的 Downsample3D 组成。
+    支持配置是否在该块进行时序下采样。
+    """
+
     def __init__(
         self,
         in_channels: int,
@@ -335,6 +465,19 @@ class DownEncoderBlock3D(nn.Module):
         temporal_down: bool = True,
         spatial_down: bool = True,
     ):
+        """初始化下采样块。
+
+        Args:
+            in_channels: 输入通道。
+            out_channels: 输出通道。
+            dropout: Dropout率。
+            num_layers: 残差块数量。
+            add_downsample: 是否在末尾添加下采样层。
+            inflation_mode: 权重膨胀模式。
+            time_receptive_field: 时间感受野。
+            temporal_down: 是否在该块进行时序2x下采样。
+            spatial_down: 是否在该块进行空间2x下采样。
+        """
         super().__init__()
         resnets = []
 
@@ -354,7 +497,6 @@ class DownEncoderBlock3D(nn.Module):
 
         self.downsamplers = None
         if add_downsample:
-            # Todo: Refactor this line before V5 Image VAE Training.
             self.downsamplers = nn.ModuleList(
                 [
                     Downsample3D(
@@ -369,6 +511,17 @@ class DownEncoderBlock3D(nn.Module):
     def forward(
         self, hidden_states: torch.FloatTensor, memory_state: MemoryState
     ) -> torch.FloatTensor:
+        """下采样块前向。
+
+        依次通过所有残差块，然后通过下采样层（如果有）。
+
+        Args:
+            hidden_states: 输入 [B, C, T, H, W]。
+            memory_state: 记忆状态。
+
+        Returns:
+            输出（可能下采样）的特征图。
+        """
         for resnet in self.resnets:
             hidden_states = resnet(hidden_states, memory_state=memory_state)
 
@@ -380,6 +533,12 @@ class DownEncoderBlock3D(nn.Module):
 
 
 class UpDecoderBlock3D(nn.Module):
+    """3D 解码器上采样块。
+
+    由 num_layers 个 ResnetBlock3D 加一个可选的 Upsample3D 组成。
+    支持时序/空间独立控制上采样，以及切片上采样。
+    """
+
     def __init__(
         self,
         in_channels: int,
@@ -393,6 +552,20 @@ class UpDecoderBlock3D(nn.Module):
         spatial_up: bool = True,
         slicing: bool = False,
     ):
+        """初始化上采样块。
+
+        Args:
+            in_channels: 输入通道。
+            out_channels: 输出通道。
+            dropout: Dropout率。
+            num_layers: 残差块数量。
+            add_upsample: 是否添加上采样层。
+            inflation_mode: 权重膨胀模式。
+            time_receptive_field: 时间感受野。
+            temporal_up: 是否时序2x上采样。
+            spatial_up: 是否空间2x上采样。
+            slicing: 是否启用切片上采样。
+        """
         super().__init__()
         resnets = []
 
@@ -412,7 +585,6 @@ class UpDecoderBlock3D(nn.Module):
         self.resnets = nn.ModuleList(resnets)
 
         self.upsamplers = None
-        # Todo: Refactor this line before V5 Image VAE Training.
         if add_upsample:
             self.upsamplers = nn.ModuleList(
                 [
@@ -429,6 +601,7 @@ class UpDecoderBlock3D(nn.Module):
     def forward(
         self, hidden_states: torch.FloatTensor, memory_state: MemoryState
     ) -> torch.FloatTensor:
+        """上采样块前向。"""
         for resnet in self.resnets:
             hidden_states = resnet(hidden_states, memory_state=memory_state)
 
@@ -440,6 +613,11 @@ class UpDecoderBlock3D(nn.Module):
 
 
 class UNetMidBlock3D(nn.Module):
+    """U-Net 中间块（瓶颈层），由两个 ResnetBlock3D 组成。
+
+    该版本无自注意力层（与 attn_video_vae.py 中带注意力的版本不同）。
+    """
+
     def __init__(
         self,
         channels: int,
@@ -468,15 +646,17 @@ class UNetMidBlock3D(nn.Module):
         )
 
     def forward(self, hidden_states: torch.Tensor, memory_state: MemoryState):
+        """中间块前向：两个残差块顺序处理。"""
         for resnet in self.resnets:
             hidden_states = resnet(hidden_states, memory_state)
         return hidden_states
 
 
 class Encoder3D(nn.Module):
-    r"""
-    The `Encoder` layer of a variational autoencoder that encodes
-    its input into a latent representation.
+    r"""VAE 3D 编码器，将视频输入编码为潜变量高斯分布参数。
+
+    架构：Conv_in → [DownEncoderBlock3D × N] → UNetMidBlock3D → GroupNorm → SiLU → Conv_out
+    最后 conv_out 输出 2*latent_channels 通道（μ 和 logσ²）用于参数化对角高斯分布。
     """
 
     def __init__(
@@ -491,6 +671,19 @@ class Encoder3D(nn.Module):
         time_receptive_field: _receptive_field_t = "half",
         selective_checkpointing: Tuple[_selective_checkpointing_t] = ("none",),
     ):
+        """初始化3D编码器。
+
+        Args:
+            in_channels: 输入通道数（视频为3）。
+            out_channels: 潜变量通道数。
+            block_out_channels: 各下采样块的输出通道元组。
+            layers_per_block: 每个块内残差层数。
+            double_z: 是否输出2倍通道（μ+logσ²）。
+            temporal_down_num: 从末尾数的前N个块进行时序下采样。
+            inflation_mode: 权重膨胀模式。
+            time_receptive_field: 时间感受野。
+            selective_checkpointing: 每个块的梯度检查点策略。
+        """
         super().__init__()
         self.layers_per_block = layers_per_block
 
@@ -514,7 +707,6 @@ class Encoder3D(nn.Module):
             output_channel = block_out_channels[i]
             is_final_block = i == len(block_out_channels) - 1
             is_temporal_down_block = i >= len(block_out_channels) - self.temporal_down_num - 1
-            # Note: take the last one
 
             down_block = DownEncoderBlock3D(
                 num_layers=self.layers_per_block,
@@ -550,6 +742,12 @@ class Encoder3D(nn.Module):
         self.set_gradient_checkpointing(selective_checkpointing)
 
     def set_gradient_checkpointing(self, checkpointing_types):
+        """设置选择性梯度检查点策略。
+
+        Args:
+            checkpointing_types: 每个下采样块的检查点类型列表，
+                'coarse'=块级检查点，'fine'=模块级检查点，其他=禁用。
+        """
         gradient_checkpointing = []
         for down_block, sac_type in zip(self.down_blocks, checkpointing_types):
             if sac_type == "coarse":
@@ -566,7 +764,15 @@ class Encoder3D(nn.Module):
         logger.info(f"[Encoder3D] gradient_checkpointing: {checkpointing_types}")
 
     def forward(self, sample: torch.FloatTensor, memory_state: MemoryState) -> torch.FloatTensor:
-        r"""The forward method of the `Encoder` class."""
+        r"""编码器前向传播。
+
+        Args:
+            sample: 输入视频 [B, C, T, H, W]。
+            memory_state: 因果记忆状态。
+
+        Returns:
+            潜变量分布参数 [B, 2*latent_channels, T_lat, H_lat, W_lat]。
+        """
         sample = self.conv_in(sample, memory_state=memory_state)
         # down
         for down_block, sac in zip(self.down_blocks, self.gradient_checkpointing):
@@ -589,9 +795,10 @@ class Encoder3D(nn.Module):
 
 
 class Decoder3D(nn.Module):
-    r"""
-    The `Decoder` layer of a variational autoencoder that
-    decodes its latent representation into an output sample.
+    r"""VAE 3D 解码器，从潜变量重建视频。
+
+    架构：Conv_in → UNetMidBlock3D → [UpDecoderBlock3D × N] → GroupNorm → SiLU → Conv_out
+    与编码器对称，上采样使用 pixel shuffle + 因果卷积。
     """
 
     def __init__(
@@ -606,6 +813,19 @@ class Decoder3D(nn.Module):
         slicing_up_num: int = 0,
         selective_checkpointing: Tuple[_selective_checkpointing_t] = ("none",),
     ):
+        """初始化3D解码器。
+
+        Args:
+            in_channels: 潜变量通道数。
+            out_channels: 输出通道数（视频为3）。
+            block_out_channels: 各块通道数（编码器顺序）。
+            layers_per_block: 每块残差层数（上采样块+1）。
+            inflation_mode: 权重膨胀模式。
+            time_receptive_field: 时间感受野。
+            temporal_up_num: 前N个上采样块进行时序上采样。
+            slicing_up_num: 后N个上采样块启用切片模式。
+            selective_checkpointing: 梯度检查点策略。
+        """
         super().__init__()
         self.layers_per_block = layers_per_block
         self.temporal_up_num = temporal_up_num
@@ -638,7 +858,6 @@ class Decoder3D(nn.Module):
             is_final_block = i == len(block_out_channels) - 1
             is_temporal_up_block = i < self.temporal_up_num
             is_slicing_up_block = i >= len(block_out_channels) - slicing_up_num
-            # Note: Keep symmetric
 
             up_block = UpDecoderBlock3D(
                 num_layers=self.layers_per_block + 1,
@@ -665,6 +884,7 @@ class Decoder3D(nn.Module):
         self.set_gradient_checkpointing(selective_checkpointing)
 
     def set_gradient_checkpointing(self, checkpointing_types):
+        """设置解码器的选择性梯度检查点策略。"""
         gradient_checkpointing = []
         for up_block, sac_type in zip(self.up_blocks, checkpointing_types):
             if sac_type == "coarse":
@@ -681,8 +901,15 @@ class Decoder3D(nn.Module):
         logger.info(f"[Decoder3D] gradient_checkpointing: {checkpointing_types}")
 
     def forward(self, sample: torch.FloatTensor, memory_state: MemoryState) -> torch.FloatTensor:
-        r"""The forward method of the `Decoder` class."""
+        r"""解码器前向传播。
 
+        Args:
+            sample: 潜变量 [B, latent_channels, T_lat, H_lat, W_lat]。
+            memory_state: 因果记忆状态。
+
+        Returns:
+            重建视频 [B, C, T, H, W]。
+        """
         sample = self.conv_in(sample, memory_state=memory_state)
 
         # middle
@@ -706,10 +933,20 @@ class Decoder3D(nn.Module):
 
 
 class VideoAutoencoderKL(nn.Module):
-    """基于 3D 因果卷积的视频变分自编码器。
+    """基于 3D 因果卷积的视频变分自编码器（VAE）。
 
-    支持时序/空间下采样、序列切片编码解码、内存限制控制等功能。
+    封装 Encoder3D + quant_conv + Decoder3D + post_quant_conv，
+    提供 encode/decode、时序切片推理、空间分块推理、流式处理等高层接口。
+    默认配置 (s8_c16_t4)：空间压缩16x、时序压缩8x、潜变量16通道。
+
+    Attributes:
+        spatial_downsample_factor: 空间下采样总因子。
+        temporal_downsample_factor: 时序下采样总因子。
+        use_slicing: 是否启用时序切片推理。
+        slicing_sample_min_size: 切片编码的最小时序长度。
+        slicing_latent_min_size: 切片解码的最小时序长度。
     """
+
     def __init__(
         self,
         in_channels: int = 3,
@@ -730,6 +967,27 @@ class VideoAutoencoderKL(nn.Module):
         temporal_downsample_factor: int = 8,
         freeze_encoder: bool = False,
     ):
+        """初始化 VideoAutoencoderKL。
+
+        Args:
+            in_channels: 输入视频通道数。
+            out_channels: 输出视频通道数。
+            block_out_channels: 各层通道配置。
+            layers_per_block: 每块残差层数。
+            latent_channels: 潜变量通道数。
+            use_quant_conv: 编码器后是否用 1x1 conv 处理后验参数。
+            use_post_quant_conv: 解码器前是否用 1x1 conv 处理潜变量。
+            enc_selective_checkpointing: 编码器梯度检查点配置。
+            dec_selective_checkpointing: 解码器梯度检查点配置。
+            temporal_scale_num: 时序下/上采样块数量。
+            slicing_up_num: 切片上采样块数量。
+            inflation_mode: 权重膨胀模式。
+            time_receptive_field: 时间感受野类型。
+            slicing_sample_min_size: 时序切片最小长度。
+            spatial_downsample_factor: 空间下采样因子。
+            temporal_downsample_factor: 时序下采样因子。
+            freeze_encoder: 是否冻结编码器（torch.no_grad）。
+        """
         super().__init__()
         self.spatial_downsample_factor = spatial_downsample_factor
         self.temporal_downsample_factor = temporal_downsample_factor
@@ -739,7 +997,6 @@ class VideoAutoencoderKL(nn.Module):
         self.slicing_sample_min_size = slicing_sample_min_size
         self.slicing_latent_min_size = slicing_sample_min_size // (2**temporal_scale_num)
 
-        # pass init params to Encoder
         self.encoder = Encoder3D(
             in_channels=in_channels,
             out_channels=latent_channels,
@@ -752,13 +1009,11 @@ class VideoAutoencoderKL(nn.Module):
             time_receptive_field=time_receptive_field,
         )
 
-        # pass init params to Decoder
         self.decoder = Decoder3D(
             in_channels=latent_channels,
             out_channels=out_channels,
             block_out_channels=block_out_channels,
             layers_per_block=layers_per_block,
-            # [Override] add temporal_up_num parameter
             temporal_up_num=temporal_scale_num,
             slicing_up_num=slicing_up_num,
             selective_checkpointing=dec_selective_checkpointing,
@@ -790,12 +1045,22 @@ class VideoAutoencoderKL(nn.Module):
         self.use_slicing = False
 
     def enable_slicing(self):
+        """启用时序切片推理，处理长视频避免OOM。"""
         self.use_slicing = True
 
     def disable_slicing(self):
+        """禁用时序切片推理。"""
         self.use_slicing = False
 
     def encode(self, x: torch.FloatTensor) -> CausalEncoderOutput:
+        """编码视频为潜变量。
+
+        Args:
+            x: 输入视频 [B,C,T,H,W] 或 [B,C,H,W]（单帧）。
+
+        Returns:
+            CausalEncoderOutput(latent, posterior)，latent 为采样的潜变量，posterior 为后验分布。
+        """
         if x.ndim == 4:
             x = x.unsqueeze(2)
         h = self.slicing_encode(x)
@@ -804,12 +1069,24 @@ class VideoAutoencoderKL(nn.Module):
         return CausalEncoderOutput(z, p)
 
     def decode(self, z: torch.FloatTensor) -> CausalDecoderOutput:
+        """解码潜变量为视频。
+
+        Args:
+            z: 潜变量 [B,C,T_lat,H_lat,W_lat] 或 [B,C,H_lat,W_lat]。
+
+        Returns:
+            CausalDecoderOutput(sample)，sample 为重建视频。
+        """
         if z.ndim == 4:
             z = z.unsqueeze(2)
         x = self.slicing_decode(z)
         return CausalDecoderOutput(x)
 
     def _encode(self, x: torch.Tensor, memory_state: MemoryState) -> torch.Tensor:
+        """单切片编码内部方法。
+
+        序列并行切分 → encoder → quant_conv → 序列并行聚合。
+        """
         x = causal_conv_slice_inputs(x, self.slicing_sample_min_size, memory_state=memory_state)
         h = self.encoder(x, memory_state=memory_state)
         h = self.quant_conv(h, memory_state=memory_state) if self.quant_conv is not None else h
@@ -817,6 +1094,10 @@ class VideoAutoencoderKL(nn.Module):
         return h
 
     def _decode(self, z: torch.Tensor, memory_state: MemoryState) -> torch.Tensor:
+        """单切片解码内部方法。
+
+        序列并行切分 → post_quant_conv → decoder → 序列并行聚合。
+        """
         z = causal_conv_slice_inputs(z, self.slicing_latent_min_size, memory_state=memory_state)
         z = (
             self.post_quant_conv(z, memory_state=memory_state)
@@ -828,6 +1109,19 @@ class VideoAutoencoderKL(nn.Module):
         return x
 
     def slicing_encode(self, x: torch.Tensor) -> torch.Tensor:
+        """时序切片编码。
+
+        当视频长度超过 slicing_sample_min_size * sp_size 时，沿时间维切片：
+        - 第一片：首帧+第一个切片（INITIALIZING状态，重复首帧填充）。
+        - 后续片：仅当前切片（ACTIVE状态，使用memory缓存前序帧）。
+        - 否则：直接编码（DISABLED状态）。
+
+        Args:
+            x: 输入视频 [B,C,T,H,W]。
+
+        Returns:
+            编码结果 [B,2*latent_channels,T_lat,H_lat,W_lat]。
+        """
         sp_size = get_sequence_parallel_world_size()
         if self.use_slicing and (x.shape[2] - 1) > self.slicing_sample_min_size * sp_size:
             x_slices = x[:, :, 1:].split(split_size=self.slicing_sample_min_size * sp_size, dim=2)
@@ -846,6 +1140,14 @@ class VideoAutoencoderKL(nn.Module):
             return self._encode(x, memory_state=MemoryState.DISABLED)
 
     def slicing_decode(self, z: torch.Tensor) -> torch.Tensor:
+        """时序切片解码，与 slicing_encode 对称。
+
+        Args:
+            z: 潜变量 [B,C,T_lat,H_lat,W_lat]。
+
+        Returns:
+            重建视频 [B,C,T,H,W]。
+        """
         sp_size = get_sequence_parallel_world_size()
         if self.use_slicing and (z.shape[2] - 1) > self.slicing_latent_min_size * sp_size:
             z_slices = z[:, :, 1:].split(split_size=self.slicing_latent_min_size * sp_size, dim=2)
@@ -864,18 +1166,33 @@ class VideoAutoencoderKL(nn.Module):
             return self._decode(z, memory_state=MemoryState.DISABLED)
 
     def forward(self, x: torch.FloatTensor) -> CausalAutoencoderOutput:
+        """VAE 前向：编码 → 采样 → 解码（端到端重建）。
+
+        Args:
+            x: 输入视频。
+
+        Returns:
+            CausalAutoencoderOutput(sample, latent, posterior)。
+        """
         with torch.no_grad() if self.freeze_encoder else nullcontext():
             z, p = self.encode(x)
         x = self.decode(z).sample
         return CausalAutoencoderOutput(x, z, p)
 
     def preprocess(self, x: torch.Tensor):
-        # x should in [B, C, T, H, W], [B, C, H, W]
+        """输入预处理，验证时序长度约束。
+
+        Args:
+            x: 输入 [B,C,T,H,W] 或 [B,C,H,W]。
+
+        Returns:
+            输入张量（验证后）。
+        """
         assert x.ndim == 4 or x.size(2) % self.temporal_downsample_factor == 1
         return x
 
     def postprocess(self, x: torch.Tensor):
-        # x should in [B, C, T, H, W], [B, C, H, W]
+        """输出后处理（占位）。"""
         return x
 
     def set_causal_slicing(
@@ -884,6 +1201,12 @@ class VideoAutoencoderKL(nn.Module):
         split_size: Optional[int],
         memory_device: _memory_device_t,
     ):
+        """配置因果切片推理参数。
+
+        Args:
+            split_size: 时间维切片大小，None 禁用切片。
+            memory_device: 记忆缓存设备（None时split_size也必须为None）。
+        """
         assert (
             split_size is None or memory_device is not None
         ), "if split_size is set, memory_device must not be None."
@@ -898,6 +1221,12 @@ class VideoAutoencoderKL(nn.Module):
                 module.set_memory_device(memory_device)
 
     def set_memory_limit(self, conv_max_mem: Optional[float], norm_max_mem: Optional[float]):
+        """设置卷积和归一化的显存限制。
+
+        Args:
+            conv_max_mem: 单卷积最大显存（GiB），None 表示无限制。
+            norm_max_mem: GroupNorm 分片阈值（GiB），None 表示无限制。
+        """
         set_norm_limit(norm_max_mem)
         for m in self.modules():
             if isinstance(m, InflatedCausalConv3d):
@@ -905,7 +1234,11 @@ class VideoAutoencoderKL(nn.Module):
 
 
 class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
-    """VideoAutoencoderKL 的简化包装器，提供适配外部调用的 encode/decode 接口。"""
+    """VideoAutoencoderKL 的简化包装器，提供适配外部调用的 encode/decode 接口。
+
+    处理4D/5D张量自动转换，squeeze/unsqueeze时间维度。
+    """
+
     def __init__(
         self, *args, spatial_downsample_factor: int, temporal_downsample_factor: int, **kwargs
     ):
@@ -932,12 +1265,10 @@ class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
         return CausalDecoderOutput(x, None)
 
     def preprocess(self, x):
-        # x should in [B, C, T, H, W], [B, C, H, W]
         assert x.ndim == 4 or x.size(2) % 4 == 1
         return x
 
     def postprocess(self, x):
-        # x should in [B, C, T, H, W], [B, C, H, W]
         return x
 
     def set_causal_slicing(

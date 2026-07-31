@@ -12,9 +12,13 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
-"""NaDiT v2 transformer block 注册表。
+"""NaDiT v2 Transformer Block 注册表。
 
-提供 get_nablock 函数，根据 block_type 名称返回对应的 transformer block 类。
+提供 get_nablock 工厂函数，根据 block_type 字符串返回对应的 NaDiT v2 Transformer block 类。
+
+已注册的 block 类型:
+    - "mmdit_sr": NaMMSRTransformerBlock，多模态 Swin 风格变长窗口注意力 block，
+      支持共享/独立权重、vid-only 最后层、多模态 RoPE。
 """
 
 from .mmsr_block import NaMMSRTransformerBlock
@@ -26,7 +30,17 @@ nadit_blocks = {
 
 
 def get_nablock(block_type: str):
-    """根据 block_type 名称返回 NaDiT v2 transformer block 类。"""
+    """根据 block_type 名称返回 NaDiT v2 Transformer block 类。
+
+    Args:
+        block_type (str): Block 类型名称，目前支持 "mmdit_sr"。
+
+    Returns:
+        Type[nn.Module]: 对应的 Transformer block 类（未实例化）。
+
+    Raises:
+        NotImplementedError: 不支持的 block 类型。
+    """
     if block_type in nadit_blocks:
         return nadit_blocks[block_type]
     raise NotImplementedError(f"{block_type} is not supported")

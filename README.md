@@ -1,10 +1,10 @@
-# Klar
+﻿# SeedVR2
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue?style=for-the-badge) ![License](https://img.shields.io/badge/license-Apache%202.0-green?style=for-the-badge) ![Python](https://img.shields.io/badge/python-3.12+-yellow?style=for-the-badge&logo=python&logoColor=white) ![GPU](https://img.shields.io/badge/GPU-NVIDIA%20CUDA-76B900?style=for-the-badge&logo=nvidia&logoColor=white) ![Models](https://img.shields.io/badge/model-3B%20%7C%207B%20%7C%207B--Sharp-ff69b4?style=for-the-badge)
 
 **基于 SeedVR2 扩散模型的视频与图像超分辨率修复工具箱 — 独立运行的 Web UI，一键修复，无需 ComfyUI**
 
-> **Klar** — A standalone video & image super-resolution toolkit powered by SeedVR2 diffusion models. One-click restoration via Web UI, no ComfyUI dependency required.
+> **SeedVR2** — A standalone video & image super-resolution toolkit powered by SeedVR2 diffusion models. One-click restoration via Web UI, no ComfyUI dependency required.
 
 ---
 
@@ -87,7 +87,7 @@ docker run --gpus all -p 7870:7870 seedvr2
 ## 项目结构
 
 ```
-Klar/
+SeedVR2/
 ├── bin/                        # 应用入口与主程序
 │   ├── clean_launch.py         # 启动清理脚本
 │   └── integrated_app/         # 核心应用

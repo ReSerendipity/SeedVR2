@@ -1,5 +1,16 @@
-#!/usr/bin/env python3
-"""WinPython 环境检测与自动下载脚本"""
+﻿#!/usr/bin/env python3
+"""SeedVR2 WinPython 环境检测与自动安装脚本。
+
+本模块用于在 Windows 平台上检测、定位并自动下载配置 WinPython 便携 Python 环境，
+确保 SeedVR2 项目使用独立的 Python 运行时，避免与系统 Python 环境冲突。
+同时完成项目依赖安装和必要目录结构创建。
+
+核心技术栈:
+    - Python 3.12+
+    - urllib.request (HTTP 下载)
+    - pathlib (路径处理)
+    - subprocess (pip 依赖安装)
+"""
 import os
 import sys
 import urllib.request
@@ -22,7 +33,17 @@ WINPYTHON_DOWNLOAD_URL = "https://github.com/winpython/winpython/releases/downlo
 
 
 def find_winpython() -> str:
-    """查找 WinPython Python 可执行文件"""
+    """查找 WinPython Python 可执行文件路径。
+
+    按优先级顺序搜索 WinPython 安装目录：
+    1. 检查预定义的已知目录名（支持 WPy64 和 WinPython64 两种目录结构）
+    2. 递归搜索项目根目录下所有 WPy64-* 和 WinPython* 开头的目录
+    3. 若未找到则回退到当前系统 Python 解释器
+
+    Returns:
+        str: Python 可执行文件的绝对路径。
+            找到 WinPython 时返回其 python.exe 路径，否则返回 sys.executable。
+    """
     # 1. 按优先级检查已知目录
     for wp_dir in WINPYTHON_DIRS:
         if wp_dir.exists():
@@ -58,12 +79,31 @@ def find_winpython() -> str:
 
 
 def is_winpython(python_path: str) -> bool:
-    """检查是否为 WinPython 环境"""
+    """检查指定路径是否为 WinPython 环境。
+
+    Args:
+        python_path: Python 可执行文件的路径字符串。
+
+    Returns:
+        bool: 如果路径中包含 "WinPython" 或 "WPy" 则返回 True，否则返回 False。
+    """
     return "WinPython" in python_path or "WPy" in python_path
 
 
 def download_winpython(target_dir: str = None) -> str:
-    """下载 WinPython"""
+    """下载 WinPython 安装包到指定目录。
+
+    若安装包已存在则直接返回路径，避免重复下载。下载失败时记录错误日志并提示用户手动下载。
+
+    Args:
+        target_dir: 安装包保存的目标目录路径。默认为 None 时使用 WINPYTHON_DIRS[0]。
+
+    Returns:
+        str: 下载成功时返回安装包的完整路径；下载失败时返回空字符串。
+
+    Raises:
+        OSError: 目标目录创建失败时可能抛出（由 os.makedirs 触发）。
+    """
     target_dir = target_dir or str(WINPYTHON_DIRS[0])
     os.makedirs(target_dir, exist_ok=True)
 
@@ -87,8 +127,18 @@ def download_winpython(target_dir: str = None) -> str:
         return ""
 
 
-def setup_environment():
-    """设置运行环境"""
+def setup_environment() -> None:
+    """设置 SeedVR2 项目运行环境。
+
+    执行以下初始化步骤：
+    1. 定位 Python 解释器并打印版本信息
+    2. 检测是否为 WinPython 环境
+    3. 若 requirements.txt 存在则自动安装项目依赖
+    4. 创建 data/uploads、outputs、logs、pretrained_models 等必要目录
+
+    Returns:
+        None
+    """
     python_path = find_winpython()
 
     print(f"Python 路径: {python_path}")

@@ -14,10 +14,25 @@
 
 """NaDiT v2 Patch 层工厂模块。
 
-提供 get_na_patch_layers 函数，根据 patch_type 返回对应的 NaPatchIn/NaPatchOut 类。
+提供 get_na_patch_layers 工厂函数，根据 patch_type 字符串返回对应的
+Patch 嵌入层 (NaPatchIn) 和 Patch 还原层 (NaPatchOut) 类。
+
+Patch 层负责将视频的 3D 网格特征转换为 Transformer 所需的一维 token 序列，
+以及将 Transformer 输出的 token 序列还原回 3D 网格特征。
 """
 
 def get_na_patch_layers(patch_type="v1"):
+    """根据 patch_type 返回 NaPatchIn 和 NaPatchOut 类。
+
+    Args:
+        patch_type (str): Patch 实现版本，目前仅支持 "v1"。
+
+    Returns:
+        Tuple[Type[nn.Module], Type[nn.Module]]: (NaPatchIn, NaPatchOut) 类元组。
+
+    Raises:
+        AssertionError: 不支持的 patch_type。
+    """
     assert patch_type in ["v1"]
     if patch_type == "v1":
         from .patch_v1 import NaPatchIn, NaPatchOut

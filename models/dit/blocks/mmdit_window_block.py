@@ -12,10 +12,30 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
-"""多模态窗口 Transformer block 模块。
+"""多模态窗口 Transformer Block 模块。
 
-提供 MMWindowAttention（窗口注意力）和 MMWindowTransformerBlock（完整 block）
-两个核心组件，支持视频/文本双分支处理。
+实现 MM-DiT (Multi-Modal Diffusion Transformer) 的窗口注意力版本：
+
+- **MMWindowAttention**: 多模态窗口注意力层，视频分支做窗口分区注意力，
+  文本分支做全局注意力，视频窗口内注意力同时关注同窗口的视频 token 和所有文本 token，
+  文本注意力则关注全部视频和文本 token。
+- **MMWindowTransformerBlock**: 完整的 Transformer block，包含
+  注意力子层 + MLP 子层 + AdaLN-Zero 自适应调制 + 残差连接。
+
+MM-DiT 注意力模式:
+    MM-DiT (Multi-Modal DiT) 是一种统一的多模态扩散 Transformer 架构，
+    视频和文本 token 在同一序列中进行联合注意力计算：
+
+    - 视频查询 (Q_vid) 关注：同窗口内视频键值 + 全部文本键值
+    - 文本查询 (Q_txt) 关注：全部视频键值 + 全部文本键值
+
+    这种设计保持了视频-文本跨模态交互的完整性，同时通过窗口注意力控制
+    视频自注意力的计算复杂度，避免 O(n^2) 的全局视频注意力开销。
+
+窗口注意力算法:
+    对于视频 token (t*h*w 个)，沿时间、高度、宽度划分为 (nt, nh, nw) 个窗口，
+    每个窗口大小为 (tt, hh, ww)。每个窗口内的视频 token 与所有文本 token 拼接，
+    在窗口内做标准缩放点积注意力。文本 token 则做全局注意力。
 """
 
 from typing import Tuple, Union
@@ -41,7 +61,36 @@ from ..rope import RotaryEmbedding3d
 
 
 class MMWindowAttention(nn.Module):
-    """多模态窗口注意力，对视频序列做窗口分区、对文本做全局注意力。"""
+    """多模态窗口注意力，对视频序列做窗口分区、对文本做全局注意力。
+
+    视频查询在各自的局部窗口内关注视频 token 和所有文本 token，
+    文本查询则关注全局所有视频和文本 token。
+
+    Args:
+        vid_dim (int): 视频特征维度。
+        txt_dim (int): 文本特征维度。
+        heads (int): 注意力头数。
+        head_dim (int): 每个注意力头的维度。
+        qk_bias (bool): Q/K 投影是否使用偏置。
+        qk_rope (bool): 是否对 Q/K 应用 RoPE 位置编码。
+        qk_norm (norm_layer_type): Q/K 归一化层构造函数。
+        qk_norm_eps (float): Q/K 归一化 epsilon。
+        window (Union[int, Tuple[int, int, int]]): 窗口配置。
+        window_method (str): 窗口划分方法，"win" 或 "win_by_size"。
+        shared_qkv (bool): 视频/文本是否共享 QKV 投影权重。
+
+    Attributes:
+        window (Tuple[int,int,int]): 窗口大小或窗口数量。
+        window_method (str): 窗口划分方法。
+        head_dim (int): 头维度。
+        proj_qkv (MMModule): QKV 投影层（双分支）。
+        proj_out (MMModule): 输出投影层（双分支）。
+        norm_q (MMModule): Q 归一化层（双分支）。
+        norm_k (MMModule): K 归一化层（双分支）。
+        rope (Optional[RotaryEmbedding3d]): 3D RoPE 位置编码（视频分支）。
+        attn (TorchAttention): 标准 PyTorch 注意力实现。
+    """
+
     def __init__(
         self,
         vid_dim: int,
@@ -75,14 +124,24 @@ class MMWindowAttention(nn.Module):
 
     def forward(
         self,
-        vid: torch.FloatTensor,  # b T H W c
-        txt: torch.FloatTensor,  # b L c
-        txt_mask: torch.BoolTensor,  # b L
+        vid: torch.FloatTensor,
+        txt: torch.FloatTensor,
+        txt_mask: torch.BoolTensor,
     ) -> Tuple[
         torch.FloatTensor,
         torch.FloatTensor,
     ]:
-        # Project q, k, v.
+        """前向传播，执行多模态窗口注意力计算。
+
+        Args:
+            vid (torch.FloatTensor): 视频输入，形状 (b, T, H, W, c)，4D 空间时间格式。
+            txt (torch.FloatTensor): 文本输入，形状 (b, L, c)。
+            txt_mask (torch.BoolTensor): 文本注意力 mask，形状 (b, L)，True 表示有效位置。
+
+        Returns:
+            Tuple[torch.FloatTensor, torch.FloatTensor]: (vid_out, txt_out) 元组，
+                形状分别为 (b, T, H, W, vid_dim) 和 (b, L, txt_dim)。
+        """
         vid_qkv, txt_qkv = self.proj_qkv(vid, txt)
         vid_qkv = gather_seq_scatter_heads_qkv(vid_qkv, seq_dim=2)
         _, T, H, W, _ = vid_qkv.shape
@@ -130,7 +189,6 @@ class MMWindowAttention(nn.Module):
         def txt_window(t):
             return rearrange(t, "b h L d -> b h 1 L d").expand(-1, -1, nt * nh * nw, -1, -1)
 
-        # Process video attention.
         vid_msk = safe_pad_operation(txt_mask, (tt * hh * ww, 0), value=True)
         vid_msk = rearrange(vid_msk, "b l -> b 1 1 1 l").expand(-1, 1, 1, tt * hh * ww, -1)
         vid_out = self.attn(
@@ -150,7 +208,6 @@ class MMWindowAttention(nn.Module):
         )
         vid_out = gather_heads_scatter_seq(vid_out, head_dim=4, seq_dim=2)
 
-        # Process text attention.
         txt_msk = safe_pad_operation(txt_mask, (T * H * W, 0), value=True)
         txt_msk = rearrange(txt_msk, "b l -> b 1 1 l").expand(-1, 1, L, -1)
         txt_out = self.attn(
@@ -162,13 +219,51 @@ class MMWindowAttention(nn.Module):
         txt_out = rearrange(txt_out, "b h L d -> b L (h d)")
         txt_out = gather_heads(txt_out, dim=2)
 
-        # Project output.
         vid_out, txt_out = self.proj_out(vid_out, txt_out)
         return vid_out, txt_out
 
 
 class MMWindowTransformerBlock(nn.Module):
-    """多模态窗口 Transformer block，包含注意力 + MLP + 自适应调制。"""
+    """多模态窗口 Transformer block，包含注意力 + MLP + 自适应调制。
+
+    标准的 Pre-Norm Transformer block 结构：
+    1. 输入经过 AdaLN 调制（in 模式：shift+scale）
+    2. 经过多模态窗口注意力
+    3. AdaLN 门控（out 模式：gate）
+    4. 残差连接
+    5. 再次 AdaLN 调制（in 模式）
+    6. 经过 MLP
+    7. AdaLN 门控（out 模式）
+    8. 残差连接
+
+    Args:
+        vid_dim (int): 视频特征维度。
+        txt_dim (int): 文本特征维度。
+        emb_dim (int): 时间步嵌入维度（6*dim for AdaSingle）。
+        heads (int): 注意力头数。
+        head_dim (int): 每头维度。
+        expand_ratio (int): MLP 扩展倍数。
+        norm (norm_layer_type): 归一化层构造函数。
+        norm_eps (float): 归一化 epsilon。
+        ada (ada_layer_type): 自适应调制层构造函数。
+        qk_bias (bool): Q/K 投影偏置。
+        qk_rope (bool): 是否启用 RoPE。
+        qk_norm (norm_layer_type): Q/K 归一化层。
+        window (Union[int, Tuple[int,int,int]]): 窗口配置。
+        window_method (str): 窗口划分方法。
+        shared_qkv (bool): QKV 是否共享权重。
+        shared_mlp (bool): MLP 是否共享权重。
+        mlp_type (str): MLP 类型 ("normal" 或 "swiglu")。
+        **kwargs: 额外参数。
+
+    Attributes:
+        attn_norm (MMModule): 注意力前归一化层（双分支）。
+        attn (MMWindowAttention): 多模态窗口注意力层。
+        mlp_norm (MMModule): MLP 前归一化层（双分支）。
+        mlp (MMModule): MLP 层（双分支）。
+        ada (MMModule): AdaLN 自适应调制层（双分支）。
+    """
+
     def __init__(
         self,
         *,
@@ -226,6 +321,17 @@ class MMWindowTransformerBlock(nn.Module):
         torch.FloatTensor,
         torch.FloatTensor,
     ]:
+        """前向传播，执行完整的 Transformer block 计算。
+
+        Args:
+            vid (torch.FloatTensor): 视频输入，形状 (b, T, H, W, vid_dim)。
+            txt (torch.FloatTensor): 文本输入，形状 (b, L, txt_dim)。
+            txt_mask (torch.BoolTensor): 文本 mask，形状 (b, L)。
+            emb (torch.FloatTensor): 时间步嵌入，形状 (b, emb_dim)。
+
+        Returns:
+            Tuple[torch.FloatTensor, torch.FloatTensor]: (vid_out, txt_out) 元组。
+        """
         vid_attn, txt_attn = self.attn_norm(vid, txt)
         vid_attn, txt_attn = self.ada(vid_attn, txt_attn, emb=emb, layer="attn", mode="in")
         vid_attn, txt_attn = self.attn(vid_attn, txt_attn, txt_mask=txt_mask)

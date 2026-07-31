@@ -1,10 +1,18 @@
 #!/usr/bin/env python3
-"""SeedVR2 进度追踪模块
+"""SeedVR2 推理进度追踪模块
 
-追踪推理管线各阶段的进度：
-  VAE Encode → DiT Sampling → VAE Decode → Post-process
+线程安全地追踪视频修复推理管线各阶段的执行进度，支持:
+- 多阶段进度: VAE Encode → DiT Sampling → VAE Decode → Post-process
+- 单段/多段（批量）模式: 支持长视频分段处理的段进度追踪
+- SSE 实时推送: 进度变化时自动通知 SSE 事件总线，前端实时更新
+- 监听器回调: 支持注册自定义回调函数
+- 可重置: 任务完成后可重置追踪器状态复用
 
-支持单段和多段（批量）模式，线程安全，可通知 SSE 监听器。
+阶段状态常量:
+- STATUS_PENDING: 阶段等待执行
+- STATUS_RUNNING: 阶段正在执行
+- STATUS_COMPLETED: 阶段已完成
+- STATUS_FAILED: 阶段执行失败
 """
 
 import contextlib
@@ -12,15 +20,14 @@ import threading
 import time
 from collections.abc import Callable
 
-# 默认推理阶段定义
 DEFAULT_STAGES = [
     "VAE Encode",
     "DiT Sampling",
     "VAE Decode",
     "Post-process",
 ]
+"""默认推理阶段定义列表。"""
 
-# 阶段状态常量
 STATUS_PENDING = "pending"
 STATUS_RUNNING = "running"
 STATUS_COMPLETED = "completed"
@@ -28,11 +35,28 @@ STATUS_FAILED = "failed"
 
 
 class StageInfo:
-    """单个阶段的状态信息。"""
+    """单个推理阶段的状态信息。
+
+    使用 __slots__ 减少内存占用，存储阶段名称、状态、进度百分比、
+    状态消息、开始/结束时间戳。
+
+    Attributes:
+        name: 阶段名称。
+        status: 阶段状态（pending/running/completed/failed）。
+        progress: 阶段进度百分比（0-100）。
+        message: 状态消息文本。
+        started_at: 阶段开始时间戳（time.time()），None 表示未开始。
+        finished_at: 阶段结束时间戳，None 表示未结束。
+    """
 
     __slots__ = ("name", "status", "progress", "message", "started_at", "finished_at")
 
     def __init__(self, name: str):
+        """初始化阶段信息。
+
+        Args:
+            name: 阶段名称，如 "VAE Encode"。
+        """
         self.name = name
         self.status = STATUS_PENDING
         self.progress = 0
@@ -41,6 +65,11 @@ class StageInfo:
         self.finished_at: float | None = None
 
     def to_dict(self) -> dict:
+        """将阶段信息转换为可序列化字典。
+
+        Returns:
+            包含所有阶段字段的字典，用于 JSON 序列化/SSE 推送。
+        """
         return {
             "name": self.name,
             "status": self.status,

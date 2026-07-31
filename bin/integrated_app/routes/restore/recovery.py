@@ -1,12 +1,16 @@
-#!/usr/bin/env python3
-"""Klar - 启动恢复路由
+﻿#!/usr/bin/env python3
+"""启动任务恢复模块。
 
-服务启动时从数据库恢复未完成的修复任务。
+服务启动时从数据库恢复未完成的修复任务，重新加入任务队列继续执行。
+使用批量查询优化，避免 N+1 数据库查询问题。
 
-REFACTOR 改进:
-- 使用 get_records_by_ids 批量查询，修复原 N+1 查询问题 (C3)
-  原实现循环调用 get_record(record_id)，N 条任务产生 N 次 DB 查询；
-  改为一次 IN 查询获取所有记录。
+主要功能：
+- 查询数据库中所有未完成（pending/processing）的任务
+- 批量获取关联的历史记录
+- 根据任务类型（图像/视频）重新提交到任务队列
+- 处理参数解析失败等异常情况
+
+所属项目：SeedVR2 (SeedVR2 视频/图像修复工具)
 """
 import logging
 
@@ -27,15 +31,25 @@ async def recover_tasks(
 ) -> int:
     """服务启动时从数据库恢复未完成的修复任务。
 
-    OPTIMIZE: 使用 get_records_by_ids 批量查询，修复 N+1 (C3)。
-    原实现循环调用 get_record(task_record.record_id) 逐条查询，
-    N 条未完成任务产生 N+1 次 DB 查询；改为 1 次批量 IN 查询。
+    查询数据库中所有状态为 pending 或 processing 的任务，
+    解析其参数并重新提交到任务队列继续执行。使用批量 IN 查询
+    一次性获取所有关联历史记录，避免原实现的 N+1 查询问题。
+
+    Args:
+        history_db: 历史记录数据库实例。
+        task_queue: 任务队列实例。
+        config: 应用配置字典，视频任务需要分辨率配置，可选。
+
+    Returns:
+        成功恢复并重新入队的任务数量。
+
+    Note:
+        参数解析失败的任务会被标记为 failed，不会中断其他任务恢复。
     """
     incomplete = await history_db.get_incomplete_tasks()
     if not incomplete:
         return 0
 
-    # C3: 批量查询所有关联的历史记录，替代循环逐条查询
     record_ids = [t.record_id for t in incomplete]
     records_list = await history_db.get_records_by_ids(record_ids)
     records_map: dict[int, any] = {r.id: r for r in records_list}

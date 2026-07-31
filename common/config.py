@@ -12,8 +12,17 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
-"""
-Configuration utility functions
+"""Configuration utility functions for loading and managing YAML configs.
+
+This module provides utilities for:
+- Loading YAML configuration files using OmegaConf
+- Resolving config inheritance via ``__inherit__`` directive
+- Merging command-line arguments into configs
+- Dynamically importing and instantiating Python objects from config specs
+- Recursive config resolution
+
+The config system supports hierarchical inheritance where child configs can
+extend parent configs, with child values overriding parent values.
 """
 
 import importlib
@@ -24,8 +33,23 @@ OmegaConf.register_new_resolver("eval", eval)
 
 
 def load_config(path: str, argv: List[str] = None) -> Union[DictConfig, ListConfig]:
-    """
-    Load a configuration. Will resolve inheritance.
+    """Load a configuration file and resolve inheritance hierarchies.
+
+    Loads a YAML config from the specified path, optionally merges command-line
+    dotlist arguments, then recursively resolves all ``__inherit__`` directives
+    to build the complete merged configuration.
+
+    Args:
+        path: Filesystem path to the YAML configuration file.
+        argv: Optional list of command-line arguments in dotlist format
+            (e.g., ``["model.latent_channels=16", "training.batch_size=8"]``).
+            These values override those loaded from the file.
+
+    Returns:
+        The fully resolved configuration as a DictConfig or ListConfig.
+
+    Example:
+        >>> config = load_config("configs/train.yaml", argv=["training.lr=1e-4"])
     """
     config = OmegaConf.load(path)
     if argv is not None:
@@ -39,6 +63,19 @@ def resolve_recursive(
     config: Any,
     resolver: Callable[[Union[DictConfig, ListConfig]], Union[DictConfig, ListConfig]],
 ) -> Any:
+    """Recursively apply a resolver function to all nested config nodes.
+
+    Traverses the configuration tree depth-first, applying the resolver to
+    DictConfig and ListConfig nodes. Nested structures are resolved bottom-up:
+    children are resolved before their parents.
+
+    Args:
+        config: The configuration node (DictConfig, ListConfig, or scalar).
+        resolver: A callable that takes a config node and returns the resolved node.
+
+    Returns:
+        The fully resolved configuration with the resolver applied at all levels.
+    """
     config = resolver(config)
     if isinstance(config, DictConfig):
         for k in config.keys():
@@ -54,9 +91,36 @@ def resolve_recursive(
 
 
 def resolve_inheritance(config: Union[DictConfig, ListConfig]) -> Any:
-    """
-    Recursively resolve inheritance if the config contains:
-    __inherit__: path/to/parent.yaml or a ListConfig of such paths.
+    """Recursively resolve ``__inherit__`` directives in config dicts.
+
+    When a DictConfig contains an ``__inherit__`` key, the specified parent
+    config(s) are loaded and merged. Multiple parents can be specified as a
+    list, merged left-to-right (later parents override earlier ones), and the
+    current config overrides all parent values.
+
+    The ``__inherit__`` key is removed after resolution.
+
+    Inheritance chain example::
+
+        base.yaml:
+            model:
+                dim: 256
+                depth: 12
+
+        child.yaml:
+            __inherit__: base.yaml
+            model:
+                depth: 24
+
+        Result: model.dim=256, model.depth=24
+
+    Args:
+        config: A configuration node. Only DictConfig nodes with ``__inherit__``
+            are processed; other nodes are returned unchanged.
+
+    Returns:
+        The merged configuration with inheritance resolved, or the original
+        config if no inheritance directive is present.
     """
     if isinstance(config, DictConfig):
         inherit = config.pop("__inherit__", None)
@@ -81,20 +145,53 @@ def resolve_inheritance(config: Union[DictConfig, ListConfig]) -> Any:
 
 
 def import_item(path: str, name: str) -> Any:
-    """
-    Import a python item. Example: import_item("path.to.file", "MyClass") -> MyClass
+    """Dynamically import a Python class, function, or object from a module.
+
+    Args:
+        path: Dotted module path (e.g., ``"models.dit_v2"``).
+        name: Name of the attribute to retrieve from the module (e.g., ``"DiT"``).
+
+    Returns:
+        The imported Python object.
+
+    Example:
+        >>> DiTClass = import_item("models.dit_v2", "DiT")
+        >>> model = DiTClass(dim=512)
     """
     return getattr(importlib.import_module(path), name)
 
 
 def create_object(config: DictConfig) -> Any:
-    """
-    Create an object from config.
-    The config is expected to contains the following:
-    __object__:
-      path: path.to.module
-      name: MyClass
-      args: as_config | as_params (default to as_config)
+    """Instantiate a Python object from a configuration dict.
+
+    The config must contain an ``__object__`` key specifying how to create
+    the object:
+
+    - ``__object__.path``: Dotted module path to import from.
+    - ``__object__.name``: Name of the class/callable in the module.
+    - ``__object__.args``: How to pass config as arguments. Options:
+        - ``"as_config"`` (default): Pass the entire DictConfig as a single argument.
+        - ``"as_params"``: Convert config to a plain dict and unpack as keyword arguments
+          (the ``__object__`` key is removed first).
+
+    Args:
+        config: DictConfig containing the ``__object__`` specification.
+
+    Returns:
+        The instantiated object.
+
+    Raises:
+        NotImplementedError: If ``args`` type is not recognized.
+
+    Example config::
+
+        optimizer:
+          __object__:
+            path: torch.optim
+            name: AdamW
+            args: as_params
+          lr: 1e-4
+          weight_decay: 0.01
     """
     item = import_item(
         path=config.__object__.path,

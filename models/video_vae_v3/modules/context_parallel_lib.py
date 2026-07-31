@@ -12,6 +12,13 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
+"""序列并行（Context Parallel）工具库。
+
+支持在多GPU序列并行场景下对因果卷积的输入进行切分、输出进行聚合，
+以及跨GPU的缓存（时序上下文）发送/接收。用于长视频推理时将时序维度
+分布到多个GPU上并行处理，同时通过环形通信保持因果一致性。
+"""
+
 from typing import List
 import torch
 import torch.distributed as dist
@@ -34,7 +41,24 @@ from models.video_vae_v3.modules.types import MemoryState
 logger = get_logger(__name__)
 
 
-def causal_conv_slice_inputs(x, split_size, memory_state):
+def causal_conv_slice_inputs(x: Tensor, split_size: int, memory_state: MemoryState) -> Tensor:
+    """在序列并行模式下沿时序维度切分输入张量。
+
+    将输入视频张量 [B, C, T, H, W] 按时序维度均匀切分到 sp_size 个GPU上。
+    第一个切片额外保留首帧用于因果卷积的重复填充。
+
+    Args:
+        x: 输入张量，形状 [B, C, T, H, W]。
+        split_size: 每个GPU处理的最小时序切片长度。
+        memory_state: 当前记忆状态，决定首帧是否需要保留。
+
+    Returns:
+        Tensor: 当前 rank 对应的切片，形状 [B, C, T_local, H, W]。
+        若未启用序列并行则直接返回原张量。
+
+    Raises:
+        AssertionError: 当切片数量少于并行世界大小时。
+    """
     sp_size = get_sequence_parallel_world_size()
     sp_group = get_sequence_parallel_group()
     sp_rank = get_sequence_parallel_rank()
@@ -62,7 +86,20 @@ def causal_conv_slice_inputs(x, split_size, memory_state):
     return x.split(split_sizes, dim=2)[sp_rank]
 
 
-def causal_conv_gather_outputs(x):
+def causal_conv_gather_outputs(x: Tensor) -> Tensor:
+    """在序列并行模式下聚合各GPU的输出张量。
+
+    将各 rank 的输出 [B, C, T_local, H, W] 通过 AllGather 收集并拼接为完整序列。
+    各 rank 的输出长度可能不同（因切分不均），需先 padding 到统一长度再 Gather，
+    最后移除 padding。
+
+    Args:
+        x: 当前 rank 的输出张量，形状 [B, C, T_local, H, W]。
+
+    Returns:
+        Tensor: 聚合后的完整输出，形状 [B, C, T_total, H, W]。
+        若未启用序列并行则直接返回原张量。
+    """
     sp_group = get_sequence_parallel_group()
     sp_size = get_sequence_parallel_world_size()
     if sp_group is None:
@@ -88,13 +125,40 @@ def causal_conv_gather_outputs(x):
     return torch.cat(x_pad_lists, dim=2)
 
 
-def get_output_len(conv_module, input_len, pad_len, dim=0):
+def get_output_len(conv_module, input_len: int, pad_len: int, dim: int = 0) -> int:
+    """计算卷积层在指定维度上的输出长度。
+
+    公式：output_len = floor((input_len + pad_len - dilated_kernel) / stride) + 1
+
+    Args:
+        conv_module: 卷积模块（nn.Conv3d），包含 kernel_size, stride, dilation 属性。
+        input_len: 输入序列长度。
+        pad_len: 该维度上的总填充长度。
+        dim: 维度索引（0=时间, 1=高度, 2=宽度）。
+
+    Returns:
+        int: 输出序列长度。
+    """
     dilated_kernerl_size = conv_module.dilation[dim] * (conv_module.kernel_size[dim] - 1) + 1
     output_len = (input_len + pad_len - dilated_kernerl_size) // conv_module.stride[dim] + 1
     return output_len
 
 
-def get_cache_size(conv_module, input_len, pad_len, dim=0):
+def get_cache_size(conv_module, input_len: int, pad_len: int, dim: int = 0) -> int:
+    """计算因果卷积需要缓存的前序上下文长度。
+
+    缓存长度 = 重叠长度（kernel - stride） + 剩余长度（不足以形成一个完整输出步长的部分），
+    用于下一个切片卷积时保持时序连续性。
+
+    Args:
+        conv_module: 卷积模块。
+        input_len: 输入序列长度（含已拼接的前序缓存）。
+        pad_len: 该维度填充长度。
+        dim: 维度索引。
+
+    Returns:
+        int: 需要缓存的帧数/像素数。保证 >= 0。
+    """
     dilated_kernerl_size = conv_module.dilation[dim] * (conv_module.kernel_size[dim] - 1) + 1
     output_len = (input_len + pad_len - dilated_kernerl_size) // conv_module.stride[dim] + 1
     remain_len = (
@@ -114,7 +178,25 @@ def get_cache_size(conv_module, input_len, pad_len, dim=0):
     return cache_len
 
 
-def cache_send_recv(tensor: List[Tensor], cache_size, times, memory=None):
+def cache_send_recv(
+    tensor: List[Tensor], cache_size: int, times: int, memory: Tensor = None
+) -> Tensor:
+    """在序列并行的相邻GPU之间发送/接收因果卷积缓存。
+
+    实现环形通信：rank i 将尾部 cache_size 帧发送给 rank i+1，
+    同时从 rank i-1 接收 cache_size 帧作为前缀缓存。首帧（rank 0）使用 memory 或
+    重复第一帧进行填充。
+
+    Args:
+        tensor: 输入张量列表，每个元素为 [B, C, T, H, W]。
+        cache_size: 需要缓存/传递的帧数。若为0则不通信。
+        times: 首帧重复填充次数（用于INITIALIZING状态）。
+        memory: 上一流式切片的记忆缓存，仅 rank 0 使用。
+
+    Returns:
+        Tensor: 需要拼接到当前输入前面的缓存张量，形状 [B, C, cache_size, H, W]；
+        若无需缓存则返回 None。
+    """
     sp_group = get_sequence_parallel_group()
     sp_rank = get_sequence_parallel_rank()
     sp_size = get_sequence_parallel_world_size()
