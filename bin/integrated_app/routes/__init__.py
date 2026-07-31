@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """SeedVR2 路由注册与模板渲染模块。
 
 本模块负责：
@@ -192,18 +192,17 @@ def register_page_routes(app: FastAPI):
 
     @app.get("/system-status", response_class=HTMLResponse)
     async def system_status_page(request: Request):
-        """GET /system-status - 系统状态页面（兼容重定向）。
+        """GET /system-status - 系统状态页面。
 
-        系统状态已并入首页，保留此路由做 302 兼容重定向到首页。
+        显示独立的系统状态监控页面，包含GPU信息、模型状态、内存使用、运行时间等。
 
         Args:
             request: FastAPI 请求对象。
 
         Returns:
-            重定向到首页的响应（302）。
+            渲染后的 system_status.html 页面。
         """
-        from fastapi.responses import RedirectResponse
-        return RedirectResponse(url="/", status_code=302)
+        return render_page(request, "system_status.html", active_page="system")
 
     from fastapi.responses import Response as EmptyResponse
 

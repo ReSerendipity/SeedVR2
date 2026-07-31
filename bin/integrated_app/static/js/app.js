@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file SeedVR2 - 前端交互脚本
  * @project SeedVR2 - AI视频/图像修复系统
  * @description 包含完整的前端交互逻辑，为SeedVR2视频/图像修复系统提供用户界面支持
@@ -511,9 +511,40 @@ const SeedVR2 = (() => {
             if (briefEnd > 0 && briefEnd < 40) {
                 const brief = message.substring(0, briefEnd);
                 const detail = message.substring(briefEnd + 1).trim();
-                msgSpan.innerHTML = `<span class="sv-toast-brief">${escapeHtml(brief)}</span><details class="sv-toast-details"><summary>${escapeHtml(brief)}</summary><span class="sv-toast-detail-text">${escapeHtml(detail)}</span></details>`;
+                msgSpan.innerHTML = `<span class="sv-toast-brief">${escapeHtml(brief)}</span><details class="sv-toast-details"><summary>${escapeHtml('查看详情')}</summary><div class="sv-toast-detail-wrap"><span class="sv-toast-detail-text">${escapeHtml(detail)}</span><button type="button" class="sv-toast-copy" title="${escapeHtml(t('common.copy') || '复制')}"><i class="bi bi-clipboard"></i></button></div></details>`;
+                // 添加复制功能
+                const copyBtn = msgSpan.querySelector('.sv-toast-copy');
+                if (copyBtn) {
+                    copyBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        try {
+                            navigator.clipboard.writeText(detail).then(() => {
+                                copyBtn.innerHTML = '<i class="bi bi-check-lg"></i>';
+                                setTimeout(() => { copyBtn.innerHTML = '<i class="bi bi-clipboard"></i>'; }, 2000);
+                            });
+                        } catch (err) {
+                            console.warn('复制失败:', err);
+                        }
+                    });
+                }
             } else {
-                msgSpan.textContent = message;
+                msgSpan.innerHTML = `<span class="sv-toast-brief">${escapeHtml(message)}</span><button type="button" class="sv-toast-copy sv-toast-copy-inline" title="${escapeHtml(t('common.copy') || '复制')}"><i class="bi bi-clipboard"></i></button>`;
+                const copyBtn = msgSpan.querySelector('.sv-toast-copy');
+                if (copyBtn) {
+                    copyBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        try {
+                            navigator.clipboard.writeText(message).then(() => {
+                                copyBtn.innerHTML = '<i class="bi bi-check-lg"></i>';
+                                setTimeout(() => { copyBtn.innerHTML = '<i class="bi bi-clipboard"></i>'; }, 2000);
+                            });
+                        } catch (err) {
+                            console.warn('复制失败:', err);
+                        }
+                    });
+                }
             }
         } else {
             msgSpan.textContent = message;

@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """批量修复路由模块。
 
 提供文件夹批量媒体修复功能，支持自动指数退避重试失败任务。
@@ -145,6 +145,7 @@ async def batch_restore_from_folder(
         "completed": 0,
         "failed": 0,
         "current_index": -1,
+        "current_file": "",
         "results": batch_results,
         "config": task_config,
         "use_model_size": use_model_size,
@@ -207,6 +208,7 @@ async def _process_batch_background(
         "completed": 0,
         "failed": 0,
         "current_index": -1,
+        "current_file": "",
         "results": [],
         "config": config,
         "use_model_size": use_model_size,
@@ -253,7 +255,8 @@ async def _process_batch_background(
             task_item = common.create_batch_item(media_path)
             task_item["status"] = "processing"
             results.append(task_item)
-        common.get_task_cache().update(batch_id, current_index=i)
+        current_filename = os.path.basename(media_path)
+        common.get_task_cache().update(batch_id, current_index=i, current_file=current_filename)
 
         last_error = None
 
@@ -408,6 +411,7 @@ async def get_batch_progress(batch_id: str, history_db: HistoryDB = Depends(get_
         "completed": cached.get("completed", 0),
         "failed": cached.get("failed", 0),
         "current_index": cached.get("current_index", -1),
+        "current_file": cached.get("current_file", ""),
         "results": cached.get("results", []),
         "media_type": cached.get("media_type", "image"),
     })

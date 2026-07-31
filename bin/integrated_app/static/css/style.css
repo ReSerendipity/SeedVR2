@@ -1,4 +1,4 @@
-﻿/* SeedVR2 - 增强全局样式 v2（支持 Dark / Light 双主题） */
+/* SeedVR2 - 增强全局样式 v2（支持 Dark / Light 双主题） */
 
 /* ===== CSS 变量 - Dark 主题（默认）· Warm Print 暖暮 ===== */
 :root,
@@ -3860,6 +3860,30 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
     max-height: 80px;
     overflow-y: auto;
 }
+.sv-toast-detail-wrap {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+}
+.sv-toast-copy {
+    flex-shrink: 0;
+    background: transparent;
+    border: none;
+    color: var(--sv-text-muted);
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    transition: color 0.2s, background 0.2s;
+}
+.sv-toast-copy:hover {
+    color: var(--sv-primary);
+    background: var(--sv-primary-dim);
+}
+.sv-toast-copy-inline {
+    margin-left: 6px;
+    vertical-align: middle;
+}
 
 /* Toast 行动指引按钮 */
 .sv-toast-action {
@@ -5404,6 +5428,39 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
 .sv-onboarding-close:hover {
     color: var(--sv-text-primary);
     background: var(--sv-bg-hover) !important;
+}
+
+.sv-onboarding-steps {
+    margin: 6px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.sv-onboarding-steps p {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+}
+
+.sv-onboarding-steps i {
+    color: var(--sv-primary);
+    flex-shrink: 0;
+}
+
+.sv-onboarding-shortcut {
+    margin-top: 6px !important;
+    padding-top: 6px;
+    border-top: 1px dashed var(--sv-border);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--sv-text-muted) !important;
+}
+
+.sv-onboarding-shortcut i {
+    color: var(--sv-text-muted);
 }
 
 /* ===== Alert 提示样式 ===== */
