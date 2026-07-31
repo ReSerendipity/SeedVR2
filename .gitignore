@@ -88,10 +88,10 @@ test_report_v*.md
 
 # ---------------------------------------------------------------------------
 # UI / UX audit artifacts (dated directories + per-audit screenshots)
+# NOTE: docs/screenshots/current/{dark,light}/ is REFERENCED by README and
+#       must stay tracked. Only dogfood leftovers and dated audit dumps go.
 # ---------------------------------------------------------------------------
 docs/ui-ux-audit-*/
-docs/ui-ux-audit-2026-07-30/
-docs/screenshots/current/
 docs/screenshots/dogfood/
 
 # ---------------------------------------------------------------------------
