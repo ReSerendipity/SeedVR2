@@ -1,4 +1,4 @@
-# 分析页面设计风格
+﻿# 分析页面设计风格
 
 **Exported:** 2026-07-18T01:34:11.548Z
 
@@ -741,7 +741,7 @@ system_status.html
 
 ```json
 1	#!/usr/bin/env python3
-2	"""Klar - 应用服务器入口"""
+2	"""SeedVR2 - 应用服务器入口"""
 3	import asyncio
 4	import logging
 5	import os
@@ -841,7 +841,7 @@ system_status.html
 99	        asyncio.get_event_loop().call_later(1.5, lambda: webbrowser.open(url))
 100	        logger.info(f"将在浏览器中打开: {url}")
 101	
-102	    logger.info(f"Klar已启动: http://{host}:{port}")
+102	    logger.info(f"SeedVR2已启动: http://{host}:{port}")
 103	
 104	    yield
 105	
@@ -861,7 +861,7 @@ system_status.html
 119	    history_db = app.state.history_db
 120	    await history_db.close()
 121	
-122	    logger.info("Klar已关闭")
+122	    logger.info("SeedVR2已关闭")
 123	
 124	
 125	def create_app(config: dict = None) -> FastAPI:
@@ -870,7 +870,7 @@ system_status.html
 128	        config = load_config()
 129	
 130	    app = FastAPI(
-131	        title="Klar",
+131	        title="SeedVR2",
 132	        description="SeedVR2 便携式视频修复工具箱",
 133	        version="1.0.0",
 134	        lifespan=lifespan,
@@ -990,7 +990,7 @@ system_status.html
 248	    port = config.get("server", {}).get("port", 7870)
 249	    debug = config.get("server", {}).get("debug", False)
 250	
-251	    logger.info(f"Klar启动中... http://{host}:{port}")
+251	    logger.info(f"SeedVR2启动中... http://{host}:{port}")
 252	    try:
 253	        uvicorn.run(
 254	            app,
@@ -3324,7 +3324,7 @@ Successfully updated the todo list. The current list is now:
 **Output:**
 
 ```json
-1	/* Klar - 增强全局样式 v2（支持 Dark / Light 双主题） */
+1	/* SeedVR2 - 增强全局样式 v2（支持 Dark / Light 双主题） */
 2	
 3	/* ===== CSS 变量 - Dark 主题（默认） ===== */
 4	:root,
@@ -6930,7 +6930,7 @@ Successfully updated the todo list. The current list is now:
 
 ```json
 1	/**
-2	 * Klar - 前端交互脚本
+2	 * SeedVR2 - 前端交互脚本
 3	 * 包含：API 封装、文件上传、SSE 进度、对比滑块、Toast 通知、侧边栏状态等
 4	 */
 5	
@@ -8462,7 +8462,7 @@ Successfully updated the todo list. The current list is now:
 
 ```json
 1	#!/usr/bin/env python3
-2	"""Klar - 路由注册与自动发现"""
+2	"""SeedVR2 - 路由注册与自动发现"""
 3	import importlib
 4	import logging
 5	
@@ -9982,7 +9982,7 @@ Good, I found the files. Let me read the key templates and CSS to understand the
 **Output:**
 
 ```json
-1	/* Klar - 增强全局样式 v2（支持 Dark / Light 双主题） */
+1	/* SeedVR2 - 增强全局样式 v2（支持 Dark / Light 双主题） */
 2	
 3	/* ===== CSS 变量 - Dark 主题（默认） ===== */
 4	:root,

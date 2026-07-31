@@ -12,8 +12,25 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
-"""
-Utility functions for creating schedules and samplers from config.
+"""Factory functions for creating diffusion components from configuration.
+
+This module provides convenient constructors that instantiate schedules,
+samplers, and sampling timestep schedules from OmegaConf DictConfig objects,
+selecting the appropriate implementation based on a ``type`` field in the config.
+
+Typical config structure::
+
+    diffusion:
+      schedule:
+        type: lerp
+        T: 1.0
+      sampler:
+        type: euler
+        prediction_type: v_lerp
+      timesteps:
+        type: uniform_trailing
+        steps: 50
+        shift: 3.0
 """
 
 import torch
@@ -32,8 +49,21 @@ def create_schedule_from_config(
     device: torch.device,
     dtype: torch.dtype = torch.float32,
 ) -> Schedule:
-    """
-    Create a schedule from configuration.
+    """Create a diffusion schedule from configuration.
+
+    Args:
+        config: Configuration dict with a ``type`` field selecting the schedule
+            implementation. Supported types:
+            - ``"lerp"``: Linear interpolation (rectified flow) schedule.
+              Optional ``T`` field (default 1.0) sets the maximum timestep.
+        device: Torch device for schedule tensors.
+        dtype: Torch dtype for schedule computations. Defaults to float32.
+
+    Returns:
+        An initialized Schedule instance.
+
+    Raises:
+        NotImplementedError: If the schedule ``type`` is not recognized.
     """
     if config.type == "lerp":
         return LinearInterpolationSchedule(T=config.get("T", 1.0))
@@ -46,8 +76,21 @@ def create_sampler_from_config(
     schedule: Schedule,
     timesteps: SamplingTimesteps,
 ) -> Sampler:
-    """
-    Create a sampler from configuration.
+    """Create a diffusion sampler (ODE solver) from configuration.
+
+    Args:
+        config: Configuration dict with a ``type`` field selecting the sampler
+            implementation. Supported types:
+            - ``"euler"``: First-order Euler ODE solver. Requires
+              ``prediction_type`` field specifying what the model predicts.
+        schedule: The diffusion schedule instance defining the interpolation.
+        timesteps: The sampling timesteps defining discretization steps.
+
+    Returns:
+        An initialized Sampler instance.
+
+    Raises:
+        NotImplementedError: If the sampler ``type`` is not recognized.
     """
     if config.type == "euler":
         return EulerSampler(
@@ -64,6 +107,25 @@ def create_sampling_timesteps_from_config(
     device: torch.device,
     dtype: torch.dtype = torch.float32,
 ) -> SamplingTimesteps:
+    """Create sampling timesteps (discretization) from configuration.
+
+    Args:
+        config: Configuration dict with a ``type`` field selecting the timestep
+            schedule. Supported types:
+            - ``"uniform_trailing"``: Uniform trailing spacing (per
+              https://arxiv.org/abs/2305.08891). Requires ``steps`` (number of
+              sampling steps), optional ``shift`` (timestep shift parameter for
+              flow matching, default 1.0; see SD3 paper eq.23).
+        schedule: The diffusion schedule, used to determine T and continuity.
+        device: Torch device for timestep tensors.
+        dtype: Torch dtype for timestep computations. Defaults to float32.
+
+    Returns:
+        An initialized SamplingTimesteps instance.
+
+    Raises:
+        NotImplementedError: If the timestep ``type`` is not recognized.
+    """
     if config.type == "uniform_trailing":
         return UniformTrailingSamplingTimesteps(
             T=schedule.T,

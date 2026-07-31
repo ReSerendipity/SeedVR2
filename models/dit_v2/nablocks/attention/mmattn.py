@@ -12,6 +12,32 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
+"""NaDiT v2 多模态注意力实现模块。
+
+实现两种变长多模态注意力机制，均基于 Flash Attention v2 的 cu_seqlens API：
+
+- **NaMMAttention**: 多模态全局注意力，将视频和文本 token 拼接后做全注意力计算。
+  支持 Q/K 归一化、可选 RoPE（包括多模态 MM-RoPE）、共享/独立权重。
+- **NaSwinAttention**: 继承 NaMMAttention，实现变长窗口注意力（Swin 风格）。
+  视频 token 按窗口分区，每个窗口内视频 token 与全局文本 token 联合注意力，
+  窗口划分通过预计算索引实现以支持任意分辨率。
+
+注意力算法:
+    1. 视频/文本分别投影 Q/K/V（支持共享权重）。
+    2. 对 Q/K 应用归一化（QK-Norm，稳定训练）。
+    3. 应用 RoPE 位置编码（可选 MM-RoPE：视频和文本使用不同频率）。
+    4. 按样本拼接视频和文本序列，计算 cu_seqlens 累积长度。
+    5. 窗口注意力：使用 repeat_concat_idx 按窗口重复文本 token。
+    6. 调用 Flash Attention v2 变长 API 批量计算注意力。
+    7. 拆分结果回视频和文本，投影输出。
+
+MM-RoPE 说明:
+    多模态旋转位置编码为视频和文本使用不同的频率缩放因子：
+    - 视频（像素位置）：使用标准 3D RoPE 频率（θ=10000^(-2i/d)）。
+    - 文本（语言位置）：使用更低的频率基（如 θ=10000^(-2i/d) * scale），
+      使得文本位置编码变化更慢，适配语言序列的长程依赖特性。
+"""
+
 from typing import Optional, Tuple, Union
 import torch
 from einops import rearrange
@@ -32,7 +58,35 @@ from itertools import chain
 
 
 class NaMMAttention(nn.Module):
-    """NaDiT v2 多模态全局注意力，支持可选的多模态 RoPE。"""
+    """NaDiT v2 多模态全局注意力，支持可选的多模态 RoPE 和 QK-Norm。
+
+    将视频和文本 token 沿序列维拼接后，使用 Flash Attention v2 的变长 API
+    做全局自注意力，每个样本的视频 token 可以关注所有视频和文本 token，
+    文本 token 同理。支持视频/文本分支共享或独立投影权重。
+
+    Args:
+        vid_dim (int): 视频特征维度。
+        txt_dim (int): 文本特征维度。
+        heads (int): 注意力头数。
+        head_dim (int): 每个注意力头的维度。
+        qk_bias (bool): Q/K 投影是否使用偏置。
+        qk_norm (norm_layer_type): Q/K 归一化层构造函数（如 RMSNorm）。
+        qk_norm_eps (float): Q/K 归一化 epsilon。
+        rope_type (Optional[str]): RoPE 类型，None 禁用，"normal" 视频-only，"mm" 多模态。
+        rope_dim (int): RoPE 频率维度（通常为 head_dim // 2）。
+        shared_weights (bool): 视频/文本分支是否共享 QKV/输出投影权重。
+        **kwargs: 额外参数。
+
+    Attributes:
+        head_dim (int): 每头维度。
+        proj_qkv (MMModule): QKV 投影层（双分支线性层）。
+        proj_out (MMModule): 输出投影层（双分支线性层）。
+        norm_q (MMModule): Q 归一化层（双分支）。
+        norm_k (MMModule): K 归一化层（双分支）。
+        rope: RoPE 位置编码实例（可能为 None）。
+        attn (FlashAttentionVarlen): Flash Attention v2 变长实现。
+    """
+
     def __init__(
         self,
         vid_dim: int,
@@ -76,15 +130,28 @@ class NaMMAttention(nn.Module):
 
     def forward(
         self,
-        vid: torch.FloatTensor,  # l c
-        txt: torch.FloatTensor,  # l c
-        vid_shape: torch.LongTensor,  # b 3
-        txt_shape: torch.LongTensor,  # b 1
+        vid: torch.FloatTensor,
+        txt: torch.FloatTensor,
+        vid_shape: torch.LongTensor,
+        txt_shape: torch.LongTensor,
         cache: Cache,
     ) -> Tuple[
         torch.FloatTensor,
         torch.FloatTensor,
     ]:
+        """前向传播，执行多模态全局注意力计算。
+
+        Args:
+            vid (torch.FloatTensor): 视频 token，展平形状 (sum_vid_len, vid_dim)。
+            txt (torch.FloatTensor): 文本 token，展平形状 (sum_txt_len, txt_dim)。
+            vid_shape (torch.LongTensor): 每个样本的视频网格大小 (b, 3)。
+            txt_shape (torch.LongTensor): 每个样本的文本长度 (b, 1)。
+            cache (Cache): 缓存对象，用于缓存 cu_seqlens、拼接索引等。
+
+        Returns:
+            Tuple[torch.FloatTensor, torch.FloatTensor]: (vid_out, txt_out) 元组，
+                形状分别为 (sum_vid_len, vid_dim) 和 (sum_txt_len, txt_dim)。
+        """
         vid_qkv, txt_qkv = self.proj_qkv(vid, txt)
         vid_qkv = gather_seq_scatter_heads_qkv(
             vid_qkv,
@@ -141,7 +208,29 @@ class NaMMAttention(nn.Module):
 
 
 class NaSwinAttention(NaMMAttention):
-    """NaDiT v2 多模态窗口注意力，支持窗口分区和多模态 RoPE。"""
+    """NaDiT v2 多模态窗口注意力（Swin 风格），支持变长序列和窗口分区。
+
+    继承 NaMMAttention，将全局注意力替换为窗口注意力以降低计算复杂度：
+    - 视频 token 沿 (T, H, W) 划分为不重叠的 3D 窗口。
+    - 每个窗口内的视频 token 与全部文本 token 拼接（文本按窗口重复）。
+    - 使用 Flash Attention v2 批量计算所有窗口的注意力。
+    - 注意力后通过 window_reverse 将窗口 token 还原回原位置。
+
+    窗口划分通过预计算索引实现，而非固定 reshape，因此支持任意视频分辨率
+    （不要求是窗口大小的整数倍）。同时支持 MM-RoPE 在窗口内的正确应用。
+
+    Args:
+        *args: 传递给 NaMMAttention 的位置参数。
+        window (Union[int, Tuple[int, int, int]]): 窗口大小 (t, h, w)。
+        window_method (str): 窗口划分方法，"win"（按窗口数划分）或 "win_by_size"（按窗口大小划分）。
+        **kwargs: 传递给 NaMMAttention 的关键字参数。
+
+    Attributes:
+        window (Tuple[int,int,int]): 窗口大小或窗口数量。
+        window_method (str): 窗口划分方法。
+        window_op: 窗口切片生成函数。
+    """
+
     def __init__(
         self,
         *args,
@@ -158,15 +247,27 @@ class NaSwinAttention(NaMMAttention):
 
     def forward(
         self,
-        vid: torch.FloatTensor,  # l c
-        txt: torch.FloatTensor,  # l c
-        vid_shape: torch.LongTensor,  # b 3
-        txt_shape: torch.LongTensor,  # b 1
+        vid: torch.FloatTensor,
+        txt: torch.FloatTensor,
+        vid_shape: torch.LongTensor,
+        txt_shape: torch.LongTensor,
         cache: Cache,
     ) -> Tuple[
         torch.FloatTensor,
         torch.FloatTensor,
     ]:
+        """前向传播，执行变长多模态窗口注意力计算。
+
+        Args:
+            vid (torch.FloatTensor): 视频 token，展平形状 (sum_vid_len, vid_dim)。
+            txt (torch.FloatTensor): 文本 token，展平形状 (sum_txt_len, txt_dim)。
+            vid_shape (torch.LongTensor): 每个样本的视频网格大小 (b, 3)。
+            txt_shape (torch.LongTensor): 每个样本的文本长度 (b, 1)。
+            cache (Cache): 缓存对象，用于缓存窗口索引、cu_seqlens 等。
+
+        Returns:
+            Tuple[torch.FloatTensor, torch.FloatTensor]: (vid_out, txt_out) 元组。
+        """
 
         vid_qkv, txt_qkv = self.proj_qkv(vid, txt)
         vid_qkv = gather_seq_scatter_heads_qkv(
@@ -182,7 +283,6 @@ class NaSwinAttention(NaMMAttention):
             cache=cache.namespace("txt"),
         )
 
-        # re-org the input seq for window attn
         cache_win = cache.namespace(f"{self.window_method}_{self.window}_sd3")
 
         def make_window(x: torch.Tensor):
@@ -214,10 +314,8 @@ class NaSwinAttention(NaMMAttention):
             "mm_pnp", lambda: na.repeat_concat_idx(vid_len_win, txt_len, window_count)
         )
 
-        # window rope
         if self.rope:
             if self.rope.mm:
-                # repeat text q and k for window mmrope
                 _, num_h, _ = txt_q.shape
                 txt_q_repeat = rearrange(txt_q, "l h d -> l (h d)")
                 txt_q_repeat = na.unflatten(txt_q_repeat, txt_shape)
@@ -253,7 +351,6 @@ class NaSwinAttention(NaMMAttention):
             max_seqlen_k=cache_win("vid_max_seqlen_k", lambda: all_len_win.max().item()),
         ).type_as(vid_q)
 
-        # text pooling
         vid_out, txt_out = unconcat_win(out)
 
         vid_out = rearrange(vid_out, "l h d -> l (h d)")

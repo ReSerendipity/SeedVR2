@@ -1,13 +1,15 @@
-#!/usr/bin/env python3
-"""Klar - 批量修复路由
+﻿#!/usr/bin/env python3
+"""批量修复路由模块。
 
-批量处理文件夹中的媒体文件，支持自动重试。
+提供文件夹批量媒体修复功能，支持自动指数退避重试失败任务。
+批量任务在后台单 worker 队列中顺序执行，避免并发推理导致 GPU OOM。
 
-REFACTOR 改进:
-- 从 unified.py 拆分，职责单一化 (B1/SRP)
-- 重试间隔使用 exponential_backoff_with_jitter 替代固定 sleep (E5)
-- 最大重试次数从 config.runtime.batch 读取 (F1)
-- 统一响应包装 {success, data, error} (G1)
+API 端点：
+- POST /api/restore/batch: 创建批量修复任务
+- GET /api/restore/batch/{batch_id}/progress: 查询批量任务进度
+- POST /api/restore/batch/{batch_id}/retry: 重试批量任务中失败的文件
+
+所属项目：SeedVR2 (SeedVR2 视频/图像修复工具)
 """
 import asyncio
 import contextlib
@@ -50,8 +52,44 @@ async def batch_restore_from_folder(
     history_db: HistoryDB = Depends(get_history_db),
     task_queue: TaskQueue = Depends(get_task_queue),
 ):
-    """批量处理文件夹中的媒体文件（后台异步，逐个顺序处理）"""
-    # GPU 可用性检查：SeedVR2 仅支持 NVIDIA GPU 推理
+    """批量处理文件夹中的媒体文件（后台异步，逐个顺序执行）。
+
+    API 端点：POST /api/restore/batch
+
+    请求参数（multipart/form-data）：
+    - folder_path (required): 要处理的文件夹绝对路径
+    - task_type (optional): "auto"/"image"/"video"，默认 "auto" 自动检测
+    - 其他修复参数（dit_model, seed 等，详见 common.parse_unified_params）
+
+    返回格式（JSON，统一包装 {success, data, error}）：
+    {
+        "success": true,
+        "data": {
+            "batch_id": str,      // 批量任务 ID
+            "total": int,         // 待处理文件总数
+            "media_type": "image"|"video",
+            "status": "processing"
+        }
+    }
+
+    错误响应：
+    - 400: 参数错误（文件夹不存在、无可处理文件等）
+    - 503: GPU 不可用或模型未加载
+
+    Args:
+        folder_path: 目标文件夹路径。
+        task_type: 任务类型过滤。
+        raw_params: 解析后的修复参数。
+        config: 应用配置。
+        history_db: 历史数据库实例。
+        task_queue: 任务队列实例。
+
+    Returns:
+        包含 batch_id 的 JSON 响应。
+
+    Raises:
+        HTTPException: 校验失败或服务不可用时抛出。
+    """
     if not gpu_manager.is_gpu_available:
         raise HTTPException(
             status_code=503,
@@ -65,7 +103,6 @@ async def batch_restore_from_folder(
     if not await asyncio.to_thread(folder.exists) or not await asyncio.to_thread(folder.is_dir):
         raise HTTPException(status_code=400, detail=f"文件夹不存在: {folder_path}")
 
-    # 扫描文件并确定类型
     media_files = []
     for root, _dirs, files in await asyncio.to_thread(lambda: list(os.walk(folder))):
         for fname in sorted(files):
@@ -80,10 +117,8 @@ async def batch_restore_from_folder(
     if not media_files:
         raise HTTPException(status_code=400, detail=f"文件夹中未找到可处理文件: {folder_path}")
 
-    # 使用第一个文件决定统一类型（auto 模式下）
     actual_type = task_type if task_type != "auto" else media_files[0][1]
 
-    # 构建参数
     dit_model = raw_params.dit_model
     use_model_size = common.model_size_from_dit_model(dit_model)
     if actual_type == "image":
@@ -101,10 +136,6 @@ async def batch_restore_from_folder(
 
     batch_id = uuid.uuid4().hex[: config.get("runtime", {}).get("task", {}).get("id_length", 16)]
 
-    # 初始化批量任务状态
-    # REFACTOR [B2-1]: 临时字段（results/current_index 等）仅写缓存，不持久化到 DB
-    # 原实现 `cached = common.get_task_cache()[batch_id]; cached.update({...})` 因 __getitem__
-    # 返回浅拷贝，cached.update 不影响缓存；改为通过 update() 一次性写入所有字段
     batch_results = [common.create_batch_item(path) for path, _ in media_files]
     await common.create_task_state(batch_id, 0, history_db, task_type="batch")
     common.get_task_cache().update(batch_id, **{
@@ -120,8 +151,6 @@ async def batch_restore_from_folder(
     })
     await common.update_task_state(batch_id, history_db, status="processing")
 
-    # REFACTOR [E4-1]: 注入 on_cancel 回调，超时/取消时通知引擎停止 GPU 推理
-    # 原实现仅依靠 asyncio.Task.cancel，对 to_thread 包装的同步推理无效，GPU 资源持续占用
     engine = model_registry.get_engine()
     on_cancel = engine.request_cancel if engine else None
     paths_only = [p for p, _ in media_files]
@@ -150,19 +179,26 @@ async def _process_batch_background(
     app_config: dict,
     results_to_update: list | None = None,
 ):
-    """后台逐个处理批量任务（含自动重试）。
+    """后台逐个处理批量任务（含自动重试）（内部函数）。
 
-    REFACTOR: 重试间隔使用 exponential_backoff_with_jitter，替代固定 sleep(1/2) (E5)。
-    最大重试次数从 config.runtime.batch.max_retries 读取 (F1)。
+    顺序处理媒体文件列表，每个文件失败后使用指数退避+抖动自动重试，
+    重试次数和间隔从配置读取。处理过程中实时更新缓存和数据库状态。
+
+    Args:
+        batch_id: 批量任务 ID。
+        media_files: 待处理文件路径列表。
+        media_type: 媒体类型 "image"/"video"。
+        config: 推理参数配置。
+        use_model_size: 模型尺寸标识。
+        history_db: 历史数据库实例。
+        task_queue: 任务队列实例。
+        app_config: 应用全局配置。
+        results_to_update: 重试时传入的已有结果项列表（复用原结构），可选。
     """
     task_state = await common.get_task_state(batch_id, history_db)
     if task_state is None:
         return
 
-    # REFACTOR [B2-1]: 使用 get_cached_or_create 替代手动 get + set
-    # 原实现 `cached = common.get_task_cache().get(batch_id); if cached is None: ...; common.get_task_cache()[batch_id] = cached`
-    # 因 get() 返回浅拷贝，[batch_id] = cached 通过 update_cached 写入，但后续 cached["current_index"] = i
-    # 等顶层字段修改不影响缓存；改为 get_cached_or_create 一次性创建并写入缓存
     cached = common.get_cached_or_create(batch_id, template={
         "task_id": batch_id,
         "type": "batch",
@@ -176,7 +212,6 @@ async def _process_batch_background(
         "use_model_size": use_model_size,
     })
 
-    # results 是 list 引用，append/修改 task_item 会直接影响缓存中的 list
     results = cached["results"]
     completed = 0
     failed = 0
@@ -193,7 +228,6 @@ async def _process_batch_background(
     records_to_insert: list[HistoryRecord] = []
     output_subdir = "image" if media_type == "image" else "video"
 
-    # OPTIMIZE: 从配置读取重试参数 (F1)
     batch_cfg = app_config.get("runtime", {}).get("batch", {})
     max_retries = batch_cfg.get("max_retries", 2)
     retry_base = batch_cfg.get("retry_base_delay_seconds", 1.0)
@@ -219,7 +253,6 @@ async def _process_batch_background(
             task_item = common.create_batch_item(media_path)
             task_item["status"] = "processing"
             results.append(task_item)
-        # REFACTOR [B2-1]: 顶层字段通过 update 写回缓存（浅拷贝下直接赋值不生效）
         common.get_task_cache().update(batch_id, current_index=i)
 
         last_error = None
@@ -259,7 +292,6 @@ async def _process_batch_background(
                     task_item["processing_time"] = result.processing_time
                     task_item["error"] = None
                     completed += 1
-                    # REFACTOR [B2-1]: 顶层字段写回缓存
                     common.get_task_cache().update(batch_id, completed=completed)
                     break
                 else:
@@ -267,7 +299,6 @@ async def _process_batch_background(
                     if attempt < max_retries:
                         task_item["status"] = "retrying"
                         logger.warning(f"批量处理 {media_type} {i+1}/{len(media_files)} 第{attempt+1}次失败，重试中: {media_path}, {last_error}")
-                        # E5: 指数退避 + 抖动，替代固定 sleep
                         await exponential_backoff_with_jitter(
                             attempt, base=retry_base, max_delay=retry_max
                         )
@@ -275,7 +306,6 @@ async def _process_batch_background(
                         task_item["status"] = "failed"
                         task_item["error"] = last_error
                         failed += 1
-                        # REFACTOR [B2-1]: 顶层字段写回缓存
                         common.get_task_cache().update(batch_id, failed=failed)
 
             except asyncio.CancelledError:
@@ -287,7 +317,6 @@ async def _process_batch_background(
                 if attempt < max_retries:
                     task_item["status"] = "retrying"
                     logger.warning(f"批量处理 {media_type} {i+1}/{len(media_files)} 第{attempt+1}次异常，重试中: {media_path}, {e}")
-                    # E5: 指数退避 + 抖动
                     await exponential_backoff_with_jitter(
                         attempt, base=retry_base, max_delay=retry_max
                     )
@@ -295,7 +324,6 @@ async def _process_batch_background(
                     task_item["status"] = "failed"
                     task_item["error"] = last_error
                     failed += 1
-                    # REFACTOR [B2-1]: 顶层字段写回缓存
                     common.get_task_cache().update(batch_id, failed=failed)
                     logger.error(f"批量处理 {media_type} {i+1}/{len(media_files)} 最终失败: {media_path}, {e}")
 
@@ -320,7 +348,6 @@ async def _process_batch_background(
                 await history_db.add_record(record)
 
     final_status = "cancelled" if task_queue.is_cancelled(batch_id) else "completed"
-    # REFACTOR [B2-1]: 重新读取缓存获取最新 progress（cached 变量是循环前的旧拷贝）
     final_cached = common.get_task_cache().get(batch_id, {})
     await common.update_task_state(
         batch_id, history_db,
@@ -332,7 +359,42 @@ async def _process_batch_background(
 
 @router.get("/batch/{batch_id}/progress")
 async def get_batch_progress(batch_id: str, history_db: HistoryDB = Depends(get_history_db)):
-    """获取批量处理进度"""
+    """获取批量处理任务进度。
+
+    API 端点：GET /api/restore/batch/{batch_id}/progress
+
+    路径参数：
+    - batch_id: 批量任务 ID
+
+    返回格式（JSON）：
+    {
+        "success": true,
+        "data": {
+            "batch_id": str,
+            "status": "pending"|"processing"|"completed"|"failed"|"cancelled",
+            "progress": float,     // 0-100
+            "total": int,
+            "completed": int,
+            "failed": int,
+            "current_index": int,
+            "results": [ ... ],    // 每个文件的详细状态
+            "media_type": "image"|"video"
+        }
+    }
+
+    错误响应：
+    - 404: 批量任务不存在
+
+    Args:
+        batch_id: 批量任务 ID。
+        history_db: 历史数据库实例。
+
+    Returns:
+        批量任务进度详情。
+
+    Raises:
+        HTTPException: 任务不存在时抛出。
+    """
     task = await common.get_task_state(batch_id, history_db)
     if not task:
         raise HTTPException(status_code=404, detail="批量任务不存在")
@@ -358,7 +420,38 @@ async def retry_failed_batch(
     task_queue: TaskQueue = Depends(get_task_queue),
     config: dict = Depends(get_config),
 ):
-    """重试批量任务中失败的文件"""
+    """重试批量任务中失败的文件。
+
+    API 端点：POST /api/restore/batch/{batch_id}/retry
+
+    路径参数：
+    - batch_id: 批量任务 ID
+
+    返回格式（JSON）：
+    {
+        "success": true,
+        "data": {
+            "message": str,
+            "retry_count": int  // 本次重试的文件数
+        }
+    }
+
+    错误响应：
+    - 404: 批量任务不存在
+    - 400: 任务未完成或详情丢失
+
+    Args:
+        batch_id: 批量任务 ID。
+        history_db: 历史数据库实例。
+        task_queue: 任务队列实例。
+        config: 应用配置。
+
+    Returns:
+        重试操作结果。
+
+    Raises:
+        HTTPException: 任务不存在或状态不合法时抛出。
+    """
     task = await common.get_task_state(batch_id, history_db)
     if not task:
         raise HTTPException(status_code=404, detail="批量任务不存在")
@@ -374,13 +467,11 @@ async def retry_failed_batch(
     if not failed_items:
         return respond_success({"message": "没有失败的文件需要重试"})
 
-    # r 是 results list 中 dict 的引用，修改直接影响缓存中的 task_item
     for _i, r in failed_items:
         r["status"] = "pending"
         r["error"] = None
         r["retry_count"] = 0
 
-    # REFACTOR [B2-1]: 顶层字段通过 update 写回缓存（浅拷贝下直接赋值不生效）
     common.get_task_cache().update(batch_id, status="processing", failed=0, current_index=-1)
 
     retry_files = [r["path"] for _, r in failed_items]
@@ -389,7 +480,6 @@ async def retry_failed_batch(
     use_model_size = cached.get("use_model_size", "3b")
     media_type = cached.get("media_type", "image")
 
-    # REFACTOR [E4-1]: 注入 on_cancel 回调，超时/取消时通知引擎停止 GPU 推理
     engine = model_registry.get_engine()
     on_cancel = engine.request_cancel if engine else None
     await task_queue.submit(

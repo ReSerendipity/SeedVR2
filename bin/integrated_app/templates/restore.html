@@ -36,6 +36,7 @@
             </button>
         </div>
 
+        <div class="sv-mode-tab-pane active" data-mode="single">
         <!-- 上传区 -->
         <div class="sv-dropzone" id="restoreUploadZone">
             <div class="sv-dropzone-icon"><i class="bi bi-cloud-arrow-up"></i></div>
@@ -66,11 +67,16 @@
                 <div class="sv-card" style="width:100%;max-width:500px;">
                     <div class="sv-card-header sv-flex sv-items-center sv-justify-between">
                         <h3><i class="bi bi-activity"></i> {{ t('restore.processing') }}</h3>
-                        <span id="taskStatus" class="sv-badge sv-badge-processing">{{ t('status.processing') }}</span>
+                        <div class="sv-flex sv-items-center sv-gap-2">
+                            <span id="taskStatus" class="sv-badge sv-badge-processing">{{ t('status.processing') }}</span>
+                            <button type="button" class="sv-progress-cancel" id="btnCancelRestore" aria-label="{{ t('common.cancel') }}" title="{{ t('restore.cancel_task') }}">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="sv-card-body">
                         <div class="sv-progress" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                            <div class="sv-progress-bar bg-primary animated" id="progressBar" style="width:0%;"></div>
+                            <div class="sv-progress-bar bg-primary animated" id="progressBar" style="transform:scaleX(0);"></div>
                         </div>
                         <div class="sv-progress-label">
                             <span id="progressText">{{ t('status.pending') }}</span>
@@ -106,17 +112,24 @@
                     <div id="compareCard" style="display:none;width:100%;height:100%;">
                         <div class="sv-compare-container" id="compareContainer">
                             <img id="compareBefore" alt="{{ t('restore.before') }}">
+                            <span class="sv-compare-label sv-compare-label-before">{{ t('restore.before') or 'Before' }}</span>
                             <div class="sv-compare-after" id="compareAfter">
                                 <img id="compareAfterImg" alt="{{ t('restore.after') }}">
+                                <span class="sv-compare-label sv-compare-label-after">{{ t('restore.after') or 'After' }}</span>
                             </div>
-                            <div class="sv-compare-slider" id="compareSlider"></div>
+                            <div class="sv-compare-slider" id="compareSlider">
+                                <i class="bi bi-arrows-expand-horizontal"></i>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
+        </div>
+
         <!-- 批量处理 -->
+        <div class="sv-mode-tab-pane" data-mode="batch">
         <div class="sv-batch-section">
             <div class="sv-batch-header">
                 <span class="sv-batch-title">{{ t('restore.batch_title') }}</span>
@@ -127,7 +140,7 @@
                        placeholder="{{ t('restore.folder_path_placeholder') }}" aria-label="{{ t('restore.folder_path') }}">
                 <button type="button" class="sv-btn sv-btn-outline sv-btn-sm" id="btnBrowseFolder"
                         data-tooltip="{{ t('restore.browse') }}" aria-label="{{ t('restore.browse') }}">
-                    <i class="bi bi-folder-symlink"></i>
+                    <i class="bi bi-folder2-open"></i>
                 </button>
                 <button type="button" class="sv-btn sv-btn-secondary sv-btn-sm" id="btnScanFolder">
                     <i class="bi bi-search"></i> {{ t('restore.scan') }}
@@ -142,10 +155,15 @@
             <div class="sv-batch-progress" id="batchProgressCard" style="display:none;">
                 <div class="sv-batch-progress-head">
                     <span id="batchProgressTitle">{{ t('video.batch_progress') }}</span>
-                    <span id="batchStatus" class="sv-badge sv-badge-processing">{{ t('status.processing') }}</span>
+                    <div class="sv-flex sv-items-center sv-gap-2">
+                        <span id="batchStatus" class="sv-badge sv-badge-processing">{{ t('status.processing') }}</span>
+                        <button type="button" class="sv-progress-cancel" id="btnCancelBatch" aria-label="{{ t('common.cancel') }}" title="{{ t('restore.cancel_batch_task') }}">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="sv-progress" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                    <div class="sv-progress-bar bg-primary animated" id="batchProgressBar" style="width:0%;"></div>
+                    <div class="sv-progress-bar bg-primary animated" id="batchProgressBar" style="transform:scaleX(0);"></div>
                 </div>
                 <div class="sv-batch-stats">
                     <span id="batchProgressText">--</span>
@@ -154,11 +172,14 @@
                 </div>
             </div>
         </div>
+        </div>
     </div>
 
     <!-- ===== 右侧参数边栏 ===== -->
     <aside class="sv-param-sidebar" id="paramsSidebar">
         <div class="sv-param-sidebar-title">{{ t('restore.param_config') }}</div>
+
+        <div class="sv-param-section-title">{{ t('restore.basic_params') or '基础参数' }}</div>
 
         <div class="sv-param-group">
             <label class="sv-param-label" for="ditModel">{{ t('video.model') }}
@@ -199,7 +220,8 @@
         </div>
 
         <button type="button" class="sv-advanced-toggle" id="advToggle" aria-expanded="false" aria-controls="advParams">
-            <span class="arrow"><i class="bi bi-chevron-right"></i></span> {{ t('video.advanced_settings') }}
+            {{ t('video.advanced_settings') }}
+            <span class="arrow"><i class="bi bi-chevron-right"></i></span>
         </button>
 
         <div class="sv-adv-presets" id="advPresets" style="display:none;">
@@ -367,11 +389,14 @@ document.addEventListener('DOMContentLoaded', () => {
         btnStartRestore: document.getElementById('btnStartRestore'),
         btnStartBatch: document.getElementById('btnStartBatch'),
         btnResetRestore: document.getElementById('btnResetRestore'),
+        btnCancelRestore: document.getElementById('btnCancelRestore'),
+        btnCancelBatch: document.getElementById('btnCancelBatch'),
         batchProgressBar: document.getElementById('batchProgressBar'),
         batchProgressText: document.getElementById('batchProgressText'),
         batchCompleted: document.getElementById('batchCompleted'),
         batchFailed: document.getElementById('batchFailed'),
         batchStatus: document.getElementById('batchStatus'),
+        batchProgressCard: document.getElementById('batchProgressCard'),
         advToggle: document.getElementById('advToggle'),
         advParams: document.getElementById('advParams'),
     };
@@ -379,34 +404,190 @@ document.addEventListener('DOMContentLoaded', () => {
     let previewObjectUrl = null;
     let scannedFiles = [];
     let batchInterval = null;
+    let currentBatchId = null;
+    let gpuAvailable = null;
 
     // 降级模式检查：无 NVIDIA GPU 时禁用推理功能
     async function checkGpuAvailability() {
         try {
-            const health = await SeedVR2.api.get('/api/system/health');
-            if (health.gpu && !health.gpu.is_gpu_available) {
-                if (els.btnStartRestore) {
-                    els.btnStartRestore.disabled = true;
-                    els.btnStartRestore.classList.add('disabled');
-                }
-                if (els.btnStartBatch) {
-                    els.btnStartBatch.disabled = true;
-                    els.btnStartBatch.classList.add('disabled');
-                }
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => {
+                controller.abort();
+                gpuAvailable = 'timeout';
+                updateStartButton();
+                const heroStatusText = document.getElementById('heroStatusText');
+                if (heroStatusText) heroStatusText.textContent = I['restore.gpu_detect_timeout'] || '检测超时';
+            }, 5000);
+            const health = await SeedVR2.api.get('/api/system/health', { signal: controller.signal });
+            clearTimeout(timeoutId);
+
+            if (health.gpu && health.gpu.is_gpu_available) {
+                gpuAvailable = true;
+                const heroStatusText = document.getElementById('heroStatusText');
+                if (heroStatusText) heroStatusText.textContent = health.gpu.device_name || (I['restore.gpu_available'] || 'GPU 可用');
+            } else {
+                gpuAvailable = false;
                 const pageHeader = document.querySelector('.sv-page-head');
-                if (pageHeader) {
+                if (pageHeader && !pageHeader.querySelector('.sv-alert-gpu')) {
                     const warning = document.createElement('div');
-                    warning.className = 'sv-alert sv-alert-danger sv-mt-2';
-                    warning.innerHTML = '<i class="bi bi-exclamation-triangle sv-me-1"></i>' +
-                        (I['system.cpu_mode_tip'] || 'No NVIDIA GPU detected. SeedVR2 requires an NVIDIA GPU with CUDA for inference.');
+                    warning.className = 'sv-alert sv-alert-warning sv-mt-2 sv-alert-gpu sv-alert-collapsible';
+                    warning.innerHTML = '<button type="button" class="sv-alert-collapse" aria-label="' + (I['common.collapse'] || '折叠') + '"><i class="bi bi-chevron-up"></i></button>' +
+                        '<div class="sv-alert-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>' +
+                        '<div class="sv-alert-content sv-alert-collapsed-content">' +
+                        '<strong>' + (I['restore.gpu_warning_title'] || '需要 NVIDIA 显卡才能进行修复') + '</strong>' +
+                        '<div class="sv-alert-detail">' +
+                        '<p>' + (I['restore.gpu_warning_detail'] || 'SeedVR2 需要配备 NVIDIA 独立显卡的电脑才能进行视频/图片修复。当前设备未检测到支持的显卡。') + '</p>' +
+                        '<p class="sv-alert-hint">' + (I['restore.gpu_warning_hint'] || '如有NVIDIA显卡，请安装最新显卡驱动后重试。') + '</p>' +
+                        '</div>' +
+                        '</div>' +
+                        '<div class="sv-alert-actions">' +
+                        '<button type="button" class="sv-btn sv-btn-outline sv-btn-sm" id="btnGpuHelp"><i class="bi bi-question-circle"></i> ' + (I['restore.gpu_help'] || '帮助') + '</button>' +
+                        '<button type="button" class="sv-btn sv-btn-secondary sv-btn-sm" id="btnRetryGpu"><i class="bi bi-arrow-clockwise"></i> ' + (I['restore.gpu_retry'] || '重新检测') + '</button>' +
+                        '</div>';
                     pageHeader.appendChild(warning);
+
+                    const collapseBtn = warning.querySelector('.sv-alert-collapse');
+                    const detailEl = warning.querySelector('.sv-alert-detail');
+                    const actionsEl = warning.querySelector('.sv-alert-actions');
+                    if (collapseBtn) {
+                        collapseBtn.addEventListener('click', () => {
+                            warning.classList.toggle('sv-alert-collapsed');
+                            const isCollapsed = warning.classList.contains('sv-alert-collapsed');
+                            collapseBtn.innerHTML = isCollapsed ? '<i class="bi bi-chevron-down"></i>' : '<i class="bi bi-chevron-up"></i>';
+                            if (detailEl) detailEl.style.display = isCollapsed ? 'none' : '';
+                            if (actionsEl) actionsEl.style.display = isCollapsed ? 'none' : '';
+                        });
+                    }
+
+                    const btnRetry = warning.querySelector('#btnRetryGpu');
+                    if (btnRetry) {
+                        btnRetry.addEventListener('click', async () => {
+                            btnRetry.disabled = true;
+                            btnRetry.innerHTML = '<i class="bi bi-arrow-repeat"></i> ' + (I['restore.gpu_detecting'] || '检测中...');
+                            try {
+                                const h = await SeedVR2.api.get('/api/system/health');
+                                if (h.gpu && h.gpu.is_gpu_available) {
+                                    location.reload();
+                                } else {
+                                    SeedVR2.toast(I['restore.gpu_not_found'] || '仍未检测到可用 GPU，请确认驱动安装', 'warning');
+                                    btnRetry.disabled = false;
+                                    btnRetry.innerHTML = '<i class="bi bi-arrow-clockwise"></i> ' + (I['restore.gpu_retry'] || '重新检测');
+                                }
+                            } catch (e) {
+                                SeedVR2.toast(I['restore.gpu_retry_failed'] || '检测失败，请重试', 'error');
+                                btnRetry.disabled = false;
+                                btnRetry.innerHTML = '<i class="bi bi-arrow-clockwise"></i> ' + (I['restore.gpu_retry'] || '重新检测');
+                            }
+                        });
+                    }
                 }
             }
+            updateStartButton();
         } catch (e) {
-            console.warn('GPU 可用性检查失败:', e);
+            if (gpuAvailable === null) {
+                console.warn('GPU 可用性检查失败:', e);
+                gpuAvailable = 'timeout';
+                const heroStatusText = document.getElementById('heroStatusText');
+                if (heroStatusText) heroStatusText.textContent = I['restore.gpu_detect_timeout'] || '检测超时';
+                updateStartButton();
+            }
         }
     }
+
+    function updateStartButton() {
+        const btn = els.btnStartRestore;
+        const batchBtn = els.btnStartBatch;
+        if (!btn) return;
+
+        const hasFile = els.fileInput.files.length > 0;
+
+        btn.classList.remove('is-disabled');
+        btn.removeAttribute('disabled');
+        btn.title = hasFile ? '' : (I['restore.please_select_file'] || '请先选择要修复的文件');
+        btn.innerHTML = '<i class="bi bi-play-fill"></i> ' + (I['restore.upload_and_restore'] || '上传并修复');
+        btn.classList.add('sv-btn-primary');
+
+        if (batchBtn) {
+            batchBtn.classList.remove('is-disabled');
+            batchBtn.removeAttribute('disabled');
+            batchBtn.title = '';
+        }
+
+        if (gpuAvailable === false) {
+            btn.classList.add('is-disabled');
+            btn.title = I['restore.gpu_required'] || '需要 NVIDIA CUDA GPU 才能执行修复';
+            btn.innerHTML = '⚠️ ' + (I['restore.gpu_required'] || '需要NVIDIA GPU');
+            if (batchBtn) {
+                batchBtn.classList.add('is-disabled');
+                batchBtn.title = I['restore.gpu_required'] || '需要 NVIDIA CUDA GPU 才能执行修复';
+            }
+        } else if (gpuAvailable === 'timeout') {
+            btn.classList.add('is-disabled');
+            btn.title = I['restore.gpu_timeout'] || 'GPU检测超时，请检查服务状态';
+            btn.innerHTML = '⚠️ ' + (I['restore.gpu_timeout'] || 'GPU检测超时');
+            if (batchBtn) {
+                batchBtn.classList.add('is-disabled');
+                batchBtn.title = I['restore.gpu_timeout'] || 'GPU检测超时，请检查服务状态';
+            }
+        }
+    }
+
+    async function cancelRestore() {
+        const confirmed = await SeedVR2.confirm(
+            I['restore.cancel_task'] || '取消任务',
+            I['restore.cancel_task_confirm'] || '确定要取消当前修复任务吗？已处理进度将丢失。'
+        );
+        if (!confirmed) return;
+
+        try {
+            await SeedVR2.api.post('/api/restore/cancel');
+            SeedVR2.hideCard('progressCard');
+            els.progressCard.style.display = 'none';
+            SeedVR2.toast(I['restore.task_cancelled'] || '任务已取消', 'info');
+        } catch (err) {
+            SeedVR2.toast((I['restore.cancel_failed'] || '取消失败') + ': ' + err.message, 'error');
+        }
+    }
+
+    async function cancelBatch() {
+        const confirmed = await SeedVR2.confirm(
+            I['restore.cancel_batch_task'] || '取消批量任务',
+            I['restore.cancel_batch_confirm'] || '确定要取消当前批量修复任务吗？已处理进度将丢失。'
+        );
+        if (!confirmed) return;
+
+        try {
+            if (currentBatchId) {
+                await SeedVR2.api.post(`/api/restore/batch/${currentBatchId}/cancel`);
+            } else {
+                await SeedVR2.api.post('/api/restore/cancel');
+            }
+            if (batchInterval) {
+                clearInterval(batchInterval);
+                batchInterval = null;
+            }
+            els.batchProgressCard.style.display = 'none';
+            SeedVR2.toast(I['restore.batch_task_cancelled'] || '批量任务已取消', 'info');
+        } catch (err) {
+            SeedVR2.toast((I['restore.cancel_failed'] || '取消失败') + ': ' + err.message, 'error');
+        }
+    }
+
     checkGpuAvailability();
+
+    // 首次使用引导：仅首次访问显示
+    const onboarding = document.getElementById('onboardingTip');
+    const onboardingClose = document.getElementById('onboardingClose');
+    const hasSeenOnboarding = localStorage.getItem('sv_onboarding_seen');
+    if (onboarding && !hasSeenOnboarding) {
+        onboarding.style.display = '';
+    }
+    if (onboardingClose) {
+        onboardingClose.addEventListener('click', () => {
+            onboarding.style.display = 'none';
+            localStorage.setItem('sv_onboarding_seen', '1');
+        });
+    }
 
     // 页面离开时清除批量进度轮询
     window.addEventListener('beforeunload', () => {
@@ -416,15 +597,57 @@ document.addEventListener('DOMContentLoaded', () => {
     // 上传区
     SeedVR2.setupUploadZone(els.uploadZone, els.fileInput, {
         onFileSelected: (file) => {
-            els.fileInfo.style.display = 'block';
-            els.fileInfo.textContent = `${file.name} (${SeedVR2.formatFileSize(file.size)})`;
+            els.fileInfo.style.display = 'flex';
+            const isImage = file.type.startsWith('image/');
+            const isVideo = file.type.startsWith('video/');
+            const iconClass = isImage ? 'bi-image' : 'bi-film';
 
             if (previewObjectUrl) {
                 URL.revokeObjectURL(previewObjectUrl);
                 previewObjectUrl = null;
             }
-            if (file.type.startsWith('image/')) {
-                previewObjectUrl = URL.createObjectURL(file);
+            previewObjectUrl = URL.createObjectURL(file);
+
+            const fileInfoHtml = `
+                <div class="sv-fileinfo-main">
+                    <i class="bi ${iconClass}"></i>
+                    <span class="sv-fileinfo-name" title="${SeedVR2.escapeHtml(file.name)}">${SeedVR2.escapeHtml(file.name)}</span>
+                    <span class="sv-fileinfo-size">${SeedVR2.formatFileSize(file.size)}</span>
+                    <span class="sv-fileinfo-duration" id="fileDuration"></span>
+                </div>
+                <button type="button" class="sv-btn sv-btn-ghost sv-btn-xs" id="btnChangeFile">
+                    <i class="bi bi-arrow-repeat"></i> ${I['restore.change_file'] || '更换文件'}
+                </button>
+            `;
+            els.fileInfo.innerHTML = fileInfoHtml;
+
+            const btnChangeFile = document.getElementById('btnChangeFile');
+            if (btnChangeFile) {
+                btnChangeFile.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    els.fileInput.click();
+                });
+            }
+
+            if (isVideo) {
+                const tempVideo = document.createElement('video');
+                tempVideo.preload = 'metadata';
+                tempVideo.src = previewObjectUrl;
+                tempVideo.onloadedmetadata = () => {
+                    const durationEl = document.getElementById('fileDuration');
+                    if (durationEl && tempVideo.duration && isFinite(tempVideo.duration)) {
+                        const mins = Math.floor(tempVideo.duration / 60);
+                        const secs = Math.floor(tempVideo.duration % 60);
+                        durationEl.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+                    }
+                    URL.revokeObjectURL(tempVideo.src);
+                };
+                tempVideo.onerror = () => {
+                    URL.revokeObjectURL(tempVideo.src);
+                };
+            }
+
+            if (isImage) {
                 els.imagePreview.src = previewObjectUrl;
                 els.imagePreview.style.display = 'block';
                 if (els.imagePreviewContainer) els.imagePreviewContainer.style.display = 'flex';
@@ -433,10 +656,11 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 els.imagePreview.style.display = 'none';
             }
+            updateStartButton();
         },
         onFileCleared: () => {
             els.fileInfo.style.display = 'none';
-            els.fileInfo.textContent = '';
+            els.fileInfo.innerHTML = '';
             if (previewObjectUrl) {
                 URL.revokeObjectURL(previewObjectUrl);
                 previewObjectUrl = null;
@@ -446,6 +670,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (els.imagePreviewContainer) els.imagePreviewContainer.style.display = 'none';
             const wg = document.getElementById('workflowGuide');
             if (wg) wg.style.display = '';
+            updateStartButton();
         },
     });
 
@@ -462,7 +687,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function scanFolder() {
         const path = els.folderPath.value.trim();
         if (!path) {
-            SeedVR2.toast(I['restore.please_select'] || '请选择文件夹', 'warning');
+            SeedVR2.toast(I['restore.please_select_folder'] || '请输入或选择文件夹路径', 'warning');
             return;
         }
         try {
@@ -470,7 +695,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await SeedVR2.api.get(`/api/restore/scan-folder?folder_path=${encodeURIComponent(path)}`);
             scannedFiles = data.files || [];
             if (scannedFiles.length === 0) {
-                els.scanResults.innerHTML = `<div class="sv-alert sv-alert-warning">${I['restore.scan_failed'] || '未找到可处理文件'}</div>`;
+                els.scanResults.innerHTML = `<div class="sv-alert sv-alert-warning">${I['restore.no_files_found'] || '未找到可处理文件'}</div>`;
                 return;
             }
             const totalText = (I['restore.found_files'] || '找到 {total} 个文件').replace('{total}', scannedFiles.length);
@@ -520,7 +745,20 @@ document.addEventListener('DOMContentLoaded', () => {
     async function startRestore() {
         const file = els.fileInput.files[0];
         if (!file) {
-            SeedVR2.toast(I['restore.please_select'] || '请选择文件', 'warning');
+            SeedVR2.toast(I['restore.please_select_file'] || '请先选择要修复的文件', 'warning');
+            return;
+        }
+
+        if (gpuAvailable === false) {
+            SeedVR2.toast(I['restore.gpu_required'] || '需要 NVIDIA CUDA GPU 才能执行修复', 'warning');
+            return;
+        }
+        if (gpuAvailable === 'timeout') {
+            SeedVR2.toast(I['restore.gpu_timeout'] || 'GPU检测超时，请检查服务状态', 'warning');
+            return;
+        }
+        if (gpuAvailable === null) {
+            SeedVR2.toast(I['restore.gpu_detecting'] || 'GPU检测中，请稍候...', 'info');
             return;
         }
 
@@ -548,20 +786,31 @@ document.addEventListener('DOMContentLoaded', () => {
     async function startBatch() {
         const path = els.folderPath.value.trim();
         if (!path) {
-            SeedVR2.toast(I['restore.please_select'] || '请输入文件夹路径', 'warning');
+            SeedVR2.toast(I['restore.please_select_folder'] || '请输入或选择文件夹路径', 'warning');
+            return;
+        }
+
+        const fileCount = scannedFiles.length || 0;
+        if (fileCount === 0) {
+            SeedVR2.toast(I['restore.please_scan_folder'] || '请先扫描文件夹', 'warning');
+            return;
+        }
+
+        if (gpuAvailable === false) {
+            SeedVR2.toast(I['restore.gpu_required'] || '需要 NVIDIA CUDA GPU 才能执行修复', 'warning');
+            return;
+        }
+        if (gpuAvailable === 'timeout') {
+            SeedVR2.toast(I['restore.gpu_timeout'] || 'GPU检测超时，请检查服务状态', 'warning');
+            return;
+        }
+        if (gpuAvailable === null) {
+            SeedVR2.toast(I['restore.gpu_detecting'] || 'GPU检测中，请稍候...', 'info');
             return;
         }
 
         // 批量处理预确认
-        const fileCount = scannedFiles.length || 0;
-        const confirmMsg = fileCount > 0
-            ? (I['restore.batch_confirm_msg'] || '即将处理 {count} 个文件，确认开始？').replace('{count}', fileCount)
-            : (I['restore.please_select'] || '请先扫描文件夹');
-
-        if (fileCount === 0) {
-            SeedVR2.toast(I['restore.please_select'] || '请先扫描文件夹', 'warning');
-            return;
-        }
+        const confirmMsg = (I['restore.batch_confirm_msg'] || '即将处理 {count} 个文件，确认开始？').replace('{count}', fileCount);
 
         SeedVR2.confirm(
             I['restore.batch_confirm_title'] || '确认批量修复',
@@ -576,6 +825,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         SeedVR2.api.post('/api/restore/batch', params),
                         { loadingText: I['common.processing'] || 'Processing...' }
                     );
+                    currentBatchId = data.batch_id;
                     SeedVR2.toast(I['video.batch_started'] || '批量处理已启动', 'info');
                     pollBatchProgress(data.batch_id);
                 } catch (err) {
@@ -603,7 +853,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const current = (cached.current_index || 0) + 1;
                 const progress = total > 0 ? Math.round((current / total) * 100) : 0;
 
-                els.batchProgressBar.style.width = `${progress}%`;
+                els.batchProgressBar.style.transform = `scaleX(${progress / 100})`;
                 els.batchProgressBar.setAttribute('aria-valuenow', progress);
                 els.batchProgressText.textContent = `${current} / ${total}`;
                 els.batchCompleted.textContent = completed;
@@ -629,6 +879,7 @@ document.addEventListener('DOMContentLoaded', () => {
             clearInterval(batchInterval);
             batchInterval = null;
         }
+        currentBatchId = null;
         scannedFiles = [];
         els.scanResults.innerHTML = '';
         els.folderPath.value = '';
@@ -636,6 +887,7 @@ document.addEventListener('DOMContentLoaded', () => {
             URL.revokeObjectURL(previewObjectUrl);
             previewObjectUrl = null;
         }
+        updateStartButton();
     }
 
     // 高级参数展开 / 收起
@@ -674,18 +926,11 @@ document.addEventListener('DOMContentLoaded', () => {
     els.btnStartBatch.addEventListener('click', startBatch);
     els.btnResetRestore.addEventListener('click', resetRestore);
     els.btnRestoreAgain.addEventListener('click', resetRestore);
-
-    // ===== 首次使用引导 =====
-    const onboardingTip = document.getElementById('onboardingTip');
-    const onboardingClose = document.getElementById('onboardingClose');
-    if (onboardingTip && !localStorage.getItem('sv-onboarding-dismissed')) {
-        onboardingTip.style.display = 'flex';
+    if (els.btnCancelRestore) {
+        els.btnCancelRestore.addEventListener('click', cancelRestore);
     }
-    if (onboardingClose) {
-        onboardingClose.addEventListener('click', () => {
-            onboardingTip.style.display = 'none';
-            localStorage.setItem('sv-onboarding-dismissed', '1');
-        });
+    if (els.btnCancelBatch) {
+        els.btnCancelBatch.addEventListener('click', cancelBatch);
     }
 
     // ===== 后端预设加载 =====
@@ -767,12 +1012,25 @@ document.addEventListener('DOMContentLoaded', () => {
             t.classList.toggle('active', t.dataset.mode === mode);
             t.setAttribute('aria-selected', t.dataset.mode === mode ? 'true' : 'false');
         });
+        document.querySelectorAll('.sv-mode-tab-pane').forEach(pane => {
+            pane.classList.toggle('active', pane.dataset.mode === mode);
+        });
+        const mainArea = document.querySelector('.sv-restore-main');
+        if (mainArea) {
+            mainArea.classList.remove('mode-single', 'mode-batch');
+            mainArea.classList.add('mode-' + mode);
+        }
         if (mode === 'batch') {
             const batchSection = document.querySelector('.sv-batch-section');
             if (batchSection) {
-                batchSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                batchSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 batchSection.classList.add('sv-batch-highlight');
                 setTimeout(() => batchSection.classList.remove('sv-batch-highlight'), 1500);
+            }
+        } else {
+            const dropzone = document.querySelector('.sv-dropzone');
+            if (dropzone) {
+                dropzone.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
         }
         history.replaceState(null, '', mode === 'batch' ? '#batch' : '#single');
@@ -782,10 +1040,8 @@ document.addEventListener('DOMContentLoaded', () => {
         tab.addEventListener('click', () => switchMode(tab.dataset.mode));
     });
 
-    // 从 URL hash 恢复模式
-    if (location.hash === '#batch') {
-        switchMode('batch');
-    }
+    // 从 URL hash 恢复模式，默认 single
+    switchMode(location.hash === '#batch' ? 'batch' : 'single');
 });
 </script>
 {% endblock %}

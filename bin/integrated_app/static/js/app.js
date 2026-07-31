@@ -1,12 +1,54 @@
-/**
- * Klar - 前端交互脚本
- * 包含：API 封装、文件上传、SSE 进度、对比滑块、Toast 通知、侧边栏状态等
+﻿/**
+ * @file SeedVR2 - 前端交互脚本
+ * @project SeedVR2 - AI视频/图像修复系统
+ * @description 包含完整的前端交互逻辑，为SeedVR2视频/图像修复系统提供用户界面支持
+ * @module SeedVR2
+ * @version 2.0.0
+ * @author SeedVR2 Team
+ *
+ * @description 功能列表：
+ * - i18n多语言翻译（中文/英文/日文/法文）
+ * - HTTP API请求封装（GET/POST/DELETE/文件上传）
+ * - CSRF Token安全防护
+ * - SSE服务器推送事件连接（全局状态、修复进度实时更新）
+ * - 前后对比滑块（支持鼠标/触摸拖拽）
+ * - Toast通知系统（支持多种类型、错误详情展开、重试操作）
+ * - 模态框系统（焦点陷阱、键盘导航、动画效果）
+ * - 文件上传区域（点击选择、拖拽上传）
+ * - 目录浏览器（文件系统导航、资源管理器打开）
+ * - 系统状态栏（GPU状态、模型状态、内存使用、实时时钟）
+ * - 主题切换（暗色/亮色主题持久化）
+ * - 表单验证（数值范围、错误提示）
+ * - 历史记录管理（右键菜单、删除确认）
+ * - 导航快捷键（Alt+数字键直达）
+ * - 移动端响应式导航
+ * - 用户偏好持久化
+ * - 参数预设与推荐
+ * - Shrink参数联动控制
+ * - 设置页面Tab键盘导航
+ *
+ * @dependencies 核心依赖：
+ * - 原生浏览器API（Fetch API, EventSource, AbortController, DataTransfer）
+ * - Bootstrap Icons（图标库，用于Toast、按钮、导航等UI元素）
+ * - HTMX（HTML增强库，通过事件监听进行错误处理与Toast联动）
+ * - 浏览器LocalStorage（主题、用户偏好持久化）
+ * - CSS自定义属性（主题色、动画、响应式布局）
+ * - CSS Transitions/Animations（模态框、Toast、卡片淡入淡出动画）
  */
 
 const SeedVR2 = (() => {
     'use strict';
 
     // ===== 客户端 i18n =====
+    /**
+     * @constant {Object} _translations
+     * @description 多语言翻译字典，支持中文(zh)、英文(en)、日文(ja)、法文(fr)四种语言
+     * @property {Object} zh - 中文翻译
+     * @property {Object} en - 英文翻译
+     * @property {Object} ja - 日文翻译
+     * @property {Object} fr - 法文翻译
+     * @private
+     */
     const _translations = {
         zh: {
             'error.400': '请求参数有误',
@@ -230,7 +272,16 @@ const SeedVR2 = (() => {
         }
     };
 
-    // Simple i18n lookup with optional placeholder replacement
+    /**
+     * @function t
+     * @description i18n翻译函数，支持占位符替换
+     * @param {string} key - 翻译键名
+     * @param {Object} [params] - 占位符参数对象，键为占位符名称，值为替换内容
+     * @returns {string} 翻译后的文本，如果键不存在则返回键名本身
+     * @example
+     * // 返回 "最小值为 1"
+     * t('form.min_value', {min: 1});
+     */
     function t(key, params) {
         const locale = window.__LOCALE__ || 'zh';
         const dict = _translations[locale] || _translations.zh;
@@ -244,10 +295,23 @@ const SeedVR2 = (() => {
     }
 
     // ===== API 封装 =====
+    /**
+     * @function httpStatusText
+     * @description 根据HTTP状态码获取对应的错误消息文本
+     * @param {number} status - HTTP状态码
+     * @returns {string} 本地化的错误消息文本
+     */
     function httpStatusText(status) {
         return t(`error.${status}`) || `${t('error.default')} (${status})`;
     }
 
+    /**
+     * @function parseApiError
+     * @description 解析API响应错误，优先从响应数据中提取错误消息，否则使用HTTP状态码对应的消息
+     * @param {Response} response - Fetch API Response对象
+     * @param {Object} data - 解析后的响应JSON数据
+     * @returns {string} 错误消息文本
+     */
     function parseApiError(response, data) {
         if (data?.error?.message) return data.error.message;
         if (data?.detail) return typeof data.detail === 'string' ? data.detail : httpStatusText(response.status);
@@ -255,17 +319,38 @@ const SeedVR2 = (() => {
     }
 
     // ===== CSRF Token Helper =====
+    /**
+     * @function getCsrfToken
+     * @description 从Cookie中获取CSRF Token，用于防止跨站请求伪造攻击
+     * @returns {string|null} CSRF Token值，如果不存在则返回null
+     */
     function getCsrfToken() {
         const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
         return match ? decodeURIComponent(match[1]) : null;
     }
 
+    /**
+     * @function csrfHeaders
+     * @description 构造包含CSRF Token的请求头对象
+     * @returns {Object} 请求头对象，包含X-CSRF-Token字段（如果Token存在）
+     */
     function csrfHeaders() {
         const token = getCsrfToken();
         return token ? { 'X-CSRF-Token': token } : {};
     }
 
+    /**
+     * @namespace api
+     * @description HTTP API请求封装对象，提供统一的请求方法和错误处理
+     */
     const api = {
+        /**
+         * @function api.get
+         * @description 发送GET请求
+         * @param {string} url - 请求URL
+         * @returns {Promise<Object>} 解析后的JSON响应数据
+         * @throws {Error} 请求失败时抛出包含错误消息的Error对象
+         */
         async get(url) {
             const response = await fetch(url);
             if (!response.ok) {
@@ -275,6 +360,14 @@ const SeedVR2 = (() => {
             return response.json();
         },
 
+        /**
+         * @function api.post
+         * @description 发送POST请求（JSON格式）
+         * @param {string} url - 请求URL
+         * @param {Object} data - 要发送的JSON数据
+         * @returns {Promise<Object>} 解析后的JSON响应数据
+         * @throws {Error} 请求失败时抛出包含错误消息的Error对象
+         */
         async post(url, data) {
             const response = await fetch(url, {
                 method: 'POST',
@@ -288,6 +381,13 @@ const SeedVR2 = (() => {
             return response.json();
         },
 
+        /**
+         * @function api.delete
+         * @description 发送DELETE请求
+         * @param {string} url - 请求URL
+         * @returns {Promise<Object>} 解析后的JSON响应数据
+         * @throws {Error} 请求失败时抛出包含错误消息的Error对象
+         */
         async delete(url) {
             const response = await fetch(url, {
                 method: 'DELETE',
@@ -300,6 +400,13 @@ const SeedVR2 = (() => {
             return response.json();
         },
 
+        /**
+         * @function api.uploadRestore
+         * @description 上传修复文件（使用FormData格式，支持文件上传）
+         * @param {FormData} formData - 包含文件和其他参数的FormData对象
+         * @returns {Promise<Object>} 解析后的JSON响应数据，包含任务ID等信息
+         * @throws {Error} 请求失败时抛出包含错误消息的Error对象
+         */
         async uploadRestore(formData) {
             const token = getCsrfToken();
             const headers = token ? { 'X-CSRF-Token': token } : {};
@@ -315,6 +422,17 @@ const SeedVR2 = (() => {
             return response.json();
         },
 
+        /**
+         * @function api.submitWithLoading
+         * @description 提交异步操作时显示按钮加载状态，操作完成后自动恢复
+         * @param {HTMLElement} btn - 按钮元素
+         * @param {Promise} promise - 要执行的异步操作Promise
+         * @param {Object} [options] - 配置选项
+         * @param {string} [options.loadingHtml] - 加载中显示的HTML内容
+         * @param {string} [options.loadingText] - 加载中显示的文本
+         * @param {boolean} [options.restoreHtml=true] - 是否在完成后恢复原始HTML
+         * @returns {Promise} 异步操作的结果
+         */
         async submitWithLoading(btn, promise, options = {}) {
             if (!btn || !(btn instanceof Element)) return promise;
             const originalHtml = btn.innerHTML;
@@ -334,13 +452,26 @@ const SeedVR2 = (() => {
     };
 
     // ===== Toast 通知 =====
+    /**
+     * @constant {number} MAX_TOASTS
+     * @description 屏幕上同时显示的最大Toast通知数量，超过此数量时最早的Toast会自动关闭
+     * @default 3
+     */
     const MAX_TOASTS = 3;
 
+    /**
+     * @function toast
+     * @description 显示Toast通知消息，支持多种类型、自动关闭、错误详情展开和重试操作
+     * @param {string} message - 通知消息内容
+     * @param {string} [type='info'] - 通知类型：success/error/warning/info
+     * @param {number} [duration=4000] - 自动关闭延迟时间（毫秒）
+     * @returns {void}
+     */
     function toast(message, type = 'info', duration = 4000) {
         const container = document.getElementById('toastContainer');
         if (!container) return;
 
-        // 限制最大数量
+        // 限制最大数量，超出时移除最早的通知
         while (container.children.length >= MAX_TOASTS) {
             const oldest = container.firstElementChild;
             oldest.classList.add('toast-out');
@@ -354,7 +485,7 @@ const SeedVR2 = (() => {
             info: 'bi-info-circle-fill',
         };
 
-        // 错误类型行动建议
+        // 错误类型行动建议映射
         const actionMap = {
             400: t('error.400'),
             401: t('error.401'),
@@ -374,7 +505,7 @@ const SeedVR2 = (() => {
 
         const msgSpan = document.createElement('span');
         msgSpan.style.flex = '1';
-        // 两层错误展示：简要 + 可展开详情
+        // 长错误消息采用概要+可展开详情的双层展示
         if (type === 'error' && message.length > 60) {
             const briefEnd = message.indexOf(':');
             if (briefEnd > 0 && briefEnd < 40) {
@@ -388,7 +519,7 @@ const SeedVR2 = (() => {
             msgSpan.textContent = message;
         }
 
-        // 错误消息添加行动建议
+        // 错误类型添加重试按钮，点击后关闭通知并触发页面刷新
         if (type === 'error') {
             const actionHint = t('error.action_retry') || '';
             if (actionHint) {
@@ -425,6 +556,7 @@ const SeedVR2 = (() => {
 
         container.appendChild(el);
 
+        // 设置自动关闭定时器
         setTimeout(() => {
             el.classList.add('toast-out');
             setTimeout(() => el.remove(), 300);
@@ -432,6 +564,14 @@ const SeedVR2 = (() => {
     }
 
     // ===== 确认模态框 =====
+    /**
+     * @function confirm
+     * @description 显示确认对话框模态框
+     * @param {string} title - 对话框标题
+     * @param {string} message - 确认消息内容
+     * @param {Function} onConfirm - 确认按钮点击回调函数
+     * @returns {void}
+     */
     function confirm(title, message, onConfirm) {
         const modal = document.getElementById('confirmModal');
         const titleEl = document.getElementById('confirmTitle');
@@ -443,7 +583,7 @@ const SeedVR2 = (() => {
         titleEl.textContent = title;
         msgEl.textContent = message;
 
-        // 终止之前的事件监听
+        // 终止之前的事件监听，避免重复绑定
         if (modal._confirmAbortController) {
             modal._confirmAbortController.abort();
         }
@@ -458,6 +598,13 @@ const SeedVR2 = (() => {
         modal.classList.add('show');
     }
 
+    /**
+     * @function trapFocus
+     * @description 在模态框内设置焦点陷阱，确保Tab键不会跳出模态框（无障碍访问支持）
+     * @param {HTMLElement} modalEl - 模态框元素
+     * @returns {void}
+     * @private
+     */
     function trapFocus(modalEl) {
         const focusable = modalEl.querySelectorAll(
             'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
@@ -488,6 +635,13 @@ const SeedVR2 = (() => {
         modalEl._firstFocusable = first;
     }
 
+    /**
+     * @function releaseFocus
+     * @description 释放模态框的焦点陷阱，移除键盘事件监听
+     * @param {HTMLElement} modalEl - 模态框元素
+     * @returns {void}
+     * @private
+     */
     function releaseFocus(modalEl) {
         if (modalEl._focusTrapHandler) {
             modalEl.removeEventListener('keydown', modalEl._focusTrapHandler);
@@ -495,6 +649,12 @@ const SeedVR2 = (() => {
         }
     }
 
+    /**
+     * @function openModal
+     * @description 打开指定ID的模态框，保存之前的焦点元素，设置焦点陷阱
+     * @param {string} id - 模态框元素ID
+     * @returns {void}
+     */
     function openModal(id) {
         const modal = document.getElementById(id);
         if (modal) {
@@ -504,6 +664,12 @@ const SeedVR2 = (() => {
         }
     }
 
+    /**
+     * @function closeModal
+     * @description 关闭指定ID的模态框，释放焦点陷阱，恢复焦点到之前的元素，带退出动画
+     * @param {string} id - 模态框元素ID
+     * @returns {void}
+     */
     function closeModal(id) {
         const modal = document.getElementById(id);
         if (modal) {
@@ -521,17 +687,27 @@ const SeedVR2 = (() => {
     }
 
     // ===== 文件上传区域 =====
+    /**
+     * @function setupUploadZone
+     * @description 初始化文件上传区域，支持点击选择和拖拽上传
+     * @param {HTMLElement} zone - 上传区域DOM元素
+     * @param {HTMLInputElement} fileInput - 文件输入input元素
+     * @param {Object} [callbacks] - 回调函数对象
+     * @param {Function} [callbacks.onFileSelected] - 文件选择后的回调，参数为选中的File对象
+     * @param {Function} [callbacks.onFileCleared] - 文件清除后的回调
+     * @returns {void}
+     */
     function setupUploadZone(zone, fileInput, callbacks = {}) {
         if (!zone || !fileInput) return;
 
-        // 点击上传
+        // 点击上传区域触发文件选择
         zone.addEventListener('click', (e) => {
             if (e.target !== fileInput) {
                 fileInput.click();
             }
         });
 
-        // 文件选择
+        // 监听文件选择变化
         fileInput.addEventListener('change', () => {
             if (fileInput.files && fileInput.files[0]) {
                 zone.classList.add('has-file');
@@ -542,7 +718,7 @@ const SeedVR2 = (() => {
             }
         });
 
-        // 拖拽事件
+        // 拖拽事件处理
         zone.addEventListener('dragover', (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -562,7 +738,7 @@ const SeedVR2 = (() => {
 
             const files = e.dataTransfer.files;
             if (files && files[0]) {
-                // 使用 DataTransfer 设置文件
+                // 使用DataTransfer API设置文件到input元素
                 const dt = new DataTransfer();
                 dt.items.add(files[0]);
                 fileInput.files = dt.files;
@@ -574,11 +750,38 @@ const SeedVR2 = (() => {
     }
 
     // ===== 全局 SSE 连接 =====
+    /**
+     * @var {EventSource|null} globalEventSource
+     * @description 全局SSE连接实例，用于接收服务器推送的系统状态事件
+     * @private
+     */
     let globalEventSource = null;
+    /**
+     * @var {number} _sseRetryCount
+     * @description SSE连接重试计数器
+     * @private
+     */
     let _sseRetryCount = 0;
+    /**
+     * @var {number|null} _sseRetryTimer
+     * @description SSE重设定时器ID
+     * @private
+     */
     let _sseRetryTimer = null;
+    /**
+     * @constant {number} SSE_MAX_RETRIES
+     * @description SSE连接最大重试次数，超过后停止重连并通知用户
+     * @default 10
+     */
     const SSE_MAX_RETRIES = 10;
 
+    /**
+     * @function _updateSSEStatusUI
+     * @description 更新SSE连接状态UI指示器（状态栏小圆点）
+     * @param {string} state - 连接状态：online/reconnecting/offline
+     * @returns {void}
+     * @private
+     */
     function _updateSSEStatusUI(state) {
         const dot = document.getElementById('statusDot');
         if (!dot) return;
@@ -595,7 +798,55 @@ const SeedVR2 = (() => {
         }
     }
 
+    /**
+     * @function updateStatusFromEvent
+     * @description 从SSE事件数据更新系统状态栏（GPU状态、模型加载状态）
+     * @param {Object} data - SSE事件数据对象
+     * @param {boolean} [data.gpu_available] - GPU是否可用
+     * @param {string} [data.gpu_name] - GPU名称
+     * @param {string} [data.status] - 模型状态：loaded/loading/unloading/unloaded/error
+     * @returns {void}
+     */
+    function updateStatusFromEvent(data) {
+        const statusModel = document.getElementById('statusModel');
+        const statusGpu = document.getElementById('statusGpu');
+        if (!statusModel || !statusGpu) return;
+
+        // 更新GPU状态显示
+        if (data.gpu_available !== undefined) {
+            const gpuName = data.gpu_name || 'NVIDIA';
+            if (data.gpu_available) {
+                statusGpu.textContent = 'GPU: ' + gpuName;
+                statusGpu.style.color = 'var(--sv-primary)';
+            } else {
+                statusGpu.textContent = 'GPU: 不可用';
+                statusGpu.style.color = 'var(--sv-warning)';
+            }
+        }
+
+        // 更新模型加载状态显示
+        if (data.status === 'loaded') {
+            statusModel.textContent = t('settings.model_management') + ': ' + (t('status.model_loaded') || '已加载');
+            statusModel.style.color = 'var(--sv-primary)';
+        } else if (data.status === 'loading') {
+            statusModel.textContent = t('settings.model_management') + ': ' + (t('status.model_loading') || '加载中...');
+            statusModel.style.color = 'var(--sv-accent-terracotta)';
+        } else if (data.status === 'unloading' || data.status === 'unloaded') {
+            statusModel.textContent = t('settings.model_management') + ': ' + (t('status.model_unloaded') || '未加载');
+            statusModel.style.color = 'var(--sv-text-muted)';
+        } else if (data.status === 'error') {
+            statusModel.textContent = t('settings.model_management') + ': ' + (t('status.model_error') || '错误');
+            statusModel.style.color = 'var(--sv-error)';
+        }
+    }
+
+    /**
+     * @function initGlobalSSE
+     * @description 初始化全局SSE连接，支持自动重连（指数退避策略），监听心跳、进度、模型状态等事件
+     * @returns {void}
+     */
     function initGlobalSSE() {
+        // 关闭现有连接
         if (globalEventSource) {
             globalEventSource.close();
             globalEventSource = null;
@@ -605,6 +856,7 @@ const SeedVR2 = (() => {
             _sseRetryTimer = null;
         }
 
+        // 超过最大重试次数，停止重连
         if (_sseRetryCount >= SSE_MAX_RETRIES) {
             console.error('SSE max retries reached, stopping reconnection');
             _updateSSEStatusUI('offline');
@@ -615,56 +867,63 @@ const SeedVR2 = (() => {
         globalEventSource = new EventSource('/api/sse/events');
         window.__sseConnection = globalEventSource;
 
+        // 心跳事件处理（保持连接活跃）
         globalEventSource.addEventListener('heartbeat', (event) => {
             try {
                 const data = JSON.parse(event.data);
-                console.log('SSE heartbeat:', data);
+                // 静默处理心跳，不打印日志
             } catch (err) {
-                console.error('SSE heartbeat parse error:', err);
+                console.debug('SSE heartbeat parse error:', err);
             }
         });
 
+        // 进度事件处理（由具体页面订阅处理，此处仅监听通道）
         globalEventSource.addEventListener('progress', (event) => {
             try {
                 const data = JSON.parse(event.data);
-                console.log('SSE progress:', data);
+                // 进度事件由具体页面处理，这里只做SSE通道监听
             } catch (err) {
-                console.error('SSE progress parse error:', err);
+                console.debug('SSE progress parse error:', err);
             }
         });
 
+        // 模型状态事件处理
         globalEventSource.addEventListener('model_status', (event) => {
             try {
                 const data = JSON.parse(event.data);
-                console.log('SSE model_status:', data);
+                // 更新系统状态栏
+                updateStatusFromEvent(data);
             } catch (err) {
-                console.error('SSE model_status parse error:', err);
+                console.debug('SSE model_status parse error:', err);
             }
         });
 
         // 连接成功时重置重试计数
         globalEventSource.onopen = () => {
             if (_sseRetryCount > 0) {
-                console.warn('SSE reconnected after', _sseRetryCount, 'attempts');
+                console.debug('SSE reconnected after', _sseRetryCount, 'attempts');
                 toast(t('locale.switched') || 'Reconnected', 'success', 2000);
             }
             _sseRetryCount = 0;
             _updateSSEStatusUI('online');
         };
 
+        // 连接错误时使用指数退避策略重连
         globalEventSource.onerror = () => {
             globalEventSource.close();
             globalEventSource = null;
             window.__sseConnection = null;
             _sseRetryCount++;
             _updateSSEStatusUI('reconnecting');
+            // 指数退避：1s, 2s, 4s, 8s... 最大30s
             const delay = Math.min(1000 * Math.pow(2, _sseRetryCount - 1), 30000);
-            console.warn('SSE connection error, retrying in', delay, 'ms (attempt', _sseRetryCount, ')');
+            console.debug('SSE connection error, retrying in', delay, 'ms (attempt', _sseRetryCount, ')');
             _sseRetryTimer = setTimeout(() => {
                 initGlobalSSE();
             }, delay);
         };
 
+        // 页面卸载前关闭连接
         window.addEventListener('beforeunload', () => {
             if (_sseRetryTimer) {
                 clearTimeout(_sseRetryTimer);
@@ -679,8 +938,20 @@ const SeedVR2 = (() => {
     }
 
     // ===== SSE 统一修复进度 =====
+    /**
+     * @var {EventSource|null} currentRestoreEventSource
+     * @description 当前修复任务的SSE进度连接实例
+     * @private
+     */
     let currentRestoreEventSource = null;
 
+    /**
+     * @function startRestoreProgressSSE
+     * @description 启动修复任务进度SSE监听，实时更新进度条、FPS、阶段、预估剩余时间等UI
+     * @param {string} taskId - 修复任务ID
+     * @param {string} taskType - 任务类型：'video' 或 'image'
+     * @returns {void}
+     */
     function startRestoreProgressSSE(taskId, taskType) {
         // 关闭之前的连接
         if (currentRestoreEventSource) {
@@ -711,9 +982,9 @@ const SeedVR2 = (() => {
             try {
                 const data = JSON.parse(event.data);
 
-                // 更新进度条
+                // 更新进度条（使用transform:scaleX提升性能，避免重排）
                 if (progressBar) {
-                    progressBar.style.width = `${data.progress}%`;
+                    progressBar.style.transform = `scaleX(${data.progress / 100})`;
                     progressBar.setAttribute('aria-valuenow', Math.round(data.progress));
                     if (data.progress >= 100) {
                         progressBar.classList.remove('animated');
@@ -721,37 +992,45 @@ const SeedVR2 = (() => {
                     }
                 }
 
-                // 更新文本
-                if (progressPct) progressPct.textContent = `${data.progress}%`;
+                // 更新百分比文本
+                if (progressPct) progressPct.textContent = `${Math.round(data.progress)}%`;
                 if (progressFrames) {
-                    if (taskType === 'video') {
-                        progressFrames.textContent = ` ${_I['video.batch_current_processing']?.replace('{current}', data.current_frame).replace('{total}', data.total_frames) || `${data.current_frame} / ${data.total_frames}`}`;
+                    if (taskType === 'video' && data.total_frames) {
+                        progressFrames.textContent = `${data.current_frame} / ${data.total_frames} 帧`;
                     } else {
                         progressFrames.textContent = '';
                     }
                 }
 
-                // 预估剩余时间
-                if (progressEta && data.progress > 0 && data.progress < 100) {
-                    const elapsed = (Date.now() - startTime) / 1000;
-                    const eta = (elapsed / data.progress) * (100 - data.progress);
-                    progressEta.textContent = `ETA: ${formatDuration(eta)}`;
+                // 基于已用时间和进度预估剩余时间
+                if (progressEta) {
+                    if (data.progress > 2 && data.progress < 99) {
+                        const elapsed = (Date.now() - startTime) / 1000;
+                        const eta = (elapsed / data.progress) * (100 - data.progress);
+                        if (eta > 5) {
+                            progressEta.textContent = `约 ${formatDuration(eta)}`;
+                        } else {
+                            progressEta.textContent = '即将完成';
+                        }
+                    } else {
+                        progressEta.textContent = '';
+                    }
                 }
 
-                // 详细信息行：FPS + 阶段
+                // 视频任务显示详细信息：FPS和处理阶段
                 if (progressDetail && taskType === 'video' && data.current_frame) {
                     progressDetail.style.display = '';
-                    // FPS 计算
+                    // FPS计算：统计帧间隔时间
                     const now = Date.now();
                     const framesDelta = (data.current_frame || 0) - lastFrame;
                     const timeDelta = (now - lastFrameTime) / 1000;
                     if (framesDelta > 0 && timeDelta > 0.5) {
                         const fps = (framesDelta / timeDelta).toFixed(1);
-                        if (progressFps) progressFps.textContent = `${fps} FPS`;
+                        if (progressFps) progressFps.textContent = `${fps} fps`;
                         lastFrame = data.current_frame;
                         lastFrameTime = now;
                     }
-                    // 阶段
+                    // 根据进度判断处理阶段
                     if (progressStage) {
                         const progress = data.progress || 0;
                         if (progress < 10) progressStage.textContent = _I['restore.stage_encoding'] || 'Encoding';
@@ -760,7 +1039,7 @@ const SeedVR2 = (() => {
                     }
                 }
 
-                // 状态文本
+                // 更新状态文本
                 if (progressText) {
                     const statusTexts = {
                         pending: _I['status.pending'] || t('status.pending'),
@@ -769,7 +1048,7 @@ const SeedVR2 = (() => {
                     progressText.textContent = statusTexts[data.status] || (_I['restore.processing'] || t('restore.processing'));
                 }
 
-                // 任务完成
+                // 任务完成处理
                 if (data.status === 'completed') {
                     es.close();
                     currentRestoreEventSource = null;
@@ -781,12 +1060,12 @@ const SeedVR2 = (() => {
                         taskStatus.className = 'sv-badge sv-badge-completed';
                     }
 
-                    // 显示结果
+                    // 显示结果区域
                     showRestoreResult(taskId, taskType || data.task_type);
                     toast(`${typeLabel}: ${_I['restore.completed'] || t('restore.completed')}`, 'success');
                 }
 
-                // 任务失败
+                // 任务失败处理
                 if (data.status === 'failed') {
                     es.close();
                     currentRestoreEventSource = null;
@@ -810,6 +1089,14 @@ const SeedVR2 = (() => {
         };
     }
 
+    /**
+     * @function showRestoreResult
+     * @description 修复完成后显示结果区域，视频显示播放器，图片显示前后对比滑块
+     * @param {string} taskId - 修复任务ID
+     * @param {string} taskType - 任务类型：'video' 或 'image'
+     * @returns {void}
+     * @private
+     */
     function showRestoreResult(taskId, taskType) {
         const progressCard = document.getElementById('progressCard');
         const resultCard = document.getElementById('resultCard');
@@ -821,8 +1108,10 @@ const SeedVR2 = (() => {
         if (btnDownload) btnDownload.href = `/api/restore/${taskId}/download`;
 
         if (taskType === 'video') {
+            // 视频任务显示视频播放器
             if (resultVideo) resultVideo.src = `/api/restore/${taskId}/download`;
         } else {
+            // 图片任务显示前后对比滑块
             const compareCard = document.getElementById('compareCard');
             const beforeSrc = document.getElementById('imagePreview')?.src || '';
             const afterSrc = `/api/restore/${taskId}/download`;
@@ -835,6 +1124,12 @@ const SeedVR2 = (() => {
         }
     }
 
+    /**
+     * @function cancelRestoreTask
+     * @description 取消正在进行的修复任务
+     * @param {string} taskId - 要取消的修复任务ID
+     * @returns {Promise<void>}
+     */
     async function cancelRestoreTask(taskId) {
         try {
             await api.post(`/api/restore/${taskId}/cancel`, {});
@@ -845,6 +1140,14 @@ const SeedVR2 = (() => {
     }
 
     // ===== 前后对比滑块 =====
+    /**
+     * @function initCompareSlider
+     * @description 初始化图片前后对比滑块，支持鼠标拖拽和触摸操作，通过clip-path实现前后对比效果
+     * @param {string} containerId - 对比容器元素ID
+     * @param {string} sliderId - 滑块元素ID
+     * @param {string} afterId - 修复后图片容器元素ID
+     * @returns {void}
+     */
     function initCompareSlider(containerId, sliderId, afterId) {
         const container = document.getElementById(containerId);
         const slider = document.getElementById(sliderId);
@@ -855,22 +1158,34 @@ const SeedVR2 = (() => {
         let isDragging = false;
         let dragAbortController = null;
 
+        /**
+         * @function updatePosition
+         * @description 根据鼠标/触摸X坐标更新滑块位置和图片裁剪区域
+         * @param {number} x - 客户端X坐标
+         * @returns {void}
+         */
         function updatePosition(x) {
             const rect = container.getBoundingClientRect();
             let pos = (x - rect.left) / rect.width;
             pos = Math.max(0, Math.min(1, pos));
 
             slider.style.transform = `translateX(${pos * rect.width}px)`;
+            // 使用clip-path裁剪右侧图片，实现前后对比效果
             afterEl.style.clipPath = `inset(0 0 0 ${pos * 100}%)`;
         }
 
-        // 初始位置 50%
+        // 初始位置设置为50%
         updatePosition(container.getBoundingClientRect().left + container.getBoundingClientRect().width / 2);
 
+        /**
+         * @function startDrag
+         * @description 开始拖拽操作，绑定鼠标和触摸事件监听
+         * @returns {void}
+         */
         function startDrag() {
             isDragging = true;
             slider.style.willChange = 'transform';
-            // 终止之前的拖拽监听器
+            // 终止之前的拖拽监听器，防止内存泄漏
             if (dragAbortController) {
                 dragAbortController.abort();
             }
@@ -891,6 +1206,7 @@ const SeedVR2 = (() => {
                 dragAbortController = null;
             }, { signal });
 
+            // 触摸设备支持
             document.addEventListener('touchmove', (e) => {
                 if (isDragging) {
                     updatePosition(e.touches[0].clientX);
@@ -910,7 +1226,7 @@ const SeedVR2 = (() => {
             updatePosition(e.clientX);
         });
 
-        // 触摸支持
+        // 触摸设备支持
         container.addEventListener('touchstart', (e) => {
             startDrag();
             updatePosition(e.touches[0].clientX);
@@ -918,8 +1234,15 @@ const SeedVR2 = (() => {
     }
 
     // ===== 设置页面 =====
+    /**
+     * @function switchSettingsTab
+     * @description 切换设置页面的标签页，更新导航高亮状态和ARIA属性
+     * @param {HTMLElement} el - 被点击的标签导航元素
+     * @param {string} sectionName - 目标内容区域名称
+     * @returns {void}
+     */
     function switchSettingsTab(el, sectionName) {
-        // 更新导航高亮和 ARIA
+        // 更新导航高亮和ARIA无障碍属性
         document.querySelectorAll('#settingsNav .nav-item').forEach(item => {
             item.classList.remove('active');
             item.setAttribute('aria-selected', 'false');
@@ -929,7 +1252,7 @@ const SeedVR2 = (() => {
         el.setAttribute('aria-selected', 'true');
         el.setAttribute('tabindex', '0');
 
-        // 切换内容区
+        // 切换内容区域显示
         document.querySelectorAll('.sv-settings-section').forEach(section => {
             section.style.display = 'none';
         });
@@ -937,6 +1260,11 @@ const SeedVR2 = (() => {
         if (target) target.style.display = 'block';
     }
 
+    /**
+     * @function initSettingsTabKeyboardNav
+     * @description 初始化设置页面标签的键盘导航（左右方向键、Home/End键切换标签，支持无障碍访问）
+     * @returns {void}
+     */
     function initSettingsTabKeyboardNav() {
         const tablist = document.getElementById('settingsNav');
         if (!tablist) return;
@@ -977,10 +1305,16 @@ const SeedVR2 = (() => {
         });
     }
 
+    /**
+     * @function loadSettings
+     * @description 从服务器加载系统设置并填充到设置表单
+     * @returns {Promise<void>}
+     */
     async function loadSettings() {
         try {
             const settings = await api.get('/api/system/settings');
 
+            // 填充模型设置
             if (settings.model) {
                 const modelSize = document.getElementById('defaultModelSize');
                 if (modelSize) modelSize.value = settings.model.default_size || '3b';
@@ -992,6 +1326,7 @@ const SeedVR2 = (() => {
                 if (autoLoad) autoLoad.checked = settings.model.auto_load !== false;
             }
 
+            // 填充GPU设置
             if (settings.gpu) {
                 const gpuBackend = document.getElementById('gpuBackend');
                 if (gpuBackend) gpuBackend.value = settings.gpu.backend || 'auto';
@@ -1003,6 +1338,7 @@ const SeedVR2 = (() => {
                 if (enableFp16) enableFp16.checked = settings.gpu.enable_fp16 !== false;
             }
 
+            // 填充语言设置
             if (settings.i18n) {
                 const locale = document.getElementById('locale');
                 if (locale) locale.value = settings.i18n.default_locale || 'zh';
@@ -1013,12 +1349,18 @@ const SeedVR2 = (() => {
     }
 
     // ===== 历史记录 =====
+    /**
+     * @function deleteHistoryRecord
+     * @description 删除历史记录，弹出确认对话框后执行删除操作
+     * @param {string} id - 历史记录ID
+     * @returns {void}
+     */
     async function deleteHistoryRecord(id) {
         confirm(t('history.delete_confirm_title'), t('history.delete_confirm_msg'), async () => {
             try {
                 await api.delete(`/api/system/history/${id}`);
                 toast(t('history.record_deleted'), 'success');
-                // 触发刷新
+                // 触发页面刷新
                 const btnRefresh = document.getElementById('btnRefresh');
                 if (btnRefresh) btnRefresh.click();
             } catch (err) {
@@ -1028,6 +1370,11 @@ const SeedVR2 = (() => {
     }
 
     // ===== 重置修复页面 =====
+    /**
+     * @function resetRestore
+     * @description 重置修复页面状态，清除上传文件、进度条、结果显示，关闭SSE连接
+     * @returns {void}
+     */
     function resetRestore() {
         const progressCard = document.getElementById('progressCard');
         const resultCard = document.getElementById('resultCard');
@@ -1062,17 +1409,17 @@ const SeedVR2 = (() => {
         if (folderPath) folderPath.value = '';
         if (folderScanResults) folderScanResults.innerHTML = '';
 
-        // 重置进度条
+        // 重置进度条（使用transform:scaleX提升性能）
         const progressBar = document.getElementById('progressBar');
         if (progressBar) {
-            progressBar.style.width = '0%';
+            progressBar.style.transform = 'scaleX(0)';
             progressBar.classList.add('animated');
             progressBar.classList.remove('bg-success');
             progressBar.classList.add('bg-primary');
             progressBar.setAttribute('aria-valuenow', '0');
         }
 
-        // 关闭 SSE
+        // 关闭修复进度SSE连接
         if (currentRestoreEventSource) {
             currentRestoreEventSource.close();
             currentRestoreEventSource = null;
@@ -1080,6 +1427,12 @@ const SeedVR2 = (() => {
     }
 
     // ===== 工具函数 =====
+    /**
+     * @function formatFileSize
+     * @description 格式化文件大小为易读的字符串（B/KB/MB/GB/TB）
+     * @param {number} bytes - 文件大小（字节）
+     * @returns {string} 格式化后的文件大小字符串
+     */
     function formatFileSize(bytes) {
         if (bytes === 0) return '0 B';
         const k = 1024;
@@ -1088,6 +1441,12 @@ const SeedVR2 = (() => {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 
+    /**
+     * @function formatTimestamp
+     * @description 格式化ISO时间戳为本地化的日期时间字符串
+     * @param {string} isoString - ISO格式的时间字符串
+     * @returns {string} 本地化的日期时间字符串
+     */
     function formatTimestamp(isoString) {
         if (!isoString) return '--';
         try {
@@ -1107,6 +1466,12 @@ const SeedVR2 = (() => {
         }
     }
 
+    /**
+     * @function formatUptime
+     * @description 格式化运行时间（秒）为天/时/分/秒格式
+     * @param {number} seconds - 运行时间（秒）
+     * @returns {string} 格式化后的运行时间字符串
+     */
     function formatUptime(seconds) {
         if (!seconds || seconds < 0) return '--';
         const days = Math.floor(seconds / 86400);
@@ -1122,6 +1487,12 @@ const SeedVR2 = (() => {
         return parts.join(' ');
     }
 
+    /**
+     * @function formatDuration
+     * @description 格式化预估持续时间（秒）为易读格式（秒/分/小时）
+     * @param {number} seconds - 持续时间（秒）
+     * @returns {string} 格式化后的持续时间字符串
+     */
     function formatDuration(seconds) {
         if (seconds < 60) return `${Math.round(seconds)}${t('time.second')}`;
         if (seconds < 3600) return `${Math.round(seconds / 60)}${t('time.minute')}`;
@@ -1129,13 +1500,24 @@ const SeedVR2 = (() => {
     }
 
     // ===== 语言切换下拉菜单 =====
+    /**
+     * @constant {string[]} LOCALE_ORDER
+     * @description 支持的语言代码列表，按显示顺序排列
+     * @default ['zh', 'en', 'ja', 'fr']
+     */
     const LOCALE_ORDER = ['zh', 'en', 'ja', 'fr'];
 
+    /**
+     * @function switchLocale
+     * @description 切换界面语言，调用API后刷新页面
+     * @param {string} localeCode - 语言代码（zh/en/ja/fr）
+     * @returns {Promise<void>}
+     */
     async function switchLocale(localeCode) {
         try {
             const data = await api.post('/api/system/locale', { locale: localeCode });
             toast(data.message || t('locale.switched'), 'success');
-            // Show transition overlay for smoother reload
+            // 显示过渡遮罩层，实现平滑刷新效果
             const overlay = document.createElement('div');
             overlay.style.cssText = 'position:fixed;inset:0;background:var(--sv-bg,rgba(15,20,15,0.95));z-index:9999;opacity:0;transition:opacity 0.2s ease;display:flex;align-items:center;justify-content:center;';
             const spinner = document.createElement('span');
@@ -1151,9 +1533,26 @@ const SeedVR2 = (() => {
     }
 
     // ===== 历史记录右键菜单 =====
+    /**
+     * @var {string|null} _contextMenuRecordId
+     * @description 当前右键菜单关联的历史记录ID
+     * @private
+     */
     let _contextMenuRecordId = null;
+    /**
+     * @var {string|null} _contextMenuOutputPath
+     * @description 当前右键菜单关联的输出文件路径
+     * @private
+     */
     let _contextMenuOutputPath = null;
 
+    /**
+     * @function showRowContextMenu
+     * @description 显示历史记录行的右键上下文菜单
+     * @param {MouseEvent} event - 鼠标右键事件对象
+     * @param {HTMLElement} row - 历史记录行元素（需包含data-record-id和data-output属性）
+     * @returns {void}
+     */
     function showRowContextMenu(event, row) {
         event.preventDefault();
         const menu = document.getElementById('svContextMenu');
@@ -1173,6 +1572,11 @@ const SeedVR2 = (() => {
         menu.setAttribute('aria-hidden', 'false');
     }
 
+    /**
+     * @function closeContextMenu
+     * @description 关闭右键上下文菜单
+     * @returns {void}
+     */
     function closeContextMenu() {
         const menu = document.getElementById('svContextMenu');
         if (menu) {
@@ -1181,6 +1585,12 @@ const SeedVR2 = (() => {
         }
     }
 
+    /**
+     * @function getOutputDir
+     * @description 从文件路径中提取目录部分（规范化路径分隔符）
+     * @param {string} path - 文件完整路径
+     * @returns {string} 目录路径
+     */
     function getOutputDir(path) {
         if (!path) return '';
         const normalized = path.replace(/\\/g, '/');
@@ -1189,29 +1599,80 @@ const SeedVR2 = (() => {
     }
 
     // ===== 初始化 =====
+    /**
+     * @function init
+     * @description 应用初始化函数，在DOM加载完成后执行，初始化所有组件和事件监听
+     * @returns {void}
+     */
     function init() {
         // 初始化主题
         initTheme();
 
-        // 初始化全局 SSE 连接
+        // 初始化全局SSE连接
         initGlobalSSE();
 
         // 初始化语言切换下拉菜单
         initLocaleDropdown();
 
-        // 系统状态栏折叠
+        // 系统状态栏折叠/展开（默认收起为状态点，hover展开，点击锁定展开）
         const sysToggle = document.getElementById('sysWidgetToggle');
         const sysBody = document.getElementById('sysWidgetBody');
-        if (sysToggle && sysBody) {
-            sysToggle.addEventListener('click', () => {
-                const collapsed = sysBody.classList.toggle('collapsed');
-                sysToggle.querySelector('i').className = collapsed ? 'bi bi-chevron-up' : 'bi bi-chevron-down';
-                const widget = sysToggle.closest('.sv-sys-widget');
-                if (widget) widget.classList.toggle('collapsed', collapsed);
+        const sysWidget = sysToggle ? sysToggle.closest('.sv-sys-widget') : null;
+        let sysPinned = false;
+
+        /**
+         * @function setSysExpanded
+         * @description 设置系统状态栏展开/折叠状态
+         * @param {boolean} expanded - 是否展开
+         * @param {boolean} [pin] - 是否锁定展开状态
+         * @returns {void}
+         */
+        function setSysExpanded(expanded, pin) {
+            if (!sysBody || !sysWidget) return;
+            if (pin !== undefined) sysPinned = pin;
+            sysBody.classList.toggle('collapsed', !expanded);
+            sysWidget.classList.toggle('collapsed', !expanded);
+            const icon = sysToggle.querySelector('i');
+            if (icon) icon.className = expanded ? 'bi bi-chevron-down' : 'bi bi-chevron-up';
+        }
+
+        if (sysToggle && sysBody && sysWidget) {
+            // 初始化：确保默认折叠状态
+            setSysExpanded(false, false);
+
+            let sysCollapseTimer = null;
+
+            // 点击切换锁定状态
+            sysToggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (sysCollapseTimer) {
+                    clearTimeout(sysCollapseTimer);
+                    sysCollapseTimer = null;
+                }
+                const isCollapsed = sysBody.classList.contains('collapsed');
+                setSysExpanded(isCollapsed, isCollapsed);
+            });
+
+            // hover自动展开（非锁定状态）
+            sysWidget.addEventListener('mouseenter', () => {
+                if (sysCollapseTimer) {
+                    clearTimeout(sysCollapseTimer);
+                    sysCollapseTimer = null;
+                }
+                if (!sysPinned) setSysExpanded(true, false);
+            });
+            sysWidget.addEventListener('mouseleave', () => {
+                if (!sysPinned) {
+                    // 添加延迟，防止鼠标在边缘移动时频繁闪烁
+                    sysCollapseTimer = setTimeout(() => {
+                        setSysExpanded(false, false);
+                        sysCollapseTimer = null;
+                    }, 200);
+                }
             });
         }
 
-        // HTMX 全局错误联动 Toast
+        // HTMX全局错误联动Toast
         if (typeof htmx !== 'undefined') {
             document.body.addEventListener('htmx:responseError', (evt) => {
                 const xhr = evt.detail.xhr;
@@ -1228,7 +1689,7 @@ const SeedVR2 = (() => {
                 toast(`${t('error.send_failed')}: ${error?.message || t('error.network_error')}`, 'error');
             });
 
-            // 后端通过 HX-Trigger: showToast 触发的事件
+            // 后端通过HX-Trigger: showToast触发的事件
             document.body.addEventListener('showToast', (evt) => {
                 if (evt.detail) {
                     toast(evt.detail.message, evt.detail.type || 'info');
@@ -1236,7 +1697,7 @@ const SeedVR2 = (() => {
             });
         }
 
-        // 高亮当前导航
+        // 高亮当前导航项
         const currentPath = window.location.pathname;
         document.querySelectorAll('.sv-nav-link').forEach(link => {
             const href = link.getAttribute('href');
@@ -1250,11 +1711,21 @@ const SeedVR2 = (() => {
         const mainNav = document.getElementById('mainNav');
         const mobileNavOverlay = document.getElementById('mobileNavOverlay');
         if (btnToggleNav && mainNav) {
+            /**
+             * @function closeMobileNav
+             * @description 关闭移动端导航菜单
+             * @returns {void}
+             */
             function closeMobileNav() {
                 mainNav.classList.remove('show');
                 if (mobileNavOverlay) mobileNavOverlay.classList.remove('show');
             }
 
+            /**
+             * @function toggleMobileNav
+             * @description 切换移动端导航菜单显示/隐藏
+             * @returns {void}
+             */
             function toggleMobileNav() {
                 const isOpen = mainNav.classList.toggle('show');
                 if (mobileNavOverlay) {
@@ -1329,7 +1800,7 @@ const SeedVR2 = (() => {
             });
         });
 
-        // ESC 关闭模态框与右键菜单
+        // ESC键关闭模态框与右键菜单
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 document.querySelectorAll('.sv-modal-overlay.show').forEach(modal => {
@@ -1339,7 +1810,7 @@ const SeedVR2 = (() => {
             }
         });
 
-        // Data attribute modal close buttons
+        // Data attribute模态框关闭按钮
         document.querySelectorAll('[data-modal-close]').forEach(btn => {
             btn.addEventListener('click', () => {
                 const modalId = btn.getAttribute('data-modal-close');
@@ -1347,10 +1818,14 @@ const SeedVR2 = (() => {
             });
         });
 
-        // 键盘快捷键：Alt+数字 直达导航
-        // 不使用 Ctrl+数字（浏览器标签页切换冲突）
-        // Alt+数字 在键盘上横向连续，手部移动距离最短
-        // 注意：Windows 下 Alt 键会激活菜单栏，需在 keydown 阶段阻止默认行为
+        // 键盘快捷键：Alt+数字直达导航
+        // 不使用Ctrl+数字（浏览器标签页切换冲突）
+        // Alt+数字在键盘上横向连续，手部移动距离最短
+        // 注意：Windows下Alt键会激活菜单栏，需在keydown阶段阻止默认行为
+        /**
+         * @constant {Object} NAV_SHORTCUTS
+         * @description 导航快捷键映射，Alt+数字键对应不同页面
+         */
         const NAV_SHORTCUTS = {
             '1': { path: '/', label: '首页' },
             '2': { path: '/restore', label: '修复' },
@@ -1358,6 +1833,11 @@ const SeedVR2 = (() => {
             '4': { path: '/settings', label: '设置' },
         };
 
+        /**
+         * @function isInputFocused
+         * @description 检查当前焦点是否在输入元素上（避免快捷键与输入冲突）
+         * @returns {boolean} 是否在输入元素上
+         */
         function isInputFocused() {
             const el = document.activeElement;
             if (!el) return false;
@@ -1365,7 +1845,7 @@ const SeedVR2 = (() => {
             return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
         }
 
-        // 在 keydown 阶段阻止 Alt 键激活菜单栏，并处理快捷键
+        // 在keydown阶段（捕获阶段）阻止Alt键激活菜单栏，并处理快捷键
         document.addEventListener('keydown', (e) => {
             if (!e.altKey || e.ctrlKey || e.shiftKey || e.metaKey) return;
             if (isInputFocused()) return;
@@ -1379,7 +1859,12 @@ const SeedVR2 = (() => {
             }
         }, true); // 使用捕获阶段，优先于浏览器默认处理
 
-        // 更新 Widget 内存进度条
+        // 更新Widget内存进度条
+        /**
+         * @function updateWidgetMemory
+         * @description 更新系统状态栏内存使用进度条
+         * @returns {Promise<void>}
+         */
         async function updateWidgetMemory() {
             try {
                 const health = await api.get('/api/system/health');
@@ -1389,14 +1874,14 @@ const SeedVR2 = (() => {
                     const usedPct = Math.round(((total - avail) / total) * 100);
                     const fillEl = document.getElementById('statusMemFill');
                     const textEl = document.getElementById('statusMemText');
-                    if (fillEl) fillEl.style.width = usedPct + '%';
+                    if (fillEl) fillEl.style.transform = 'scaleX(' + (usedPct / 100) + ')';
                     if (textEl) textEl.textContent = usedPct + '%';
                 }
             } catch (e) { /* ignore */ }
         }
         updateWidgetMemory();
 
-        // 定期更新状态栏时间（i18n 格式）
+        // 定期更新状态栏时间（i18n格式）
         const localeMap = { zh: 'zh-CN', en: 'en-US', ja: 'ja-JP', fr: 'fr-FR' };
         const _statusTimeInterval = setInterval(() => {
             const statusTime = document.getElementById('statusTime');
@@ -1410,16 +1895,16 @@ const SeedVR2 = (() => {
             clearInterval(_statusTimeInterval);
         });
 
-        // 表单验证 (P0-4)
+        // 表单验证
         initFormValidation();
 
-        // Shrink 参数联动
+        // Shrink参数联动
         initShrinkToggle();
 
-        // 设置页面 Tab 键盘导航
+        // 设置页面Tab键盘导航
         initSettingsTabKeyboardNav();
 
-        // 移动端参数面板折叠 (P4-4)
+        // 移动端参数面板折叠
         if (window.matchMedia('(max-width: 768px)').matches) {
             document.querySelectorAll('.sv-restore-params .sv-card .sv-card-header, .sv-workflow-panel .sv-workflow-node .node-header').forEach(header => {
                 header.addEventListener('click', () => {
@@ -1431,6 +1916,11 @@ const SeedVR2 = (() => {
     }
 
     // ===== 语言切换下拉菜单 =====
+    /**
+     * @function initLocaleDropdown
+     * @description 初始化语言切换下拉菜单，处理点击切换、外部点击关闭、ESC关闭
+     * @returns {void}
+     */
     function initLocaleDropdown() {
         const btn = document.getElementById('btnLocaleSwitch');
         const menu = document.getElementById('localeMenu');
@@ -1465,7 +1955,7 @@ const SeedVR2 = (() => {
             }
         });
 
-        // ESC 关闭菜单
+        // ESC关闭菜单
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && menu.classList.contains('show')) {
                 menu.classList.remove('show');
@@ -1476,10 +1966,16 @@ const SeedVR2 = (() => {
     }
 
     // ===== 主题管理 =====
+    /**
+     * @function initTheme
+     * @description 初始化主题切换功能，从LocalStorage读取保存的主题，默认暗色主题
+     * @returns {void}
+     */
     function initTheme() {
+        // 与base.html内联脚本保持一致：默认暗色主题，仅当用户明确选择过才使用保存的主题
+        // 不使用prefers-color-scheme自动切换，避免与用户手动选择冲突
         const saved = localStorage.getItem('sv-theme');
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        const theme = saved || (prefersDark ? 'dark' : 'light');
+        const theme = saved || 'dark';
         applyTheme(theme);
 
         const btn = document.getElementById('btnThemeToggle');
@@ -1493,6 +1989,12 @@ const SeedVR2 = (() => {
         }
     }
 
+    /**
+     * @function applyTheme
+     * @description 应用指定主题，设置data-theme属性并更新主题切换按钮图标
+     * @param {string} theme - 主题名称：'dark' 或 'light'
+     * @returns {void}
+     */
     function applyTheme(theme) {
         document.documentElement.setAttribute('data-theme', theme);
         const icon = document.getElementById('themeIcon');
@@ -1502,6 +2004,11 @@ const SeedVR2 = (() => {
     }
 
     // ===== Shrink 参数联动 =====
+    /**
+     * @function initShrinkToggle
+     * @description 初始化Shrink（缩放）参数联动，启用/禁用复选框控制相关参数的禁用状态
+     * @returns {void}
+     */
     function initShrinkToggle() {
         const shrinkEnabled = document.getElementById('shrink_enabled');
         const shrinkAlgorithm = document.getElementById('shrink_algorithm');
@@ -1509,7 +2016,11 @@ const SeedVR2 = (() => {
 
         if (!shrinkEnabled || !shrinkAlgorithm) return;
 
-        // 初始化状态：根据 checkbox 状态设置 disabled
+        /**
+         * @function updateShrinkState
+         * @description 根据复选框状态更新相关参数的禁用状态
+         * @returns {void}
+         */
         const updateShrinkState = () => {
             const enabled = shrinkEnabled.checked;
             shrinkAlgorithm.disabled = !enabled;
@@ -1523,7 +2034,12 @@ const SeedVR2 = (() => {
         shrinkEnabled.addEventListener('change', updateShrinkState);
     }
 
-    // ===== 表单验证 (P0-4) =====
+    // ===== 表单验证 =====
+    /**
+     * @function initFormValidation
+     * @description 初始化表单验证，为数值类型输入框添加范围验证，实时显示错误提示
+     * @returns {void}
+     */
     function initFormValidation() {
         document.querySelectorAll('input[type="number"].sv-form-control').forEach(input => {
             const min = parseFloat(input.min);
@@ -1569,7 +2085,7 @@ const SeedVR2 = (() => {
         });
     }
 
-    // DOM 加载完成后初始化
+    // DOM加载完成后初始化
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {
@@ -1577,8 +2093,20 @@ const SeedVR2 = (() => {
     }
 
     // ===== 目录浏览器 =====
+    /**
+     * @var {Function|null} _dirBrowserCallback
+     * @description 目录浏览器选择完成后的回调函数
+     * @private
+     */
     let _dirBrowserCallback = null;
 
+    /**
+     * @function openDirBrowser
+     * @description 打开目录浏览器模态框，支持目录导航、选择、打开资源管理器
+     * @param {string} currentPath - 初始显示的目录路径
+     * @param {Function} callback - 选择目录后的回调函数，参数为选中的目录路径
+     * @returns {void}
+     */
     function openDirBrowser(currentPath, callback) {
         _dirBrowserCallback = callback;
         const pathInput = document.getElementById('dirBrowserPathInput');
@@ -1586,7 +2114,7 @@ const SeedVR2 = (() => {
         SeedVR2.openModal('dirBrowserModal');
         loadDirListing(currentPath || '');
 
-        // Go 按钮
+        // Go按钮：跳转到指定路径
         document.getElementById('dirBrowserGoBtn').onclick = () => {
             loadDirListing(pathInput.value.trim());
         };
@@ -1601,11 +2129,11 @@ const SeedVR2 = (() => {
                 SeedVR2.toast(t('dir.open_failed') + ': ' + err.message, 'error');
             }
         };
-        // Enter 键
+        // Enter键快速跳转
         pathInput.onkeydown = (e) => {
             if (e.key === 'Enter') loadDirListing(pathInput.value.trim());
         };
-        // 选择按钮
+        // 选择按钮：确认选择并关闭
         document.getElementById('dirBrowserSelectBtn').onclick = () => {
             const selected = pathInput.value.trim();
             if (selected && _dirBrowserCallback) {
@@ -1615,6 +2143,13 @@ const SeedVR2 = (() => {
         };
     }
 
+    /**
+     * @function loadDirListing
+     * @description 加载指定路径的目录列表，显示驱动器、文件夹、父目录导航
+     * @param {string} path - 要加载的目录路径
+     * @returns {Promise<void>}
+     * @private
+     */
     async function loadDirListing(path) {
         const listEl = document.getElementById('dirBrowserList');
         const pathInput = document.getElementById('dirBrowserPathInput');
@@ -1650,7 +2185,7 @@ const SeedVR2 = (() => {
             listEl.innerHTML = '';
             let hasItems = false;
 
-            // 父目录
+            // 父目录导航项（..)
             if (data.parent_path !== undefined && data.parent_path !== data.current_path) {
                 hasItems = true;
                 const itemDiv = document.createElement('div');
@@ -1674,7 +2209,7 @@ const SeedVR2 = (() => {
                 listEl.appendChild(itemDiv);
             }
 
-            // 项目列表
+            // 目录和驱动器列表
             for (const item of data.items) {
                 hasItems = true;
                 const iconClass = item.type === 'drive' ? 'bi-hdd' : 'bi-folder-fill';
@@ -1701,6 +2236,7 @@ const SeedVR2 = (() => {
                 listEl.appendChild(itemDiv);
             }
 
+            // 空目录提示
             if (!hasItems) {
                 const emptyDiv = document.createElement('div');
                 emptyDiv.className = 'sv-dir-empty';
@@ -1716,6 +2252,12 @@ const SeedVR2 = (() => {
         }
     }
 
+    /**
+     * @function escapeHtml
+     * @description HTML转义函数，防止XSS攻击，将特殊字符转换为HTML实体
+     * @param {string} str - 要转义的字符串
+     * @returns {string} 转义后的HTML安全字符串
+     */
     function escapeHtml(str) {
         const div = document.createElement('div');
         div.textContent = str;
@@ -1723,6 +2265,11 @@ const SeedVR2 = (() => {
     }
 
     // ===== 用户偏好持久化 =====
+    /**
+     * @function loadUserPreferences
+     * @description 从服务器加载用户UI偏好设置
+     * @returns {Promise<Object|null>} 用户偏好数据对象，加载失败返回null
+     */
     async function loadUserPreferences() {
         try {
             const data = await api.get('/api/ui/preferences');
@@ -1735,6 +2282,12 @@ const SeedVR2 = (() => {
         return null;
     }
 
+    /**
+     * @function saveUserPreferences
+     * @description 保存用户UI偏好设置到服务器
+     * @param {Object} values - 要保存的偏好设置键值对
+     * @returns {Promise<boolean>} 保存是否成功
+     */
     async function saveUserPreferences(values) {
         try {
             const data = await api.post('/api/ui/preferences', values);
@@ -1746,6 +2299,11 @@ const SeedVR2 = (() => {
     }
 
     // ===== 参数预设 API =====
+    /**
+     * @function loadParameterPresets
+     * @description 从服务器加载参数预设配置
+     * @returns {Promise<Object|null>} 参数预设数据对象，加载失败返回null
+     */
     async function loadParameterPresets() {
         try {
             const data = await api.get('/api/ui/parameters');
@@ -1758,6 +2316,14 @@ const SeedVR2 = (() => {
         return null;
     }
 
+    /**
+     * @function getParameterRecommendations
+     * @description 根据当前参数获取推荐参数配置
+     * @param {number} cfgScale - CFG Scale参数值
+     * @param {number} denoisingStrength - 去噪强度参数值
+     * @param {number} steps - 采样步数参数值
+     * @returns {Promise<Object[]>} 推荐参数数组
+     */
     async function getParameterRecommendations(cfgScale, denoisingStrength, steps) {
         try {
             const url = `/api/ui/parameters/recommendations?cfg_scale=${cfgScale}&denoising_strength=${denoisingStrength}&steps=${steps}`;
@@ -1772,6 +2338,12 @@ const SeedVR2 = (() => {
     }
 
     // ===== 卡片显示/隐藏动画 =====
+    /**
+     * @function showCard
+     * @description 显示指定元素并添加淡入动画效果
+     * @param {string} elementId - 要显示的元素ID
+     * @returns {void}
+     */
     function showCard(elementId) {
         const el = document.getElementById(elementId);
         if (!el) return;
@@ -1780,49 +2352,135 @@ const SeedVR2 = (() => {
         setTimeout(() => el.classList.remove('sv-fade-in'), 300);
     }
 
+    /**
+     * @function hideCard
+     * @description 隐藏指定元素
+     * @param {string} elementId - 要隐藏的元素ID
+     * @returns {void}
+     */
     function hideCard(elementId) {
         const el = document.getElementById(elementId);
         if (!el) return;
         el.style.display = 'none';
     }
 
+    // ===== 按钮 Loading 状态工具 =====
+    /**
+     * @function setButtonLoading
+     * @description 设置按钮为加载状态，显示spinner并禁用交互
+     * @param {HTMLButtonElement|string} button - 按钮元素或按钮ID
+     * @param {string} [loadingText] - 加载时显示的文本（可选）
+     * @returns {Function} 恢复按钮原始状态的函数
+     */
+    function setButtonLoading(button, loadingText) {
+        const btn = typeof button === 'string' ? document.getElementById(button) : button;
+        if (!btn) return () => {};
+
+        const originalHTML = btn.innerHTML;
+        const originalDisabled = btn.disabled;
+
+        btn.classList.add('loading');
+        btn.disabled = true;
+
+        const spinner = document.createElement('span');
+        spinner.className = 'sv-spinner-btn';
+        btn.innerHTML = '';
+        btn.appendChild(spinner);
+        if (loadingText) {
+            const textSpan = document.createElement('span');
+            textSpan.className = 'sv-loading-text';
+            textSpan.textContent = loadingText;
+            textSpan.style.marginLeft = '24px';
+            textSpan.style.color = 'var(--sv-btn-primary-text)';
+            btn.appendChild(textSpan);
+        }
+
+        return function restoreButton() {
+            btn.classList.remove('loading');
+            btn.disabled = originalDisabled;
+            btn.innerHTML = originalHTML;
+        };
+    }
+
     // ===== 公开 API =====
+    /**
+     * @namespace SeedVR2
+     * @description SeedVR2前端模块公开API，供页面内联脚本和其他模块调用
+     */
     return {
+        /** @type {Object} HTTP API封装对象 */
         api,
+        /** @type {Function} i18n翻译函数 */
         t,
+        /** @type {Function} HTTP状态码文本获取 */
         httpStatusText,
+        /** @type {Function} API错误解析 */
         parseApiError,
+        /** @type {Function} Toast通知显示 */
         toast,
+        /** @type {Function} 确认对话框 */
         confirm,
+        /** @type {Function} 关闭模态框 */
         closeModal,
+        /** @type {Function} 打开模态框 */
         openModal,
+        /** @type {Function} 设置上传区域 */
         setupUploadZone,
+        /** @type {Function} 启动修复进度SSE */
         startRestoreProgressSSE,
+        /** @type {Function} 取消修复任务 */
         cancelRestoreTask,
+        /** @type {Function} 重置修复页面 */
         resetRestore,
+        /** @type {Function} 初始化对比滑块 */
         initCompareSlider,
+        /** @type {Function} 切换设置标签 */
         switchSettingsTab,
+        /** @type {Function} 加载设置 */
         loadSettings,
+        /** @type {Function} 删除历史记录 */
         deleteHistoryRecord,
+        /** @type {Function} 切换语言（别名） */
         cycleLocale: switchLocale,
+        /** @type {Function} 切换语言 */
         switchLocale,
+        /** @type {Function} 显示行右键菜单 */
         showRowContextMenu,
+        /** @type {Function} 打开目录浏览器 */
         openDirBrowser,
+        /** @type {Function} 显示卡片（带动画） */
         showCard,
+        /** @type {Function} 隐藏卡片 */
         hideCard,
+        /** @type {Function} 格式化文件大小 */
         formatFileSize,
+        /** @type {Function} 格式化时间戳 */
         formatTimestamp,
+        /** @type {Function} 格式化运行时间 */
         formatUptime,
+        /** @type {Function} 格式化持续时间 */
         formatDuration,
+        /** @type {Function} 初始化主题 */
         initTheme,
+        /** @type {Function} 应用主题 */
         applyTheme,
+        /** @type {Function} HTML转义 */
         escapeHtml,
+        /** @type {Function} 初始化表单验证 */
         initFormValidation,
+        /** @type {Function} 获取CSRF Token */
         getCsrfToken,
+        /** @type {Function} 获取CSRF请求头 */
         csrfHeaders,
+        /** @type {Function} 加载用户偏好 */
         loadUserPreferences,
+        /** @type {Function} 保存用户偏好 */
         saveUserPreferences,
+        /** @type {Function} 加载参数预设 */
         loadParameterPresets,
+        /** @type {Function} 获取参数推荐 */
         getParameterRecommendations,
+        /** @type {Function} 设置按钮加载状态 */
+        setButtonLoading,
     };
 })();

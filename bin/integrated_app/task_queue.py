@@ -1,4 +1,4 @@
-"""Klar - 单 Worker 任务队列
+﻿"""SeedVR2 - 单 Worker 任务队列
 
 桌面端通常为单 GPU，因此使用一个 worker 串行执行修复任务，避免并发导致 OOM。
 提供取消注册表，通过 asyncio.Event / Task.cancel 通知运行中任务退出。
@@ -23,12 +23,19 @@ from collections.abc import Awaitable, Callable
 logger = logging.getLogger(__name__)
 
 TaskFactory = Callable[[], Awaitable[None]]
-CancelCallback = Callable[[], None]
+"""任务工厂类型别名: 无参调用返回一个可等待协程对象的函数。"""
 
-# REFACTOR: 默认值外置为模块常量，支持从 config.runtime.task 注入 (F1)
+CancelCallback = Callable[[], None]
+"""取消回调类型别名: 无参无返回值的回调函数，用于通知底层推理线程取消。"""
+
 DEFAULT_QUEUE_MAXSIZE = 100
-DEFAULT_TASK_TIMEOUT_SECONDS = 3600  # 1 小时
+"""队列默认最大容量，防止无界堆积导致 OOM。"""
+
+DEFAULT_TASK_TIMEOUT_SECONDS = 3600
+"""单个任务默认执行超时（秒），默认 1 小时，防止卡死 worker。"""
+
 MAX_WORKER_RESTARTS = 3
+"""worker 异常退出后最大连续重启次数，超过则放弃。"""
 
 
 class TaskQueue:

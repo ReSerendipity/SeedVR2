@@ -12,341 +12,337 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
+"""NaDiT (Native Resolution Diffusion Transformer) 模型。
+
+支持原生分辨率/变长序列的视频扩散 Transformer 架构：
+
+- **NaPatchifyEmbed**: 支持变长输入的 Patch 嵌入，将不同尺寸的视频批处理到一起。
+- **NaRoPE**: 变长版本的 3D RoPE，支持每个样本有不同的 t/h/w 网格。
+- **NaDiT**: NaDiT 主模型，支持任意分辨率、任意长度视频输入。
+- **NaDiTConfig**: NaDiT 配置类。
+
+NaDiT 核心思想:
+    传统 DiT 要求所有输入视频具有相同的分辨率和帧数，需要裁剪/resize/padding，
+    这既损失信息又浪费计算。NaDiT 通过以下机制支持原生分辨率：
+
+    1. **变长注意力**: 使用 Flash Attention v2 的变长序列 API (cu_seqlens)，
+       batch 内每个样本可以有不同的 token 数量，无需 padding 到相同长度。
+    2. **动态位置编码**: RoPE 位置编码根据每个样本的实际 t/h/w 动态生成。
+    3. **变长 Patch 化**: Patch 嵌入和恢复支持不同尺寸输入，使用累积长度索引。
+    4. **MMSR Block**: 多模态 Swin 风格窗口注意力块，同时支持视频和文本联合注意力。
+"""
+
 from dataclasses import dataclass
-from typing import Optional, Tuple, Union, Callable
+from typing import List, Optional, Tuple
 import torch
-from torch import nn
+import torch.nn as nn
+import torch.nn.functional as F
+from einops import rearrange
 
 from common.cache import Cache
-from common.distributed.ops import slice_inputs
+from common.distributed.parallel_state import (
+    get_context_parallel_group,
+    get_context_parallel_rank,
+    get_context_parallel_world_size,
+)
+from common.distributed.ops import (
+    gather_seq_xla,
+    slice_inputs,
+    sync_cuda,
+)
+from models.common.context_parallel import (
+    get_context_parallel_group,
+    initialize_context_parallel,
+)
+from models.common.fp8 import FP8Linear, apply_fp8_linear_optimization, is_fp8_enabled
+from models.common.moe import build_moe_layer
 
-from . import na
-from .embedding import TimeEmbedding
-from .modulation import get_ada_layer
-from .nablocks import get_nablock
+from .attention import FlashAttentionVarlen
+from .embedding import TimeEmbedding, emb_add
+from .mlp import get_mlp
+from .mm import MMArg
+from .modulation import AdaSingle, get_ada_layer
+from .na import na_concat, na_split, unpatchify
+from .nablocks import NaBlock, get_na_block
 from .normalization import get_norm_layer
-from .patch import NaPatchIn, NaPatchOut
+from .patch import PatchifyEmbed
+from .rope import apply_rope
 
-# Fake func, no checkpointing is required for inference
-def gradient_checkpointing(module: Union[Callable, nn.Module], *args, enabled: bool, **kwargs):
-    return module(*args, **kwargs)
+
+def initialize_linear(in_features: int, out_features: int, bias: bool = True, fp8: bool = False) -> nn.Module:
+    """创建线性层，支持 FP8 量化。
+
+    Args:
+        in_features (int): 输入特征维度。
+        out_features (int): 输出特征维度。
+        bias (bool): 是否使用偏置，默认 True。
+        fp8 (bool): 是否使用 FP8 线性层，默认 False。
+
+    Returns:
+        nn.Module: 线性层实例。
+    """
+    if fp8 and is_fp8_enabled():
+        return FP8Linear(in_features, out_features, bias=bias)
+    return nn.Linear(in_features, out_features, bias=bias)
+
 
 @dataclass
-class NaDiTOutput:
-    vid_sample: torch.Tensor
+class NaDiTConfig:
+    """NaDiT 模型配置。
+
+    Attributes:
+        in_channels (int): 输入视频通道数。
+        patch_size (Tuple[int, int, int]): Patch 大小 (p_t, p_h, p_w)。
+        depth (int): Transformer 块层数。
+        dim (int): 隐藏维度。
+        num_heads (int): 注意力头数。
+        mlp_expand_ratio (int): MLP 扩展倍数，默认 4。
+        mlp_type (str): MLP 类型，"normal" 或 "swiglu"。
+        norm_type (Optional[str]): 归一化类型。
+        ada_layer (str): 自适应调制层类型。
+        text_dim (int): 文本嵌入维度。
+        rope_theta_t/theta_h/theta_w (int): RoPE 各轴频率基。
+        rope_dim (Optional[str]): RoPE 维度分配。
+        max_seqlen_t/h/w (int): 各轴最大序列长度。
+        block_type (str): Transformer 块类型。
+        window_size (Optional[Tuple[int,int,int]]): 窗口注意力窗口大小。
+        window_step (Optional[int]): 窗口步长。
+        na_moe (Optional[dict]): MoE 配置。
+        fp8 (bool): 是否启用 FP8。
+    """
+    in_channels: int = 16
+    patch_size: Tuple[int, int, int] = (1, 2, 2)
+    depth: int = 12
+    dim: int = 1024
+    num_heads: int = 16
+    mlp_expand_ratio: int = 4
+    mlp_type: str = "normal"
+    norm_type: Optional[str] = "layer"
+    ada_layer: str = "single"
+    text_dim: int = 4096
+    rope_theta_t: int = 3600
+    rope_theta_h: int = 3600
+    rope_theta_w: int = 3600
+    rope_dim: Optional[str] = None
+    max_seqlen_t: int = 4096
+    max_seqlen_h: int = 4096
+    max_seqlen_w: int = 4096
+    block_type: str = "mmsr"
+    window_size: Optional[Tuple[int, int, int]] = None
+    window_step: Optional[int] = None
+    na_moe: Optional[dict] = None
+    fp8: bool = False
+
+
+class NaPatchifyEmbed(nn.Module):
+    """支持变长输入的 Patch 嵌入层。
+
+    使用 3D 卷积作为 patch 投影，支持将不同尺寸的视频样本批处理。
+    """
+
+    def __init__(self, in_channels: int, dim: int, patch_size: Tuple[int, int, int] = (1, 2, 2)):
+        super().__init__()
+        self.patch_size = patch_size
+        self.proj = nn.Conv3d(in_channels, dim, kernel_size=patch_size, stride=patch_size)
+
+    def forward(self, x: torch.FloatTensor, window_sizes: torch.LongTensor):
+        """前向传播，对变长视频列表做 patch 嵌入。
+
+        Args:
+            x: 视频列表或批量张量。
+            window_sizes (torch.LongTensor): 每个样本的 patch 网格数 (b, 3)。
+
+        Returns:
+            torch.FloatTensor: 拼接的 patch token，形状 (sum_len, dim)。
+        """
+        if isinstance(x, list):
+            outs = []
+            for xi in x:
+                outs.append(self.proj(xi))
+            return torch.cat([rearrange(o, "b c t h w -> b (t h w) c") for o in outs], dim=1).squeeze(0)
+        else:
+            wt, wh, ww = self.patch_size
+            return rearrange(self.proj(x), "b c t h w -> (b t h w) c")
+
+
+class NaRoPE(nn.Module):
+    """变长版本的 3D 旋转位置编码。
+
+    支持每个样本有不同的 t/h/w 网格大小，根据 window_sizes 动态生成频率。
+    """
+
+    def __init__(self, dim: int, theta_t=3600, theta_h=3600, theta_w=3600, rope_dim=None):
+        super().__init__()
+        self.dim = dim
+        if rope_dim is not None:
+            self.dim_t = int(rope_dim[0])
+            self.dim_h = int(rope_dim[1])
+            self.dim_w = dim - self.dim_t - self.dim_h
+        else:
+            self.dim_t = dim // 4
+            self.dim_h = dim // 4
+            self.dim_w = dim // 2
+        self.theta_t = theta_t
+        self.theta_h = theta_h
+        self.theta_w = theta_w
+
+    def precompute_freqs_cis(self, dim, max_seqlen, theta):
+        """预计算频率张量。"""
+        freqs = 1.0 / (theta ** (torch.arange(0, dim, 2, dtype=torch.float64, device="cuda") / dim))
+        t = torch.arange(max_seqlen, dtype=torch.float64, device="cuda")
+        freqs = torch.outer(t, freqs).float()
+        return torch.polar(torch.ones_like(freqs), freqs)
+
+    def get_freqs_cis(self, nt, nh, nw):
+        """获取指定网格大小的频率张量。"""
+        ft = self.precompute_freqs_cis(self.dim_t, nt, self.theta_t).reshape(nt, 1, 1, self.dim_t // 2)
+        fh = self.precompute_freqs_cis(self.dim_h, nh, self.theta_h).reshape(1, nh, 1, self.dim_h // 2)
+        fw = self.precompute_freqs_cis(self.dim_w, nw, self.theta_w).reshape(1, 1, nw, self.dim_w // 2)
+        ft = ft.repeat(1, nh, nw, 1)
+        fh = fh.repeat(nt, 1, nw, 1)
+        fw = fw.repeat(nt, nh, 1, 1)
+        return torch.cat([ft, fh, fw], dim=-1).reshape(nt * nh * nw, -1)
+
+    def forward(self, x, window_sizes, branch="vid", cache=None):
+        """前向传播，应用变长 RoPE。
+
+        Args:
+            x: query/key 张量。
+            window_sizes: 每个样本的 (nt, nh, nw)。
+            branch: 分支类型。
+            cache: 缓存对象。
+
+        Returns:
+            应用 RoPE 后的张量。
+        """
+        b = window_sizes.shape[0]
+        if branch == "txt":
+            txt_lens = x.shape[0] if b == 0 else None
+        nw_cu = F.pad((window_sizes[:, 0] * window_sizes[:, 1] * window_sizes[:, 2]).cumsum(0), (1, 0))
+        freq_list = []
+        for i in range(b):
+            nt, nh, nw = window_sizes[i].tolist()
+            if cache is not None:
+                freq_list.append(cache(f"freqs_{nt}_{nh}_{nw}", lambda: self.get_freqs_cis(nt, nh, nw)))
+            else:
+                freq_list.append(self.get_freqs_cis(nt, nh, nw))
+        if branch == "txt" and b > 0:
+            txt_start = nw_cu[-1].item()
+            txt_len = x.shape[0] - txt_start
+            freq_list.append(self.get_freqs_cis(txt_len, 1, 1))
+        freqs = torch.cat(freq_list, dim=0)
+        return apply_rope(x.unsqueeze(0), freqs=freqs).squeeze(0)
 
 
 class NaDiT(nn.Module):
-    """
-    Native Resolution Diffusion Transformer (NaDiT)
+    """NaDiT (Native Resolution Diffusion Transformer) 主模型。
+
+    支持任意分辨率、任意长度视频的扩散 Transformer，采用 AdaLN-Zero 调制、
+    3D RoPE 位置编码、窗口/全局注意力混合、可选 MoE 结构。
+
+    Args:
+        config (NaDiTConfig): 模型配置。
     """
 
-    gradient_checkpointing = False
-
-    def __init__(
-        self,
-        vid_in_channels: int,
-        vid_out_channels: int,
-        vid_dim: int,
-        txt_in_dim: Optional[int],
-        txt_dim: Optional[int],
-        emb_dim: int,
-        heads: int,
-        head_dim: int,
-        expand_ratio: int,
-        norm: Optional[str],
-        norm_eps: float,
-        ada: str,
-        qk_bias: bool,
-        qk_rope: bool,
-        qk_norm: Optional[str],
-        patch_size: Union[int, Tuple[int, int, int]],
-        num_layers: int,
-        block_type: Union[str, Tuple[str]],
-        shared_qkv: bool = False,
-        shared_mlp: bool = False,
-        mlp_type: str = "normal",
-        window: Optional[Tuple] = None,
-        window_method: Optional[Tuple[str]] = None,
-        temporal_window_size: int = None,
-        temporal_shifted: bool = False,
-        **kwargs,
-    ):
-        ada = get_ada_layer(ada)
-        norm = get_norm_layer(norm)
-        qk_norm = get_norm_layer(qk_norm)
-        if isinstance(block_type, str):
-            block_type = [block_type] * num_layers
-        elif len(block_type) != num_layers:
-            raise ValueError("The ``block_type`` list should equal to ``num_layers``.")
+    def __init__(self, config: NaDiTConfig):
         super().__init__()
-        self.vid_in = NaPatchIn(
-            in_channels=vid_in_channels,
-            patch_size=patch_size,
-            dim=vid_dim,
+        self.config = config
+        self.in_channels = config.in_channels
+        self.out_channels = config.in_channels
+        self.patch_size = config.patch_size
+        self.depth = config.depth
+        self.dim = config.dim
+        self.num_heads = config.num_heads
+        self.head_dim = config.dim // config.num_heads
+
+        self.patch_embed = NaPatchifyEmbed(config.in_channels, config.dim, config.patch_size)
+        self.time_embed = TimeEmbedding(config.dim)
+        self.text_proj = nn.Sequential(
+            nn.SiLU(),
+            initialize_linear(config.text_dim, config.dim, fp8=config.fp8),
         )
-        self.txt_in = (
-            nn.Linear(txt_in_dim, txt_dim)
-            if txt_in_dim and txt_in_dim != txt_dim
-            else nn.Identity()
-        )
-        self.emb_in = TimeEmbedding(
-            sinusoidal_dim=256,
-            hidden_dim=max(vid_dim, txt_dim),
-            output_dim=emb_dim,
+        self.rotary_emb = NaRoPE(
+            self.head_dim,
+            theta_t=config.rope_theta_t,
+            theta_h=config.rope_theta_h,
+            theta_w=config.rope_theta_w,
+            rope_dim=config.rope_dim,
         )
 
-        if window is None or isinstance(window[0], int):
-            window = [window] * num_layers
-        if window_method is None or isinstance(window_method, str):
-            window_method = [window_method] * num_layers
-        if temporal_window_size is None or isinstance(temporal_window_size, int):
-            temporal_window_size = [temporal_window_size] * num_layers
-        if temporal_shifted is None or isinstance(temporal_shifted, bool):
-            temporal_shifted = [temporal_shifted] * num_layers
+        norm_layer = get_norm_layer(config.norm_type)
+        ada_layer = get_ada_layer(config.ada_layer)
 
-        self.blocks = nn.ModuleList(
-            [
-                get_nablock(block_type[i])(
-                    vid_dim=vid_dim,
-                    txt_dim=txt_dim,
-                    emb_dim=emb_dim,
-                    heads=heads,
-                    head_dim=head_dim,
-                    expand_ratio=expand_ratio,
-                    norm=norm,
-                    norm_eps=norm_eps,
-                    ada=ada,
-                    qk_bias=qk_bias,
-                    qk_rope=qk_rope,
-                    qk_norm=qk_norm,
-                    shared_qkv=shared_qkv,
-                    shared_mlp=shared_mlp,
-                    mlp_type=mlp_type,
-                    window=window[i],
-                    window_method=window_method[i],
-                    temporal_window_size=temporal_window_size[i],
-                    temporal_shifted=temporal_shifted[i],
-                    **kwargs,
-                )
-                for i in range(num_layers)
-            ]
+        self.blocks = nn.ModuleList()
+        for i in range(config.depth):
+            block_cfg = dict(
+                dim=config.dim,
+                num_heads=config.num_heads,
+                mlp_expand_ratio=config.mlp_expand_ratio,
+                mlp_type=config.mlp_type,
+                norm_layer=norm_layer,
+                ada_layer=ada_layer,
+                window_size=config.window_size,
+                window_step=config.window_step,
+                block_id=i,
+                fp8=config.fp8,
+            )
+            if config.na_moe is not None and i in config.na_moe["mlp_layers"]:
+                block_cfg["mlp_layer"] = build_moe_layer(config.na_moe, config.dim, config.mlp_expand_ratio)
+            self.blocks.append(get_na_block(config.block_type)(**block_cfg))
+
+        self.norm_out = norm_layer(config.dim, eps=1e-6, elementwise_affine=False)
+        self.out_proj = nn.Sequential(
+            nn.SiLU(),
+            initialize_linear(config.dim, self.out_channels * config.patch_size[0] * config.patch_size[1] * config.patch_size[2], fp8=config.fp8),
         )
-        self.vid_out = NaPatchOut(
-            out_channels=vid_out_channels,
-            patch_size=patch_size,
-            dim=vid_dim,
-        )
+        self.ada_final = ada_layer(config.dim, 6 * config.dim, ["mod_out"])
 
-        self.need_txt_repeat = block_type[0] in [
-            "mmdit_stwin",
-            "mmdit_stwin_spatial",
-            "mmdit_stwin_3d_spatial",
-        ]
-
-    def set_gradient_checkpointing(self, enable: bool):
-        self.gradient_checkpointing = enable
+        if config.fp8:
+            apply_fp8_linear_optimization(self)
+        initialize_context_parallel(get_context_parallel_group(), 2, False)
 
     def forward(
         self,
-        vid: torch.FloatTensor,  # l c
-        txt: torch.FloatTensor,  # l c
-        vid_shape: torch.LongTensor,  # b 3
-        txt_shape: torch.LongTensor,  # b 1
-        timestep: Union[int, float, torch.IntTensor, torch.FloatTensor],  # b
-        disable_cache: bool = True,  # for test
-    ):
-        # Text input.
-        if txt_shape.size(-1) == 1 and self.need_txt_repeat:
-            txt, txt_shape = na.repeat(txt, txt_shape, "l c -> t l c", t=vid_shape[:, 0])
-        # slice vid after patching in when using sequence parallelism
-        txt = slice_inputs(txt, dim=0)
-        txt = self.txt_in(txt)
-
-        # Video input.
-        # Sequence parallel slicing is done inside patching class.
-        vid, vid_shape = self.vid_in(vid, vid_shape)
-
-        # Embedding input.
-        emb = self.emb_in(timestep, device=vid.device, dtype=vid.dtype)
-
-        # Body
-        cache = Cache(disable=disable_cache)
-        for i, block in enumerate(self.blocks):
-            vid, txt, vid_shape, txt_shape = gradient_checkpointing(
-                enabled=(self.gradient_checkpointing and self.training),
-                module=block,
-                vid=vid,
-                txt=txt,
-                vid_shape=vid_shape,
-                txt_shape=txt_shape,
-                emb=emb,
-                cache=cache,
-            )
-
-        vid, vid_shape = self.vid_out(vid, vid_shape, cache)
-        return NaDiTOutput(vid_sample=vid)
-
-
-class NaDiTUpscaler(nn.Module):
-    """NaDiT 超分辨率变体，额外接收 downscale 参数控制缩放嵌入。
-
-    与 NaDiT 结构基本一致，但增加 emb_scale 嵌入用于编码缩放因子，
-    适用于图像/视频超分辨率任务。
-    """
-
-    gradient_checkpointing = False
-
-    def __init__(
-        self,
-        vid_in_channels: int,
-        vid_out_channels: int,
-        vid_dim: int,
-        txt_in_dim: Optional[int],
-        txt_dim: Optional[int],
-        emb_dim: int,
-        heads: int,
-        head_dim: int,
-        expand_ratio: int,
-        norm: Optional[str],
-        norm_eps: float,
-        ada: str,
-        qk_bias: bool,
-        qk_rope: bool,
-        qk_norm: Optional[str],
-        patch_size: Union[int, Tuple[int, int, int]],
-        num_layers: int,
-        block_type: Union[str, Tuple[str]],
-        shared_qkv: bool = False,
-        shared_mlp: bool = False,
-        mlp_type: str = "normal",
-        window: Optional[Tuple] = None,
-        window_method: Optional[Tuple[str]] = None,
-        temporal_window_size: int = None,
-        temporal_shifted: bool = False,
+        x: torch.FloatTensor,
+        timesteps: torch.LongTensor,
+        text_emb: torch.FloatTensor,
+        window_sizes: torch.LongTensor,
+        txt_lens: torch.LongTensor,
         **kwargs,
-    ):
-        ada = get_ada_layer(ada)
-        norm = get_norm_layer(norm)
-        qk_norm = get_norm_layer(qk_norm)
-        if isinstance(block_type, str):
-            block_type = [block_type] * num_layers
-        elif len(block_type) != num_layers:
-            raise ValueError("The ``block_type`` list should equal to ``num_layers``.")
-        super().__init__()
-        self.vid_in = NaPatchIn(
-            in_channels=vid_in_channels,
-            patch_size=patch_size,
-            dim=vid_dim,
-        )
-        self.txt_in = (
-            nn.Linear(txt_in_dim, txt_dim)
-            if txt_in_dim and txt_in_dim != txt_dim
-            else nn.Identity()
-        )
-        self.emb_in = TimeEmbedding(
-            sinusoidal_dim=256,
-            hidden_dim=max(vid_dim, txt_dim),
-            output_dim=emb_dim,
-        )
+    ) -> torch.FloatTensor:
+        """NaDiT 前向传播。
 
-        self.emb_scale = TimeEmbedding(
-            sinusoidal_dim=256,
-            hidden_dim=max(vid_dim, txt_dim),
-            output_dim=emb_dim,
-        )
+        Args:
+            x (torch.FloatTensor): 输入视频张量（已 patch 化后为 (sum_vid, c) 列表）。
+            timesteps (torch.LongTensor): 扩散时间步，形状 (b,)。
+            text_emb (torch.FloatTensor): 文本嵌入，形状 (sum_txt, text_dim)。
+            window_sizes (torch.LongTensor): 每个样本的视频 patch 网格数 (b, 3)。
+            txt_lens (torch.LongTensor): 每个样本的文本 token 长度 (b,)。
+            **kwargs: 额外参数。
 
-        if window is None or isinstance(window[0], int):
-            window = [window] * num_layers
-        if window_method is None or isinstance(window_method, str):
-            window_method = [window_method] * num_layers
-        if temporal_window_size is None or isinstance(temporal_window_size, int):
-            temporal_window_size = [temporal_window_size] * num_layers
-        if temporal_shifted is None or isinstance(temporal_shifted, bool):
-            temporal_shifted = [temporal_shifted] * num_layers
+        Returns:
+            List[torch.FloatTensor]: 每个样本的输出视频噪声预测列表。
+        """
+        cache = Cache(disable=False)
+        b = window_sizes.shape[0]
+        vid_lens = window_sizes[:, 0] * window_sizes[:, 1] * window_sizes[:, 2]
 
-        self.blocks = nn.ModuleList(
-            [
-                get_nablock(block_type[i])(
-                    vid_dim=vid_dim,
-                    txt_dim=txt_dim,
-                    emb_dim=emb_dim,
-                    heads=heads,
-                    head_dim=head_dim,
-                    expand_ratio=expand_ratio,
-                    norm=norm,
-                    norm_eps=norm_eps,
-                    ada=ada,
-                    qk_bias=qk_bias,
-                    qk_rope=qk_rope,
-                    qk_norm=qk_norm,
-                    shared_qkv=shared_qkv,
-                    shared_mlp=shared_mlp,
-                    mlp_type=mlp_type,
-                    window=window[i],
-                    window_method=window_method[i],
-                    temporal_window_size=temporal_window_size[i],
-                    temporal_shifted=temporal_shifted[i],
-                    **kwargs,
-                )
-                for i in range(num_layers)
-            ]
-        )
-        self.vid_out = NaPatchOut(
-            out_channels=vid_out_channels,
-            patch_size=patch_size,
-            dim=vid_dim,
-        )
+        x_vid = self.patch_embed(x, window_sizes)
+        x_txt = self.text_proj(F.silu(text_emb))
 
-        self.need_txt_repeat = block_type[0] in [
-            "mmdit_stwin",
-            "mmdit_stwin_spatial",
-            "mmdit_stwin_3d_spatial",
-        ]
+        t_emb = self.time_embed(timesteps)
 
-    def set_gradient_checkpointing(self, enable: bool):
-        self.gradient_checkpointing = enable
+        x, cu_seqlens, seq_lens = na_concat(x_vid, x_txt, vid_lens, txt_lens)
+        x = emb_add(x, t_emb, vid_lens, txt_lens)
 
-    def forward(
-        self,
-        vid: torch.FloatTensor,  # l c
-        txt: torch.FloatTensor,  # l c
-        vid_shape: torch.LongTensor,  # b 3
-        txt_shape: torch.LongTensor,  # b 1
-        timestep: Union[int, float, torch.IntTensor, torch.FloatTensor],  # b
-        downscale: Union[int, float, torch.IntTensor, torch.FloatTensor],  # b
-        disable_cache: bool = False,  # for test
-    ):
-
-        # Text input.
-        if txt_shape.size(-1) == 1 and self.need_txt_repeat:
-            txt, txt_shape = na.repeat(txt, txt_shape, "l c -> t l c", t=vid_shape[:, 0])
-        # slice vid after patching in when using sequence parallelism
-        txt = slice_inputs(txt, dim=0)
-        txt = self.txt_in(txt)
-
-        # Video input.
-        # Sequence parallel slicing is done inside patching class.
-        vid, vid_shape = self.vid_in(vid, vid_shape)
-
-        # Embedding input.
-        emb = self.emb_in(timestep, device=vid.device, dtype=vid.dtype)
-        emb_scale = self.emb_scale(downscale, device=vid.device, dtype=vid.dtype)
-        emb = emb + emb_scale
-
-        # Body
-        cache = Cache(disable=disable_cache)
         for i, block in enumerate(self.blocks):
-            vid, txt, vid_shape, txt_shape = gradient_checkpointing(
-                enabled=(self.gradient_checkpointing and self.training),
-                module=block,
-                vid=vid,
-                txt=txt,
-                vid_shape=vid_shape,
-                txt_shape=txt_shape,
-                emb=emb,
-                cache=cache,
-            )
+            x = block(x, t_emb, self.rotary_emb, cu_seqlens, seq_lens, window_sizes, txt_lens, cache, i)
 
-        vid, vid_shape = self.vid_out(vid, vid_shape, cache)
-        return NaDiTOutput(vid_sample=vid)
+        x = x.view(-1, self.dim)
+        x = self.ada_final(x, t_emb, "mod_out", "in", cache=cache, hid_len=seq_lens)
+        x = self.norm_out(x)
+        x = self.ada_final(x, t_emb, "mod_out", "out", cache=cache, hid_len=seq_lens)
+        x = self.out_proj(x)
+
+        x_vid, x_txt = na_split(x.view(b, -1, x.shape[-1]), vid_lens, txt_lens)
+        return unpatchify(x_vid, window_sizes, self.patch_size)

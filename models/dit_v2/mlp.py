@@ -12,6 +12,14 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
+"""MLP 前馈网络模块。
+
+与 v1 版本接口相同，提供两种 MLP 实现：
+- **MLP**: 标准两层 MLP (Linear -> GELU(tanh) -> Linear)。
+- **SwiGLUMLP**: SwiGLU 门控 MLP，所有线性层无偏置。
+- **get_mlp**: 工厂函数。
+"""
+
 from typing import Optional
 import torch
 import torch.nn.functional as F
@@ -19,6 +27,14 @@ from torch import nn
 
 
 def get_mlp(mlp_type: Optional[str] = "normal"):
+    """根据类型返回 MLP 类。
+
+    Args:
+        mlp_type: "normal" 或 "swiglu"。
+
+    Returns:
+        Type[nn.Module]: MLP 类。
+    """
     if mlp_type == "normal":
         return MLP
     elif mlp_type == "swiglu":
@@ -26,6 +42,13 @@ def get_mlp(mlp_type: Optional[str] = "normal"):
 
 
 class MLP(nn.Module):
+    """标准两层 MLP：Linear -> GELU(tanh) -> Linear。
+
+    Args:
+        dim: 输入/输出维度。
+        expand_ratio: 隐藏层扩展倍数。
+    """
+
     def __init__(
         self,
         dim: int,
@@ -37,6 +60,14 @@ class MLP(nn.Module):
         self.proj_out = nn.Linear(dim * expand_ratio, dim)
 
     def forward(self, x: torch.FloatTensor) -> torch.FloatTensor:
+        """前向传播。
+
+        Args:
+            x: 输入 (..., dim)。
+
+        Returns:
+            torch.FloatTensor: 输出 (..., dim)。
+        """
         x = self.proj_in(x)
         x = self.act(x)
         x = self.proj_out(x)
@@ -44,6 +75,14 @@ class MLP(nn.Module):
 
 
 class SwiGLUMLP(nn.Module):
+    """SwiGLU 门控 MLP，所有线性层无偏置。
+
+    Args:
+        dim: 输入/输出维度。
+        expand_ratio: 扩展倍数。
+        multiple_of: 隐藏维度对齐基数，默认 256。
+    """
+
     def __init__(
         self,
         dim: int,
@@ -58,5 +97,13 @@ class SwiGLUMLP(nn.Module):
         self.proj_in = nn.Linear(dim, hidden_dim, bias=False)
 
     def forward(self, x: torch.FloatTensor) -> torch.FloatTensor:
+        """前向传播：SwiGLU 门控计算。
+
+        Args:
+            x: 输入 (..., dim)。
+
+        Returns:
+            torch.FloatTensor: 输出 (..., dim)。
+        """
         x = self.proj_out(F.silu(self.proj_in_gate(x)) * self.proj_in(x))
         return x

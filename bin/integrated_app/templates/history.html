@@ -310,6 +310,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <button class="sv-btn sv-btn-sm sv-btn-outline btn-delete-record" data-record-id="${safeId}" aria-label="${I["common.delete"]}">
                                     <i class="bi bi-trash"></i>
                                 </button>
+                                <button class="sv-btn sv-btn-sm sv-btn-outline btn-more-actions" data-record-id="${safeId}" data-output="${safeOutput}" aria-label="${I["history.more_actions"] || 'More actions'}">
+                                    <i class="bi bi-three-dots-vertical"></i>
+                                </button>
                             </div>
                         </div>`;
                 }).join('');
@@ -397,11 +400,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 卡片视图同样使用事件委托处理删除
+    // 卡片视图同样使用事件委托处理删除和更多操作
     document.getElementById('historyCards').addEventListener('click', (e) => {
         const btn = e.target.closest('.btn-delete-record');
         if (btn && btn.dataset.recordId) {
             SeedVR2.deleteHistoryRecord(btn.dataset.recordId);
+        }
+        const moreBtn = e.target.closest('.btn-more-actions');
+        if (moreBtn) {
+            const fakeRow = { dataset: { recordId: moreBtn.dataset.recordId, output: moreBtn.dataset.output } };
+            const fakeEvent = { preventDefault: () => {}, clientX: moreBtn.getBoundingClientRect().right, clientY: moreBtn.getBoundingClientRect().bottom };
+            SeedVR2.showRowContextMenu(fakeEvent, fakeRow);
         }
     });
 

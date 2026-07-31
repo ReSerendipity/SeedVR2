@@ -5,13 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self';">
     <title>{% block title %}SeedVR2{% endblock %}</title>
-    <!-- 主题初始化（防止闪烁） -->
+    <!-- 主题初始化（防止闪烁，默认暗色主题） -->
     <script>
         (function() {
             var saved = localStorage.getItem('sv-theme');
-            var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            var theme = saved || (prefersDark ? 'dark' : 'light');
+            // 默认暗色主题，仅当用户明确选择过才使用保存的主题
+            var theme = saved || 'dark';
             document.documentElement.setAttribute('data-theme', theme);
+            // 防止加载时的过渡动画闪烁
+            document.documentElement.classList.add('sv-theme-no-transition');
+            window.addEventListener('DOMContentLoaded', function() {
+                setTimeout(function() {
+                    document.documentElement.classList.remove('sv-theme-no-transition');
+                }, 100);
+            });
         })();
     </script>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%235e7d5a'/%3E%3Ctext x='16' y='22' font-family='Georgia,serif' font-size='17' font-style='italic' fill='%23faf7f2' text-anchor='middle'%3ES%3C/text%3E%3C/svg%3E">
@@ -152,7 +159,108 @@
         "restore.batch_failed": "{{ t('restore.batch_failed') }}",
         "restore.batch_current_processing": "{{ t('restore.batch_current_processing') }}",
         "settings.subtitle": "{{ t('settings.subtitle') }}",
-        "settings.save_success": "{{ t('settings.save_success') }}"
+        "settings.save_success": "{{ t('settings.save_success') }}",
+        "settings.title": "{{ t('settings.title') }}",
+        "settings.path_config": "{{ t('settings.path_config') }}",
+        "settings.model_settings": "{{ t('settings.model_settings') }}",
+        "settings.language_settings": "{{ t('settings.language_settings') }}",
+        "settings.pretrained_dir": "{{ t('settings.pretrained_dir') }}",
+        "settings.output_dir": "{{ t('settings.output_dir') }}",
+        "settings.pretrained_dir_help": "{{ t('settings.pretrained_dir_help') }}",
+        "settings.output_dir_help": "{{ t('settings.output_dir_help') }}",
+        "settings.default_model_size": "{{ t('settings.default_model_size') }}",
+        "settings.default_model_size_help": "{{ t('settings.default_model_size_help') }}",
+        "settings.precision": "{{ t('settings.precision') }}",
+        "settings.precision_help": "{{ t('settings.precision_help') }}",
+        "settings.fp16": "{{ t('settings.fp16') }}",
+        "settings.fp8": "{{ t('settings.fp8') }}",
+        "settings.gpu_backend": "{{ t('settings.gpu_backend') }}",
+        "settings.gpu_backend_help": "{{ t('settings.gpu_backend_help') }}",
+        "settings.backend_auto": "{{ t('settings.backend_auto') }}",
+        "settings.backend_cuda": "{{ t('settings.backend_cuda') }}",
+        "settings.memory_strategy": "{{ t('settings.memory_strategy') }}",
+        "settings.strategy_performance": "{{ t('settings.strategy_performance') }}",
+        "settings.strategy_balanced": "{{ t('settings.strategy_balanced') }}",
+        "settings.strategy_conservative": "{{ t('settings.strategy_conservative') }}",
+        "settings.interface_language": "{{ t('settings.interface_language') }}",
+        "settings.language_help": "{{ t('settings.language_help') }}",
+        "settings.model_management": "{{ t('settings.model_management') }}",
+        "settings.gpu_settings": "{{ t('settings.gpu_settings') }}",
+        "home.hero_title": "{{ t('home.hero_title') }}",
+        "home.hero_highlight": "{{ t('home.hero_highlight') }}",
+        "home.hero_subtitle": "{{ t('home.hero_subtitle') }}",
+        "home.start": "{{ t('home.start') }}",
+        "home.recent_tasks": "{{ t('home.recent_tasks') }}",
+        "home.view_all": "{{ t('home.view_all') }}",
+        "home.no_tasks_desc": "{{ t('home.no_tasks_desc') }}",
+        "home.total_tasks": "{{ t('home.total_tasks') }}",
+        "system.title": "{{ t('system.title') }}",
+        "system.model_status": "{{ t('system.model_status') }}",
+        "system.system_memory": "{{ t('system.system_memory') }}",
+        "system.uptime": "{{ t('system.uptime') }}",
+        "system.available_models": "{{ t('system.available_models') }}",
+        "system.cpu_mode": "{{ t('system.cpu_mode') }}",
+        "status.gpu_detecting": "{{ t('status.gpu_detecting') }}",
+        "status.initializing": "{{ t('status.initializing') }}",
+        "common.search": "{{ t('common.search') }}",
+        "common.browse_folder": "{{ t('common.browse_folder') }}",
+        "common.open_explorer": "{{ t('common.open_explorer') }}",
+        "common.select_folder": "{{ t('common.select_folder') }}",
+        "common.go": "{{ t('common.go') }}",
+        "common.menu": "{{ t('common.menu') }}",
+        "history.preview": "{{ t('history.preview') }}",
+        "history.search_placeholder": "{{ t('history.search_placeholder') }}",
+        "history.all_types": "{{ t('history.all_types') }}",
+        "history.all_status": "{{ t('history.all_status') }}",
+        "history.view_table": "{{ t('history.view_table') }}",
+        "history.view_cards": "{{ t('history.view_cards') }}",
+        "history.view_mode": "{{ t('history.view_mode') }}",
+        "history.clear": "{{ t('history.clear') }}",
+        "history.id": "{{ t('history.id') }}",
+        "history.type": "{{ t('history.type') }}",
+        "history.input_file": "{{ t('history.input_file') }}",
+        "history.model": "{{ t('history.model') }}",
+        "history.status": "{{ t('history.status') }}",
+        "history.processing_time": "{{ t('history.processing_time') }}",
+        "history.created_at": "{{ t('history.created_at') }}",
+        "history.actions": "{{ t('history.actions') }}",
+        "history.more_actions": "{{ t('history.more_actions') }}",
+        "history.open_output_dir": "{{ t('history.open_output_dir') }}",
+        "common.switch_language": "{{ t('common.switch_language') }}",
+        "common.collapse": "{{ t('common.collapse') }}",
+        "common.skip_to_content": "{{ t('common.skip_to_content') }}",
+        "home.quick.upload": "{{ t('home.quick.upload') }}",
+        "home.quick.upload_desc": "{{ t('home.quick.upload_desc') }}",
+        "home.quick.batch": "{{ t('home.quick.batch') }}",
+        "home.quick.batch_desc": "{{ t('home.quick.batch_desc') }}",
+        "home.quick.history": "{{ t('home.quick.history') }}",
+        "home.quick.history_desc": "{{ t('home.quick.history_desc') }}",
+        "restore.please_select_file": "{{ t('restore.please_select_file') }}",
+        "restore.please_select_folder": "{{ t('restore.please_select_folder') }}",
+        "restore.please_scan_folder": "{{ t('restore.please_scan_folder') }}",
+        "restore.gpu_required": "{{ t('restore.gpu_required') }}",
+        "restore.gpu_timeout": "{{ t('restore.gpu_timeout') }}",
+        "restore.gpu_available": "{{ t('restore.gpu_available') }}",
+        "restore.gpu_detect_timeout": "{{ t('restore.gpu_detect_timeout') }}",
+        "restore.gpu_detecting": "{{ t('restore.gpu_detecting') }}",
+        "restore.gpu_warning_title": "{{ t('restore.gpu_warning_title') }}",
+        "restore.gpu_warning_detail": "{{ t('restore.gpu_warning_detail') }}",
+        "restore.gpu_warning_hint": "{{ t('restore.gpu_warning_hint') }}",
+        "restore.gpu_help": "{{ t('restore.gpu_help') }}",
+        "restore.gpu_retry": "{{ t('restore.gpu_retry') }}",
+        "restore.gpu_not_found": "{{ t('restore.gpu_not_found') }}",
+        "restore.gpu_retry_failed": "{{ t('restore.gpu_retry_failed') }}",
+        "restore.cancel_task": "{{ t('restore.cancel_task') }}",
+        "restore.cancel_task_confirm": "{{ t('restore.cancel_task_confirm') }}",
+        "restore.task_cancelled": "{{ t('restore.task_cancelled') }}",
+        "restore.cancel_failed": "{{ t('restore.cancel_failed') }}",
+        "restore.cancel_batch_task": "{{ t('restore.cancel_batch_task') }}",
+        "restore.cancel_batch_confirm": "{{ t('restore.cancel_batch_confirm') }}",
+        "restore.batch_task_cancelled": "{{ t('restore.batch_task_cancelled') }}",
+        "restore.change_file": "{{ t('restore.change_file') }}",
+        "restore.no_files_found": "{{ t('restore.no_files_found') }}",
+        "restore.batch_confirm_title": "{{ t('restore.batch_confirm_title') }}",
+        "restore.batch_confirm_msg": "{{ t('restore.batch_confirm_msg') }}"
     };
     </script>
 
@@ -164,7 +272,7 @@
     <link rel="stylesheet" href="/static/fonts/fonts.css">
 
     <!-- 自定义样式 -->
-    <link rel="stylesheet" href="/static/css/style.css?v=2.0.2">
+    <link rel="stylesheet" href="/static/css/style.css?v=3.6.3">
 
     {% block head %}{% endblock %}
 </head>
@@ -188,17 +296,26 @@
         <ul class="sv-navbar-nav" id="mainNav">
             <li>
                 <a href="/" class="sv-nav-link {% if active_page == 'index' %}active{% endif %}">
+                    <i class="bi bi-house-door nav-icon"></i>
                     <span>{{ t('nav.home') }}</span>
                 </a>
             </li>
             <li>
                 <a href="/restore" class="sv-nav-link {% if active_page == 'restore' %}active{% endif %}">
+                    <i class="bi bi-magic nav-icon"></i>
                     <span>{{ t('nav.restore') }}</span>
                 </a>
             </li>
             <li>
                 <a href="/history" class="sv-nav-link {% if active_page == 'history' %}active{% endif %}">
+                    <i class="bi bi-clock-history nav-icon"></i>
                     <span>{{ t('nav.history') }}</span>
+                </a>
+            </li>
+            <li>
+                <a href="/system-status" class="sv-nav-link {% if active_page == 'system' %}active{% endif %}">
+                    <i class="bi bi-cpu nav-icon"></i>
+                    <span>{{ t('nav.system') }}</span>
                 </a>
             </li>
         </ul>
@@ -243,20 +360,22 @@
         {% block content %}{% endblock %}
     </main>
 
-    <!-- ===== 浮动系统状态组件（右下角） ===== -->
-    <div class="sv-sys-widget" role="status" aria-label="System status">
-        <button class="sv-sys-widget-toggle" id="sysWidgetToggle" aria-label="Toggle system status" title="Toggle">
-            <i class="bi bi-chevron-down"></i>
+    <!-- ===== 浮动系统状态组件（右下角 · 默认收起为状态点，点击/hover展开） ===== -->
+    <div class="sv-sys-widget collapsed" role="status" aria-label="System status">
+        <button class="sv-sys-widget-toggle" id="sysWidgetToggle" aria-label="Toggle system status" title="系统状态">
+            <i class="bi bi-chevron-up"></i>
         </button>
-        <div class="sv-sys-widget-body" id="sysWidgetBody">
-            <span class="sw-item sw-item-hide-mobile">
-                <span class="sv-status-dot online" id="statusDot"></span> SeedVR2 v1.0.0
+        <div class="sv-sys-widget-body collapsed" id="sysWidgetBody">
+            <span class="sw-item">
+                <span class="sv-status-dot online" id="statusDot"></span>
             </span>
-            <span class="sw-item" id="statusModel">{{ t('settings.model_management') }}: {{ t('status.gpu_detecting') }}</span>
+            <span class="sw-item sw-item-hide-mobile">
+                SeedVR2 v1.0.0
+            </span>
+            <span class="sw-item" id="statusModel">{{ t('settings.model_management') }}: {{ t('status.initializing') }}</span>
             <span class="sw-item" id="statusGpu">GPU: --</span>
-            <span class="sw-item sw-item-hide-mobile" id="statusTime">--</span>
             <span class="sw-item" id="statusMem">
-                <span class="sw-bar"><span class="sw-bar-fill" id="statusMemFill" style="width:0%"></span></span>
+                <span class="sw-bar"><span class="sw-bar-fill" id="statusMemFill" style="transform:scaleX(0);transform-origin:left center"></span></span>
                 <span id="statusMemText">--</span>
             </span>
         </div>
@@ -340,7 +459,7 @@
     <!-- HTMX (本地) -->
     <script src="/static/vendor/htmx/htmx.min.js"></script>
     <!-- 应用脚本 -->
-    <script src="/static/js/app.js?v=2.0.0"></script>
+    <script src="/static/js/app.js?v=3.6.0"></script>
 
     {% block scripts %}{% endblock %}
 </body>

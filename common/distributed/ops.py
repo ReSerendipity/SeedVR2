@@ -12,8 +12,34 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
-"""
-Distributed ops for supporting sequence parallel.
+"""Distributed communication operations for sequence parallelism.
+
+**Sequence Parallelism Communication Primitives:**
+
+This module implements custom PyTorch autograd functions for sequence-parallel
+training of transformer models. In sequence parallelism, the sequence dimension
+is split across GPUs within a group, and all-to-all communication is used to
+exchange data before and after self-attention so that each GPU computes attention
+over a subset of heads but all sequence tokens.
+
+Key operations:
+- **All-to-All** (``SeqAllToAll``): Swaps data between the sequence and head
+  dimensions across GPUs. Forward: scatter sequence, gather heads. Backward:
+  scatter heads, gather sequence.
+- **Slice** (``Slice``): Splits a tensor along a dimension and keeps the local
+  shard. Backward performs all-gather.
+- **Gather** (``Gather``): All-gathers tensor shards along a dimension. Backward
+  slices the gradient to the local shard.
+
+Higher-level convenience functions:
+- ``gather_seq_scatter_heads_qkv``: Handles QKV projection before attention
+  (gather seq -> scatter heads).
+- ``slice_inputs``: Splits input sequences for SP processing.
+- ``gather_heads_scatter_seq``: Attention output: gather heads -> scatter seq.
+- ``scatter_heads`` / ``gather_heads``: Standalone head slice/gather.
+- ``gather_outputs``: Final output gathering with padding removal.
+- ``SPDistForward`` / ``sync_inputs``: Utility for broadcasting inputs across
+  SP ranks with async pipelining for overlap.
 """
 
 from collections import defaultdict
@@ -45,8 +71,23 @@ def single_all_to_all(
     group: dist.ProcessGroup,
     async_op: bool = False,
 ):
-    """
-    A function to do all-to-all on a tensor
+    """Perform a single all-to-all communication using all_to_all_single.
+
+    Rearranges data by scattering along ``scatter_dim`` and gathering along
+    ``gather_dim``. The scatter dimension is transposed to dim 0 for efficient
+    communication, then transposed back after gathering.
+
+    Args:
+        local_input: Input tensor to exchange.
+        scatter_dim: Dimension along which to split and scatter data to other ranks.
+        gather_dim: Dimension along which to gather received data.
+        group: Process group for the collective communication.
+        async_op: If True, returns the async work handle for later waiting.
+
+    Returns:
+        If async_op is False, returns the output tensor. If async_op is True,
+        returns (output, work_handle, prev_scatter_dim) for the caller to
+        finish transpose/reshape.
     """
     seq_world_size = dist.get_world_size(group)
     prev_scatter_dim = scatter_dim
@@ -64,10 +105,8 @@ def single_all_to_all(
     output = torch.empty_like(input_t)
     comm = dist.all_to_all_single(output, input_t, group=group, async_op=async_op)
     if async_op:
-        # let user's code transpose & reshape
         return output, comm, prev_scatter_dim
 
-    # first dim is seq_world_size, so we can split it directly
     output = torch.cat(output.split(1), dim=gather_dim + 1).squeeze(0)
     if prev_scatter_dim:
         output = output.transpose(0, prev_scatter_dim).contiguous()
@@ -80,6 +119,21 @@ def _all_to_all(
     gather_dim: int,
     group: dist.ProcessGroup,
 ):
+    """Perform all-to-all using the list-based all_to_all API.
+
+    Splits ``local_input`` along ``scatter_dim`` into seq_world_size chunks,
+    sends chunk i to rank i, receives chunks from all ranks, and concatenates
+    them along ``gather_dim``.
+
+    Args:
+        local_input: Input tensor.
+        scatter_dim: Dimension to split for scattering.
+        gather_dim: Dimension to concatenate received chunks.
+        group: Process group.
+
+    Returns:
+        Gathered output tensor.
+    """
     seq_world_size = dist.get_world_size(group)
     input_list = [
         t.contiguous() for t in torch.tensor_split(local_input, seq_world_size, scatter_dim)
@@ -90,6 +144,18 @@ def _all_to_all(
 
 
 class SeqAllToAll(torch.autograd.Function):
+    """Custom autograd function for sequence-parallel all-to-all communication.
+
+    Implements the forward and backward passes for scattering along one
+    dimension and gathering along another, with correct gradient computation.
+
+    Forward: scatter along ``scatter_dim``, gather along ``gather_dim``.
+    Backward: reverse the dimensions (scatter along gather_dim, gather along scatter_dim).
+
+    This is the core communication primitive for exchanging QKV between
+    sequence-sharded GPUs in attention.
+    """
+
     @staticmethod
     def forward(
         ctx: Any,
@@ -99,6 +165,19 @@ class SeqAllToAll(torch.autograd.Function):
         gather_dim: int,
         async_op: bool,
     ) -> Tensor:
+        """Forward pass: all-to-all exchanging scatter_dim for gather_dim.
+
+        Args:
+            ctx: Autograd context for saving tensors/state.
+            group: SP process group.
+            local_input: Input tensor.
+            scatter_dim: Dimension to scatter.
+            gather_dim: Dimension to gather.
+            async_op: If True, perform async communication.
+
+        Returns:
+            Output tensor (or tuple with comm handle if async_op).
+        """
         ctx.group = group
         ctx.scatter_dim = scatter_dim
         ctx.gather_dim = gather_dim
@@ -114,6 +193,10 @@ class SeqAllToAll(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx: Any, *grad_output: Tensor) -> Tuple[None, Tensor, None, None]:
+        """Backward pass: reverse the all-to-all for gradient computation.
+
+        Gradient flows back through the transpose of the forward operation.
+        """
         if ctx.async_op:
             input_t = torch.cat(grad_output[0].split(1), dim=ctx.gather_dim + 1).squeeze(0)
             if ctx.prev_scatter_dim:
@@ -130,8 +213,25 @@ class SeqAllToAll(torch.autograd.Function):
 
 
 class Slice(torch.autograd.Function):
+    """Custom autograd function to slice a tensor along a dimension for sequence parallelism.
+
+    Forward splits the tensor along ``dim`` and keeps only the local rank's shard.
+    Backward performs an all-gather to reconstruct the full gradient tensor.
+    """
+
     @staticmethod
     def forward(ctx: Any, group: dist.ProcessGroup, local_input: Tensor, dim: int) -> Tensor:
+        """Forward: slice to local shard.
+
+        Args:
+            ctx: Autograd context.
+            group: SP process group.
+            local_input: Full tensor to slice.
+            dim: Dimension along which to split.
+
+        Returns:
+            Local shard of the tensor.
+        """
         ctx.group = group
         ctx.rank = dist.get_rank(group)
         seq_world_size = dist.get_world_size(group)
@@ -142,6 +242,7 @@ class Slice(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx: Any, grad_output: Tensor) -> Tuple[None, Tensor, None]:
+        """Backward: all-gather to reconstruct full gradient."""
         dim_size = list(grad_output.size())
         split_size = dim_size[0]
         dim_size[0] = dim_size[0] * ctx.seq_world_size
@@ -151,6 +252,12 @@ class Slice(torch.autograd.Function):
 
 
 class Gather(torch.autograd.Function):
+    """Custom autograd function to all-gather tensor shards along a dimension.
+
+    Forward all-gathers shards and concatenates along ``dim``.
+    Backward slices the gradient to the local rank's shard.
+    """
+
     @staticmethod
     def forward(
         ctx: Any,
@@ -159,6 +266,18 @@ class Gather(torch.autograd.Function):
         dim: int,
         grad_scale: Optional[bool] = False,
     ) -> Tensor:
+        """Forward: all-gather local shards and concatenate.
+
+        Args:
+            ctx: Autograd context.
+            group: SP process group.
+            local_input: Local tensor shard.
+            dim: Dimension to concatenate gathered shards.
+            grad_scale: If True, scale gradient by world size (for averaging).
+
+        Returns:
+            Gathered full tensor.
+        """
         ctx.group = group
         ctx.rank = dist.get_rank(group)
         ctx.dim = dim
@@ -175,6 +294,7 @@ class Gather(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx: Any, grad_output: Tensor) -> Tuple[None, Tensor]:
+        """Backward: slice gradient to local shard, optionally scaling."""
         if ctx.grad_scale:
             grad_output = grad_output * ctx.seq_world_size
         return (
@@ -193,13 +313,27 @@ def gather_seq_scatter_heads_qkv(
     cache: Cache = Cache(disable=True),
     restore_shape: bool = True,
 ):
-    """
-    A func to sync splited qkv tensor
-    qkv_tensor: the tensor we want to do alltoall with. The last dim must
-        be the projection_idx, which we will split into 3 part. After
-        spliting, the gather idx will be projecttion_idx + 1
-    seq_dim: gather_dim for all2all comm
-    restore_shape: if True, output will has the same shape length as input
+    """Perform all-to-all to gather sequence and scatter heads for QKV in attention.
+
+    In sequence parallelism, QKV is initially split along the sequence dimension.
+    Before attention computation, we need to gather all sequence tokens and scatter
+    heads across GPUs so each GPU computes attention for a subset of heads.
+
+    This function:
+    1. Reshapes QKV to separate the Q/K/V projection dimension into 3 parts.
+    2. Applies all-to-all to swap sequence and head dimensions.
+    3. Optionally restores the shape and removes padding.
+
+    Args:
+        qkv_tensor: QKV tensor with sequence split across SP ranks. Last dimension
+            is the concatenated Q/K/V projection.
+        seq_dim: Dimension corresponding to sequence (gather dimension for all-to-all).
+        qkv_shape: Original unpadded shape for padding removal.
+        cache: Cache for padding size computation.
+        restore_shape: If True, reshape output to match expected format.
+
+    Returns:
+        QKV tensor with heads scattered and sequence gathered across SP ranks.
     """
     group = get_sequence_parallel_group()
     if not group:
@@ -218,7 +352,6 @@ def gather_seq_scatter_heads_qkv(
         out_shape[-1] = qkv_proj_dim // world
         qkv_tensor = qkv_tensor.view(out_shape)
 
-    # remove padding
     if qkv_shape is not None:
         unpad_dim_size = cache(
             "unpad_dim_size", lambda: torch.sum(torch.prod(qkv_shape, dim=-1)).item()
@@ -230,8 +363,18 @@ def gather_seq_scatter_heads_qkv(
 
 
 def slice_inputs(x: Tensor, dim: int, padding: bool = True):
-    """
-    A func to slice the input sequence in sequence parallel
+    """Slice input tensor along a dimension for sequence parallel processing.
+
+    Splits the input evenly across SP ranks, adding padding if necessary to
+    ensure divisibility.
+
+    Args:
+        x: Input tensor to split.
+        dim: Dimension along which to split (typically sequence dimension).
+        padding: If True, pad tensor to be divisible by SP world size before slicing.
+
+    Returns:
+        Local shard of the input tensor.
     """
     group = get_sequence_parallel_group()
     if group is None:
@@ -249,8 +392,15 @@ def slice_inputs(x: Tensor, dim: int, padding: bool = True):
 
 
 def remove_seqeunce_parallel_padding(x: Tensor, dim: int, unpad_dim_size: int):
-    """
-    A func to remove the padding part of the tensor based on its original shape
+    """Remove padding added during sequence parallel slicing.
+
+    Args:
+        x: Padded tensor.
+        dim: Dimension from which to remove padding.
+        unpad_dim_size: Original size before padding.
+
+    Returns:
+        Tensor with padding removed.
     """
     group = get_sequence_parallel_group()
     if group is None:
@@ -264,8 +414,19 @@ def remove_seqeunce_parallel_padding(x: Tensor, dim: int, unpad_dim_size: int):
 
 
 def gather_heads_scatter_seq(x: Tensor, head_dim: int, seq_dim: int) -> Tensor:
-    """
-    A func to sync attention result with alltoall in sequence parallel
+    """Perform all-to-all after attention: gather heads and scatter sequence.
+
+    This is the reverse of ``gather_seq_scatter_heads``: after attention is
+    computed with scattered heads, this gathers heads back and scatters
+    sequence across SP ranks.
+
+    Args:
+        x: Attention output tensor with heads split across SP ranks.
+        head_dim: Head dimension (scatter dim for all-to-all).
+        seq_dim: Sequence dimension (gather dim for all-to-all).
+
+    Returns:
+        Tensor with heads gathered and sequence scattered.
     """
     group = get_sequence_parallel_group()
     if not group:
@@ -279,8 +440,17 @@ def gather_heads_scatter_seq(x: Tensor, head_dim: int, seq_dim: int) -> Tensor:
 
 
 def gather_seq_scatter_heads(x: Tensor, seq_dim: int, head_dim: int) -> Tensor:
-    """
-    A func to sync embedding input with alltoall in sequence parallel
+    """Perform all-to-all: gather sequence and scatter heads for embeddings.
+
+    Used for the embedding/projection input before attention layers.
+
+    Args:
+        x: Input tensor with sequence split.
+        seq_dim: Sequence dimension.
+        head_dim: Head dimension.
+
+    Returns:
+        Tensor after all-to-all exchange.
     """
     group = get_sequence_parallel_group()
     if not group:
@@ -289,8 +459,14 @@ def gather_seq_scatter_heads(x: Tensor, seq_dim: int, head_dim: int) -> Tensor:
 
 
 def scatter_heads(x: Tensor, dim: int) -> Tensor:
-    """
-    A func to split heads before attention in sequence parallel
+    """Slice/scatter heads across sequence parallel ranks.
+
+    Args:
+        x: Tensor with full heads.
+        dim: Dimension along which to scatter heads.
+
+    Returns:
+        Local head shard.
     """
     group = get_sequence_parallel_group()
     if not group:
@@ -299,8 +475,15 @@ def scatter_heads(x: Tensor, dim: int) -> Tensor:
 
 
 def gather_heads(x: Tensor, dim: int, grad_scale: Optional[bool] = False) -> Tensor:
-    """
-    A func to gather heads for the attention result in sequence parallel
+    """Gather heads from all sequence parallel ranks.
+
+    Args:
+        x: Local head shard.
+        dim: Dimension along which to gather.
+        grad_scale: If True, scale gradients by world size.
+
+    Returns:
+        Gathered tensor with all heads.
     """
     group = get_sequence_parallel_group()
     if not group:
@@ -317,8 +500,20 @@ def gather_outputs(
     cache: Cache = Cache(disable=True),
     scale_grad=True,
 ):
-    """
-    A func to gather the outputs for the model result in sequence parallel
+    """Gather final outputs from all SP ranks and remove padding.
+
+    Used after the model forward pass to gather outputs back to a full tensor.
+
+    Args:
+        x: Local output shard.
+        gather_dim: Dimension along which to gather.
+        padding_dim: Dimension from which to remove padding.
+        unpad_shape: Original unpadded shape.
+        cache: Cache for unpadded size computation.
+        scale_grad: If True, scale gradients (passed to Gather).
+
+    Returns:
+        Gathered and unpadded output tensor.
     """
     group = get_sequence_parallel_group()
     if not group:
@@ -333,6 +528,16 @@ def gather_outputs(
 
 
 def _pad_tensor(x: Tensor, dim: int, padding_size: int):
+    """Pad a tensor with zeros along a given dimension.
+
+    Args:
+        x: Tensor to pad.
+        dim: Dimension to pad.
+        padding_size: Number of zero elements to append.
+
+    Returns:
+        Padded tensor.
+    """
     shape = list(x.shape)
     shape[dim] = padding_size
     pad = torch.zeros(shape, dtype=x.dtype, device=x.device)
@@ -340,12 +545,35 @@ def _pad_tensor(x: Tensor, dim: int, padding_size: int):
 
 
 def _unpad_tensor(x: Tensor, dim: int, padding_size):
+    """Remove padding from a tensor along a given dimension.
+
+    Args:
+        x: Padded tensor.
+        dim: Dimension from which to remove padding.
+        padding_size: Number of elements to remove from the end.
+
+    Returns:
+        Unpadded tensor.
+    """
     slc = [slice(None)] * len(x.shape)
     slc[dim] = slice(0, -padding_size)
     return x[slc]
 
 
 def _broadcast_data(data, shape, dtype, src, group, async_op):
+    """Recursively broadcast nested data structures (tensors, lists, dicts).
+
+    Args:
+        data: Data structure to broadcast (Tensor, list, tuple, or dict).
+        shape: Shape(s) of tensor(s) for pre-allocating recv buffers.
+        dtype: Dtype(s) of tensor(s).
+        src: Source rank.
+        group: Process group.
+        async_op: If True, returns async work handles.
+
+    Returns:
+        List of async work handles if async_op, else None.
+    """
     comms = []
     if isinstance(data, (list, tuple)):
         for i, sub_shape in enumerate(shape):
@@ -359,6 +587,15 @@ def _broadcast_data(data, shape, dtype, src, group, async_op):
 
 
 def _traverse(data: Any, op: Callable) -> Union[None, List, Dict, Any]:
+    """Recursively traverse nested data structures applying an operation to Tensors.
+
+    Args:
+        data: Data structure (Tensor, list, tuple, dict, or scalar).
+        op: Callable applied to each Tensor.
+
+    Returns:
+        Transformed data structure with the same nesting.
+    """
     if isinstance(data, (list, tuple)):
         return [_traverse(sub_data, op) for sub_data in data]
     elif isinstance(data, dict):
@@ -370,14 +607,42 @@ def _traverse(data: Any, op: Callable) -> Union[None, List, Dict, Any]:
 
 
 def _get_shapes(data):
+    """Extract shapes from all Tensors in a nested structure.
+
+    Args:
+        data: Nested data structure (Tensor, list, tuple, or dict).
+
+    Returns:
+        Nested structure of torch.Size objects matching the input structure,
+        where each Tensor is replaced by its shape.
+    """
     return _traverse(data, op=lambda x: x.shape)
 
 
 def _get_dtypes(data):
+    """Extract dtypes from all Tensors in a nested structure.
+
+    Args:
+        data: Nested data structure (Tensor, list, tuple, or dict).
+
+    Returns:
+        Nested structure of torch.dtype objects matching the input structure,
+        where each Tensor is replaced by its dtype.
+    """
     return _traverse(data, op=lambda x: x.dtype)
 
 
 def _construct_broadcast_buffer(shapes, dtypes, device):
+    """Construct empty buffer(s) matching a nested shape/dtype structure for receiving broadcast.
+
+    Args:
+        shapes: Nested shape structure (from _get_shapes).
+        dtypes: Nested dtype structure (from _get_dtypes).
+        device: Device for allocated tensors.
+
+    Returns:
+        Nested structure of empty tensors matching shapes/dtypes.
+    """
     if isinstance(shapes, torch.Size):
         return torch.empty(shapes, dtype=dtypes, device=device)
 
@@ -395,14 +660,20 @@ def _construct_broadcast_buffer(shapes, dtypes, device):
 
 
 class SPDistForward:
-    """A forward tool to sync different result across sp group
+    """Utility for synchronizing data across sequence parallel ranks with async pipelining.
+
+    In some SP workflows, each rank may produce different intermediate results
+    that need to be shared across the SP group (e.g., for certain ring-attention
+    or cyclic computation patterns). This class implements a ring-broadcast
+    pattern where each rank's data is broadcast to all others in sequence,
+    using double buffering and async communication to overlap communication
+    with computation.
 
     Args:
-        module: a function or module to process users input
-        sp_step: current training step to judge which rank to broadcast its result to all
-        name: a distinct str to save meta and async comm
-        comm_shape: if different ranks have different shape, mark this arg to True
-        device: the device for current rank, can be empty
+        name: Unique name for this forward sync instance (used for buffer storage).
+        comm_shape: If True, shapes are gathered across ranks (supports different
+            shapes per rank). If False, assumes all ranks have the same shape.
+        device: Torch device for buffers. Auto-detected if None.
     """
 
     def __init__(
@@ -419,6 +690,24 @@ class SPDistForward:
             self.device = get_device()
 
     def __call__(self, inputs) -> Any:
+        """Synchronize inputs across SP ranks using ring broadcast with async overlap.
+
+        Yields data from each rank in sequence. For each local_step i:
+        1. If i==0, rank i broadcasts its input (and shape metadata if comm_shape).
+        2. Wait for the previous async broadcast to complete.
+        3. Issue the next async broadcast for rank i+1.
+        4. Yield the data for current step.
+
+        This pipelining overlaps the broadcast of step i+1 with computation
+        of step i.
+
+        Args:
+            inputs: Local input tensor/data to share. Only meaningful on rank 0
+                of each SP step (i.e., rank == local_step).
+
+        Yields:
+            Data from each SP rank in order.
+        """
         group = get_sequence_parallel_group()
         if not group:
             yield inputs
@@ -455,11 +744,9 @@ class SPDistForward:
                     _broadcast_data(sync_data, shapes, dtypes, src_rank, group, False)
                     _SEQ_DATA_BUF[self.name][buf_id] = sync_data
 
-                # wait for async comm ops
                 if _SEQ_DATA_ASYNC_COMMS[self.name]:
                     for comm in _SEQ_DATA_ASYNC_COMMS[self.name]:
                         comm.wait()
-                # before return the sync result, do async broadcast for next batch
                 if local_step < sp_world - 1:
                     next_buf_id = 1 - buf_id
                     shapes = _SEQ_DATA_META_SHAPES[self.name][local_step + 1]
@@ -481,14 +768,25 @@ sync_inputs = SPDistForward(name="bef_fwd", comm_shape=True)
 
 
 def sync_data(data, sp_idx, name="tmp"):
+    """Broadcast data from a specific SP rank to all other ranks.
+
+    Simple synchronous broadcast of a Python object (including tensors)
+    using broadcast_object_list.
+
+    Args:
+        data: Data to broadcast. Only the data from sp_idx is used; other ranks'
+            data is overwritten.
+        sp_idx: Source rank within the SP group.
+        name: Buffer name (for caching, currently not used).
+
+    Returns:
+        The broadcast data (same on all ranks).
+    """
     group = get_sequence_parallel_group()
     if group is None:
         return data
-    # if sp_idx in _SYNC_BUFFER[name]:
-    #     return _SYNC_BUFFER[name][sp_idx]
     sp_rank = get_sequence_parallel_rank()
     src_rank = dist.get_global_rank(group, sp_idx)
     objects = [data] if sp_rank == sp_idx else [None]
     dist.broadcast_object_list(objects, src=src_rank, group=group)
-    # _SYNC_BUFFER[name] = {sp_idx: objects[0]}
     return objects[0]

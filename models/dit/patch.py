@@ -12,111 +12,177 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
-"""图像/视频 Patch 嵌入与还原模块。
+"""Patch 嵌入与恢复模块。
 
-提供将连续张量拆分为 patch 序列（PatchIn）及反向还原（PatchOut）的功能，
-以及支持序列并行的 NaDiT 版本 (NaPatchIn / NaPatchOut)。
+实现视频到 patch token 的转换和逆转换：
+
+- **patchify**: 将视频张量 (b c t h w) 转换为 patch token 序列 (b n d)。
+- **unpatchify**: 将 patch token 序列恢复为视频张量。
+- **PatchifyEmbed**: 可学习的 patch 嵌入层，用 3D 卷积将视频 patch 投影到 token 维度。
+- **UnPatchify**: 将 token 投影回视频空间，unpatchify 后输出视频张量。
+
+Patch 化算法:
+    3D 视频 patch 嵌入将视频沿时间、高度、宽度三个维度划分为不重叠的 patch，
+    每个 patch 展平后通过线性投影得到 token 向量。使用 3D 卷积实现等价于
+    同时执行 patch 划分和线性投影，且保持空间结构。
+
+    例如，patch_size=(2,2,2) 表示时间步长 2、空间高宽步长 2，每个 patch 包含
+    2*2*2 = 8 个体素，展平为 8*c 维向量后投影到 dim 维。
 """
 
-from typing import Tuple, Union
+from typing import Sequence, Tuple
 import torch
 from einops import rearrange
 from torch import nn
-from torch.nn.modules.utils import _triple
-
-from common.cache import Cache
-from common.distributed.ops import gather_outputs, slice_inputs
-
-from . import na
 
 
-class PatchIn(nn.Module):
-    """将输入张量按 patch_size 分块并线性投影到 dim 维度。"""
+def patchify(x: torch.Tensor, patch_size: Sequence[int]):
+    """将视频张量划分为 patch 并展平为 token 序列。
+
+    Args:
+        x (torch.Tensor): 输入视频张量，形状为 (b, c, t, h, w)。
+        patch_size (Sequence[int]): patch 大小，长度为 3 的序列 (p_t, p_h, p_w)。
+
+    Returns:
+        torch.Tensor: patch token 序列，形状为 (b, n, p_t*p_h*p_w*c)，
+            其中 n = t/p_t * h/p_h * w/p_w。
+    """
+    b, c, t, h, w = x.shape
+    p_t, p_h, p_w = patch_size
+    assert t % p_t == h % p_h == w % p_w == 0
+    x = x.reshape((b, c, t // p_t, p_t, h // p_h, p_h, w // p_w, p_w))
+    x = torch.einsum("n c t p h q w r -> n t h w p q r c", x)
+    return x.reshape((b, -1, p_t * p_h * p_w * c))
+
+
+def unpatchify(x: torch.Tensor, patch_size: Sequence[int], t: int, h: int, w: int, c: int):
+    """将 patch token 序列恢复为视频张量。
+
+    Args:
+        x (torch.Tensor): patch token 序列，形状为 (b, n, p_t*p_h*p_w*c)。
+        patch_size (Sequence[int]): patch 大小 (p_t, p_h, p_w)。
+        t (int): 视频时间帧数。
+        h (int): 视频高度。
+        w (int): 视频宽度。
+        c (int): 视频通道数。
+
+    Returns:
+        torch.Tensor: 恢复后的视频张量，形状为 (b, c, t, h, w)。
+    """
+    p_t, p_h, p_w = patch_size
+    assert t % p_t == h % p_h == w % p_w == 0
+    n_t, n_h, n_w = t // p_t, h // p_h, w // p_w
+    x = x.reshape((-1, n_t, n_h, n_w, p_t, p_h, p_w, c))
+    x = torch.einsum("n t h w p q r c -> n c t p h q w r", x)
+    x = x.reshape((-1, c, t, h, w))
+    return x
+
+
+class PatchifyEmbed(nn.Module):
+    """3D Patch 嵌入层，使用 3D 卷积将视频 patch 投影到 token 维度。
+
+    Args:
+        in_channels (int): 输入视频通道数。
+        dim (int): 输出 token 维度。
+        patch_size (Tuple[int, int, int]): patch 大小 (p_t, p_h, p_w)，默认 (1,2,2)。
+
+    Attributes:
+        proj (nn.Conv3d): 3D 卷积层，kernel_size 和 stride 均为 patch_size。
+        patch_size (Tuple[int, int, int]): patch 大小。
+    """
+
     def __init__(
         self,
         in_channels: int,
-        patch_size: Union[int, Tuple[int, int, int]],
         dim: int,
+        patch_size: Tuple[int, int, int] = (1, 2, 2),
     ):
         super().__init__()
-        t, h, w = _triple(patch_size)
-        self.patch_size = t, h, w
-        self.proj = nn.Linear(in_channels * t * h * w, dim)
+        self.patch_size = patch_size
+        self.proj = nn.Conv3d(
+            in_channels=in_channels,
+            out_channels=dim,
+            kernel_size=patch_size,
+            stride=patch_size,
+        )
 
-    def forward(
-        self,
-        vid: torch.Tensor,
-    ) -> torch.Tensor:
-        t, h, w = self.patch_size
-        vid = rearrange(vid, "b c (T t) (H h) (W w) -> b T H W (t h w c)", t=t, h=h, w=w)
-        vid = self.proj(vid)
-        return vid
+    def forward(self, x: torch.FloatTensor) -> torch.FloatTensor:
+        """前向传播，执行视频到 patch token 的嵌入。
+
+        Args:
+            x (torch.FloatTensor): 输入视频张量，形状为 (b, c, t, h, w)。
+
+        Returns:
+            torch.FloatTensor: patch token 序列，形状为 (b, t*h*w/(p_t*p_h*p_w), dim)，
+                已展平空间时间维度。
+        """
+        return rearrange(self.proj(x), "b c t h w -> b (t h w) c")
+
+    def unpatchify(self, x: torch.FloatTensor, t: int, h: int, w: int) -> torch.FloatTensor:
+        """将 token 序列恢复为视频空间形状（不还原通道数）。
+
+        Args:
+            x (torch.FloatTensor): token 序列，形状 (b, n, dim)。
+            t (int): 原始时间帧数。
+            h (int): 原始高度。
+            w (int): 原始宽度。
+
+        Returns:
+            torch.FloatTensor: 恢复为空间形状的张量 (b, dim, t//p_t, h//p_h, w//p_w)。
+        """
+        p_t, p_h, p_w = self.patch_size
+        return rearrange(
+            x,
+            "b (t h w) c -> b c t h w",
+            t=t // p_t,
+            h=h // p_h,
+            w=w // p_w,
+        )
 
 
-class PatchOut(nn.Module):
-    """将 dim 维度的 patch 序列线性投影还原为原始通道数并重组。"""
+class UnPatchify(nn.Module):
+    """将 token 投影回视频空间并 unpatchify。
+
+    Args:
+        out_channels (int): 输出视频通道数。
+        dim (int): 输入 token 维度。
+        patch_size (Tuple[int, int, int]): patch 大小 (p_t, p_h, p_w)，默认 (1,2,2)。
+
+    Attributes:
+        proj (nn.Linear): 线性投影层，dim -> p_t*p_h*p_w*out_channels。
+        patch_size (Tuple[int, int, int]): patch 大小。
+    """
+
     def __init__(
         self,
         out_channels: int,
-        patch_size: Union[int, Tuple[int, int, int]],
         dim: int,
+        patch_size: Tuple[int, int, int] = (1, 2, 2),
     ):
         super().__init__()
-        t, h, w = _triple(patch_size)
-        self.patch_size = t, h, w
-        self.proj = nn.Linear(dim, out_channels * t * h * w)
+        self.patch_size = patch_size
+        self.proj = nn.Linear(dim, out_channels * patch_size[0] * patch_size[1] * patch_size[2])
 
     def forward(
         self,
-        vid: torch.Tensor,
-    ) -> torch.Tensor:
-        t, h, w = self.patch_size
-        vid = self.proj(vid)
-        vid = rearrange(vid, "b T H W (t h w c) -> b c (T t) (H h) (W w)", t=t, h=h, w=w)
-        return vid
+        x: torch.FloatTensor,
+        t: int,
+        h: int,
+        w: int,
+    ) -> torch.FloatTensor:
+        """前向传播，将 token 序列投影并恢复为视频张量。
 
+        Args:
+            x (torch.FloatTensor): token 序列，形状 (b, n, dim)。
+            t (int): 目标时间帧数。
+            h (int): 目标高度。
+            w (int): 目标宽度。
 
-class NaPatchIn(PatchIn):
-    """支持变长序列的 Patch 嵌入，兼容序列并行切分。"""
-    def forward(
-        self,
-        vid: torch.Tensor,  # l c
-        vid_shape: torch.LongTensor,
-    ) -> torch.Tensor:
-        t, h, w = self.patch_size
-        if not (t == h == w == 1):
-            vid, vid_shape = na.rearrange(
-                vid, vid_shape, "(T t) (H h) (W w) c -> T H W (t h w c)", t=t, h=h, w=w
-            )
-        # slice vid after patching in when using sequence parallelism
-        vid = slice_inputs(vid, dim=0)
-        vid = self.proj(vid)
-        return vid, vid_shape
-
-
-class NaPatchOut(PatchOut):
-    """支持变长序列的 Patch 还原，兼容序列并行聚合。"""
-    def forward(
-        self,
-        vid: torch.FloatTensor,  # l c
-        vid_shape: torch.LongTensor,
-        cache: Cache = Cache(disable=True),
-    ) -> Tuple[
-        torch.FloatTensor,
-        torch.LongTensor,
-    ]:
-        t, h, w = self.patch_size
-        vid = self.proj(vid)
-        # gather vid before patching out when enabling sequence parallelism
-        vid = gather_outputs(
-            vid,
-            gather_dim=0,
-            padding_dim=0,
-            unpad_shape=vid_shape,
-            cache=cache.namespace("vid"),
-        )
-        if not (t == h == w == 1):
-            vid, vid_shape = na.rearrange(
-                vid, vid_shape, "T H W (t h w c) -> (T t) (H h) (W w) c", t=t, h=h, w=w
-            )
-        return vid, vid_shape
+        Returns:
+            torch.FloatTensor: 输出视频张量，形状 (b, out_channels, t, h, w)。
+        """
+        c = x.shape[-1]
+        p_t, p_h, p_w = self.patch_size
+        x = self.proj(x)
+        x = unpatchify(x, self.patch_size, t, h, w, c // p_t // p_h // p_w)
+        return x

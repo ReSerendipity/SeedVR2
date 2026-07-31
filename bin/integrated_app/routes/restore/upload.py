@@ -1,12 +1,14 @@
-#!/usr/bin/env python3
-"""Klar - 上传与修复路由
+﻿#!/usr/bin/env python3
+"""单文件上传与修复路由模块。
 
-处理文件上传、任务创建、后台推理执行。
+处理文件上传、修复任务创建、后台推理执行逻辑。
+支持直接上传文件或指定本地文件夹路径两种输入方式，
+自动检测媒体类型并分发到图像/视频推理引擎。
 
-REFACTOR 改进:
-- 从 unified.py 拆分，职责单一化 (B1/SRP)
-- 统一响应包装 {success, data, error} (G1)
-- 使用 common.model_size_from_dit_model / common.detect_media_type 消除重复 (A5/DRY)
+API 端点：
+- POST /api/restore/: 上传文件或指定文件夹创建修复任务
+
+所属项目：SeedVR2 (SeedVR2 视频/图像修复工具)
 """
 import asyncio
 import logging
@@ -52,13 +54,53 @@ async def upload_and_restore(
     task_queue: TaskQueue = Depends(get_task_queue),
     config: dict = Depends(get_config),
 ):
-    """上传文件并创建修复任务（立即返回 task_id，后台排队执行）"""
-    # REFACTOR: 输入校验前置 — 用户应先修正输入，再关注基础设施可用性 (G3/A10)
-    # 先校验输入源是否存在
+    """上传文件或指定本地文件夹，创建修复任务并加入后台队列。
+
+    API 端点：POST /api/restore/
+
+    支持两种输入方式（二选一）：
+    1. multipart/form-data 上传文件：字段名 "file"
+    2. form 字段 "folder_path" 指定本地文件夹路径（取第一个媒体文件）
+
+    通用表单参数（由 common.parse_unified_params 解析）：
+    - task_type: "auto"/"image"/"video"，默认 "auto"
+    - dit_model, seed 等修复参数（详见 common.parse_unified_params）
+
+    返回格式（JSON，统一包装 {success, data, error}）：
+    {
+        "success": true,
+        "data": {
+            "task_id": str,       // 任务 ID，用于查询进度/下载结果
+            "record_id": int,     // 历史记录数据库 ID
+            "task_type": "image"|"video",
+            "status": "pending",
+            "message": "修复任务已创建并加入队列"
+        }
+    }
+
+    错误响应：
+    - 400: 参数错误（未提供文件/路径、格式不支持、文件过大等）
+    - 503: GPU 不可用或模型未加载
+
+    Args:
+        request: FastAPI 请求对象。
+        file: 上传的文件（multipart/form-data），可选。
+        folder_path: 本地文件夹路径（form 字段），可选。
+        raw_params: 解析后的统一修复参数（通过依赖注入）。
+        history_db: 历史记录数据库实例（通过依赖注入）。
+        file_cache: 文件缓存实例（通过依赖注入）。
+        task_queue: 任务队列实例（通过依赖注入）。
+        config: 应用配置（通过依赖注入）。
+
+    Returns:
+        统一格式的 JSON 响应，包含任务信息。
+
+    Raises:
+        HTTPException: 输入校验失败或服务不可用时抛出。
+    """
     if not (file and file.filename) and not (folder_path and folder_path.strip()):
         raise HTTPException(status_code=400, detail="请上传文件或指定文件夹路径")
 
-    # GPU 可用性检查：SeedVR2 仅支持 NVIDIA GPU 推理
     if not gpu_manager.is_gpu_available:
         raise HTTPException(
             status_code=503,
@@ -68,7 +110,6 @@ async def upload_and_restore(
     if not model_registry.model_loaded:
         raise HTTPException(status_code=503, detail="模型未加载，请先加载模型")
 
-    # 确定输入源与任务类型
     input_path: str
     detected_type: str | None = None
 
@@ -111,14 +152,12 @@ async def upload_and_restore(
         input_path, file_ext = media_files[0]
         detected_type = common.detect_media_type(file_ext)
 
-    # 决定最终任务类型
     task_type = raw_params.task_type
     if task_type == "auto":
         task_type = detected_type or "image"
     elif task_type not in ("image", "video"):
         raise HTTPException(status_code=400, detail=f"无效的任务类型: {task_type}")
 
-    # 构建对应参数模型
     dit_model = raw_params.dit_model
     use_model_size = common.model_size_from_dit_model(dit_model)
     if task_type == "image":
@@ -128,10 +167,8 @@ async def upload_and_restore(
         video_fields = {"seed": raw_params.seed}
         params = VideoRestoreParams(**video_fields)
 
-    # 生成任务 ID（长度可配）
     task_id = uuid.uuid4().hex[: config.get("runtime", {}).get("task", {}).get("id_length", 16)]
 
-    # 创建历史记录
     record = HistoryRecord(
         task_type=task_type,
         input_file=input_path,
@@ -141,12 +178,8 @@ async def upload_and_restore(
     )
     record_id = await history_db.add_record(record)
 
-    # 持久化任务状态
     await common.create_task_state(task_id, record_id, history_db, task_type=task_type)
 
-    # 提交到任务队列
-    # REFACTOR [E4-1]: 注入 on_cancel 回调，超时/取消时通知引擎停止 GPU 推理
-    # 原实现仅依靠 asyncio.Task.cancel，对 to_thread 包装的同步推理无效，GPU 资源持续占用
     engine = model_registry.get_engine()
     on_cancel = engine.request_cancel if engine else None
 
@@ -179,7 +212,23 @@ async def _run_task_with_state(
     history_db: HistoryDB,
     task_queue: TaskQueue,
 ):
-    """公共任务执行模板 - 统一状态管理和异常处理"""
+    """公共任务执行模板 - 统一状态管理和异常处理（内部函数）。
+
+    封装任务执行的通用流程：
+    1. 更新状态为 processing
+    2. 检查取消状态
+    3. 获取引擎实例
+    4. 执行实际推理函数
+    5. 根据结果更新状态为 completed/failed/cancelled
+    6. 异常统一处理并记录日志
+
+    Args:
+        task_id: 任务 ID。
+        record_id: 历史记录 ID。
+        task_fn: 实际推理函数，接收 engine 参数，返回 RestoreResult。
+        history_db: 历史数据库实例。
+        task_queue: 任务队列实例。
+    """
     try:
         await common.update_task_state(task_id, history_db, status="processing")
         await history_db.update_record(record_id, status="processing")
@@ -234,10 +283,18 @@ async def _process_image_task(
     history_db: HistoryDB,
     task_queue: TaskQueue,
 ):
-    """后台单张图像修复任务"""
+    """后台单张图像修复任务（内部函数）。
+
+    Args:
+        task_id: 任务 ID。
+        record_id: 历史记录 ID。
+        input_path: 输入图片路径。
+        params: 图像修复参数。
+        history_db: 历史数据库实例。
+        task_queue: 任务队列实例。
+    """
     async def _do_infer(engine):
         output_dir = os.path.join(os.getcwd(), "outputs", "image", task_id)
-        # 从 params 字典构建 ImageInferenceConfig，只保留 dataclass 识别的字段
         image_config = ImageInferenceConfig(**{
             k: v for k, v in params.model_dump().items()
             if k in ImageInferenceConfig.__dataclass_fields__
@@ -261,12 +318,22 @@ async def _process_video_task(
     history_db: HistoryDB,
     task_queue: TaskQueue,
 ):
-    """后台单视频修复任务"""
+    """后台单视频修复任务（内部函数）。
+
+    包含帧进度回调，实时更新任务进度到缓存和数据库。
+
+    Args:
+        task_id: 任务 ID。
+        record_id: 历史记录 ID。
+        input_path: 输入视频路径。
+        model_size: 模型尺寸标识。
+        params: 视频修复参数。
+        config: 应用配置。
+        history_db: 历史数据库实例。
+        task_queue: 任务队列实例。
+    """
     async def _do_infer(engine):
         async def progress_callback(current_frame: int, total_frames: int, progress: float):
-            # REFACTOR [B2-1]: 顶层字段通过 update 写回缓存
-            # 原实现 `cached = common.get_task_cache().get(task_id); cached["current_frame"] = ...`
-            # 因 get() 返回浅拷贝，直接赋值不影响缓存；改为通过 update() 写入
             common.get_task_cache().update(
                 task_id,
                 current_frame=current_frame,

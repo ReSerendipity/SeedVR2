@@ -1,9 +1,24 @@
-"""框架 / 工程化模块
+﻿"""框架 / 工程化模块
 
-参考多个竞品项目的工程化最佳实践，提供配置管理、检查点恢复、
-多 GPU 推理、数据预取等框架级能力的集成参考。
+所属项目: SeedVR2 (SeedVR2 视频/图像修复应用)
+核心技术栈: Python, PyTorch, PyYAML, 配置管理, 多GPU推理, 数据预取, pybind11
 
-竞品来源:
+本模块提供框架级工程化能力的参考实现，整合多个竞品项目的工程最佳实践，
+包括配置管理、检查点恢复、多GPU并行推理、数据预取、模型自描述、
+C++绑定接口等基础设施能力。
+
+主要功能:
+- YAMLConfigManager: BasicSR风格YAML配置驱动+CLI参数覆盖
+- ConfigDrivenInstantiator: DiffBIR风格配置驱动模型动态实例化
+- AutoResumeManager: BasicSR风格自动检查点恢复（断点续训/续推）
+- MultiGPUInference: CogVideo xDiT风格多GPU并行推理框架（Ulysses/Ring/Pipeline/Data）
+- CUDAPrefetcher/CPUPrefetcher: BasicSR风格CPU/CUDA数据预取器
+- ModelSelfDescriptor: waifu2x风格模型自描述属性元数据
+- PyBindInterface: Anime4KCPP风格pybind11零拷贝C++扩展调用接口
+- HydraStyleConfigManager: Fast-SRGAN风格Hydra配置管理参考
+- 工厂函数: 快速创建默认配置的工程组件
+
+参考竞品与设计来源:
 - BasicSR: YAML 配置驱动 + CLI 覆盖 (P2)
 - DiffBIR: OmegaConf + instantiate_from_config 配置驱动模型实例化 (P2)
 - BasicSR: auto_resume 自动检查点恢复 (P2)
@@ -12,16 +27,6 @@
 - waifu2x: w2nn* 自描述属性元数据模式 (P2)
 - Anime4KCPP: pybind11 零拷贝 NumPy 传递 (P2)
 - Fast-SRGAN: Hydra 配置管理 (P3)
-
-Key Features:
-- YAML 配置驱动 + CLI 覆盖: BasicSR 风格的配置系统
-- OmegaConf 配置驱动模型实例化: DiffBIR 风格的配置系统
-- auto_resume 自动检查点恢复: BasicSR 风格的启动恢复
-- 多 GPU 并行推理: CogVideo xDiT 参考框架
-- CPU/CUDA Prefetcher: 数据预取实现
-- 模型自描述属性: waifu2x w2nn* 元数据模式
-- pybind11 零拷贝调用: Anime4KCPP 风格的绑定参考
-- Hydra 配置管理: Fast-SRGAN 风格的配置框架
 """
 
 import argparse

@@ -3,21 +3,14 @@
 {% block title %}SeedVR2 - {{ t('system.title') }}{% endblock %}
 
 {% block content %}
-<nav class="sv-breadcrumb">
-    <a href="/"><i class="bi bi-house"></i> {{ t('nav.home') }}</a>
-    <span class="separator"><i class="bi bi-chevron-right"></i></span>
-    <span class="current">{{ t('nav.system') }}</span>
-</nav>
-<div class="sv-page-header">
-    <div class="sv-flex sv-items-center sv-justify-between">
-        <div>
-            <h1><i class="bi bi-cpu sv-text-warning"></i> {{ t('system.title') }}</h1>
-            <p>{{ t('system.subtitle') }}</p>
-        </div>
-        <button class="sv-btn sv-btn-secondary" id="btnRefreshStatus" aria-label="{{ t('common.refresh') }}">
-            <i class="bi bi-arrow-clockwise" id="refreshIcon"></i> {{ t('common.refresh') }}
-        </button>
+<div class="sv-page-head sv-flex sv-items-start sv-justify-between">
+    <div>
+        <span class="sv-eyebrow sv-anim-rise">{{ t('system.subtitle') or '系统监控' }}</span>
+        <h1 class="sv-serif-title sv-anim-rise sv-anim-d1">{{ t('system.title') or '系统状态' }}</h1>
     </div>
+    <button class="sv-btn sv-btn-secondary sv-anim-rise sv-anim-d2" id="btnRefreshStatus" aria-label="{{ t('common.refresh') }}">
+        <i class="bi bi-arrow-clockwise" id="refreshIcon"></i> {{ t('common.refresh') }}
+    </button>
 </div>
 
 <div class="sv-status-grid">

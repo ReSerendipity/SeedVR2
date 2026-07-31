@@ -12,6 +12,26 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
+"""时间步嵌入模块。
+
+提供扩散模型的时间步嵌入实现：
+
+- **TimeEmbedding**: 使用正弦位置编码 + 三层 MLP（SiLU 激活）将扩散时间步映射到
+  高维条件向量，用于 AdaLN-Zero 自适应调制。
+- **emb_add**: 辅助函数，将两个嵌入向量相加（支持 None）。
+
+正弦时间步编码:
+    与原始 Transformer 的位置编码类似，扩散时间步 t 通过不同频率的正弦/余弦函数
+    编码为向量::
+
+        PE(t, 2i)   = sin(t / 10000^(2i/d))
+        PE(t, 2i+1) = cos(t / 10000^(2i/d))
+
+    与 v1 版本不同，v2 使用 diffusers 库的 ``get_timestep_embedding`` 并通过
+    三层 MLP（proj_in -> SiLU -> proj_hid -> SiLU -> proj_out）投影，
+    而非 v1 的两层 MLP。
+"""
+
 from typing import Optional, Union
 import torch
 from diffusers.models.embeddings import get_timestep_embedding
@@ -19,10 +39,34 @@ from torch import nn
 
 
 def emb_add(emb1: torch.Tensor, emb2: Optional[torch.Tensor]):
+    """将两个嵌入向量相加，emb2 为 None 时返回 emb1。
+
+    Args:
+        emb1 (torch.Tensor): 第一个嵌入。
+        emb2 (Optional[torch.Tensor]): 第二个嵌入，可为 None。
+
+    Returns:
+        torch.Tensor: emb1 + emb2 或 emb1。
+    """
     return emb1 if emb2 is None else emb1 + emb2
 
 
 class TimeEmbedding(nn.Module):
+    """时间步嵌入层，正弦编码 + 三层 SiLU MLP。
+
+    Args:
+        sinusoidal_dim (int): 正弦编码的维度，通常为 256。
+        hidden_dim (int): MLP 隐藏层维度。
+        output_dim (int): 最终输出维度（即 AdaLN 的 emb_dim，通常为 6*dim）。
+
+    Attributes:
+        sinusoidal_dim (int): 正弦编码维度。
+        proj_in (nn.Linear): 第一层线性投影。
+        proj_hid (nn.Linear): 隐藏层线性投影。
+        proj_out (nn.Linear): 输出层线性投影。
+        act (nn.SiLU): SiLU 激活函数。
+    """
+
     def __init__(
         self,
         sinusoidal_dim: int,
@@ -42,6 +86,16 @@ class TimeEmbedding(nn.Module):
         device: torch.device,
         dtype: torch.dtype,
     ) -> torch.FloatTensor:
+        """前向传播，生成时间步嵌入。
+
+        Args:
+            timestep: 扩散时间步，可以是标量 int/float 或张量。
+            device (torch.device): 输出张量所在设备。
+            dtype (torch.dtype): 输出张量数据类型。
+
+        Returns:
+            torch.FloatTensor: 时间步嵌入，形状 (b, output_dim)。
+        """
         if not torch.is_tensor(timestep):
             timestep = torch.tensor([timestep], device=device, dtype=dtype)
         if timestep.ndim == 0:

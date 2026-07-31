@@ -1,12 +1,16 @@
-#!/usr/bin/env python3
-"""Klar - 任务状态操作路由
+﻿#!/usr/bin/env python3
+"""任务状态操作路由模块。
 
-提供任务进度推送（SSE）、取消、结果查询、结果下载端点。
+提供单个修复任务的进度查询（SSE）、取消、结果查询、结果下载等端点。
+下载端点使用 PathGuard 白名单保护，防止路径遍历攻击。
 
-REFACTOR 改进:
-- SSE 超时/心跳参数从 config.runtime.sse 读取，替代硬编码 (F1)
-- download_result 使用 PathGuard 白名单保护，防止路径遍历 (D7)
-- 统一响应包装 {success, data, error} (G1)
+API 端点：
+- GET /api/restore/{task_id}/progress: SSE 实时进度推送
+- POST /api/restore/{task_id}/cancel: 取消进行中的任务
+- GET /api/restore/{task_id}/result: 获取任务结果信息
+- GET /api/restore/{task_id}/download: 下载修复结果文件
+
+所属项目：SeedVR2 (SeedVR2 视频/图像修复工具)
 """
 import asyncio
 import json
@@ -33,10 +37,40 @@ async def get_progress(
     history_db: HistoryDB = Depends(get_history_db),
     config: dict = Depends(get_config),
 ):
-    """SSE 进度推送。
+    """SSE 实时进度推送端点。
 
-    REFACTOR: max_duration / heartbeat_interval 从 config.runtime.sse 读取 (F1)，
-    替代原硬编码 300/30。
+    API 端点：GET /api/restore/{task_id}/progress
+
+    路径参数：
+    - task_id: 任务 ID
+
+    查询参数：无
+
+    返回：Server-Sent Events 流，Content-Type: text/event-stream
+
+    SSE 事件数据格式（JSON）：
+    {
+        "task_id": str,
+        "status": "pending"|"processing"|"completed"|"failed"|"cancelled"|"timeout",
+        "progress": float,       // 0-100
+        "current_frame": int,    // 视频任务当前帧（仅视频）
+        "total_frames": int,     // 视频任务总帧数（仅视频）
+        "task_type": "image"|"video"
+    }
+
+    心跳：每 30 秒发送一次 ": heartbeat" 注释保活。
+    超时：默认 300 秒后发送 timeout 事件并断开。
+
+    Args:
+        task_id: 任务 ID。
+        history_db: 历史数据库实例。
+        config: 应用配置。
+
+    Returns:
+        StreamingResponse (text/event-stream)。
+
+    Raises:
+        HTTPException: 任务不存在时抛出 404。
     """
     task = await common.get_task_state(task_id, history_db)
     if not task:
@@ -98,7 +132,40 @@ async def cancel_task(
     history_db: HistoryDB = Depends(get_history_db),
     task_queue: TaskQueue = Depends(get_task_queue),
 ):
-    """取消进行中的修复任务"""
+    """取消进行中的修复任务。
+
+    API 端点：POST /api/restore/{task_id}/cancel
+
+    路径参数：
+    - task_id: 任务 ID
+
+    请求体：无
+
+    返回格式（JSON）：
+    {
+        "success": true,
+        "data": {
+            "task_id": str,
+            "status": "cancelled",
+            "message": "任务已取消"
+        }
+    }
+
+    错误响应：
+    - 404: 任务不存在
+    - 400: 任务状态不允许取消（已完成/失败/已取消）
+
+    Args:
+        task_id: 任务 ID。
+        history_db: 历史数据库实例。
+        task_queue: 任务队列实例。
+
+    Returns:
+        取消操作结果。
+
+    Raises:
+        HTTPException: 任务不存在或状态不合法时抛出。
+    """
     task = await common.get_task_state(task_id, history_db)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
@@ -114,7 +181,32 @@ async def cancel_task(
 
 @router.get("/{task_id}/result")
 async def get_result(task_id: str, history_db: HistoryDB = Depends(get_history_db)):
-    """获取修复结果"""
+    """获取修复任务结果信息。
+
+    API 端点：GET /api/restore/{task_id}/result
+
+    路径参数：
+    - task_id: 任务 ID
+
+    返回格式（JSON，根据任务状态不同返回不同字段）：
+    - pending/processing: {task_id, status, progress}
+    - failed: {task_id, status, error}
+    - cancelled: {task_id, status, error}
+    - completed: {task_id, status, output_path, file_size, warning?}
+
+    错误响应：
+    - 404: 任务不存在
+
+    Args:
+        task_id: 任务 ID。
+        history_db: 历史数据库实例。
+
+    Returns:
+        任务结果信息。
+
+    Raises:
+        HTTPException: 任务不存在时抛出。
+    """
     task = await common.get_task_state(task_id, history_db)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
@@ -164,10 +256,33 @@ async def download_result(
     history_db: HistoryDB = Depends(get_history_db),
     config: dict = Depends(get_config),
 ):
-    """下载修复结果。
+    """下载修复结果文件。
 
-    SECURITY: 使用 PathGuard 白名单保护，只允许下载 outputs/ 目录下的文件 (D7)。
-    原实现无路径校验，可通过构造 task_id 关联的 output_path 读取任意文件。
+    API 端点：GET /api/restore/{task_id}/download
+
+    路径参数：
+    - task_id: 任务 ID
+
+    安全措施：使用 PathGuard 白名单校验，仅允许下载 outputs/ 和 data/uploads/ 目录下的文件，
+    防止路径遍历攻击读取任意文件。
+
+    返回：文件流响应，自动设置正确的 Content-Type（image/png, image/jpeg, video/mp4 等）。
+
+    错误响应：
+    - 404: 任务不存在或输出文件不存在
+    - 400: 任务尚未完成
+    - 403: 路径不在允许范围内
+
+    Args:
+        task_id: 任务 ID。
+        history_db: 历史数据库实例。
+        config: 应用配置。
+
+    Returns:
+        FileResponse 文件下载响应。
+
+    Raises:
+        HTTPException: 任务不存在、未完成、文件不存在或路径非法时抛出。
     """
     task = await common.get_task_state(task_id, history_db)
     if not task:
@@ -180,7 +295,6 @@ async def download_result(
     if not output_path or not await asyncio.to_thread(os.path.exists, output_path):
         raise HTTPException(status_code=404, detail="输出文件不存在")
 
-    # SECURITY: 路径白名单校验，防止路径遍历 (D7)
     allowed_dirs = config.get("runtime", {}).get("security", {}).get(
         "allowed_base_dirs", ["outputs/", "data/uploads/"]
     )

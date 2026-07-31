@@ -1,9 +1,22 @@
-"""多引擎架构 / 引擎调度框架
+﻿"""多引擎架构 / 引擎调度框架模块
 
-参考 Waifu2x-Extension-GUI 十余种引擎的进程级管理 + 线程池，
-实现 SeedVR2 的多引擎调度和兼容性检测。
+所属项目: SeedVR2 (SeedVR2 视频/图像修复应用)
+核心技术栈: Python, PyTorch, ThreadPoolExecutor, ABC抽象基类
 
-竞品来源:
+本模块实现 SeedVR2 的多引擎调度框架，参考 Waifu2x-Extension-GUI 十余种引擎的
+进程级管理 + 线程池模式，提供统一的引擎注册、调度、兼容性检测和多后端支持。
+
+主要功能:
+- EngineRegistry: 基于装饰器模式的引擎自动注册机制
+- EngineScheduler: 多引擎任务调度器，支持线程池并发管理
+- Upscaler 抽象体系: 统一的放大/修复引擎基类接口
+- ProcessorFactory: Anime4KCPP 风格多后端 (CPU/OpenCL/CUDA) 处理器工厂
+- ArchRegistry: BasicSR 风格模型架构注册管理
+- MultiGPUDispatcher: Real-CUGAN 风格多 GPU 多线程调度
+- SubprocessEngineWrapper: upscayl 风格子进程引擎隔离调用
+- RestorePipeline: DiffBIR 风格修复流水线继承体系
+
+参考竞品与设计来源:
 - Waifu2x-Extension-GUI (多引擎调度框架) - P0
 - Waifu2x-Extension-GUI (引擎兼容性检测) - P1
 - Anime4KCPP (多后端 Processor 工厂模式) - P2
@@ -12,13 +25,6 @@
 - clarity-upscaler (Upscaler 抽象体系) - P1
 - Real-CUGAN (多 GPU 多线程调度) - P2
 - upscayl (子进程引擎调用) - P2
-
-Key Features:
-- EngineRegistry: 引擎注册表，基于装饰器自动注册
-- EngineScheduler: 多引擎调度器，进程级管理 + 线程池
-- Upscaler 抽象体系: 统一的 Upscaler 基类 + do_upscale() 接口
-- 引擎兼容性检测: 启动时自动检测可用引擎
-- Pipeline 继承体系: DiffBIR 风格的 Pipeline 子类
 """
 
 import logging
@@ -41,17 +47,42 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 class EngineStatus(Enum):
-    """引擎状态"""
-    UNAVAILABLE = "unavailable"  # 依赖缺失或 GPU 不兼容
-    AVAILABLE = "available"      # 可用但未加载
-    LOADING = "loading"          # 正在加载
-    READY = "ready"              # 已加载可用
-    RUNNING = "running"          # 正在推理
-    ERROR = "error"              # 加载/推理失败
+    """引擎运行状态枚举。
+
+    定义引擎在生命周期中可能处于的各种状态，用于调度器判断引擎可用性
+    和任务执行状态。
+
+    Attributes:
+        UNAVAILABLE: 依赖缺失或GPU不兼容，引擎不可用
+        AVAILABLE: 引擎可用但尚未加载到内存
+        LOADING: 引擎正在加载模型权重
+        READY: 引擎已加载完成，可以接收推理任务
+        RUNNING: 引擎正在执行推理任务
+        ERROR: 引擎加载或推理过程中发生错误
+    """
+    UNAVAILABLE = "unavailable"
+    AVAILABLE = "available"
+    LOADING = "loading"
+    READY = "ready"
+    RUNNING = "running"
+    ERROR = "error"
 
 
 class EngineCapability(Enum):
-    """引擎能力"""
+    """引擎能力类型枚举。
+
+    定义引擎支持的功能能力类型，用于引擎能力声明和任务-引擎匹配。
+    调度器根据任务所需能力自动选择合适的引擎。
+
+    Attributes:
+        IMAGE_UPSCALE: 图像超分辨率放大
+        VIDEO_UPSCALE: 视频超分辨率放大
+        IMAGE_RESTORE: 图像修复（去噪、去模糊、去压缩等）
+        VIDEO_RESTORE: 视频修复
+        FACE_RESTORE: 人脸专门修复
+        COLOR_FIX: 颜色校正/上色
+        FRAME_INTERPOLATE: 视频帧插值
+    """
     IMAGE_UPSCALE = "image_upscale"
     VIDEO_UPSCALE = "video_upscale"
     IMAGE_RESTORE = "image_restore"
@@ -67,7 +98,19 @@ class EngineCapability(Enum):
 
 @dataclass
 class UpscaleResult:
-    """放大结果"""
+    """引擎推理/放大操作的结果数据类。
+
+    统一封装所有引擎执行结果，包含成功标志、输出路径/张量、错误信息、
+    处理时间和元数据，供调度器和上层调用方统一处理。
+
+    Attributes:
+        success: 操作是否成功完成
+        output_path: 输出文件路径（文件输出模式）
+        output_tensor: 输出张量（内存模式）
+        error: 错误信息（失败时）
+        processing_time: 处理耗时（秒）
+        metadata: 额外元数据字典（如引擎信息、参数、帧数等）
+    """
     success: bool
     output_path: str | None = None
     output_tensor: torch.Tensor | None = None
@@ -239,7 +282,21 @@ class EngineRegistry:
 
 @dataclass
 class ScheduledTask:
-    """调度任务"""
+    """调度任务数据类。
+
+    表示引擎调度器中的一个推理任务，包含任务标识、引擎选择、
+    输入输出路径、参数和执行状态。
+
+    Attributes:
+        task_id: 任务唯一标识符（UUID前缀）
+        engine_name: 执行任务的引擎名称
+        input_path: 输入文件路径
+        output_path: 输出文件路径
+        kwargs: 引擎特定参数字典
+        status: 任务状态（pending/running/completed/error）
+        result: 任务执行结果（完成后填充）
+        error: 错误信息（失败时填充）
+    """
     task_id: str
     engine_name: str
     input_path: str
@@ -505,32 +562,83 @@ class SeedVR2Upscaler(Upscaler):
 # ---------------------------------------------------------------------------
 
 class RestorePipeline(ABC):
-    """修复流水线基类
+    """修复流水线抽象基类。
 
-    参考 DiffBIR 的 Pipeline 子类覆写 set_output_size/apply_cleaner 模式。
-    定义统一的推理流水线接口。
+    参考 DiffBIR 的 Pipeline 子类覆写模式，定义统一的多阶段推理流水线接口。
+    子类通过覆写抽象方法实现不同的修复流水线（如粗修复→精修复、预处理→修复→后处理等）。
+
+    流水线标准执行流程:
+        1. set_output_size: 设置目标输出分辨率
+        2. apply_cleaner: 预处理/清洁步骤
+        3. apply_restoration: 核心修复步骤
+        4. run: 串联执行完整流水线
     """
 
     def __init__(self, config: dict):
+        """初始化修复流水线。
+
+        Args:
+            config: 流水线配置字典
+        """
         self.config = config
 
     @abstractmethod
     def set_output_size(self, size: int) -> None:
-        """设置输出尺寸"""
+        """设置输出目标尺寸。
+
+        在流水线执行前调用，配置输出分辨率。子类应根据size调整
+        内部处理参数（如缩放因子、分块大小等）。
+
+        Args:
+            size: 输出目标尺寸（长边像素数）
+        """
         pass
 
     @abstractmethod
     def apply_cleaner(self, image: torch.Tensor, **kwargs) -> torch.Tensor:
-        """应用清洁/预处理步骤"""
+        """应用清洁/预处理步骤。
+
+        对输入图像进行预处理，如去噪、颜色空间转换、归一化等。
+        这是流水线的第一阶段处理。
+
+        Args:
+            image: 输入图像张量 (B, C, H, W)
+            **kwargs: 额外预处理参数
+
+        Returns:
+            预处理后的图像张量
+        """
         pass
 
     @abstractmethod
     def apply_restoration(self, image: torch.Tensor, **kwargs) -> torch.Tensor:
-        """应用修复步骤"""
+        """应用核心修复步骤。
+
+        执行主要的修复/超分推理，这是流水线的核心处理阶段。
+        输入应为apply_cleaner处理后的结果。
+
+        Args:
+            image: 预处理后的图像张量 (B, C, H, W)
+            **kwargs: 额外修复参数
+
+        Returns:
+            修复后的图像张量
+        """
         pass
 
     def run(self, input: torch.Tensor, **kwargs) -> torch.Tensor:
-        """运行完整流水线"""
+        """运行完整修复流水线。
+
+        按顺序执行预处理→修复的完整流程。子类可覆写此方法以添加
+        后处理步骤或自定义流水线逻辑。
+
+        Args:
+            input: 输入图像张量 (B, C, H, W)
+            **kwargs: 传递给各阶段的参数
+
+        Returns:
+            流水线最终输出张量
+        """
         cleaned = self.apply_cleaner(input, **kwargs)
         restored = self.apply_restoration(cleaned, **kwargs)
         return restored
@@ -541,10 +649,16 @@ class RestorePipeline(ABC):
 # ---------------------------------------------------------------------------
 
 class ProcessorBackend(Enum):
-    """处理器后端类型
+    """处理器计算后端类型枚举。
 
-    参考 Anime4KCPP 的 CPU/OpenCL/CUDA 三后端支持:
-    同一算法可在不同计算后端上运行，根据硬件可用性自动选择最优后端。
+    参考 Anime4KCPP 的 CPU/OpenCL/CUDA 三后端支持模式。
+    同一算法可在不同计算后端上运行，ProcessorFactory根据硬件可用性
+    自动选择最优后端。
+
+    Attributes:
+        CPU: 通用CPU后端，始终可用
+        OPENCL: OpenCL跨平台GPU计算后端
+        CUDA: NVIDIA CUDA GPU计算后端（性能最优）
     """
     CPU = "cpu"
     OPENCL = "opencl"
