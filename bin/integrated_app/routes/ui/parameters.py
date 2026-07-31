@@ -1,9 +1,23 @@
-"""UI 参数面板与用户偏好 API 路由
+﻿#!/usr/bin/env python3
+"""UI 参数面板与用户偏好 API 路由模块。
 
-暴露 webui_enhancement 模块的后端框架组件:
-- 参数定义与预设组合
-- 用户偏好持久化
-- 折叠面板布局
+暴露 webui_enhancement 模块的后端框架组件，为前端提供：
+- 参数定义与预设组合查询
+- 基于当前参数值的智能推荐
+- 参数合法性校验
+- 用户偏好设置的持久化（加载/保存/重置）
+- 折叠面板布局分组信息
+
+API 端点：
+- GET /api/ui/parameters: 获取所有参数定义和预设组合
+- GET /api/ui/parameters/recommendations: 根据当前参数获取推荐预设
+- POST /api/ui/parameters/validate: 验证参数值合法性
+- GET /api/ui/preferences: 加载用户偏好
+- POST /api/ui/preferences: 保存用户偏好
+- POST /api/ui/preferences/reset: 重置用户偏好为默认值
+- GET /api/ui/layout: 获取折叠面板布局分组
+
+所属项目：SeedVR2 (SeedVR2 视频/图像修复工具)
 """
 import logging
 
@@ -15,34 +29,78 @@ router = APIRouter()
 
 
 def _get_optimizer():
-    """获取参数面板优化器实例"""
+    """获取参数面板优化器实例（内部懒加载函数）。
+
+    延迟导入 create_default_parameter_panel，避免循环依赖和启动时不必要的加载。
+
+    Returns:
+        参数面板优化器实例。
+    """
     from bin.integrated_app.optimization.webui_enhancement import create_default_parameter_panel
     return create_default_parameter_panel()
 
 
 def _get_persistence():
-    """获取设置持久化管理器实例"""
+    """获取设置持久化管理器实例（内部懒加载函数）。
+
+    Returns:
+        SettingsPersistence 实例。
+    """
     from bin.integrated_app.optimization.webui_enhancement import SettingsPersistence
     return SettingsPersistence()
 
 
 def _get_layout_manager():
-    """获取折叠面板布局管理器实例"""
+    """获取折叠面板布局管理器实例（内部懒加载函数）。
+
+    Returns:
+        AccordionLayoutManager 实例。
+    """
     from bin.integrated_app.optimization.webui_enhancement import AccordionLayoutManager
     return AccordionLayoutManager()
 
 
-# ---------------------------------------------------------------------------
-# 参数定义与预设
-# ---------------------------------------------------------------------------
-
 @router.get("/parameters")
 async def get_parameters():
-    """获取所有参数定义和预设组合
+    """获取所有参数定义和预设组合。
 
-    返回:
-        parameters: 参数定义列表
-        presets: 预设组合列表 (含推荐范围)
+    API 端点：GET /api/ui/parameters
+
+    请求参数：无
+
+    返回格式（JSON，统一包装 {success, data}）：
+    {
+        "success": true,
+        "data": {
+            "parameters": [
+                {
+                    "id": str,
+                    "name": str,
+                    "type": str,
+                    "default": any,
+                    "min": number?,
+                    "max": number?,
+                    "step": number?,
+                    "choices": list?,
+                    "description": str,
+                    "group": str,
+                    "advanced": bool
+                }
+            ],
+            "presets": [
+                {
+                    "name": str,
+                    "description": str,
+                    "values": dict,
+                    "recommended_ranges": dict,
+                    "use_case": str
+                }
+            ]
+        }
+    }
+
+    Returns:
+        包含参数定义和预设列表的字典。
     """
     optimizer = _get_optimizer()
 
@@ -80,9 +138,38 @@ async def get_parameters():
 
 @router.get("/parameters/recommendations")
 async def get_recommendations(cfg_scale: float = 3.0, denoising_strength: float = 0.6, steps: int = 20):
-    """根据当前参数值获取推荐预设
+    """根据当前参数值获取推荐预设，按匹配度排序。
 
-    返回按匹配度排序的推荐列表
+    API 端点：GET /api/ui/parameters/recommendations
+
+    查询参数：
+    - cfg_scale (optional): CFG Scale，默认 3.0
+    - denoising_strength (optional): 去噪强度，默认 0.6
+    - steps (optional): 采样步数，默认 20
+
+    返回格式（JSON）：
+    {
+        "success": true,
+        "data": {
+            "recommendations": [
+                {
+                    "name": str,
+                    "description": str,
+                    "values": dict,
+                    "match_score": float,
+                    "use_case": str
+                }
+            ]
+        }
+    }
+
+    Args:
+        cfg_scale: CFG 引导系数。
+        denoising_strength: 去噪强度。
+        steps: 推理步数。
+
+    Returns:
+        按匹配度排序的推荐预设列表。
     """
     optimizer = _get_optimizer()
     recommendations = optimizer.get_recommendations(
@@ -107,23 +194,49 @@ async def get_recommendations(cfg_scale: float = 3.0, denoising_strength: float 
 
 @router.post("/parameters/validate")
 async def validate_parameters(values: dict):
-    """验证参数值是否在合法范围内
+    """验证参数值是否在合法范围内。
 
-    请求体: {"cfg_scale": 3.0, "denoising_strength": 0.6, ...}
-    返回: errors 字典 (空表示全部合法)
+    API 端点：POST /api/ui/parameters/validate
+
+    请求体（JSON）：参数字典，如 {"cfg_scale": 3.0, "denoising_strength": 0.6, ...}
+
+    返回格式（JSON）：
+    {
+        "success": true,
+        "data": {
+            "errors": dict,    // 字段名 -> 错误信息，空字典表示全部合法
+            "valid": bool      // 是否全部合法
+        }
+    }
+
+    Args:
+        values: 待验证的参数字典。
+
+    Returns:
+        验证结果，包含错误字典和 valid 标志。
     """
     optimizer = _get_optimizer()
     errors = optimizer.validate_values(values)
     return {"success": True, "data": {"errors": errors, "valid": len(errors) == 0}}
 
 
-# ---------------------------------------------------------------------------
-# 用户偏好持久化
-# ---------------------------------------------------------------------------
-
 @router.get("/preferences")
 async def load_preferences():
-    """加载用户偏好设置"""
+    """加载用户偏好设置。
+
+    API 端点：GET /api/ui/preferences
+
+    请求参数：无
+
+    返回格式（JSON）：
+    {
+        "success": true,
+        "data": { ... }  // 用户偏好字段字典
+    }
+
+    Returns:
+        当前保存的用户偏好。
+    """
     persistence = _get_persistence()
     prefs = persistence.load()
     return {"success": True, "data": prefs.to_dict()}
@@ -131,14 +244,33 @@ async def load_preferences():
 
 @router.post("/preferences")
 async def save_preferences(values: dict):
-    """保存用户偏好设置
+    """保存用户偏好设置（增量更新，仅修改传入的字段）。
 
-    请求体: 偏好字段字典，仅传需要修改的字段
+    API 端点：POST /api/ui/preferences
+
+    请求体（JSON）：偏好字段字典，只传需要修改的字段即可，未传入的字段保持不变。
+
+    返回格式（JSON）：
+    成功：
+    {
+        "success": true,
+        "data": { ... }  // 更新后的完整偏好
+    }
+    失败：
+    {
+        "success": false,
+        "error": {"message": "保存用户偏好失败"}
+    }
+
+    Args:
+        values: 要更新的偏好字段字典。
+
+    Returns:
+        保存结果和更新后的偏好。
     """
     persistence = _get_persistence()
     prefs = persistence.load()
 
-    # 只更新传入的字段
     for key, value in values.items():
         if hasattr(prefs, key):
             setattr(prefs, key, value)
@@ -152,19 +284,54 @@ async def save_preferences(values: dict):
 
 @router.post("/preferences/reset")
 async def reset_preferences():
-    """重置用户偏好为默认值"""
+    """重置用户偏好为默认值。
+
+    API 端点：POST /api/ui/preferences/reset
+
+    请求体：无
+
+    返回格式（JSON）：
+    {
+        "success": true,
+        "data": { ... }  // 重置后的默认偏好
+    }
+
+    Returns:
+        重置后的默认偏好设置。
+    """
     persistence = _get_persistence()
     prefs = persistence.reset()
     return {"success": True, "data": prefs.to_dict()}
 
 
-# ---------------------------------------------------------------------------
-# 折叠面板布局
-# ---------------------------------------------------------------------------
-
 @router.get("/layout")
 async def get_layout():
-    """获取折叠面板布局分组信息"""
+    """获取折叠面板布局分组信息。
+
+    API 端点：GET /api/ui/layout
+
+    请求参数：无
+
+    返回格式（JSON）：
+    {
+        "success": true,
+        "data": {
+            "groups": [
+                {
+                    "id": str,
+                    "name": str,
+                    "description": str,
+                    "default_expanded": bool,
+                    "priority": int,
+                    "param_ids": list[str]
+                }
+            ]
+        }
+    }
+
+    Returns:
+        面板分组布局定义。
+    """
     manager = _get_layout_manager()
     groups = []
     for group in manager.get_layout():

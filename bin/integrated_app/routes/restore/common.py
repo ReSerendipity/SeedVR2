@@ -1,21 +1,20 @@
-#!/usr/bin/env python3
-"""Klar - 修复路由公共模块
+﻿#!/usr/bin/env python3
+"""修复路由公共工具模块。
 
-提取图像/视频修复路由的公共状态管理、常量与工具函数，
-供 upload/batch/task/scan/recovery 子路由复用。
+提取图像/视频修复路由的公共状态管理、常量定义与工具函数，
+供 upload/batch/task/scan/recovery 等子路由模块复用。
 
-REFACTOR [B2-1]: 收敛任务状态真源
-- 原实现保留模块级全局 OrderedDict (_task_cache) 与 services.task_state.task_state_store
-  并存，导致双真源漂移：路由层直接修改 _task_cache 引用，TaskStateStore 不感知；
-  批量任务的临时字段（current_index/results 等）绕过 DB 写入，但 DB 状态仍由
-  TaskStateStore 管理，两者状态可能不一致
-- 本次将 create_task_state / get_task_state / update_task_state / get_task_cache
-  全部代理到 task_state_store，删除模块级 _task_cache
-- 批量任务的临时字段通过 task_state_store.update_cached 写入缓存（不持久化），
-  确保所有任务状态统一由 TaskStateStore 管理
+主要功能：
+- 支持的媒体文件扩展名常量定义
+- 文件大小限制常量
+- 统一修复参数解析（表单到 Pydantic 模型）
+- 模型尺寸推断与媒体类型检测
+- 任务状态管理（代理到 TaskStateStore，单真源）
+- 批量任务项创建工具
+- TaskStateStoreProxy 兼容类（保持原 dict-like 接口）
 
-REFACTOR [B1-1]: 从 unified.py 移入 parse_unified_params / model_size_from_dit_model /
-detect_media_type 等共享函数，使 unified.py 仅作为路由聚合入口 (B1/SRP)。
+API 路由前缀：/api/restore（由子模块注册）
+所属项目：SeedVR2 (SeedVR2 视频/图像修复工具)
 """
 import os
 
@@ -26,29 +25,32 @@ from bin.integrated_app.history_db import HistoryDB
 from bin.integrated_app.model_registry import model_registry
 from bin.integrated_app.services.task_state import task_state_store
 
-# 支持的扩展名
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tiff", ".tif"}
+
 VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv", ".webm", ".flv"}
 
-# 允许上传的图片扩展名（不含 .tif，用于上传验证）
 ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tiff"}
-# 允许上传的视频扩展名（含 .wmv，用于上传验证）
+
 ALLOWED_VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv", ".webm", ".flv", ".wmv"}
 
-# 文件大小限制
-MAX_IMAGE_SIZE = 50 * 1024 * 1024       # 50MB
-MAX_VIDEO_SIZE = 500 * 1024 * 1024      # 500MB
+MAX_IMAGE_SIZE = 50 * 1024 * 1024
+MAX_VIDEO_SIZE = 500 * 1024 * 1024
 
-# 最大重试次数
 MAX_RETRIES = 2
 
 
-# ---------------------------------------------------------------------------
-# REFACTOR: 从 unified.py 移入的共享工具函数 (B1/SRP)
-# ---------------------------------------------------------------------------
-
 def model_size_from_dit_model(dit_model: str) -> str:
-    """根据 dit_model 参数确定使用的模型尺寸"""
+    """根据 dit_model 参数确定使用的模型尺寸。
+
+    解析模型名称字符串，提取模型尺寸标识。对于 sharp 变体保留 "size_sharp" 格式，
+    其他模型只返回尺寸前缀。如参数为空则返回当前已加载模型尺寸或默认 "3b"。
+
+    Args:
+        dit_model: DiT 模型名称字符串，如 "3b_fp16"、"7b_sharp_fp16"。
+
+    Returns:
+        模型尺寸字符串，如 "3b"、"7b_sharp"。
+    """
     if dit_model:
         parts = dit_model.split("_")
         if len(parts) >= 3 and parts[1] in ("sharp",):
@@ -58,7 +60,14 @@ def model_size_from_dit_model(dit_model: str) -> str:
 
 
 def detect_media_type(file_ext: str) -> str | None:
-    """根据扩展名判断媒体类型"""
+    """根据文件扩展名判断媒体类型。
+
+    Args:
+        file_ext: 文件扩展名（含点号，大小写不敏感），如 ".png"、".MP4"。
+
+    Returns:
+        "image" 表示图片，"video" 表示视频；不支持的扩展名返回 None。
+    """
     ext = file_ext.lower()
     if ext in ALLOWED_IMAGE_EXTENSIONS:
         return "image"
@@ -68,9 +77,7 @@ def detect_media_type(file_ext: str) -> str | None:
 
 
 def parse_unified_params(
-    # 通用
     task_type: str = Form("auto"),
-    # DiT / 图像参数
     dit_model: str = Form("3b_fp16"),
     dit_device: str = Form("cuda:0"),
     blocks_to_swap: int = Form(32),
@@ -102,7 +109,47 @@ def parse_unified_params(
     offload_device: str = Form("cpu"),
     enable_debug: bool = Form(False),
 ) -> UnifiedRestoreParams:
-    """解析统一修复表单参数，返回结构化模型供后续按类型构建"""
+    """解析统一修复表单参数，返回结构化 Pydantic 模型。
+
+    作为 FastAPI Dependency 使用，从 multipart/form-data 中提取所有修复参数
+    并构造 UnifiedRestoreParams 实例，供后续按任务类型（图像/视频）提取对应字段。
+
+    Args:
+        task_type: 任务类型，"auto"/"image"/"video"，默认 "auto"。
+        dit_model: DiT 模型名称，默认 "3b_fp16"。
+        dit_device: DiT 推理设备，默认 "cuda:0"。
+        blocks_to_swap: 交换到 CPU 的 transformer 块数量，默认 32。
+        swap_io_components: 是否交换 I/O 组件，默认 True。
+        dit_offload_device: DiT 卸载设备，默认 "cpu"。
+        dit_cache_model: 是否缓存 DiT 模型，默认 True。
+        attention_mode: 注意力实现模式，默认 "sdpa"。
+        vae_model: VAE 模型名称，默认 "ema_vae_fp16"。
+        vae_device: VAE 推理设备，默认 "cuda:0"。
+        encode_tiled: 是否使用分块 VAE 编码，默认 True。
+        encode_tile_size: VAE 编码分块大小，默认 1024。
+        encode_tile_overlap: VAE 编码分块重叠，默认 512。
+        decode_tiled: 是否使用分块 VAE 解码，默认 True。
+        decode_tile_size: VAE 解码分块大小，默认 1024。
+        decode_tile_overlap: VAE 解码分块重叠，默认 512。
+        tile_debug: 分块调试模式，默认 "false"。
+        vae_offload_device: VAE 卸载设备，默认 "cpu"。
+        vae_cache_model: 是否缓存 VAE 模型，默认 True。
+        seed: 随机种子，默认 1373201197。
+        resolution: 输出分辨率，默认 2160。
+        max_resolution: 最大分辨率限制，0 表示不限制，默认 0。
+        batch_size: 批处理大小，默认 1。
+        uniform_batch_size: 是否统一批处理大小，默认 False。
+        color_correction: 颜色校正模式，默认 "lab"。
+        temporal_overlap: 视频帧时序重叠数，默认 0。
+        prepend_frames: 前置参考帧数，默认 0。
+        input_noise_scale: 输入噪声缩放，默认 0.0。
+        latent_noise_scale: 隐空间噪声缩放，默认 0.0。
+        offload_device: 通用卸载设备，默认 "cpu"。
+        enable_debug: 是否启用调试模式，默认 False。
+
+    Returns:
+        构造完成的 UnifiedRestoreParams 实例。
+    """
     return UnifiedRestoreParams(
         task_type=task_type,
         dit_model=dit_model,
@@ -138,48 +185,61 @@ def parse_unified_params(
     )
 
 
-# ---------------------------------------------------------------------------
-# 任务状态管理（统一代理到 services.task_state.task_state_store）
-# REFACTOR [B2-1]: 删除模块级 _task_cache OrderedDict，全部走 task_state_store
-# ---------------------------------------------------------------------------
-
 async def create_task_state(task_id: str, record_id: int, history_db: HistoryDB, task_type: str = "single") -> dict:
-    """在数据库与内存缓存中创建任务初始状态
+    """在数据库与内存缓存中创建任务初始状态。
 
-    REFACTOR [B2-1]: 代理到 task_state_store.create，消除模块级全局缓存。
+    Args:
+        task_id: 任务唯一标识。
+        record_id: 历史记录数据库 ID。
+        history_db: 历史记录数据库实例。
+        task_type: 任务类型，"single"/"batch"，默认 "single"。
+
+    Returns:
+        创建的初始任务状态字典。
     """
     return await task_state_store.create(task_id, record_id, history_db, task_type=task_type)
 
 
 async def get_task_state(task_id: str, history_db: HistoryDB) -> dict | None:
-    """获取任务状态；优先读缓存，回源数据库
+    """获取任务状态；优先读内存缓存，缓存未命中则回源数据库。
 
-    REFACTOR [B2-1]: 代理到 task_state_store.get，消除模块级全局缓存。
+    Args:
+        task_id: 任务唯一标识。
+        history_db: 历史记录数据库实例。
+
+    Returns:
+        任务状态字典；任务不存在返回 None。
     """
     return await task_state_store.get(task_id, history_db)
 
 
 async def update_task_state(task_id: str, history_db: HistoryDB, **kwargs) -> dict:
-    """更新数据库任务状态并同步缓存
+    """更新数据库任务状态并同步到内存缓存。
 
-    REFACTOR [B2-1]: 代理到 task_state_store.update，消除模块级全局缓存。
+    Args:
+        task_id: 任务唯一标识。
+        history_db: 历史记录数据库实例。
+        **kwargs: 要更新的状态字段（如 status, progress, error_message 等）。
+
+    Returns:
+        更新后的任务状态字典。
     """
     return await task_state_store.update(task_id, history_db, **kwargs)
 
 
 def get_task_cache() -> "TaskStateStoreProxy":
-    """返回任务状态存储代理（供批量任务/重试使用）
+    """返回任务状态存储代理（供批量任务/重试等操作使用）。
 
-    REFACTOR [B2-1]:
-    - 原实现返回模块级 OrderedDict，调用方直接 _task_cache[task_id] = {...} 或
-      _task_cache.get(task_id) 操作，绕过 task_state_store 的锁保护
-    - 改为返回 TaskStateStoreProxy，所有操作代理到 task_state_store，
-      确保线程安全与单真源
-    - 兼容原 _task_cache 的 dict-like 接口（__getitem__ / get / __setitem__ / __contains__），
-      降低调用方迁移成本
+    返回的 TaskStateStoreProxy 实例包装了全局 task_state_store，
+    提供与原 OrderedDict 类似的 dict-like 接口（__getitem__/get/__setitem__/__contains__/update），
+    确保线程安全与单一数据源。
+
+    注意：__getitem__/get 返回的是浅拷贝，顶层字段直接修改不会生效，
+    需要修改时必须通过 update() 方法写回。嵌套 list/dict（如 results）仍为引用共享，
+    修改其中元素会直接影响缓存。
 
     Returns:
-        TaskStateStoreProxy 实例（包装 task_state_store）
+        TaskStateStoreProxy 实例。
     """
     return TaskStateStoreProxy(task_state_store)
 
@@ -187,32 +247,51 @@ def get_task_cache() -> "TaskStateStoreProxy":
 def get_cached_or_create(task_id: str, template: dict | None = None) -> dict:
     """从缓存获取任务状态，不存在则用 template 创建并写入缓存。
 
-    REFACTOR [B2-1]: 代理到 task_state_store.get_cached_or_create，
-    替代 batch.py 中 `cached = get_task_cache().get(id); if cached is None: ...; get_task_cache()[id] = cached` 模式。
+    Args:
+        task_id: 任务唯一标识。
+        template: 用于初始化的模板字典，可选；默认为空字典。
 
-    注意: 返回的是浅拷贝，顶层字段修改不会影响缓存，需通过 get_task_cache().update() 写回。
-    但嵌套 list/dict（如 results）仍为引用共享，修改其中的 dict 元素会直接影响缓存。
+    Returns:
+        任务状态字典（浅拷贝）。
     """
     return task_state_store.get_cached_or_create(task_id, template=template)
 
 
 class TaskStateStoreProxy:
-    """任务状态存储代理 - 兼容原 OrderedDict 接口
+    """任务状态存储代理类 - 兼容原 OrderedDict 接口。
 
-    REFACTOR [B2-1]: 包装 task_state_store，提供 dict-like 接口，
-    使 batch.py / upload.py 中 `common.get_task_cache()[task_id]` 和
-    `common.get_task_cache().get(task_id)` 的调用无需大改即可迁移到 task_state_store。
+    包装 task_state_store，提供 dict-like 接口，使原有代码中
+    `common.get_task_cache()[task_id]` 和 `common.get_task_cache().get(task_id)`
+    等调用无需大规模修改即可迁移到新的 TaskStateStore。
 
-    重要差异:
-    - __getitem__ / get 返回的是拷贝而非引用，调用方修改不会影响缓存
-    - 需要修改缓存内容时必须用 update_cached 或重新 __setitem__
+    重要差异：
+    - __getitem__/get 返回的是浅拷贝而非引用，调用方直接修改返回值不会影响缓存
+    - 需要修改缓存内容时必须使用 update() 或重新 __setitem__
+
+    Attributes:
+        _store: 被包装的 TaskStateStore 实例。
     """
 
     def __init__(self, store):
+        """初始化 TaskStateStoreProxy。
+
+        Args:
+            store: TaskStateStore 实例。
+        """
         self._store = store
 
     def __getitem__(self, task_id: str) -> dict:
-        """获取任务状态（拷贝）。不存在则抛出 KeyError。"""
+        """获取任务状态（浅拷贝）。不存在则抛出 KeyError。
+
+        Args:
+            task_id: 任务唯一标识。
+
+        Returns:
+            任务状态字典（浅拷贝）。
+
+        Raises:
+            KeyError: 任务不存在时抛出。
+        """
         cached = self._store.get_cached(task_id)
         if cached is None:
             raise KeyError(task_id)
@@ -221,25 +300,60 @@ class TaskStateStoreProxy:
     def __setitem__(self, task_id: str, value: dict) -> None:
         """设置任务状态（覆盖式写入缓存）。
 
-        ROBUSTNESS: 通过 update_cached 一次性写入所有字段，避免部分写入导致状态不一致。
+        通过 update_cached 一次性写入所有字段，避免部分写入导致状态不一致。
+
+        Args:
+            task_id: 任务唯一标识。
+            value: 完整任务状态字典。
         """
         self._store.update_cached(task_id, **value)
 
     def __contains__(self, task_id: str) -> bool:
+        """检查任务是否存在于缓存中。
+
+        Args:
+            task_id: 任务唯一标识。
+
+        Returns:
+            存在返回 True，否则返回 False。
+        """
         return self._store.get_cached(task_id) is not None
 
     def get(self, task_id: str, default: dict | None = None) -> dict | None:
-        """获取任务状态（拷贝）。不存在则返回 default。"""
+        """获取任务状态（浅拷贝）。不存在则返回 default。
+
+        Args:
+            task_id: 任务唯一标识。
+            default: 任务不存在时返回的默认值，默认 None。
+
+        Returns:
+            任务状态字典（浅拷贝）；不存在返回 default。
+        """
         cached = self._store.get_cached(task_id)
         return cached if cached is not None else default
 
     def update(self, task_id: str, **kwargs) -> dict | None:
-        """更新缓存中的任务字段（代理到 task_state_store.update_cached）"""
+        """更新缓存中的任务字段（代理到 task_state_store.update_cached）。
+
+        Args:
+            task_id: 任务唯一标识。
+            **kwargs: 要更新的字段键值对。
+
+        Returns:
+            更新后的完整任务状态字典；任务不存在返回 None。
+        """
         return self._store.update_cached(task_id, **kwargs)
 
 
 def create_batch_item(path: str) -> dict:
-    """创建批量任务中的单文件项结构"""
+    """创建批量任务中的单文件项结构。
+
+    Args:
+        path: 文件的绝对路径。
+
+    Returns:
+        批量任务项字典，包含 path/name/status/output_path/error/processing_time/retry_count 字段。
+    """
     return {
         "path": path,
         "name": os.path.basename(path),

@@ -1,10 +1,18 @@
-"""VAE Tiled 处理增强模块
+﻿"""VAE Tiled 处理增强模块
 
-参考 SCST vaehook.py 的 GroupNorm 跨 tile 统计 + 高斯权重混合技术，
-以及 VEnhancer 三维度滑动窗口 + 高斯权重混合方案。
+本模块属于 SeedVR2 视频修复项目的 AI 推理优化层，提供 VAE (变分自编码器)
+的分块 (tiled) 编解码增强技术，解决高分辨率图像/视频处理时的显存不足问题，
+同时通过高级融合策略消除 tile 接缝伪影。
+
+核心技术栈:
+- PyTorch: 张量计算与神经网络操作
+- 高斯权重混合: 重叠区域平滑过渡消除接缝
+- GroupNorm 跨 tile 统计: 避免归一化统计偏差
+- CUDA 显存管理: 自动 tile size 推荐与 OOM 回退
+- 高斯滤波: 低频信息提取用于颜色一致性
 
 竞品来源:
-- SCST (GroupNorm 跨 tile 统计 + 高斯权重混合) - P0
+- SCST (GroupNorm 跨 tile 统计 + 高斯权重混合 + 自动 tile size 推荐 + NaN 检测) - P0
 - VEnhancer (三维度滑动窗口 + 高斯权重混合) - P1
 - CogVideo (diffusers 原生 tiling + slicing) - P1
 - DiffBIR (make_tiled_fn 通用 tiled 封装) - P0
@@ -14,8 +22,13 @@ Key Features:
 - GroupNorm 跨 tile 统计: 在 tiled 编解码中累积 GroupNorm 的 running_mean/running_var，
   避免单个 tile 的统计偏差导致接缝
 - 高斯权重混合: 使用高斯分布权重替代线性/余弦权重，更平滑的 tile 接缝
+- 自动 tile size 推荐: 根据 GPU 显存自动选择合适的 tile size (SCST 启发)
+- NaN 检测与回退: 检测到 NaN 时自动降低 tile size 或禁用 fp16 (SCST 启发)
 - 通用 tiled 推理封装: make_tiled_fn 支持 Encoder/Decoder/Diffusion 独立控制
 - 条件 VAE 解码: 融合低分辨率信息以保持颜色一致性
+- VAE Slicing: 通道级切片减少峰值显存
+- 顺序 CPU Offload: 子模块按需加载到 GPU
+- 8bit 缓存量化: 中间激活量化减少显存占用
 """
 
 import logging
@@ -28,6 +41,152 @@ import torch
 import torch.nn.functional as F
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# 自动 tile size 推荐 (SCST get_recommend_encoder_tile_size/get_recommend_decoder_tile_size inspired)
+# ---------------------------------------------------------------------------
+
+def get_recommend_encoder_tile_size(device: torch.device | str | None = None) -> int:
+    """根据 GPU 显存推荐编码器 tile size
+
+    参考 SCST 的 get_recommend_encoder_tile_size 实现:
+    - >16GB VRAM: 3072
+    - >12GB VRAM: 2048
+    - >8GB VRAM: 1536
+    - <=8GB VRAM: 960
+
+    Args:
+        device: GPU 设备，None 时使用 cuda:0
+
+    Returns:
+        推荐的编码器 tile size
+    """
+    if torch.cuda.is_available():
+        if device is None:
+            device = torch.device("cuda:0")
+        elif isinstance(device, str):
+            device = torch.device(device)
+        try:
+            total_memory_mb = torch.cuda.get_device_properties(device).total_memory // (2**20)
+        except Exception:
+            total_memory_mb = 8 * 1000  # fallback to 8GB
+
+        if total_memory_mb > 16 * 1000:
+            return 3072
+        elif total_memory_mb > 12 * 1000:
+            return 2048
+        elif total_memory_mb > 8 * 1000:
+            return 1536
+        else:
+            return 960
+    else:
+        return 512
+
+
+def get_recommend_decoder_tile_size(device: torch.device | str | None = None) -> int:
+    """根据 GPU 显存推荐解码器 tile size (输出像素空间)
+
+    注意: VAE decode 的 tile_size 参数是输出像素空间单位，
+    VAE 内部自动按 spatial_downsample_factor=8 转换为潜空间:
+    64 像素 -> 8 latent, 512 -> 64 latent, 768 -> 96 latent, 1024 -> 128 latent,
+    1536 -> 192 latent, 2048 -> 256 latent
+
+    ComfyUI HD 工作流默认 decode_tile_size=768 (对应潜空间 96)
+
+    Args:
+        device: GPU 设备，None 时使用 cuda:0
+
+    Returns:
+        推荐的解码器 tile size (输出像素空间)
+    """
+    if torch.cuda.is_available():
+        if device is None:
+            device = torch.device("cuda:0")
+        elif isinstance(device, str):
+            device = torch.device(device)
+        try:
+            total_memory_mb = torch.cuda.get_device_properties(device).total_memory // (2**20)
+        except Exception:
+            total_memory_mb = 8 * 1000  # fallback to 8GB
+
+        if total_memory_mb > 30 * 1000:
+            return 2048
+        elif total_memory_mb > 16 * 1000:
+            return 1536
+        elif total_memory_mb > 12 * 1000:
+            return 1024
+        elif total_memory_mb > 8 * 1000:
+            return 768
+        else:
+            return 512
+    else:
+        return 512
+
+
+def get_optimal_tile_size(
+    h: int,
+    w: int,
+    is_decoder: bool = False,
+    device: torch.device | str | None = None,
+    max_tile_size: int | None = None,
+) -> tuple[int, int]:
+    """计算最优 tile size 和 overlap，考虑显存和输入尺寸
+
+    Args:
+        h: 输入高度
+        w: 输入宽度
+        is_decoder: 是否为解码器 (解码器需要更大的 overlap)
+        device: GPU 设备
+        max_tile_size: 最大 tile size 限制
+
+    Returns:
+        (tile_size, overlap) 元组
+    """
+    if is_decoder:
+        recommended = get_recommend_decoder_tile_size(device)
+        overlap = min(128, recommended // 6)  # overlap ~= tile_size/6
+    else:
+        recommended = get_recommend_encoder_tile_size(device)
+        overlap = min(128, recommended // 8)  # overlap ~= tile_size/8
+
+    if max_tile_size is not None:
+        recommended = min(recommended, max_tile_size)
+
+    # 如果输入比 tile 小，不需要 tiling
+    tile_size = min(recommended, h, w)
+
+    # 确保 tile_size 是 16 的倍数 (VAE 下采样要求)
+    tile_size = (tile_size // 16) * 16
+    tile_size = max(tile_size, 256)  # 最小 256
+
+    # 调整 overlap 不超过 tile_size 的 1/4
+    overlap = min(overlap, tile_size // 4)
+    overlap = (overlap // 8) * 8  # overlap 是 8 的倍数
+    overlap = max(overlap, 32)
+
+    return tile_size, overlap
+
+
+def detect_nan(tensor: torch.Tensor, stage: str = "unknown") -> bool:
+    """检测张量中是否存在 NaN 或 Inf
+
+    参考 SCST 的 devices.test_for_nans，在 VAE tiled 处理中检测异常值。
+
+    Args:
+        tensor: 待检测张量
+        stage: 阶段名称 (用于日志)
+
+    Returns:
+        True 表示存在 NaN/Inf
+    """
+    if torch.isnan(tensor).any():
+        logger.warning(f"[NaN 检测] {stage}: 检测到 NaN 值!")
+        return True
+    if torch.isinf(tensor).any():
+        logger.warning(f"[NaN 检测] {stage}: 检测到 Inf 值!")
+        return True
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -52,8 +211,8 @@ def create_gaussian_weight_map(
     Args:
         tile_size: tile 大小
         overlap: 重叠像素数
-        sigma: 高斯分布标准差，None 时自动计算 (overlap / 4)
-        num_dims: 空间维度数 (2 for H,W)
+        sigma: 高斯分布标准差，None 时自动计算 (overlap / 3)
+        num_dims: 空间维度数 (2 for H,W, 3 for T,H,W)
         device: 目标设备
         dtype: 张量数据类型
 
@@ -63,22 +222,22 @@ def create_gaussian_weight_map(
     if overlap <= 0:
         return torch.ones([tile_size] * num_dims, device=device, dtype=dtype)
 
-    # 自动计算 sigma: overlap 的 1/4 保证平滑过渡
+    # 自动计算 sigma: overlap 的 1/3 保证平滑过渡
     if sigma is None:
-        sigma = overlap / 4.0
+        sigma = overlap / 3.0
 
-    # 创建 1D 高斯权重
+    # 创建 1D 高斯权重 ramp
     ramp = torch.ones(tile_size, device=device, dtype=dtype)
-    center = tile_size / 2.0
 
+    # 从边缘开始，权重从 0 逐渐增加到 1
     for i in range(overlap):
-        # 计算距离边缘的相对位置
-        dist_from_edge = i + 1
-        # 高斯权重: 距中心越远权重越小
-        # 使用距离边缘的相对距离计算
-        weight = 1.0 - math.exp(-0.5 * ((overlap - dist_from_edge) / sigma) ** 2)
-        # 归一化确保边缘处接近 0，中心为 1
-        weight = math.exp(-0.5 * ((dist_from_edge - overlap) / sigma) ** 2)
+        # 距离边缘的距离 (0=边缘, overlap=内部)
+        dist = i + 1
+        # 高斯权重: 边缘处接近 0，内部为 1
+        # 使用高斯分布: weight = exp(-0.5 * ((overlap - dist) / sigma)^2)
+        # 边缘(dist=0): weight = exp(-0.5 * (overlap/sigma)^2) ≈ 0
+        # 内部(dist=overlap): weight = exp(0) = 1
+        weight = math.exp(-0.5 * ((overlap - dist) / sigma) ** 2)
         ramp[i] = weight
         ramp[tile_size - 1 - i] = weight
 
@@ -97,8 +256,8 @@ def create_gaussian_weight_map(
 
 def blend_tiles_gaussian(
     tiles: list[torch.Tensor],
-    tile_positions: list[tuple[int, int]],
-    output_shape: tuple[int, int],
+    tile_positions: list[tuple[int, ...]],
+    output_shape: tuple[int, ...],
     tile_size: int,
     overlap: int,
     sigma: float | None = None,
@@ -107,10 +266,12 @@ def blend_tiles_gaussian(
 ) -> torch.Tensor:
     """使用高斯权重混合多个 tile 到单个输出
 
+    支持 2D (H,W) 和 3D (T,H,W) 视频处理。
+
     Args:
-        tiles: tile 张量列表，每个为 (C, tile_h, tile_w)
-        tile_positions: 每个 tile 的 (y, x) 左上角位置
-        output_shape: (height, width) 输出尺寸
+        tiles: tile 张量列表，每个为 (C, ...spatial_dims)
+        tile_positions: 每个 tile 的位置元组 (y, x) 或 (t, y, x)
+        output_shape: 输出空间尺寸 (h, w) 或 (t, h, w)
         tile_size: tile 大小
         overlap: tile 间重叠
         sigma: 高斯 sigma，None 自动计算
@@ -123,31 +284,49 @@ def blend_tiles_gaussian(
     if not tiles:
         raise ValueError("No tiles provided")
 
-    h, w = output_shape
-    c = tiles[0].shape[0] if tiles[0].ndim >= 3 else 1
+    num_dims = len(output_shape)
+    c = tiles[0].shape[0] if tiles[0].ndim > num_dims else 1
 
     # 创建高斯权重映射
     weight_map = create_gaussian_weight_map(
         tile_size, overlap, sigma=sigma,
-        num_dims=2, device=device, dtype=dtype
+        num_dims=num_dims, device=device, dtype=dtype
     )
 
-    # 累加混合
-    output = torch.zeros(c, h, w, device=device, dtype=dtype)
-    weight_sum = torch.zeros(1, h, w, device=device, dtype=dtype)
+    # 初始化输出和权重累加器
+    full_shape = (c,) + output_shape
+    output = torch.zeros(full_shape, device=device, dtype=dtype)
+    weight_sum_shape = (1,) + output_shape
+    weight_sum = torch.zeros(weight_sum_shape, device=device, dtype=dtype)
 
-    for tile, (y, x) in zip(tiles, tile_positions):
-        if tile.ndim == 2:
+    for tile, pos in zip(tiles, tile_positions):
+        if tile.ndim == num_dims:
             tile = tile.unsqueeze(0)
 
-        tile_h = min(tile_size, h - y)
-        tile_w = min(tile_size, w - x)
+        # 计算 tile 在输出中的实际大小
+        tile_sizes = []
+        for d in range(num_dims):
+            tile_sizes.append(min(tile_size, output_shape[d] - pos[d]))
 
-        tile_crop = tile[:, :tile_h, :tile_w]
-        w_crop = weight_map[:tile_h, :tile_w].unsqueeze(0)
+        # 提取 tile 的有效区域
+        tile_slices = [slice(None)]  # 通道维度
+        w_slices = []
+        out_slices = [slice(None)]  # 通道维度
 
-        output[:, y:y+tile_h, x:x+tile_w] += tile_crop * w_crop
-        weight_sum[:, y:y+tile_h, x:x+tile_w] += w_crop
+        for d in range(num_dims):
+            ts = tile_sizes[d]
+            tile_slices.append(slice(0, ts))
+            w_slices.append(slice(0, ts))
+            out_slices.append(slice(pos[d], pos[d] + ts))
+
+        tile_crop = tile[tuple(tile_slices)]
+
+        # 提取权重的对应区域
+        w_crop = weight_map[tuple(w_slices)].unsqueeze(0)
+
+        # 累加
+        output[tuple(out_slices)] += tile_crop * w_crop
+        weight_sum[tuple(out_slices[1:])] += w_crop.squeeze(0)
 
     # 归一化
     weight_sum = weight_sum.clamp(min=1e-8)
@@ -160,6 +339,99 @@ def blend_tiles_gaussian(
 # GroupNorm 跨 tile 统计 (SCST inspired)
 # ---------------------------------------------------------------------------
 
+def _get_group_norm_stats(
+    input_tensor: torch.Tensor,
+    num_groups: int = 32,
+    eps: float = 1e-6,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """计算 GroupNorm 的 mean 和 var
+
+    参考 SCST 的 get_var_mean 实现，正确处理 fp16 下的 inf 问题。
+
+    Args:
+        input_tensor: 输入张量 (B, C, *spatial)
+        num_groups: GroupNorm 的分组数
+        eps: epsilon
+
+    Returns:
+        (var, mean) 元组
+    """
+    b, c = input_tensor.shape[0], input_tensor.shape[1]
+    channel_in_group = c // num_groups
+
+    # 处理 fp16 下 var 可能 inf 的问题
+    if input_tensor.dtype == torch.float16:
+        fp32_tensor = input_tensor.float()
+    else:
+        fp32_tensor = input_tensor
+
+    input_reshaped = fp32_tensor.contiguous().view(
+        1, b * num_groups, channel_in_group, *input_tensor.shape[2:]
+    )
+    var, mean = torch.var_mean(
+        input_reshaped, dim=[0, 2] + list(range(3, input_reshaped.ndim)), unbiased=False
+    )
+
+    # clamp 避免 fp16 溢出
+    if input_tensor.dtype == torch.float16:
+        var = torch.clamp(var, 0, 60000)
+        var = var.half()
+        mean = mean.half()
+
+    return var, mean
+
+
+def custom_group_norm(
+    input_tensor: torch.Tensor,
+    num_groups: int,
+    mean: torch.Tensor,
+    var: torch.Tensor,
+    weight: torch.Tensor | None = None,
+    bias: torch.Tensor | None = None,
+    eps: float = 1e-6,
+) -> torch.Tensor:
+    """使用预计算的 mean/var 执行 GroupNorm
+
+    参考 SCST 的 custom_group_norm 实现。
+
+    Args:
+        input_tensor: 输入张量 (B, C, *spatial)
+        num_groups: 分组数
+        mean: 预计算的 mean
+        var: 预计算的 var
+        weight: 可选的 affine weight
+        bias: 可选的 affine bias
+        eps: epsilon
+
+    Returns:
+        归一化后的张量
+    """
+    b, c = input_tensor.shape[0], input_tensor.shape[1]
+    channel_in_group = c // num_groups
+
+    input_reshaped = input_tensor.contiguous().view(
+        1, b * num_groups, channel_in_group, *input_tensor.shape[2:]
+    )
+
+    out = F.batch_norm(
+        input_reshaped, mean, var,
+        weight=None, bias=None,
+        training=False, momentum=0, eps=eps
+    )
+
+    out = out.view(b, c, *input_tensor.shape[2:])
+
+    # Post affine transform
+    if weight is not None:
+        shape = [1, -1] + [1] * (input_tensor.ndim - 2)
+        out = out * weight.view(*shape)
+    if bias is not None:
+        shape = [1, -1] + [1] * (input_tensor.ndim - 2)
+        out = out + bias.view(*shape)
+
+    return out
+
+
 class GroupNormAccumulator:
     """GroupNorm 跨 tile 统计累积器
 
@@ -167,7 +439,7 @@ class GroupNormAccumulator:
     导致不同 tile 的输出在接缝处不一致。此累积器在所有 tile 上收集
     running_mean 和 running_var，最后用全局统计替换各 tile 的局部统计。
 
-    参考: SCST vaehook.py 的 VaeHook.GroupNorm_accumulator
+    参考: SCST vaehook.py 的 GroupNormParam 类
 
     Usage:
         accumulator = GroupNormAccumulator(vae_model)
@@ -178,42 +450,54 @@ class GroupNormAccumulator:
         # 处理每个 tile (GroupNorm 统计会被自动收集)
         for tile in tiles:
             result = vae.encode(tile)
+            accumulator.accumulate_from_output(result, group_norm_modules)
 
         # 用全局统计替换局部统计
-        accumulator.apply_accumulated_stats()
+        global_norm_fn = accumulator.get_global_norm_function()
+
+        # 重新应用 GroupNorm
+        result = global_norm_fn(result)
     """
 
-    def __init__(self, model: torch.nn.Module):
+    def __init__(self, model: torch.nn.Module, num_groups: int = 32):
         """初始化累积器
 
         Args:
             model: 包含 GroupNorm 层的模型 (如 VAE)
+            num_groups: GroupNorm 的分组数 (通常为 32)
         """
         self.model = model
-        self._groupnorm_modules: list[torch.nn.GroupNorm] = []
+        self.num_groups = num_groups
+        self._groupnorm_modules: list[tuple[str, torch.nn.GroupNorm]] = []
         self._original_stats: dict[str, tuple[torch.Tensor, torch.Tensor]] = {}
-        self._accumulated_mean: dict[str, torch.Tensor] = {}
-        self._accumulated_var: dict[str, torch.Tensor] = {}
-        self._accumulated_count: dict[str, int] = {}
+
+        # 累积统计: 每个 GroupNorm 层的 var_list, mean_list, pixel_list
+        self._var_lists: dict[str, list[torch.Tensor]] = {}
+        self._mean_lists: dict[str, list[torch.Tensor]] = {}
+        self._pixel_lists: dict[str, list[int]] = {}
+        self._weights: dict[str, torch.Tensor | None] = {}
+        self._biases: dict[str, torch.Tensor | None] = {}
+
         self._is_accumulating = False
 
         # 收集所有 GroupNorm 模块
         for name, module in model.named_modules():
             if isinstance(module, torch.nn.GroupNorm):
-                self._groupnorm_modules.append(module)
-                self._module_names.append(name)
+                self._groupnorm_modules.append((name, module))
 
     def start_accumulation(self):
         """开始累积 GroupNorm 统计
 
         保存原始 running_mean/running_var，并切换到累积模式。
         """
-        self._accumulated_mean.clear()
-        self._accumulated_var.clear()
-        self._accumulated_count.clear()
+        self._var_lists.clear()
+        self._mean_lists.clear()
+        self._pixel_lists.clear()
+        self._weights.clear()
+        self._biases.clear()
         self._is_accumulating = True
 
-        for name, module in zip(self._module_names, self._groupnorm_modules):
+        for name, module in self._groupnorm_modules:
             # 保存原始统计
             if module.running_mean is not None:
                 self._original_stats[name] = (
@@ -222,76 +506,133 @@ class GroupNormAccumulator:
                 )
 
             # 初始化累积器
-            num_channels = module.num_channels
-            device = module.running_mean.device if module.running_mean is not None else "cpu"
-            dtype = module.running_mean.dtype if module.running_mean is not None else torch.float32
-
-            self._accumulated_mean[name] = torch.zeros(num_channels, device=device, dtype=dtype)
-            self._accumulated_var[name] = torch.zeros(num_channels, device=device, dtype=dtype)
-            self._accumulated_count[name] = 0
+            self._var_lists[name] = []
+            self._mean_lists[name] = []
+            self._pixel_lists[name] = []
+            self._weights[name] = module.weight.data.clone() if module.weight is not None else None
+            self._biases[name] = module.bias.data.clone() if module.bias is not None else None
 
         logger.info(f"GroupNorm 跨 tile 统计累积开始: {len(self._groupnorm_modules)} 个 GroupNorm 层")
 
-    def accumulate_from_output(self, output: torch.Tensor, group_size: int = 32):
-        """从 tile 输出中累积 GroupNorm 统计
+    def accumulate_from_tile(
+        self,
+        tile: torch.Tensor,
+        module_name: str | None = None,
+    ):
+        """从单个 tile 的 GroupNorm 输入中累积统计
 
-        在每个 tile 处理完成后调用此方法，将当前 tile 的统计加入全局累积。
+        在每个 tile 通过 GroupNorm 之前调用，累积该 tile 的统计。
 
         Args:
-            output: 当前 tile 的输出张量
-            group_size: GroupNorm 的分组大小
+            tile: 当前 tile 的输入张量 (GroupNorm 输入)
+            module_name: GroupNorm 模块名称，None 时累积所有模块
         """
         if not self._is_accumulating:
             return
 
-        # 计算 output 在各通道上的 mean 和 var
-        # output: (B, C, H, W) or (C, H, W)
-        if output.ndim == 4:
-            # 每个通道的 mean/var
-            mean = output.mean(dim=[0, 2, 3])
-            var = output.var(dim=[0, 2, 3])
-        elif output.ndim == 3:
-            mean = output.mean(dim=[1, 2])
-            var = output.var(dim=[1, 2])
-        else:
-            return
+        try:
+            var, mean = _get_group_norm_stats(tile, self.num_groups)
+            num_pixels = tile.shape[2] * tile.shape[3] if tile.ndim >= 4 else tile.shape[-1]
 
-        num_channels = mean.shape[0]
-        batch_count = output.shape[0] if output.ndim == 4 else 1
+            if module_name is not None:
+                if module_name in self._var_lists:
+                    self._var_lists[module_name].append(var)
+                    self._mean_lists[module_name].append(mean)
+                    self._pixel_lists[module_name].append(num_pixels)
+            else:
+                # 累积到所有模块 (假设输入尺寸匹配)
+                for name, _ in self._groupnorm_modules:
+                    if name in self._var_lists:
+                        self._var_lists[name].append(var.clone())
+                        self._mean_lists[name].append(mean.clone())
+                        self._pixel_lists[name].append(num_pixels)
+        except Exception as e:
+            logger.debug(f"GroupNorm 累积失败: {e}")
 
-        # 累积到对应 GroupNorm 层
-        for name in self._accumulated_mean:
-            if self._accumulated_mean[name].shape[0] == num_channels:
-                self._accumulated_mean[name] += mean * batch_count
-                self._accumulated_var[name] += var * batch_count
-                self._accumulated_count[name] += batch_count
+    def get_global_norm_function(self, module_name: str) -> Callable | None:
+        """获取全局 GroupNorm 函数
+
+        所有 tile 处理完成后调用，返回使用全局统计的 GroupNorm 函数。
+
+        Args:
+            module_name: GroupNorm 模块名称
+
+        Returns:
+            全局 GroupNorm 函数，或 None (无累积数据时)
+        """
+        if not self._is_accumulating:
+            return None
+
+        if module_name not in self._var_lists or len(self._var_lists[module_name]) == 0:
+            return None
+
+        var_list = self._var_lists[module_name]
+        mean_list = self._mean_lists[module_name]
+        pixel_list = self._pixel_lists[module_name]
+
+        # 参考 SCST 的 GroupNormParam.summary() 实现
+        # 按 pixel 数量加权平均
+        var_stacked = torch.vstack(var_list)
+        mean_stacked = torch.vstack(mean_list)
+        max_pixels = max(pixel_list)
+        pixels = torch.tensor(
+            pixel_list, dtype=torch.float32, device=var_stacked.device
+        ) / max_pixels
+        sum_pixels = pixels.sum()
+        pixels = pixels.unsqueeze(1) / sum_pixels
+
+        global_var = (var_stacked * pixels).sum(dim=0)
+        global_mean = (mean_stacked * pixels).sum(dim=0)
+
+        weight = self._weights.get(module_name)
+        bias = self._biases.get(module_name)
+
+        def global_norm_fn(x, mean=global_mean, var=global_var, w=weight, b=bias):
+            return custom_group_norm(x, self.num_groups, mean, var, w, b)
+
+        return global_norm_fn
 
     def apply_accumulated_stats(self):
-        """将累积的全局统计应用到各 GroupNorm 层
+        """将累积的全局统计应用到各 GroupNorm 层的 running_mean/running_var
 
-        用全局 mean/var 替换局部统计，确保所有 tile 使用一致的归一化参数。
+        用全局 mean/var 替换局部统计，确保后续推理使用一致的归一化参数。
         """
         if not self._is_accumulating:
             return
 
-        for name, module in zip(self._module_names, self._groupnorm_modules):
-            if name in self._accumulated_mean and self._accumulated_count[name] > 0:
-                count = self._accumulated_count[name]
-                global_mean = self._accumulated_mean[name] / count
-                global_var = self._accumulated_var[name] / count
+        for name, module in self._groupnorm_modules:
+            if name in self._var_lists and len(self._var_lists[name]) > 0:
+                var_list = self._var_lists[name]
+                mean_list = self._mean_lists[name]
+                pixel_list = self._pixel_lists[name]
 
-                # 替换 GroupNorm 的 running 统计
-                if module.running_mean is not None:
-                    module.running_mean.copy_(global_mean)
-                if module.running_var is not None:
-                    module.running_var.copy_(global_var)
+                try:
+                    var_stacked = torch.vstack(var_list)
+                    mean_stacked = torch.vstack(mean_list)
+                    max_pixels = max(pixel_list)
+                    pixels = torch.tensor(
+                        pixel_list, dtype=torch.float32, device=var_stacked.device
+                    ) / max_pixels
+                    sum_pixels = pixels.sum()
+                    pixels = pixels.unsqueeze(1) / sum_pixels
+
+                    global_mean = (mean_stacked * pixels).sum(dim=0)
+                    global_var = (var_stacked * pixels).sum(dim=0)
+
+                    # 替换 GroupNorm 的 running 统计
+                    if module.running_mean is not None:
+                        module.running_mean.copy_(global_mean.to(module.running_mean.dtype))
+                    if module.running_var is not None:
+                        module.running_var.copy_(global_var.to(module.running_var.dtype))
+                except Exception as e:
+                    logger.debug(f"应用全局统计到 {name} 失败: {e}")
 
         self._is_accumulating = False
         logger.info("GroupNorm 全局统计已应用到各层")
 
     def restore_original_stats(self):
         """恢复原始 GroupNorm 统计（推理完成后清理）"""
-        for name, module in zip(self._module_names, self._groupnorm_modules):
+        for name, module in self._groupnorm_modules:
             if name in self._original_stats:
                 orig_mean, orig_var = self._original_stats[name]
                 if module.running_mean is not None:
@@ -300,6 +641,13 @@ class GroupNormAccumulator:
                     module.running_var.copy_(orig_var)
 
         self._original_stats.clear()
+        self._is_accumulating = False
+
+    def reset(self):
+        """重置累积状态"""
+        self._var_lists.clear()
+        self._mean_lists.clear()
+        self._pixel_lists.clear()
         self._is_accumulating = False
 
 
@@ -314,6 +662,7 @@ def make_tiled_fn(
     batch_size: int = 1,
     weight_type: str = "gaussian",
     progress_callback: Callable | None = None,
+    use_gaussian_blend: bool = True,
 ) -> Callable:
     """创建 tiled 推理封装函数
 
@@ -327,6 +676,7 @@ def make_tiled_fn(
         batch_size: 每个 tile 的批大小
         weight_type: 权重类型 ('gaussian', 'cosine', 'linear')
         progress_callback: 进度回调
+        use_gaussian_blend: 是否使用高斯权重混合
 
     Returns:
         包装后的 tiled 推理函数
@@ -338,112 +688,210 @@ def make_tiled_fn(
             return fn(tensor, **kwargs)
 
         # 确定 spatial 维度
-        if tensor.ndim == 4:  # (B, C, H, W) or (C, T, H, W)
+        if tensor.ndim == 4:  # (B, C, H, W)
             h_dim, w_dim = -2, -1
-        elif tensor.ndim == 5:  # (B, C, T, H, W)
-            h_dim, w_dim = -2, -1
+            num_spatial = 2
+        elif tensor.ndim == 5:  # (B, C, T, H, W) - video
+            t_dim, h_dim, w_dim = -3, -2, -1
+            num_spatial = 3
         else:
             return fn(tensor, **kwargs)
 
-        h, w = tensor.shape[h_dim], tensor.shape[w_dim]
+        if num_spatial == 2:
+            h, w = tensor.shape[h_dim], tensor.shape[w_dim]
+        else:
+            t, h, w = tensor.shape[t_dim], tensor.shape[h_dim], tensor.shape[w_dim]
 
         # 如果输入比 tile 小，不需要 tiled
-        if h <= tile_size and w <= tile_size:
+        max_spatial = max(h, w) if num_spatial == 2 else max(t, h, w)
+        if max_spatial <= tile_size:
             return fn(tensor, **kwargs)
 
         # 计算 tile 位置
         stride = tile_size - overlap
-        tile_positions_h = []
-        tile_positions_w = []
 
-        y = 0
-        while y < h:
-            tile_positions_h.append(min(y, h - tile_size))
-            y += stride
-            if y + tile_size >= h:
-                break
+        def compute_positions(size: int) -> list[int]:
+            positions = []
+            pos = 0
+            while pos < size:
+                positions.append(min(pos, size - tile_size))
+                pos += stride
+                if pos + tile_size >= size:
+                    break
+            if positions[-1] + tile_size < size:
+                positions.append(size - tile_size)
+            return positions
 
-        x = 0
-        while x < w:
-            tile_positions_w.append(min(x, w - tile_size))
-            x += stride
-            if x + tile_size >= w:
-                break
-
-        # 确保覆盖整个图像
-        if tile_positions_h[-1] + tile_size < h:
-            tile_positions_h.append(h - tile_size)
-        if tile_positions_w[-1] + tile_size < w:
-            tile_positions_w.append(w - tile_size)
+        if num_spatial == 2:
+            y_positions = compute_positions(h)
+            x_positions = compute_positions(w)
+        else:
+            t_positions = compute_positions(t)
+            y_positions = compute_positions(h)
+            x_positions = compute_positions(w)
 
         # 创建权重映射
         device = tensor.device
         dtype = tensor.dtype
 
-        if weight_type == "gaussian":
-            from bin.integrated_app.optimization.vae_tiled_enhance import create_gaussian_weight_map
-            weight_map = create_gaussian_weight_map(tile_size, overlap, num_dims=2, device=device, dtype=dtype)
-        elif weight_type == "cosine":
-            from bin.integrated_app.optimization.tile_blend import create_cosine_weight_map
-            weight_map = create_cosine_weight_map(tile_size, overlap, num_dims=2, device=device, dtype=dtype)
+        if use_gaussian_blend and weight_type == "gaussian":
+            weight_map = create_gaussian_weight_map(
+                tile_size, overlap, num_dims=num_spatial, device=device, dtype=dtype
+            )
         else:
-            from bin.integrated_app.optimization.tile_blend import create_linear_weight_map
-            weight_map = create_linear_weight_map(tile_size, overlap, num_dims=2, device=device, dtype=dtype)
+            # Fallback 到线性权重
+            weight_map = torch.ones([tile_size] * num_spatial, device=device, dtype=dtype)
 
         # 初始化输出累积器
         output_shape = list(tensor.shape)
-        output_shape[h_dim] = h
-        output_shape[w_dim] = w
+        if num_spatial == 2:
+            output_shape[h_dim] = h
+            output_shape[w_dim] = w
+        else:
+            output_shape[t_dim] = t
+            output_shape[h_dim] = h
+            output_shape[w_dim] = w
         output = torch.zeros(output_shape, device=device, dtype=dtype)
-        weight_sum = torch.zeros([1, h, w], device=device, dtype=dtype)
 
-        total_tiles = len(tile_positions_h) * len(tile_positions_w)
+        weight_sum_shape = [1] * tensor.ndim
+        if num_spatial == 2:
+            weight_sum_shape[h_dim] = h
+            weight_sum_shape[w_dim] = w
+        else:
+            weight_sum_shape[t_dim] = t
+            weight_sum_shape[h_dim] = h
+            weight_sum_shape[w_dim] = w
+        weight_sum = torch.zeros(weight_sum_shape, device=device, dtype=dtype)
+
+        # 计算总 tile 数
+        if num_spatial == 2:
+            total_tiles = len(y_positions) * len(x_positions)
+        else:
+            total_tiles = len(t_positions) * len(y_positions) * len(x_positions)
         processed = 0
 
+        # NaN 检测和回退
+        nan_fallback = False
+
         # 处理每个 tile
-        for y_pos in tile_positions_h:
-            for x_pos in tile_positions_w:
-                # 提取 tile
-                tile_slices = [slice(None)] * tensor.ndim
-                tile_slices[h_dim] = slice(y_pos, y_pos + tile_size)
-                tile_slices[w_dim] = slice(x_pos, x_pos + tile_size)
-                tile_input = tensor[tuple(tile_slices)]
+        if num_spatial == 2:
+            for y_pos in y_positions:
+                for x_pos in x_positions:
+                    # 提取 tile
+                    tile_slices = [slice(None)] * tensor.ndim
+                    tile_slices[h_dim] = slice(y_pos, y_pos + tile_size)
+                    tile_slices[w_dim] = slice(x_pos, x_pos + tile_size)
+                    tile_input = tensor[tuple(tile_slices)]
 
-                # 运行推理
-                tile_output = fn(tile_input, **kwargs)
+                    # 运行推理
+                    try:
+                        tile_output = fn(tile_input, **kwargs)
+                    except RuntimeError as e:
+                        if "out of memory" in str(e).lower():
+                            logger.warning(f"Tile OOM at ({y_pos},{x_pos}), 尝试更小的 tile")
+                            torch.cuda.empty_cache()
+                            # 回退: 直接对整个输入运行 fn
+                            return fn(tensor, **kwargs)
+                        raise
 
-                # 提取输出 tile 对应区域
-                actual_h = min(tile_size, h - y_pos)
-                actual_w = min(tile_size, w - x_pos)
+                    # NaN 检测
+                    if detect_nan(tile_output, f"tile ({y_pos},{x_pos})"):
+                        nan_fallback = True
+                        break
 
-                tile_slices_out = [slice(None)] * tile_output.ndim
-                tile_slices_out[h_dim] = slice(0, actual_h)
-                tile_slices_out[w_dim] = slice(0, actual_w)
-                tile_crop = tile_output[tuple(tile_slices_out)]
+                    # 提取输出 tile 对应区域
+                    actual_h = min(tile_size, h - y_pos)
+                    actual_w = min(tile_size, w - x_pos)
 
-                w_crop = weight_map[:actual_h, :actual_w].unsqueeze(0)
+                    tile_slices_out = [slice(None)] * tile_output.ndim
+                    tile_slices_out[h_dim] = slice(0, actual_h)
+                    tile_slices_out[w_dim] = slice(0, actual_w)
+                    tile_crop = tile_output[tuple(tile_slices_out)]
 
-                # 累加
-                out_slices = [slice(None)] * output.ndim
-                out_slices[h_dim] = slice(y_pos, y_pos + actual_h)
-                out_slices[w_dim] = slice(x_pos, x_pos + actual_w)
-                output[tuple(out_slices)] += tile_crop * w_crop
-                weight_sum[:, y_pos:y_pos+actual_h, x_pos:x_pos+actual_w] += w_crop
+                    w_slices = [slice(0, actual_h), slice(0, actual_w)]
+                    w_crop = weight_map[tuple(w_slices)]
+                    while w_crop.ndim < tile_crop.ndim:
+                        w_crop = w_crop.unsqueeze(0)
 
-                processed += 1
-                if progress_callback:
-                    progress_callback(processed, total_tiles)
+                    # 累加
+                    out_slices = [slice(None)] * output.ndim
+                    out_slices[h_dim] = slice(y_pos, y_pos + actual_h)
+                    out_slices[w_dim] = slice(x_pos, x_pos + actual_w)
+                    output[tuple(out_slices)] += tile_crop * w_crop
+
+                    ws_slices = [slice(None)]
+                    ws_slices.extend([slice(y_pos, y_pos + actual_h), slice(x_pos, x_pos + actual_w)])
+                    weight_sum[tuple(ws_slices)] += w_crop
+
+                    processed += 1
+                    if progress_callback:
+                        progress_callback(processed, total_tiles)
+        else:
+            # 3D video tiling
+            for t_pos in t_positions:
+                for y_pos in y_positions:
+                    for x_pos in x_positions:
+                        tile_slices = [slice(None)] * tensor.ndim
+                        tile_slices[t_dim] = slice(t_pos, t_pos + tile_size)
+                        tile_slices[h_dim] = slice(y_pos, y_pos + tile_size)
+                        tile_slices[w_dim] = slice(x_pos, x_pos + tile_size)
+                        tile_input = tensor[tuple(tile_slices)]
+
+                        try:
+                            tile_output = fn(tile_input, **kwargs)
+                        except RuntimeError as e:
+                            if "out of memory" in str(e).lower():
+                                logger.warning(f"3D Tile OOM at ({t_pos},{y_pos},{x_pos}), 回退")
+                                torch.cuda.empty_cache()
+                                return fn(tensor, **kwargs)
+                            raise
+
+                        if detect_nan(tile_output, f"3D tile ({t_pos},{y_pos},{x_pos})"):
+                            nan_fallback = True
+                            break
+
+                        actual_t = min(tile_size, t - t_pos)
+                        actual_h = min(tile_size, h - y_pos)
+                        actual_w = min(tile_size, w - x_pos)
+
+                        tile_slices_out = [slice(None)] * tile_output.ndim
+                        tile_slices_out[t_dim] = slice(0, actual_t)
+                        tile_slices_out[h_dim] = slice(0, actual_h)
+                        tile_slices_out[w_dim] = slice(0, actual_w)
+                        tile_crop = tile_output[tuple(tile_slices_out)]
+
+                        w_slices = [slice(0, actual_t), slice(0, actual_h), slice(0, actual_w)]
+                        w_crop = weight_map[tuple(w_slices)]
+                        while w_crop.ndim < tile_crop.ndim:
+                            w_crop = w_crop.unsqueeze(0)
+
+                        out_slices = [slice(None)] * output.ndim
+                        out_slices[t_dim] = slice(t_pos, t_pos + actual_t)
+                        out_slices[h_dim] = slice(y_pos, y_pos + actual_h)
+                        out_slices[w_dim] = slice(x_pos, x_pos + actual_w)
+                        output[tuple(out_slices)] += tile_crop * w_crop
+
+                        ws_slices = [slice(None)]
+                        ws_slices.extend([
+                            slice(t_pos, t_pos + actual_t),
+                            slice(y_pos, y_pos + actual_h),
+                            slice(x_pos, x_pos + actual_w)
+                        ])
+                        weight_sum[tuple(ws_slices)] += w_crop
+
+                        processed += 1
+                        if progress_callback:
+                            progress_callback(processed, total_tiles)
+
+        # NaN 回退: 如果检测到 NaN，直接对整个输入运行 fn
+        if nan_fallback:
+            logger.warning("Tiled 推理检测到 NaN，回退到非 tiled 推理")
+            torch.cuda.empty_cache()
+            return fn(tensor, **kwargs)
 
         # 归一化
         weight_sum = weight_sum.clamp(min=1e-8)
-
-        # 扩展 weight_sum 到匹配 output 的维度
-        expand_shape = [1] * output.ndim
-        expand_shape[h_dim] = h
-        expand_shape[w_dim] = w
-        weight_expanded = weight_sum.expand(expand_shape)
-
-        output = output / weight_expanded
+        output = output / weight_sum
 
         return output
 
@@ -478,13 +926,13 @@ def conditional_vae_decode(
     """
     # 标准 VAE 解码
     if low_res_latent is None or blend_weight <= 0:
-        return vae_model.decode(latents, **decode_kwargs)
+        return vae_model.decode(latents, **decode_kwargs).sample
 
     # 解码高分辨率 latent
-    high_res_output = vae_model.decode(latents, **decode_kwargs)
+    high_res_output = vae_model.decode(latents, **decode_kwargs).sample
 
     # 解码低分辨率 latent (颜色参考)
-    low_res_output = vae_model.decode(low_res_latent, **decode_kwargs)
+    low_res_output = vae_model.decode(low_res_latent, **decode_kwargs).sample
 
     # 上采样低分辨率输出到高分辨率尺寸
     target_h, target_w = high_res_output.shape[-2:]
@@ -499,7 +947,8 @@ def conditional_vae_decode(
     # 使用低通滤波提取低频
     kernel_size = 15
     sigma = 3.0
-    kernel = _create_gaussian_kernel(kernel_size, sigma, device=high_res_output.device)
+    kernel = _create_gaussian_kernel(kernel_size, sigma, device=high_res_output.device,
+                                      channels=high_res_output.shape[1] if high_res_output.ndim == 4 else 1)
 
     # 对高分辨率输出应用低通滤波
     high_res_low_freq = _apply_gaussian_filter(high_res_output, kernel)
@@ -524,13 +973,24 @@ def _create_gaussian_kernel(
     device: torch.device,
     channels: int = 1,
 ) -> torch.Tensor:
-    """创建 2D 高斯滤波核"""
+    """创建 2D 高斯滤波核 (depthwise 卷积格式)
+
+    用于条件 VAE 解码时的低通滤波，提取低频颜色信息。
+
+    Args:
+        kernel_size: 滤波核大小 (奇数)
+        sigma: 高斯标准差，控制模糊程度
+        device: 张量所在设备
+        channels: 输入通道数 (用于 depthwise conv)
+
+    Returns:
+        高斯核张量，形状为 [channels, 1, kernel_size, kernel_size]
+    """
     x = torch.arange(kernel_size, device=device, dtype=torch.float32) - kernel_size // 2
     gauss_1d = torch.exp(-0.5 * (x / sigma) ** 2)
     gauss_2d = gauss_1d.unsqueeze(-1) * gauss_1d.unsqueeze(0)
     kernel = gauss_2d / gauss_2d.sum()
 
-    # 扩展到多通道
     kernel = kernel.unsqueeze(0).unsqueeze(0).expand(channels, 1, -1, -1).contiguous()
     return kernel
 
@@ -539,17 +999,34 @@ def _apply_gaussian_filter(
     tensor: torch.Tensor,
     kernel: torch.Tensor,
 ) -> torch.Tensor:
-    """对张量应用高斯滤波"""
+    """对张量应用高斯低通滤波
+
+    支持 2D (B,C,H,W)、3D (C,H,W) 和 5D (B,C,T,H,W) 视频张量。
+    对 5D 视频张量逐帧应用滤波。
+
+    Args:
+        tensor: 输入张量
+        kernel: 高斯滤波核 (由 _create_gaussian_kernel 创建)
+
+    Returns:
+        滤波后的张量，形状与输入一致
+    """
     channels = tensor.shape[1] if tensor.ndim == 4 else 1
     padding = kernel.shape[-1] // 2
 
     if tensor.ndim == 4:
-        # (B, C, H, W)
         result = F.conv2d(tensor, kernel[:channels], padding=padding, groups=channels)
     elif tensor.ndim == 3:
-        # (C, H, W) -> (1, C, H, W)
         result = F.conv2d(tensor.unsqueeze(0), kernel[:channels], padding=padding, groups=channels)
         result = result.squeeze(0)
+    elif tensor.ndim == 5:
+        b, c, t, h, w = tensor.shape
+        result = []
+        for i in range(t):
+            frame = tensor[:, :, i]
+            filtered = F.conv2d(frame, kernel[:c], padding=padding, groups=c)
+            result.append(filtered)
+        result = torch.stack(result, dim=2)
     else:
         return tensor
 
@@ -583,7 +1060,16 @@ def enable_vae_slicing(
 
 
 def disable_vae_slicing(vae_model: torch.nn.Module) -> torch.nn.Module:
-    """禁用 VAE slicing 模式"""
+    """禁用 VAE slicing 模式
+
+    恢复 VAE 为正常解码模式，所有通道一次性处理。
+
+    Args:
+        vae_model: VAE 模型实例
+
+    Returns:
+        配置后的 VAE 模型
+    """
     vae_model._slicing_enabled = False
     vae_model._slice_size = 1
     logger.info("VAE slicing 已禁用")
@@ -624,13 +1110,26 @@ def enable_sequential_cpu_offload(
 
 
 def offload_module_to_cpu(module: torch.nn.Module) -> None:
-    """将模块 offload 到 CPU"""
+    """将模型模块卸载到 CPU 并清理 GPU 缓存
+
+    在顺序 CPU offload 策略中，使用完一个模块后将其移回 CPU 以释放显存。
+
+    Args:
+        module: 要卸载的 PyTorch 模块
+    """
     module.to("cpu")
     torch.cuda.empty_cache()
 
 
 def load_module_to_gpu(module: torch.nn.Module, device: torch.device | str = "cuda") -> None:
-    """将模块加载到 GPU"""
+    """将模型模块加载到 GPU
+
+    在顺序 CPU offload 策略中，需要使用某个模块前将其加载到 GPU。
+
+    Args:
+        module: 要加载的 PyTorch 模块
+        device: 目标 GPU 设备，默认 "cuda"
+    """
     module.to(device)
 
 
@@ -673,17 +1172,6 @@ class CacheQuantizer:
 
     对称量化: 适用于零中心分布的激活（如残差），仅保存 scale
     非对称量化: 适用于偏移分布的激活，保存 scale + offset
-
-    Usage:
-        quantizer = CacheQuantizer(CacheQuantizerConfig())
-
-        # 量化
-        quantized_data, meta = quantizer.q(activation_tensor)
-
-        # 反量化
-        restored = quantizer.dq(quantized_data, meta)
-
-        # 显存节省: float32 (4 bytes/elem) -> uint8 (1 byte/elem) + 少量元数据
     """
 
     def __init__(self, config: CacheQuantizerConfig | None = None):
@@ -693,16 +1181,7 @@ class CacheQuantizer:
     def q(
         self, tensor: torch.Tensor
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
-        """将 float32 张量量化为 uint8
-
-        Args:
-            tensor: 待量化的 float32 张量
-
-        Returns:
-            (quantized, meta) 元组:
-              quantized: uint8 量化后的张量
-              meta: 包含 'scale' 和可选 'offset' 的元数据字典
-        """
+        """将 float32 张量量化为 uint8"""
         if not self.config.enabled:
             return tensor, {}
 
@@ -710,14 +1189,12 @@ class CacheQuantizer:
         eps = self.config.eps
 
         if mode == "symmetric":
-            # 对称量化: scale = max(|x|), offset = 0
             scale = tensor.abs().max().clamp(min=eps) / self._quant_max
             quantized = torch.clamp(
                 torch.round(tensor / scale), 0, self._quant_max
             ).to(torch.uint8)
             meta = {"scale": scale.detach()}
         else:
-            # 非对称量化: scale = max - min, offset = min
             t_min = tensor.min()
             t_max = tensor.max()
             scale = (t_max - t_min).clamp(min=eps) / self._quant_max
@@ -734,15 +1211,7 @@ class CacheQuantizer:
         quantized: torch.Tensor,
         meta: dict[str, torch.Tensor],
     ) -> torch.Tensor:
-        """将 uint8 量化张量反量化为 float32
-
-        Args:
-            quantized: uint8 量化张量
-            meta: q() 返回的元数据字典，包含 'scale' 和可选 'offset'
-
-        Returns:
-            反量化后的 float32 张量
-        """
+        """将 uint8 量化张量反量化为 float32"""
         if not self.config.enabled or not meta:
             return quantized.float()
 
@@ -753,380 +1222,6 @@ class CacheQuantizer:
             restored = restored + meta["offset"]
 
         return restored
-
-
-# ---------------------------------------------------------------------------
-# Selective Block Offloading (MIA-VSR inspired) - P2
-# ---------------------------------------------------------------------------
-
-@dataclass
-class SelectiveBlockOffloaderConfig:
-    """选择性 Block 卸载配置
-
-    参考 MIA-VSR 基于 importance mask 选择性卸载的机制，
-    根据 transformer block 的重要性分数决定是否卸载到 CPU，
-    在显存有限时优先保留重要 block 在 GPU 上。
-    """
-
-    # 是否启用选择性卸载
-    enabled: bool = True
-    # 重要性阈值: 低于此值的 block 将被卸载到 CPU
-    importance_threshold: float = 0.5
-    # 可用 VRAM 上限 (GB)，超过时触发卸载
-    vram_limit_gb: float = 8.0
-    # 重要性计算方法: 'norm' (参数范数), 'activation' (激活统计), 'custom' (自定义)
-    importance_method: str = "norm"
-    # 卸载目标设备
-    offload_device: str = "cpu"
-
-
-class SelectiveBlockOffloader:
-    """选择性 Block 卸载器
-
-    参考 MIA-VSR (Memory-efficient Importance-Aware Video Super-Resolution)
-    的选择性卸载机制: 基于 importance mask 决定哪些 transformer block
-    卸载到 CPU，在显存有限时优先保留重要 block 在 GPU 上。
-
-    核心思路:
-    1. 计算每个 transformer block 的重要性分数 (默认使用参数范数)
-    2. 根据阈值和可用 VRAM 决定卸载哪些 block
-    3. 重要性低的 block 卸载到 CPU，需要时再加载回 GPU
-    4. 重要 block 始终保留在 GPU 上，减少 I/O 开销
-
-    Usage:
-        offloader = SelectiveBlockOffloader(SelectiveBlockOffloaderConfig())
-
-        # 计算 importance mask
-        importance = offloader.compute_importance_mask(model_blocks)
-
-        # 执行选择性卸载
-        offloader.offload(model_blocks, importance)
-
-        # 恢复所有 block 到 GPU
-        offloader.restore(model_blocks)
-    """
-
-    def __init__(self, config: SelectiveBlockOffloaderConfig | None = None):
-        self.config = config or SelectiveBlockOffloaderConfig()
-        self._offloaded_indices: list[int] = []
-
-    def compute_importance_mask(
-        self,
-        blocks: list[torch.nn.Module],
-        method: str | None = None,
-    ) -> torch.Tensor:
-        """计算每个 block 的重要性分数
-
-        默认使用参数范数作为重要性指标: 参数范数越大，
-        说明该 block 承载了更多信息，应优先保留在 GPU 上。
-
-        Args:
-            blocks: transformer block 列表
-            method: 重要性计算方法，None 时使用配置中的方法
-
-        Returns:
-            重要性分数张量，形状 (num_blocks,)，值域 [0, 1]
-        """
-        method = method or self.config.importance_method
-        num_blocks = len(blocks)
-
-        if method == "norm":
-            # 参数范数: L2 norm of all parameters in each block
-            norms = torch.zeros(num_blocks)
-            for i, block in enumerate(blocks):
-                param_norm = 0.0
-                for p in block.parameters():
-                    param_norm += p.data.norm().item() ** 2
-                norms[i] = param_norm ** 0.5
-
-        elif method == "activation":
-            # 激活统计: 需要运行一次推理来收集激活
-            # 这里提供框架，实际需要 hook 来收集激活
-            logger.warning(
-                "activation 重要性方法需要先运行一次推理收集激活统计，"
-                "当前回退到 norm 方法"
-            )
-            return self.compute_importance_mask(blocks, method="norm")
-
-        else:
-            # custom: 返回均匀重要性
-            logger.warning(f"未知的重要性方法 '{method}'，使用均匀重要性")
-            norms = torch.ones(num_blocks)
-
-        # 归一化到 [0, 1]
-        if norms.max() > 0:
-            importance = norms / norms.max()
-        else:
-            importance = torch.ones(num_blocks)
-
-        return importance
-
-    def offload(
-        self,
-        blocks: list[torch.nn.Module],
-        importance: torch.Tensor,
-        target_device: torch.device | str | None = None,
-    ) -> list[int]:
-        """根据重要性分数选择性卸载 block 到 CPU
-
-        Args:
-            blocks: transformer block 列表
-            importance: 重要性分数张量 (num_blocks,)
-            target_device: 卸载目标设备，None 时使用配置中的设备
-
-        Returns:
-            被卸载的 block 索引列表
-        """
-        if not self.config.enabled:
-            return []
-
-        target_device = target_device or self.config.offload_device
-        threshold = self.config.importance_threshold
-
-        # 检查 VRAM 是否需要卸载
-        if torch.cuda.is_available():
-            vram_used_gb = torch.cuda.memory_allocated() / (1024 ** 3)
-            if vram_used_gb < self.config.vram_limit_gb:
-                logger.debug(
-                    f"VRAM 使用 {vram_used_gb:.1f}GB 未超过限制 "
-                    f"{self.config.vram_limit_gb:.1f}GB，跳过卸载"
-                )
-                return []
-
-        # 选择低重要性 block 卸载
-        self._offloaded_indices = []
-        for i, score in enumerate(importance):
-            if score < threshold and i < len(blocks):
-                blocks[i].to(target_device)
-                self._offloaded_indices.append(i)
-
-        if self._offloaded_indices:
-            torch.cuda.empty_cache()
-            logger.info(
-                f"选择性卸载: {len(self._offloaded_indices)}/{len(blocks)} 个 block "
-                f"已卸载到 {target_device}，阈值={threshold:.2f}"
-            )
-
-        return list(self._offloaded_indices)
-
-    def load_block(
-        self,
-        blocks: list[torch.nn.Module],
-        block_idx: int,
-        device: torch.device | str = "cuda",
-    ) -> None:
-        """按需加载单个 block 回 GPU
-
-        在推理过程中，当需要某个已卸载的 block 时调用此方法。
-
-        Args:
-            blocks: transformer block 列表
-            block_idx: 需要加载的 block 索引
-            device: 目标 GPU 设备
-        """
-        if block_idx < len(blocks):
-            blocks[block_idx].to(device)
-            if block_idx in self._offloaded_indices:
-                self._offloaded_indices.remove(block_idx)
-
-    def restore(
-        self,
-        blocks: list[torch.nn.Module],
-        device: torch.device | str = "cuda",
-    ) -> None:
-        """恢复所有已卸载的 block 到 GPU
-
-        Args:
-            blocks: transformer block 列表
-            device: 目标 GPU 设备
-        """
-        for idx in self._offloaded_indices:
-            if idx < len(blocks):
-                blocks[idx].to(device)
-
-        count = len(self._offloaded_indices)
-        self._offloaded_indices.clear()
-        if count > 0:
-            logger.info(f"选择性卸载恢复: {count} 个 block 已加载回 GPU")
-
-
-# ---------------------------------------------------------------------------
-# TeaCache 时间步跳过 (FlashVSR inspired) - P2
-# ---------------------------------------------------------------------------
-
-@dataclass
-class TeaCacheSkipperConfig:
-    """TeaCache 时间步跳过配置
-
-    参考 FlashVSR 的多项式拟合缓存机制 (TeaCache)，
-    基于多项式拟合预测当前时间步的输出是否与缓存足够接近，
-    如果接近则跳过当前步的计算，直接使用缓存结果。
-    """
-
-    # 是否启用时间步跳过
-    enabled: bool = True
-    # 多项式阶数: 用于拟合时间步与输出变化的关系
-    poly_order: int = 3
-    # 跳过阈值: 预测变化小于此值时跳过当前步
-    threshold: float = 0.05
-    # 最大连续跳过步数: 防止跳过过多导致质量下降
-    max_skip_steps: int = 3
-
-
-class TeaCacheSkipper:
-    """TeaCache 时间步跳过器
-
-    参考 FlashVSR 的多项式拟合缓存机制 (TeaCache):
-    基于多项式拟合预测当前时间步的输出变化量，
-    如果预测变化量小于阈值，则跳过当前步的完整计算，
-    直接使用缓存结果。
-
-    核心思路:
-    1. 记录最近若干步的 (timestep, output) 数据点
-    2. 使用多项式拟合这些数据点，预测当前步的输出
-    3. 如果预测输出与缓存的最近输出足够接近 (变化 < 阈值)，跳过计算
-    4. 跳过时直接使用缓存的输出作为当前步结果
-
-    优势: 在扩散模型采样的后期步 (变化较小的步) 可以显著节省计算，
-    而在变化较大的前期步仍执行完整计算。
-
-    Usage:
-        skipper = TeaCacheSkipper(TeaCacheSkipperConfig())
-
-        for t in timesteps:
-            # 检查是否可以跳过当前步
-            if skipper.should_skip(t):
-                output = skipper.get_cached_output()
-            else:
-                output = model(noisy_input, t)
-                skipper.update(t, output)
-    """
-
-    def __init__(self, config: TeaCacheSkipperConfig | None = None):
-        self.config = config or TeaCacheSkipperConfig()
-        # 历史数据点: (timestep, output)
-        self._history_t: list[float] = []
-        self._history_outputs: list[torch.Tensor] = []
-        # 最近缓存的输出
-        self._cached_output: torch.Tensor | None = None
-        # 连续跳过计数
-        self._consecutive_skips: int = 0
-
-    def update(
-        self,
-        timestep: float,
-        output: torch.Tensor,
-    ) -> None:
-        """更新缓存历史
-
-        在执行完整计算后调用此方法，记录新的 (timestep, output) 数据点。
-
-        Args:
-            timestep: 当前时间步
-            output: 当前步的模型输出
-        """
-        self._history_t.append(float(timestep))
-        self._history_outputs.append(output.detach())
-
-        # 保持历史数据量不超过多项式拟合所需
-        max_points = self.config.poly_order + 2
-        while len(self._history_t) > max_points:
-            self._history_t.pop(0)
-            self._history_outputs.pop(0)
-
-        self._cached_output = output.detach()
-        self._consecutive_skips = 0
-
-    def should_skip(self, timestep: float) -> bool:
-        """判断是否应跳过当前时间步
-
-        使用多项式拟合预测当前步的输出变化量，
-        如果变化量小于阈值则建议跳过。
-
-        Args:
-            timestep: 当前时间步
-
-        Returns:
-            True 表示可以跳过当前步
-        """
-        if not self.config.enabled:
-            return False
-
-        # 没有足够的历史数据时不能跳过
-        if len(self._history_t) < self.config.poly_order + 1:
-            return False
-
-        # 已达到最大连续跳过次数
-        if self._consecutive_skips >= self.config.max_skip_steps:
-            return False
-
-        # 多项式拟合预测变化量
-        predicted_change = self._predict_change(timestep)
-
-        if predicted_change is not None and predicted_change < self.config.threshold:
-            return True
-
-        return False
-
-    def get_cached_output(self) -> torch.Tensor | None:
-        """获取缓存的输出
-
-        在 should_skip() 返回 True 时调用此方法获取跳过步的输出。
-
-        Returns:
-            缓存的模型输出，或 None (无缓存时)
-        """
-        if self._cached_output is not None:
-            self._consecutive_skips += 1
-            return self._cached_output.clone()
-        return None
-
-    def _predict_change(self, timestep: float) -> float | None:
-        """使用多项式拟合预测当前步的输出变化量
-
-        基于历史 (timestep, output_norm) 数据点拟合多项式，
-        预测当前 timestep 的输出范数，与最近输出范数的差值作为变化量。
-
-        Args:
-            timestep: 待预测的时间步
-
-        Returns:
-            预测的变化量 (非负)，或 None (拟合失败时)
-        """
-        try:
-            t_arr = torch.tensor(self._history_t, dtype=torch.float32)
-            # 计算每个历史输出的范数作为拟合目标
-            o_norms = torch.tensor(
-                [o.norm().item() for o in self._history_outputs],
-                dtype=torch.float32,
-            )
-
-            # 多项式拟合: 使用最小二乘法
-            order = min(self.config.poly_order, len(self._history_t) - 1)
-            coeffs = torch.linalg.lstsq(
-                torch.vander(t_arr, N=order + 1), o_norms.unsqueeze(1)
-            ).solution.squeeze(1)
-
-            # 预测当前 timestep 的输出范数
-            t_pred = torch.tensor([timestep], dtype=torch.float32)
-            predicted_norm = (torch.vander(t_pred, N=order + 1) @ coeffs).item()
-
-            # 变化量 = 预测范数与最近输出范数的差值
-            recent_norm = o_norms[-1].item()
-            change = abs(predicted_norm - recent_norm)
-
-            return change
-
-        except Exception as e:
-            logger.debug(f"TeaCache 多项式拟合失败: {e}")
-            return None
-
-    def reset(self) -> None:
-        """重置缓存状态 (新序列开始时调用)"""
-        self._history_t.clear()
-        self._history_outputs.clear()
-        self._cached_output = None
-        self._consecutive_skips = 0
 
 
 # ---------------------------------------------------------------------------
@@ -1144,7 +1239,6 @@ class TiledVAEHook:
         hook = TiledVAEHook(vae_model)
         hook.install()
         # 此后 vae.decode(..., tiled=True) 会自动捕获 tile 输出
-        # 并在 decode 完成后设置 vae._last_tile_outputs 等属性
         result = vae.decode(batch, tiled=True, ...)
         hook.uninstall()
     """
@@ -1171,7 +1265,6 @@ class TiledVAEHook:
                                            tile_overlap=tile_overlap, **kwargs)
 
             # 尝试从 VAE 内部状态捕获 tile 信息
-            # 某些 VAE 实现会在 decode 过程中设置 _internal_tile_state
             tile_state = getattr(self.vae, '_internal_tile_state', None)
             if tile_state and 'outputs' in tile_state and 'positions' in tile_state:
                 self.vae._last_tile_outputs = tile_state['outputs']
@@ -1180,7 +1273,6 @@ class TiledVAEHook:
                 self.vae._last_tile_overlap = tile_overlap if isinstance(tile_overlap, int) else tile_overlap[0]
                 logger.debug(f"TiledVAEHook: 捕获到 {len(tile_state['outputs'])} 个 tile 输出")
             else:
-                # 无法捕获内部 tile 状态，标记为不可用
                 self.vae._last_tile_outputs = None
                 self.vae._last_tile_positions = None
 
@@ -1198,4 +1290,8 @@ class TiledVAEHook:
             self.vae.decode = self._original_decode
             self._original_decode = None
         self._installed = False
+        # 清理临时属性
+        for attr in ['_last_tile_outputs', '_last_tile_positions', '_last_tile_size', '_last_tile_overlap']:
+            if hasattr(self.vae, attr):
+                delattr(self.vae, attr)
         logger.info("TiledVAEHook 已卸载")

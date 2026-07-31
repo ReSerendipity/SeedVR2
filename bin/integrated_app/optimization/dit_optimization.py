@@ -1,19 +1,38 @@
-"""DiT 模型架构优化模块
+﻿"""DiT 模型架构优化模块
 
-提供多种 DiT (Diffusion Transformer) 架构优化技术，
-用于减少推理计算量、增强位置编码灵活性、注入条件控制信号等。
+本模块属于 SeedVR2 视频修复项目的 AI 推理优化层，提供多种 DiT (Diffusion Transformer)
+架构级优化技术，用于减少推理计算量、增强位置编码灵活性、注入条件控制信号、
+实现高效注意力机制等。
+
+核心技术栈:
+- PyTorch: 神经网络构建与张量计算
+- 稀疏注意力: 可学习掩码跳过冗余计算
+- 旋转位置编码 (RoPE): N维位置编码支持动态分辨率
+- ControlNet: 零初始化条件注入框架
+- 频域注意力: DCT/FFT变换后计算全局注意力
+- Mamba SSM: 线性复杂度时序建模
+- Codebook Lookup: 离散码本+Transformer预测
+- 多模态融合: 事件相机+帧特征融合
 
 竞品来源:
 - FlashVSR: LCSA 稀疏注意力 (P0)
 - HunyuanVideo: N 维 RoPE 位置编码 (P2)
 - DiffBIR: ControlNet 条件注入 (P2)
 - HunyuanVideo: 双流 DiT 架构 MMDoubleStreamBlock (P3)
+- FTVSR: 频域注意力 (P3)
+- SCST: Mamba 时序建模 STCM (P3)
+- CodeFormer: Codebook Lookup + Transformer (P3)
+- EvTexture: 多模态融合 (P3)
 
 Key Features:
 - LCSA 稀疏注意力: FlashVSR 风格的块稀疏注意力，通过掩码屏蔽不重要的注意力块减少冗余计算
-- N 维 RoPE 位置编码参考: HunyuanVideo 风格的灵活位置编码适配不同分辨率和视频长度
-- ControlNet 条件注入参考: DiffBIR 风格的 13 层控制信号注入框架
-- 双流 DiT 架构参考: HunyuanVideo MMDoubleStreamBlock 风格的文本/视觉分离调制
+- N 维 RoPE 位置编码: HunyuanVideo 风格的灵活位置编码适配不同分辨率和视频长度
+- ControlNet 条件注入: DiffBIR 风格的 13 层控制信号注入框架
+- 双流 DiT 架构: HunyuanVideo MMDoubleStreamBlock 风格的文本/视觉分离调制
+- 频域注意力: FTVSR 风格的 DCT 变换后全局注意力计算
+- Mamba 时序建模: SSM 状态空间模型实现线性复杂度长序列建模
+- Codebook Lookup: 离散码本量化 + Transformer 预测范式
+- 多模态融合: 事件纹理与帧特征融合
 """
 
 import logging

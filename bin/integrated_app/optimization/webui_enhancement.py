@@ -1,23 +1,28 @@
-"""WebUI / 用户交互增强模块
+﻿"""WebUI / 用户交互增强模块
 
-参考多个竞品项目的 WebUI 设计最佳实践，提供交互增强的框架与模式参考。
-本模块为设计参考与框架实现，不直接绑定具体前端框架，可按需对接 Gradio 等。
+所属项目: SeedVR2 (SeedVR2 视频/图像修复应用)
+核心技术栈: Python, PyYAML, Gradio设计模式, 文件管理, 用户偏好持久化
 
-竞品来源:
+本模块提供WebUI用户交互增强的框架实现与设计模式参考，整合多个竞品项目
+的WebUI最佳实践。模块为框架级实现，不直接绑定具体前端框架，可按需对接
+Gradio、HTMX或其他前端技术栈。
+
+主要功能:
+- WebUIDesignReference: SUPIR风格Gradio WebUI设计参考（逐步执行、参数面板、滑块对比）
+- FileListManager: Waifu2x-Extension-GUI风格文件列表状态机+实时进度上报
+- ParameterPanelOptimizer: clarity-upscaler风格参数面板优化（预设组合、参数联动）
+- AccordionLayoutManager: DiffBIR风格Accordion分组布局管理
+- SettingsPersistence: Waifu2x-Extension-GUI风格用户偏好持久化（config.yaml）
+- FileDropHandler: upscayl风格文件拖放处理（类型过滤、文件夹扫描）
+- 工厂函数: 快速创建默认配置的WebUI组件
+
+参考竞品与设计来源:
 - SUPIR: Gradio WebUI 逐步执行 + 参数面板设计 (P1)
 - Waifu2x-Extension-GUI: 文件列表管理 + 进度上报 (P1)
 - clarity-upscaler: CFG Scale/Randomness/Denoising Strength 参数面板 (P1)
 - DiffBIR: Accordion 分组设计 (Basic/Condition/Sampler) (P2)
 - Waifu2x-Extension-GUI: 设置持久化 (P2)
 - upscayl: 文件拖放支持 (P2)
-
-Key Features:
-- Gradio WebUI 设计参考: 逐步执行、参数面板、滑块对比 UI
-- 文件列表管理: 表格视图状态机 + 实时进度上报
-- 参数面板优化: CFG Scale/Randomness/Denoising Strength 组合设计
-- Accordion 分组设计: Basic/Condition/Sampler 三组折叠面板
-- 设置持久化: 用户偏好保存/加载 (config.yaml)
-- 文件拖放支持: 图片/文件夹拖放添加模式
 """
 
 import logging

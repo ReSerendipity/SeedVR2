@@ -16,6 +16,13 @@ class RestoreError(Exception):
     code: str = "RESTORE_ERROR"
 
     def __init__(self, message: str = "视频修复操作失败", *, code: str | None = None, detail: dict | None = None):
+        """初始化基础异常。
+
+        Args:
+            message: 人类可读的错误消息。
+            code: 可选的错误码，覆盖类级别的 code 属性。
+            detail: 可选的结构化上下文字典，用于前端展示或日志记录。
+        """
         self.message = message
         if code is not None:
             self.code = code
@@ -40,11 +47,18 @@ class ModelLoadError(RestoreError):
     """模型加载失败
 
     当模型权重文件损坏、格式不兼容或加载过程中发生 I/O 错误时抛出。
+    HTTP 状态码 503（Service Unavailable）。
     """
 
     code = "MODEL_LOAD_FAILED"
 
     def __init__(self, message: str = "模型加载失败", *, detail: dict | None = None):
+        """初始化模型加载失败异常。
+
+        Args:
+            message: 错误消息。
+            detail: 结构化上下文信息。
+        """
         super().__init__(message, detail=detail)
 
     @classmethod
@@ -56,11 +70,18 @@ class ModelUnloadError(RestoreError):
     """模型卸载失败
 
     当模型卸载过程中发生错误（如 GPU 资源释放失败）时抛出。
+    HTTP 状态码 503（Service Unavailable）。
     """
 
     code = "MODEL_UNLOAD_FAILED"
 
     def __init__(self, message: str = "模型卸载失败", *, detail: dict | None = None):
+        """初始化模型卸载失败异常。
+
+        Args:
+            message: 错误消息。
+            detail: 结构化上下文信息。
+        """
         super().__init__(message, detail=detail)
 
     @classmethod
@@ -72,11 +93,18 @@ class InsufficientVRAMError(RestoreError):
     """GPU 显存不足
 
     当推理所需 GPU 显存超过可用显存时抛出，与系统内存不足区分。
+    HTTP 状态码 422（Unprocessable Entity）。
     """
 
     code = "INSUFFICIENT_VRAM"
 
     def __init__(self, message: str = "GPU 显存不足", *, detail: dict | None = None):
+        """初始化 GPU 显存不足异常。
+
+        Args:
+            message: 错误消息。
+            detail: 结构化上下文信息（如需要多少显存、可用多少）。
+        """
         super().__init__(message, detail=detail)
 
     @classmethod
@@ -88,11 +116,18 @@ class InsufficientRAMError(RestoreError):
     """系统内存不足
 
     当推理所需系统内存超过可用内存时抛出，与 GPU 显存不足区分。
+    HTTP 状态码 422（Unprocessable Entity）。
     """
 
     code = "INSUFFICIENT_RAM"
 
     def __init__(self, message: str = "系统内存不足", *, detail: dict | None = None):
+        """初始化系统内存不足异常。
+
+        Args:
+            message: 错误消息。
+            detail: 结构化上下文信息。
+        """
         super().__init__(message, detail=detail)
 
     @classmethod
@@ -104,11 +139,18 @@ class InferenceError(RestoreError):
     """推理执行失败
 
     当模型推理过程中发生运行时错误（如 CUDA 错误、张量维度不匹配）时抛出。
+    HTTP 状态码 500（Internal Server Error）。
     """
 
     code = "INFERENCE_FAILED"
 
     def __init__(self, message: str = "推理执行失败", *, detail: dict | None = None):
+        """初始化推理执行失败异常。
+
+        Args:
+            message: 错误消息。
+            detail: 结构化上下文信息。
+        """
         super().__init__(message, detail=detail)
 
     @classmethod
@@ -120,11 +162,18 @@ class BlockSwapError(RestoreError):
     """BlockSwap 优化失败
 
     当 BlockSwap 显存优化策略执行失败（如块交换调度错误）时抛出。
+    HTTP 状态码 500（Internal Server Error）。
     """
 
     code = "BLOCK_SWAP_FAILED"
 
     def __init__(self, message: str = "BlockSwap 优化失败", *, detail: dict | None = None):
+        """初始化 BlockSwap 优化失败异常。
+
+        Args:
+            message: 错误消息。
+            detail: 结构化上下文信息。
+        """
         super().__init__(message, detail=detail)
 
     @classmethod
@@ -136,11 +185,18 @@ class VAEDecodeError(RestoreError):
     """VAE 解码失败
 
     当 VAE 解码潜空间表示为像素图像时发生错误抛出。
+    HTTP 状态码 500（Internal Server Error）。
     """
 
     code = "VAE_DECODE_FAILED"
 
     def __init__(self, message: str = "VAE 解码失败", *, detail: dict | None = None):
+        """初始化 VAE 解码失败异常。
+
+        Args:
+            message: 错误消息。
+            detail: 结构化上下文信息。
+        """
         super().__init__(message, detail=detail)
 
     @classmethod
@@ -152,11 +208,18 @@ class VAEEncodeError(RestoreError):
     """VAE 编码失败
 
     当 VAE 编码像素图像为潜空间表示时发生错误抛出。
+    HTTP 状态码 500（Internal Server Error）。
     """
 
     code = "VAE_ENCODE_FAILED"
 
     def __init__(self, message: str = "VAE 编码失败", *, detail: dict | None = None):
+        """初始化 VAE 编码失败异常。
+
+        Args:
+            message: 错误消息。
+            detail: 结构化上下文信息。
+        """
         super().__init__(message, detail=detail)
 
     @classmethod
@@ -168,11 +231,18 @@ class ConfigError(RestoreError):
     """配置验证失败
 
     当应用配置项缺失、类型错误或值不合法时抛出。
+    HTTP 状态码 400（Bad Request）。
     """
 
     code = "CONFIG_ERROR"
 
     def __init__(self, message: str = "配置验证失败", *, detail: dict | None = None):
+        """初始化配置验证失败异常。
+
+        Args:
+            message: 错误消息。
+            detail: 结构化上下文信息（如哪个配置项出错）。
+        """
         super().__init__(message, detail=detail)
 
     @classmethod
@@ -184,11 +254,18 @@ class ModelFileNotFoundError(RestoreError):
     """模型文件未找到
 
     当指定的模型权重文件或配置文件在磁盘上不存在时抛出。
+    HTTP 状态码 404（Not Found）。
     """
 
     code = "MODEL_FILE_NOT_FOUND"
 
     def __init__(self, message: str = "模型文件未找到", *, detail: dict | None = None):
+        """初始化模型文件未找到异常。
+
+        Args:
+            message: 错误消息。
+            detail: 结构化上下文信息（如期望的文件路径）。
+        """
         super().__init__(message, detail=detail)
 
     @classmethod
@@ -211,11 +288,19 @@ class InferenceCancelledError(RestoreError):
     - asyncio.CancelledError: 协程级取消，无法中断 to_thread 中的同步代码
     - InferenceCancelledError: 引擎主动检查 cancel event 后抛出，
       可在同步推理代码中触发，确保 GPU 资源及时释放
+
+    HTTP 状态码 400（Bad Request，语义上类似 499 Client Closed Request）。
     """
 
     code = "INFERENCE_CANCELLED"
 
     def __init__(self, message: str = "推理已被取消", *, detail: dict | None = None):
+        """初始化推理取消异常。
+
+        Args:
+            message: 错误消息。
+            detail: 结构化上下文信息。
+        """
         super().__init__(message, detail=detail)
 
     @classmethod

@@ -1,6 +1,15 @@
-"""后处理 / 颜色校正 / 质量增强模块
+﻿"""后处理 / 颜色校正 / 质量增强模块
 
-提供多种后处理和质量增强技术。
+本模块属于 SeedVR2 视频修复项目的 AI 推理优化层，提供图像/视频修复后的
+多种后处理和质量增强技术，包括小波重建、锐化、颜色保真度控制、Alpha通道处理、
+EXIF元数据保留、文本区域专项修复等功能。
+
+核心技术栈:
+- OpenCV (cv2): 图像处理、滤波、几何变换
+- NumPy: 数组操作与数值计算
+- PyWavelets (pywt): 小波分解与重构
+- Pillow (PIL): EXIF元数据读写
+- EasyOCR: 文本区域检测
 
 竞品来源:
 - SCST/DiffBIR/FlashVSR/Upscale-A-Video: Wavelet 颜色校正 (P0) [已在 color_fix.py 实现]
@@ -15,13 +24,14 @@
 - clarity-upscaler: 多步放大策略 (P2)
 
 Key Features:
-- 小波重建后处理 (DiffBIR wavelet_reconstruction)
-- SRVGGNetCompact 轻量级后处理/锐化
-- Alpha 通道处理
-- EXIF 元数据复制
-- 文本修复流水线 (EasyOCR + Real-ESRGAN)
-- Fidelity Weight 控制
-- 多步放大策略
+- 小波重建后处理 (DiffBIR wavelet_reconstruction): 高低频融合提升锐度
+- SRVGGNetCompact 轻量级后处理/锐化: Unsharp Mask/Laplacian锐化
+- Alpha 通道处理: 透明通道独立处理与合成
+- EXIF 元数据复制: 保留原始拍摄信息
+- 文本修复流水线: EasyOCR检测 + 区域增强 + 羽化合成
+- Fidelity Weight 控制: 质量-保真度平衡
+- 多步放大策略: 分阶段低倍率放大避免质量下降
+- 统一后处理入口: 可配置的后处理流水线
 """
 
 import logging
@@ -292,6 +302,11 @@ class MultiStepUpscaler:
     """
 
     def __init__(self, config: MultiStepUpscaleConfig | None = None):
+        """初始化多步放大器
+
+        Args:
+            config: 多步放大配置，为 None 时使用默认配置
+        """
         self.config = config or MultiStepUpscaleConfig()
 
     def compute_steps(self) -> list[float]:

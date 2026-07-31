@@ -1,21 +1,22 @@
-"""显存优化工具链模块
+﻿"""显存优化工具链集成模块 - SeedVR2 视频修复项目
 
-集成多种显存优化技术，降低推理时的 VRAM 占用，提升推理速度。
-本模块为集成框架，各优化技术可按需启用/禁用。
+本模块集成多种显存优化技术，提供统一的配置和编排框架，降低推理时的 VRAM 占用，
+提升推理速度。各优化技术可按需独立启用/禁用，通过编排器按正确顺序应用。
 
-竞品来源:
-- CogVideo/torchao: FP8/INT8 量化推理 (P1)
-- Stream-DiffVSR: TensorRT 加速推理 (P2)
-- Fast-SRGAN: torch.compile 编译优化 (P2)
-- CogVideo/StableVSR/DiffVSR: xformers 显存高效注意力 (P1)
-- RVRT: 逐层选择性 Gradient Checkpointing (P2)
+所属项目: SeedVR2 (基于 ComfyUI-SeedVR2_VideoUpscaler 独立重构)
+核心技术栈: PyTorch, torchao (FP8量化), xformers, torch.compile, Gradient Checkpointing
 
-Key Features:
-- FP8 量化集成框架: torchao FP8/INT8 量化推理
-- TensorRT 加速框架: 引擎编译与推理加速参考
-- torch.compile 集成: mode="max-autotune" 编译优化
-- xformers 显存高效注意力: 集成框架
-- Gradient Checkpointing: 逐层选择性 checkpoint 启用/禁用
+集成的优化技术（按优先级）:
+    - P1: FP8/INT8 权重量化（torchao）- 参考 CogVideo
+    - P1: xformers 显存高效注意力 - 参考 CogVideo/StableVSR/DiffVSR
+    - P2: TensorRT 加速推理（参考框架）- 参考 Stream-DiffVSR
+    - P2: torch.compile 编译优化 - 参考 Fast-SRGAN
+    - P2: 逐层选择性 Gradient Checkpointing - 参考 RVRT
+
+注意事项:
+    - FP8 量化与 TensorRT 互斥，不应同时启用
+    - torch.compile 与 TensorRT 互斥，不应同时启用
+    - 工具链提供两种预设：低显存模式（最大化节省）和高性能模式（优先速度）
 """
 
 import logging
@@ -29,23 +30,22 @@ import torch
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
+# ===========================================================================
 # 1. FP8 量化集成框架 (CogVideo/torchao P1)
-# ---------------------------------------------------------------------------
+# ===========================================================================
 
 class QuantizationDtype(str, Enum):
-    """量化数据类型
+    """量化数据类型枚举
 
-    参考 CogVideo 使用 torchao 的 FP8/INT8 量化:
-    - FP8: 将模型权重和/或激活量化为 8-bit 浮点，显著减少显存
-    - INT8: 将模型权重量化为 8-bit 整数，进一步压缩
-    - FLOAT8_E4M3FN: E4M3 格式 (指数4位，尾数3位)，适合前向传播
-    - FLOAT8_E5M2: E5M2 格式 (指数5位，尾数2位)，适合反向传播梯度
+    参考 CogVideo 使用 torchao 的 FP8/INT8 量化策略：
+    - FP8 量化：将模型权重从 FP16 压缩到 8-bit 浮点，显存节省约 50%
+    - INT8 量化：将模型权重量化为 8-bit 整数，进一步压缩但精度损失略大
 
-    CogVideo 的量化策略:
-    - 权重量化: float8_weight_only() 或 float8_dynamic_activation_float8_weight()
-    - 激活量化: float8_dynamic_activation_float8_weight()
-    - 仅推理场景: 优先使用 float8_weight_only()
+    Attributes:
+        FP8: 通用 FP8 量化（默认）
+        INT8: 8-bit 整数量化
+        FLOAT8_E4M3FN: E4M3 格式（指数4位，尾数3位），适合前向传播权重
+        FLOAT8_E5M2: E5M2 格式（指数5位，尾数2位），适合梯度/反向传播
     """
     FP8 = "fp8"
     INT8 = "int8"
@@ -54,12 +54,14 @@ class QuantizationDtype(str, Enum):
 
 
 class QuantizationGranularity(str, Enum):
-    """量化粒度
+    """量化粒度枚举
 
-    参考 torchao 的量化粒度选项:
-    - PER_TENSOR: 整个张量共享一个量化参数
-    - PER_ROW: 每行独立量化 (适合线性层权重)
-    - PER_CHANNEL: 每个输出通道独立量化
+    参考 torchao 的量化粒度选项，控制量化参数的共享范围。
+
+    Attributes:
+        PER_TENSOR: 整个张量共享一组量化参数（最简单）
+        PER_ROW: 每行独立量化（适合线性层权重，精度更好）
+        PER_CHANNEL: 每个输出通道独立量化（精度最好但开销略大）
     """
     PER_TENSOR = "per_tensor"
     PER_ROW = "per_row"
@@ -68,69 +70,78 @@ class QuantizationGranularity(str, Enum):
 
 @dataclass
 class FP8QuantConfig:
-    """FP8 量化配置
+    """FP8 量化配置数据类
 
-    参考 CogVideo 使用 torchao 的 FP8 量化策略:
-    - 权重量化到 FP8 减少显存占用约 50%
-    - 动态激活量化保持推理精度
-    - 可选择性排除关键模块 (如 LayerNorm, Embedding)
+    参考 CogVideo 使用 torchao 的 FP8 量化策略配置：
+    - 权重量化到 FP8 可减少约 50% 权重显存占用
+    - 动态激活量化在推理时量化激活，保持精度
+    - 可排除关键模块（如 LayerNorm、Embedding）避免精度损失
 
-    CogVideo 的典型配置:
-    - quantize_mode = "float8_weight_only" (仅权重量化)
-    - 排除: layernorm, embedding, output projection
+    Attributes:
+        enabled: 是否启用 FP8 量化
+        dtype: 量化数据类型（默认 FP8）
+        granularity: 量化粒度（默认 PER_ROW）
+        mode: 量化模式：
+            - "weight_only": 仅量化权重（推荐用于推理，速度快）
+            - "dynamic_activation_weight": 权重+动态激活量化（精度更高）
+        exclude_module_types: 排除量化的模块类型列表（类名子串匹配）
+        exclude_module_names: 排除量化的模块名列表（名称子串匹配）
+        verify_accuracy: 量化后是否验证精度（预留功能）
+        accuracy_tolerance: 精度验证余弦相似度下限
     """
     enabled: bool = False
-    # 量化数据类型
     dtype: QuantizationDtype = QuantizationDtype.FP8
-    # 量化粒度
     granularity: QuantizationGranularity = QuantizationGranularity.PER_ROW
-    # 量化模式: "weight_only" | "dynamic_activation_weight"
     mode: str = "weight_only"
-    # 排除量化的模块类型 (类名子串匹配)
     exclude_module_types: list[str] = field(default_factory=lambda: [
         "LayerNorm", "RMSNorm", "Embedding", "TimestepEmbedding",
     ])
-    # 排除量化的模块名 (名称子串匹配)
     exclude_module_names: list[str] = field(default_factory=lambda: [
         "norm", "embed", "time_embed", "pos_embed",
     ])
-    # 是否在量化后验证精度
     verify_accuracy: bool = True
-    # 精度验证容忍度 (余弦相似度下限)
     accuracy_tolerance: float = 0.98
 
 
 class FP8Quantizer:
     """FP8 量化集成框架
 
-    参考 CogVideo 使用 torchao 的 FP8/INT8 量化推理:
+    参考 CogVideo 使用 torchao 的 FP8/INT8 量化推理实现。
     将模型权重量化为 8-bit 格式以减少显存占用和加速推理。
 
-    依赖: torchao (pip install torchao)
+    依赖: torchao（pip install torchao）
 
-    集成方式:
-    1. 检测 torchao 可用性
-    2. 按配置排除关键模块
-    3. 对模型应用量化
-    4. 验证量化精度
-    5. 提供量化状态查询接口
+    集成流程:
+        1. 检测 torchao 是否可用
+        2. 按配置排除不需要量化的模块（LayerNorm、Embedding 等）
+        3. 对 Linear 层应用量化
+        4. （可选）验证量化精度
+        5. 提供量化状态查询接口
 
     Usage:
         config = FP8QuantConfig(enabled=True, mode="weight_only")
         quantizer = FP8Quantizer(config)
 
-        # 检查可用性
         if quantizer.is_available():
             model = quantizer.quantize(model)
     """
 
     def __init__(self, config: FP8QuantConfig | None = None):
+        """初始化 FP8 量化器
+
+        Args:
+            config: 量化配置，None 时使用默认配置（禁用状态）
+        """
         self.config = config or FP8QuantConfig()
         self._quantized: bool = False
         self._original_dtypes: dict[str, torch.dtype] = {}
 
     def is_available(self) -> bool:
-        """检测 torchao 是否可用"""
+        """检测 torchao 库是否可用
+
+        Returns:
+            bool: torchao 已安装返回 True，否则返回 False
+        """
         try:
             import torchao  # noqa: F401
             return True
@@ -139,7 +150,11 @@ class FP8Quantizer:
             return False
 
     def get_torchao_version(self) -> str | None:
-        """获取 torchao 版本"""
+        """获取 torchao 版本号
+
+        Returns:
+            str | None: 版本字符串；未安装返回 None
+        """
         try:
             import torchao
             return getattr(torchao, "__version__", "unknown")
@@ -151,18 +166,18 @@ class FP8Quantizer:
 
         参考 CogVideo 的量化流程:
         1. 遍历模型所有子模块
-        2. 排除不需要量化的模块 (LayerNorm, Embedding 等)
-        3. 对 Linear 层应用 float8_weight_only 或 float8_dynamic_activation_float8_weight
-        4. 记录原始数据类型用于恢复
+        2. 排除不需要量化的模块（LayerNorm、Embedding 等）
+        3. 对 Linear 层应用 float8_weight_only 或动态激活量化
+        4. 记录原始数据类型用于恢复（预留功能）
 
         Args:
-            model: 要量化的模型
+            model: 要量化的 PyTorch 模型
 
         Returns:
-            量化后的模型
+            torch.nn.Module: 量化后的模型（原地修改）
 
         Raises:
-            RuntimeError: torchao 不可用或量化失败
+            RuntimeError: torchao 不可用或量化失败时抛出
         """
         if not self.config.enabled:
             logger.debug("FP8 量化已禁用，跳过")
@@ -183,10 +198,8 @@ class FP8Quantizer:
         except ImportError:
             raise RuntimeError("torchao 导入失败")
 
-        # 记录原始数据类型
         self._save_original_dtypes(model)
 
-        # 统计将要量化的模块
         quantizable_count = 0
         excluded_count = 0
         for name, module in model.named_modules():
@@ -201,7 +214,6 @@ class FP8Quantizer:
             f"可量化层={quantizable_count}, 排除层={excluded_count}"
         )
 
-        # 应用量化
         try:
             if self.config.mode == "weight_only":
                 from torchao.quantization import float8_weight_only, quantize_
@@ -222,21 +234,26 @@ class FP8Quantizer:
         self._quantized = True
         logger.info("FP8 量化已应用")
 
-        # 验证精度
         if self.config.verify_accuracy:
             logger.info("FP8 量化精度验证 (需要后续推理对比)")
 
         return model
 
     def _should_exclude(self, name: str, module: torch.nn.Module) -> bool:
-        """判断模块是否应排除量化"""
-        # 检查模块类型
+        """判断模块是否应排除在量化之外（内部方法）
+
+        Args:
+            name: 模块完整名称
+            module: 模块实例
+
+        Returns:
+            bool: 应排除返回 True，否则返回 False
+        """
         module_type = type(module).__name__
         for excluded_type in self.config.exclude_module_types:
             if excluded_type in module_type:
                 return True
 
-        # 检查模块名
         for excluded_name in self.config.exclude_module_names:
             if excluded_name in name.lower():
                 return True
@@ -244,30 +261,40 @@ class FP8Quantizer:
         return False
 
     def _save_original_dtypes(self, model: torch.nn.Module):
-        """保存模型各模块的原始数据类型"""
+        """保存模型各模块参数的原始数据类型（内部方法）
+
+        Args:
+            model: 模型
+        """
         for name, param in model.named_parameters():
             self._original_dtypes[name] = param.dtype
 
     @property
     def is_quantized(self) -> bool:
-        """模型是否已量化"""
+        """模型是否已完成量化
+
+        Returns:
+            bool: 已量化返回 True
+        """
         return self._quantized
 
     def get_memory_savings_estimate(self) -> dict[str, Any]:
-        """估算量化后的显存节省
+        """估算量化后的显存节省量
 
         Returns:
-            包含估算信息的字典
+            dict: 包含估算信息的字典：
+                - estimated_savings_ratio (float): 预估节省比例（0.0-1.0）
+                - quantization_dtype (str): 使用的量化类型
+                - quantization_mode (str): 量化模式
+                - note (str): 说明文本
         """
         if not self._quantized:
             return {"estimated_savings_ratio": 0.0, "note": "模型未量化"}
 
-        # FP8 量化大约节省 50% 权重显存 (FP16 -> FP8)
-        # INT8 量化节省约 50% (FP16 -> INT8)
         if self.config.dtype in (QuantizationDtype.FP8, QuantizationDtype.INT8):
             savings_ratio = 0.5
         else:
-            savings_ratio = 0.5  # float8 同样约 50%
+            savings_ratio = 0.5
 
         return {
             "estimated_savings_ratio": savings_ratio,
@@ -277,55 +304,55 @@ class FP8Quantizer:
         }
 
 
-# ---------------------------------------------------------------------------
+# ===========================================================================
 # 2. TensorRT 加速框架 (Stream-DiffVSR P2)
-# ---------------------------------------------------------------------------
+# ===========================================================================
 
 @dataclass
 class TensorRTConfig:
-    """TensorRT 加速配置
+    """TensorRT 加速配置数据类
 
     参考 Stream-DiffVSR 的 TensorRT 集成:
-    - 将 PyTorch 模型编译为 TensorRT 引擎
+    - 将 PyTorch 模型编译为 TensorRT 引擎可显著降低推理延迟
     - 支持动态 batch size 和分辨率
     - 提供 FP16/INT8 精度选项
-    - 缓存编译后的引擎避免重复编译
+    - 引擎缓存避免重复编译开销
 
-    Stream-DiffVSR 的集成方式:
-    1. torch.onnx.export 导出 ONNX
-    2. trt.Builder 编译 TensorRT 引擎
-    3. 缓存引擎到磁盘
-    4. 推理时加载缓存引擎
+    Attributes:
+        enabled: 是否启用 TensorRT 加速
+        precision: 工作精度："fp32" / "fp16" / "int8"
+        cache_engine: 是否缓存编译后的引擎到磁盘
+        cache_dir: 引擎缓存目录
+        max_batch_size: 最大 batch size
+        min_resolution: 最小支持分辨率
+        max_resolution: 最大支持分辨率
+        optimization_level: 优化级别（1-5，越高优化越激进）
+        tf32_enabled: 是否启用 TF32 精度（Ampere+ GPU）
     """
     enabled: bool = False
-    # 工作精度: "fp32" | "fp16" | "int8"
     precision: str = "fp16"
-    # 是否缓存编译后的引擎
     cache_engine: bool = True
-    # 引擎缓存目录
     cache_dir: str = ".tensorrt_cache"
-    # 最大 batch size
     max_batch_size: int = 1
-    # 最小分辨率
     min_resolution: int = 512
-    # 最大分辨率
     max_resolution: int = 4096
-    # 优化级别 (1-5)
     optimization_level: int = 3
-    # 是否启用 TF32 精度
     tf32_enabled: bool = True
 
 
 class TensorRTRuntime:
-    """TensorRT 加速框架
+    """TensorRT 加速框架（参考实现）
 
-    参考 Stream-DiffVSR 的 TensorRT 引擎编译与推理加速:
-    将 PyTorch 模型导出并编译为 TensorRT 引擎，实现低延迟推理。
+    参考 Stream-DiffVSR 的 TensorRT 引擎编译与推理加速设计。
+    将 PyTorch 模型导出并编译为 TensorRT 引擎，可实现低延迟推理。
 
-    依赖: tensorrt (pip install tensorrt)
+    依赖: tensorrt（pip install tensorrt）
 
-    注意: TensorRT 引擎与 GPU 架构绑定，更换 GPU 需要重新编译。
-    SeedVR2 当前仅支持 NVIDIA CUDA，与 TensorRT 兼容。
+    注意:
+        - TensorRT 是参考框架，当前仅提供接口定义，未实现完整编译流程
+        - TensorRT 引擎与 GPU 架构绑定，更换 GPU 需要重新编译
+        - SeedVR2 当前仅支持 NVIDIA CUDA，与 TensorRT 兼容
+        - TensorRT 与 FP8 量化、torch.compile 互斥
 
     Usage:
         config = TensorRTConfig(enabled=True, precision="fp16")
@@ -337,12 +364,21 @@ class TensorRTRuntime:
     """
 
     def __init__(self, config: TensorRTConfig | None = None):
+        """初始化 TensorRT 运行时
+
+        Args:
+            config: TensorRT 配置，None 时使用默认配置（禁用状态）
+        """
         self.config = config or TensorRTConfig()
         self._engine = None
         self._compiled = False
 
     def is_available(self) -> bool:
-        """检测 TensorRT 是否可用"""
+        """检测 TensorRT 是否可用
+
+        Returns:
+            bool: tensorrt 已安装返回 True
+        """
         try:
             import tensorrt  # noqa: F401
             return True
@@ -351,7 +387,11 @@ class TensorRTRuntime:
             return False
 
     def get_tensorrt_version(self) -> str | None:
-        """获取 TensorRT 版本"""
+        """获取 TensorRT 版本号
+
+        Returns:
+            str | None: 版本字符串；未安装返回 None
+        """
         try:
             import tensorrt
             return getattr(tensorrt, "__version__", "unknown")
@@ -364,24 +404,24 @@ class TensorRTRuntime:
         sample_input: torch.Tensor | tuple[torch.Tensor, ...],
         cache_key: str = "",
     ) -> Any:
-        """编译模型为 TensorRT 引擎
+        """编译模型为 TensorRT 引擎（参考框架）
 
         参考 Stream-DiffVSR 的编译流程:
         1. 检查缓存
         2. 导出 ONNX
         3. 编译 TensorRT 引擎
-        4. 缓存引擎
+        4. 缓存引擎到磁盘
 
         Args:
             model: PyTorch 模型
-            sample_input: 示例输入 (用于 tracing)
-            cache_key: 缓存键 (用于引擎缓存)
+            sample_input: 示例输入张量（用于 tracing）
+            cache_key: 缓存键（用于引擎缓存命中）
 
         Returns:
-            TensorRT 引擎
+            Any: TensorRT 引擎（当前为 None，参考实现）
 
         Raises:
-            RuntimeError: TensorRT 不可用或编译失败
+            RuntimeError: TensorRT 不可用时抛出
         """
         if not self.config.enabled:
             logger.debug("TensorRT 加速已禁用，跳过")
@@ -395,7 +435,6 @@ class TensorRTRuntime:
             f"max_batch={self.config.max_batch_size}"
         )
 
-        # 编译流程 (框架代码，实际编译需要完整 TensorRT API)
         logger.info("TensorRT 引擎编译流程 (参考实现):")
         logger.info("  1. torch.onnx.export(model, sample_input, onnx_path)")
         logger.info("  2. trt.Builder 创建 builder")
@@ -410,14 +449,14 @@ class TensorRTRuntime:
         return None
 
     def infer(self, engine: Any, input_tensor: torch.Tensor) -> torch.Tensor | None:
-        """使用 TensorRT 引擎推理
+        """使用 TensorRT 引擎执行推理（参考框架）
 
         Args:
             engine: TensorRT 引擎
             input_tensor: 输入张量
 
         Returns:
-            输出张量
+            torch.Tensor | None: 输出张量（当前为 None）
         """
         if engine is None:
             logger.warning("TensorRT 引擎未就绪，无法推理")
@@ -428,52 +467,57 @@ class TensorRTRuntime:
 
     @property
     def is_compiled(self) -> bool:
-        """引擎是否已编译"""
+        """引擎是否已编译
+
+        Returns:
+            bool: 已编译返回 True
+        """
         return self._compiled
 
 
-# ---------------------------------------------------------------------------
+# ===========================================================================
 # 3. torch.compile 集成 (Fast-SRGAN P2)
-# ---------------------------------------------------------------------------
+# ===========================================================================
 
 @dataclass
 class CompileConfig:
-    """torch.compile 编译配置
+    """torch.compile 编译配置数据类
 
     参考 Fast-SRGAN 的 torch.compile 集成:
     - 使用 mode="max-autotune" 自动搜索最优内核
     - 支持 fullgraph 和子图编译
-    - 可指定后端: inductor, eager, aot_eager 等
+    - 可指定后端：inductor、eager、aot_eager 等
     - 动态形状支持
 
-    Fast-SRGAN 的编译策略:
-    - 推理阶段使用 torch.compile(model, mode="max-autotune")
-    - 首次推理触发编译，后续推理加速
-    - 编译开销约 30-120 秒，推理加速约 10-30%
+    Attributes:
+        enabled: 是否启用 torch.compile
+        mode: 编译模式：
+            - "default": 默认优化
+            - "max-autotune": 最大程度自动调优（编译慢，推理快）
+            - "reduce-overhead": 减少开销（适合小模型）
+        backend: 编译后端："inductor"（默认）/ "eager" / "aot_eager" / "cudagraphs"
+        fullgraph: 是否全图编译（False 允许子图编译，兼容性更好）
+        dynamic: 是否支持动态形状
+        exclude_module_names: 排除编译的模块名列表
     """
     enabled: bool = False
-    # 编译模式: "default" | "max-autotune" | "reduce-overhead"
     mode: str = "max-autotune"
-    # 编译后端: "inductor" | "eager" | "aot_eager" | "cudagraphs"
     backend: str = "inductor"
-    # 是否全图编译 (False 允许子图编译，兼容性更好)
     fullgraph: bool = False
-    # 是否支持动态形状
     dynamic: bool = True
-    # 排除编译的模块名
     exclude_module_names: list[str] = field(default_factory=list)
 
 
 class CompileOptimizer:
     """torch.compile 编译优化集成
 
-    参考 Fast-SRGAN 的 torch.compile 集成:
+    参考 Fast-SRGAN 的 torch.compile 集成设计。
     在首次推理前编译模型，后续推理可加速 10-30%。
 
     约束:
-    - torch.compile 需要 PyTorch 2.0+
-    - 首次编译有较大开销
-    - 部分 CUDA 操作可能不兼容，需回退
+        - torch.compile 需要 PyTorch 2.0+
+        - 首次编译有较大开销（约 30-120 秒）
+        - 部分 CUDA 操作可能不兼容，会自动回退到 eager 模式
 
     Usage:
         config = CompileConfig(enabled=True, mode="max-autotune")
@@ -488,31 +532,44 @@ class CompileOptimizer:
     """
 
     def __init__(self, config: CompileConfig | None = None):
+        """初始化编译优化器
+
+        Args:
+            config: 编译配置，None 时使用默认配置（禁用状态）
+        """
         self.config = config or CompileConfig()
         self._compiled: bool = False
 
     def is_available(self) -> bool:
-        """检测 torch.compile 是否可用 (PyTorch 2.0+)"""
+        """检测 torch.compile 是否可用（PyTorch 2.0+）
+
+        Returns:
+            bool: torch.compile 可用返回 True
+        """
         return hasattr(torch, "compile")
 
     def get_pytorch_version(self) -> str:
-        """获取 PyTorch 版本"""
+        """获取 PyTorch 版本号
+
+        Returns:
+            str: PyTorch 版本字符串
+        """
         return torch.__version__
 
     def compile(self, model: torch.nn.Module) -> torch.nn.Module:
-        """编译模型
+        """使用 torch.compile 编译模型
 
         参考 Fast-SRGAN 的编译流程:
         1. 检查 PyTorch 版本
-        2. 排除不兼容的子模块
+        2. 排除不兼容的子模块（预留）
         3. 应用 torch.compile
-        4. 首次推理触发编译
+        4. 首次推理触发实际编译
 
         Args:
             model: 要编译的模型
 
         Returns:
-            编译后的模型
+            torch.nn.Module: 编译后的模型（或原模型，编译失败时回退）
         """
         if not self.config.enabled:
             logger.debug("torch.compile 已禁用，跳过")
@@ -553,56 +610,58 @@ class CompileOptimizer:
 
     @property
     def is_compiled(self) -> bool:
-        """模型是否已编译"""
+        """模型是否已应用 torch.compile
+
+        Returns:
+            bool: 已编译返回 True
+        """
         return self._compiled
 
 
-# ---------------------------------------------------------------------------
+# ===========================================================================
 # 4. xformers 显存高效注意力 (CogVideo/StableVSR/DiffVSR P1)
-# ---------------------------------------------------------------------------
+# ===========================================================================
 
 @dataclass
 class XFormersConfig:
-    """xformers 配置
+    """xformers 显存高效注意力配置数据类
 
     参考 CogVideo/StableVSR/DiffVSR 的 xformers 集成:
     - 使用 xformers.ops.memory_efficient_attention 替代标准注意力
-    - 显存占用从 O(N^2) 降至接近 O(N)
+    - 显存占用从 O(N^2) 降至接近 O(N)，长序列节省显著
     - 支持多种注意力偏置类型
-    - 自动回退到 PyTorch 2.0+ scaled_dot_product_attention
+    - 自动回退到 PyTorch 2.0+ scaled_dot_product_attention (SDPA)
 
-    CogVideo 的集成方式:
-    - 在 DiT 的 attention 层替换为 xformers attention
-    - 启用时显存节省约 30-50%
-    - 推理速度提升约 10-20%
+    Attributes:
+        enabled: 是否启用显存高效注意力
+        attention_mode: 注意力实现选择：
+            - "xformers": 使用 xformers memory_efficient_attention
+            - "sdpa": 使用 PyTorch 2.0+ scaled_dot_product_attention
+            - "math": 使用标准数学实现（兼容性最好，显存占用高）
+        auto_fallback: 不可用时是否自动回退到次优实现
+        verify_correctness: 是否验证 xformers 输出与标准实现一致（预留）
     """
     enabled: bool = False
-    # 注意力实现: "xformers" | "sdpa" | "math"
-    # "xformers": 使用 xformers memory_efficient_attention
-    # "sdpa": 使用 PyTorch 2.0+ scaled_dot_product_attention
-    # "math": 使用标准数学实现 (兼容性最好)
     attention_mode: str = "xformers"
-    # 是否在不可用时自动回退
     auto_fallback: bool = True
-    # 是否验证 xformers 输出与标准实现一致
     verify_correctness: bool = True
 
 
 class XFormersIntegration:
     """xformers 显存高效注意力集成框架
 
-    参考 CogVideo/StableVSR/DiffVSR 的 xformers 集成:
-    替换 DiT 中的标准注意力为显存高效的实现。
+    参考 CogVideo/StableVSR/DiffVSR 的 xformers 集成设计。
+    替换 DiT 中的标准注意力为显存高效实现，可节省 30-50% 注意力显存。
 
     约束:
-    - xformers 需要 CUDA GPU
-    - xformers 版本需与 PyTorch/CUDA 版本匹配
-    - 部分注意力偏置类型 xformers 不支持
+        - xformers 需要 CUDA GPU
+        - xformers 版本需与 PyTorch/CUDA 版本匹配
+        - 部分注意力偏置类型 xformers 不支持，会自动回退
 
     自动回退策略:
-    1. 首选 xformers memory_efficient_attention
-    2. 不可用时回退到 PyTorch SDPA
-    3. SDPA 不可用时回退到标准实现
+        1. 首选 xformers memory_efficient_attention
+        2. 不可用时回退到 PyTorch SDPA
+        3. SDPA 不可用时回退到标准数学实现
 
     Usage:
         config = XFormersConfig(enabled=True)
@@ -613,12 +672,21 @@ class XFormersIntegration:
     """
 
     def __init__(self, config: XFormersConfig | None = None):
+        """初始化 xformers 集成
+
+        Args:
+            config: xformers 配置，None 时使用默认配置（禁用状态）
+        """
         self.config = config or XFormersConfig()
         self._applied: bool = False
         self._effective_mode: str = self.config.attention_mode
 
     def is_available(self) -> bool:
-        """检测 xformers 是否可用"""
+        """检测 xformers 是否可用
+
+        Returns:
+            bool: xformers 已安装且 ops 可用返回 True
+        """
         try:
             import xformers  # noqa: F401
             import xformers.ops
@@ -627,11 +695,19 @@ class XFormersIntegration:
             return False
 
     def is_sdpa_available(self) -> bool:
-        """检测 PyTorch scaled_dot_product_attention 是否可用"""
+        """检测 PyTorch scaled_dot_product_attention 是否可用
+
+        Returns:
+            bool: PyTorch 有 SDPA 实现返回 True（PyTorch 2.0+）
+        """
         return hasattr(torch.nn.functional, "scaled_dot_product_attention")
 
     def get_xformers_version(self) -> str | None:
-        """获取 xformers 版本"""
+        """获取 xformers 版本号
+
+        Returns:
+            str | None: 版本字符串；未安装返回 None
+        """
         try:
             import xformers
             return getattr(xformers, "__version__", "unknown")
@@ -641,10 +717,11 @@ class XFormersIntegration:
     def get_effective_attention_mode(self) -> str:
         """获取实际使用的注意力模式
 
-        根据 xformers 可用性和配置，确定最终使用的注意力实现。
+        根据 xformers 可用性和配置，自动确定最终使用的注意力实现，
+        处理自动回退逻辑。
 
         Returns:
-            "xformers" | "sdpa" | "math"
+            str: 实际使用的模式："xformers" / "sdpa" / "math"
         """
         if self.config.attention_mode == "xformers" and self.is_available():
             return "xformers"
@@ -659,21 +736,21 @@ class XFormersIntegration:
         return "math"
 
     def apply(self, model: torch.nn.Module) -> torch.nn.Module:
-        """对模型应用显存高效注意力
+        """对模型应用显存高效注意力替换
 
         参考 CogVideo 的集成方式:
         1. 检测可用注意力实现
-        2. 设置模型的注意力模式
-        3. 替换 Attention 层的 forward 方法
+        2. 设置模型的注意力模式标识
+        3. 查找并替换 Attention 层的 forward 方法
 
         注意: SeedVR2 的 DiT 使用自定义注意力实现，
-        此方法提供集成框架，具体替换需根据 DiT 实现调整。
+        此方法提供集成框架，具体替换需根据 DiT 实际实现调整。
 
         Args:
             model: 要优化的模型
 
         Returns:
-            优化后的模型
+            torch.nn.Module: 优化后的模型（原地修改）
         """
         if not self.config.enabled:
             logger.debug("xformers 集成已禁用，跳过")
@@ -687,10 +764,8 @@ class XFormersIntegration:
 
         logger.info(f"应用显存高效注意力: {self._effective_mode}")
 
-        # 设置模型属性以标识注意力模式
         model._attention_mode = self._effective_mode
 
-        # 查找并替换注意力层
         replaced_count = 0
         for name, module in model.named_modules():
             if self._is_attention_module(module):
@@ -702,8 +777,16 @@ class XFormersIntegration:
         return model
 
     def _is_attention_module(self, module: torch.nn.Module) -> bool:
-        """判断是否为注意力模块"""
-        # 常见的注意力类名模式
+        """判断模块是否为注意力模块（内部方法）
+
+        通过类名子串匹配识别常见的注意力模块类型。
+
+        Args:
+            module: 待检测模块
+
+        Returns:
+            bool: 是注意力模块返回 True
+        """
         attention_types = (
             "Attention", "SelfAttention", "CrossAttention",
             "MultiHeadAttention", "FlashAttention",
@@ -712,11 +795,15 @@ class XFormersIntegration:
         return any(t in module_type for t in attention_types)
 
     def _replace_attention_forward(self, module: torch.nn.Module, name: str):
-        """替换注意力模块的 forward 方法
+        """替换注意力模块的 forward 方法（内部方法）
 
-        根据 effective_mode 替换为对应实现:
+        根据 effective_mode 替换为对应实现：
         - xformers: 使用 memory_efficient_attention
         - sdpa: 使用 scaled_dot_product_attention
+
+        Args:
+            module: 注意力模块
+            name: 模块名称（日志用）
         """
         original_forward = module.forward
 
@@ -724,8 +811,6 @@ class XFormersIntegration:
             def xformers_forward(query, key, value, **kwargs):
                 try:
                     import xformers.ops
-                    # xformers memory_efficient_attention 接口
-                    # 具体参数需根据 DiT 注意力实现调整
                     output = xformers.ops.memory_efficient_attention(
                         query, key, value,
                         attn_bias=kwargs.get("attn_bias", None),
@@ -754,63 +839,69 @@ class XFormersIntegration:
 
     @property
     def is_applied(self) -> bool:
-        """是否已应用"""
+        """是否已应用注意力替换
+
+        Returns:
+            bool: 已应用返回 True
+        """
         return self._applied
 
     @property
     def effective_mode(self) -> str:
-        """实际使用的注意力模式"""
+        """实际使用的注意力模式
+
+        Returns:
+            str: 模式字符串
+        """
         return self._effective_mode
 
 
-# ---------------------------------------------------------------------------
+# ===========================================================================
 # 5. Gradient Checkpointing (RVRT P2)
-# ---------------------------------------------------------------------------
+# ===========================================================================
 
 @dataclass
 class CheckpointConfig:
-    """Gradient Checkpointing 配置
+    """Gradient Checkpointing 配置数据类
 
-    参考 RVRT 的逐层选择性 checkpoint:
-    - 不是所有层都需要 checkpoint
-    - 靠近输入的层占用更多显存，优先 checkpoint
+    参考 RVRT 的逐层选择性 checkpoint 设计:
+    - 不是所有层都需要 checkpoint，靠近输入的层激活更大优先 checkpoint
     - 可以按层配置启用/禁用
     - 支持 block 级别的选择性 checkpoint
+    - 显存节省 30-40%，推理时间增加 20-30%（时间换空间）
 
-    RVRT 的策略:
-    - 在推理时对部分 transformer block 启用 checkpoint
-    - 减少 DiT 推理的峰值显存约 30-40%
-    - 代价: 增加约 20-30% 的计算时间 (需要重新计算前向传播)
+    注意: Gradient Checkpointing 主要用于训练，但在推理时也可用于减少峰值显存。
+
+    Attributes:
+        enabled: 是否启用 Gradient Checkpointing
+        strategy: checkpoint 策略：
+            - "all": 对所有 block 启用 checkpoint
+            - "selective": 仅对 selected_blocks 指定的 block 启用
+            - "auto": 根据 VRAM 可用量自动决定
+        selected_blocks: 选择性 checkpoint 的 block 索引列表（仅 strategy="selective"）
+        auto_checkpoint_ratio: 自动策略中 checkpoint 的 block 比例（0.0-1.0）
+        checkpoint_io_components: 是否对 I/O 组件也启用 checkpoint
+        implementation: checkpoint 实现：
+            - "torch": 使用 torch.utils.checkpoint.checkpoint（推荐）
+            - "custom": 使用自定义实现（预留）
     """
     enabled: bool = False
-    # checkpoint 策略: "all" | "selective" | "auto"
-    # "all": 对所有 block 启用 checkpoint
-    # "selective": 仅对指定 block 启用
-    # "auto": 根据 VRAM 可用量自动决定
     strategy: str = "auto"
-    # 选择性 checkpoint: 启用 checkpoint 的 block 索引列表
-    # 仅在 strategy="selective" 时生效
     selected_blocks: list[int] = field(default_factory=list)
-    # 自动策略: 保留不 checkpoint 的 block 比例 (0.0-1.0)
-    # 值越大，checkpoint 的 block 越多，显存节省越多但速度越慢
     auto_checkpoint_ratio: float = 0.5
-    # 是否对 I/O 组件也启用 checkpoint
     checkpoint_io_components: bool = False
-    # checkpoint 实现: "torch" | "custom"
-    # "torch": 使用 torch.utils.checkpoint.checkpoint
-    # "custom": 使用自定义实现 (更细粒度控制)
     implementation: str = "torch"
 
 
 class GradientCheckpointManager:
     """Gradient Checkpointing 管理器
 
-    参考 RVRT 的逐层选择性 checkpoint:
-    在推理过程中选择性保存中间激活，减少显存峰值。
+    参考 RVRT 的逐层选择性 checkpoint 实现。
+    在推理过程中选择性不保存中间激活，减少显存峰值，需要时重新计算。
 
     注意: 虽然 Gradient Checkpointing 主要用于训练，
-    在推理时也可用于减少峰值显存 (以重新计算为代价)。
-    对于 SeedVR2 的 DiT 模型，选择性 checkpoint 可以:
+    在推理时也可用于减少峰值显存（以重新计算前向传播为代价）。
+    对于 SeedVR2 的 DiT 模型，选择性 checkpoint 可以：
     - 减少峰值 VRAM 约 30-40%
     - 增加推理时间约 20-30%
     - 适用于 VRAM 不足但时间充裕的场景
@@ -819,14 +910,16 @@ class GradientCheckpointManager:
         config = CheckpointConfig(enabled=True, strategy="auto")
         manager = GradientCheckpointManager(config)
 
-        # 应用 checkpoint
         model = manager.apply(model)
-
-        # 查看应用状态
         info = manager.get_checkpoint_info()
     """
 
     def __init__(self, config: CheckpointConfig | None = None):
+        """初始化 Gradient Checkpoint 管理器
+
+        Args:
+            config: checkpoint 配置，None 时使用默认配置（禁用状态）
+        """
         self.config = config or CheckpointConfig()
         self._applied: bool = False
         self._checkpointed_blocks: list[int] = []
@@ -835,21 +928,20 @@ class GradientCheckpointManager:
         """对模型应用选择性 Gradient Checkpointing
 
         参考 RVRT 的选择性 checkpoint 策略:
-        1. 确定策略 (all/selective/auto)
+        1. 确定策略（all/selective/auto）
         2. 根据策略选择要 checkpoint 的 block
-        3. 替换 block 的 forward 方法
+        3. 包装 block 的 forward 方法
 
         Args:
-            model: 要优化的模型
+            model: 要优化的模型（需有 blocks 属性）
 
         Returns:
-            优化后的模型
+            torch.nn.Module: 优化后的模型（原地修改）
         """
         if not self.config.enabled:
             logger.debug("Gradient Checkpointing 已禁用，跳过")
             return model
 
-        # 查找 blocks
         blocks = None
         if hasattr(model, "blocks"):
             blocks = model.blocks
@@ -862,7 +954,6 @@ class GradientCheckpointManager:
             logger.warning("模型 blocks 为空，跳过 checkpoint")
             return model
 
-        # 根据策略确定要 checkpoint 的 block
         if self.config.strategy == "all":
             self._checkpointed_blocks = list(range(total_blocks))
         elif self.config.strategy == "selective":
@@ -873,12 +964,10 @@ class GradientCheckpointManager:
             logger.warning(f"未知 checkpoint 策略: {self.config.strategy}")
             return model
 
-        # 应用 checkpoint
         for block_idx in self._checkpointed_blocks:
             if block_idx < total_blocks:
                 self._apply_checkpoint_to_block(blocks[block_idx], block_idx)
 
-        # 处理 I/O 组件
         if self.config.checkpoint_io_components:
             self._apply_checkpoint_to_io(model)
 
@@ -891,20 +980,19 @@ class GradientCheckpointManager:
         return model
 
     def _auto_select_blocks(self, total_blocks: int) -> list[int]:
-        """自动选择需要 checkpoint 的 block
+        """自动选择需要 checkpoint 的 block（内部方法）
 
-        策略: 按 auto_checkpoint_ratio 比例均匀选择 block。
-        优先选择靠近输入的 block (它们通常占用更多显存)。
+        策略: 按 auto_checkpoint_ratio 比例均匀间隔选择 block。
+        优先选择靠近输入的 block（它们通常占用更多显存）。
 
         Args:
             total_blocks: 总 block 数量
 
         Returns:
-            要 checkpoint 的 block 索引列表
+            list[int]: 要 checkpoint 的 block 索引列表
         """
         num_to_checkpoint = max(1, int(total_blocks * self.config.auto_checkpoint_ratio))
 
-        # 均匀间隔选择
         if num_to_checkpoint >= total_blocks:
             return list(range(total_blocks))
 
@@ -917,15 +1005,15 @@ class GradientCheckpointManager:
         return selected
 
     def _apply_checkpoint_to_block(self, block: torch.nn.Module, block_idx: int):
-        """对单个 block 应用 Gradient Checkpointing
+        """对单个 block 应用 Gradient Checkpointing（内部方法）
 
         使用 torch.utils.checkpoint.checkpoint 包装 forward:
         - 推理时不保存中间激活，需要时重新计算
-        - 使用 use_reentrant=False (推荐的新 API)
+        - 使用 use_reentrant=False（推荐的新 API，无重入问题）
 
         Args:
             block: transformer block
-            block_idx: block 索引
+            block_idx: block 索引（日志用）
         """
         if self.config.implementation == "torch":
             from torch.utils.checkpoint import checkpoint
@@ -946,7 +1034,11 @@ class GradientCheckpointManager:
         logger.debug(f"Block {block_idx} 已启用 Gradient Checkpointing")
 
     def _apply_checkpoint_to_io(self, model: torch.nn.Module):
-        """对 I/O 组件应用 Gradient Checkpointing"""
+        """对 I/O 组件应用 Gradient Checkpointing（内部方法）
+
+        Args:
+            model: 模型
+        """
         from torch.utils.checkpoint import checkpoint
 
         for name, module in model.named_children():
@@ -963,7 +1055,11 @@ class GradientCheckpointManager:
                 logger.debug(f"I/O 组件 {name} 已启用 Gradient Checkpointing")
 
     def get_checkpoint_info(self) -> dict[str, Any]:
-        """获取 checkpoint 应用信息"""
+        """获取 checkpoint 应用信息
+
+        Returns:
+            dict: 应用状态信息字典
+        """
         return {
             "enabled": self.config.enabled,
             "strategy": self.config.strategy,
@@ -975,17 +1071,31 @@ class GradientCheckpointManager:
 
     @property
     def is_applied(self) -> bool:
-        """是否已应用"""
+        """是否已应用 checkpoint
+
+        Returns:
+            bool: 已应用返回 True
+        """
         return self._applied
 
 
-# ---------------------------------------------------------------------------
+# ===========================================================================
 # 统一 VRAM 工具链编排器
-# ---------------------------------------------------------------------------
+# ===========================================================================
 
 @dataclass
 class VRAMToolchainConfig:
-    """VRAM 工具链统一配置"""
+    """VRAM 工具链统一配置数据类
+
+    聚合所有显存优化技术的配置，用于一次性配置整个工具链。
+
+    Attributes:
+        fp8_quant: FP8 量化配置
+        tensorrt: TensorRT 加速配置
+        torch_compile: torch.compile 配置
+        xformers: xformers 注意力配置
+        checkpoint: Gradient Checkpointing 配置
+    """
     fp8_quant: FP8QuantConfig = field(default_factory=FP8QuantConfig)
     tensorrt: TensorRTConfig = field(default_factory=TensorRTConfig)
     torch_compile: CompileConfig = field(default_factory=CompileConfig)
@@ -996,19 +1106,20 @@ class VRAMToolchainConfig:
 class VRAMToolchainOrchestrator:
     """VRAM 优化工具链编排器
 
-    统一管理所有 VRAM 优化工具的应用顺序和兼容性。
+    统一管理所有 VRAM 优化工具的应用顺序和互斥性检查，
+    确保各优化技术按正确依赖顺序应用，避免冲突。
 
-    应用顺序 (按依赖关系):
-    1. xformers (替换注意力实现，无权重变更)
-    2. Gradient Checkpointing (修改 forward 方法)
-    3. torch.compile (编译优化)
-    4. FP8 量化 (权重格式变更，最后应用)
-    5. TensorRT (独立编译，与其他优化互斥)
+    应用顺序（按依赖关系排列）:
+        1. xformers（替换注意力实现，无权重变更）
+        2. Gradient Checkpointing（修改 forward 方法）
+        3. torch.compile（编译优化，在前两步之后）
+        4. FP8 量化（权重格式变更，最后应用）
+        5. TensorRT（独立编译，与其他优化互斥，需单独调用）
 
-    约束:
-    - FP8 量化与 TensorRT 不应同时启用
-    - torch.compile 与 TensorRT 不应同时启用
-    - xformers 与 FP8 量化可共存
+    互斥约束:
+        - FP8 量化与 TensorRT 不应同时启用
+        - torch.compile 与 TensorRT 不应同时启用
+        - xformers 与 FP8 量化可共存
 
     Usage:
         config = VRAMToolchainConfig()
@@ -1020,6 +1131,11 @@ class VRAMToolchainOrchestrator:
     """
 
     def __init__(self, config: VRAMToolchainConfig | None = None):
+        """初始化工具链编排器
+
+        Args:
+            config: 工具链统一配置，None 时使用默认配置（全部禁用）
+        """
         self.config = config or VRAMToolchainConfig()
         self._xformers = XFormersIntegration(self.config.xformers)
         self._checkpoint = GradientCheckpointManager(self.config.checkpoint)
@@ -1028,15 +1144,22 @@ class VRAMToolchainOrchestrator:
         self._tensorrt = TensorRTRuntime(self.config.tensorrt)
 
     def optimize(self, model: torch.nn.Module) -> torch.nn.Module:
-        """按正确顺序应用所有 VRAM 优化
+        """按正确顺序应用所有已启用的 VRAM 优化
+
+        执行顺序:
+        1. 先检查互斥配置，自动禁用冲突项
+        2. xformers（注意力替换）
+        3. Gradient Checkpointing
+        4. torch.compile
+        5. FP8 量化
+        6. TensorRT（提示需单独调用）
 
         Args:
             model: 要优化的模型
 
         Returns:
-            优化后的模型
+            torch.nn.Module: 优化后的模型
         """
-        # 检查互斥配置
         if self.config.fp8_quant.enabled and self.config.tensorrt.enabled:
             logger.warning("FP8 量化与 TensorRT 不应同时启用，已禁用 TensorRT")
             self.config.tensorrt.enabled = False
@@ -1045,34 +1168,28 @@ class VRAMToolchainOrchestrator:
             logger.warning("torch.compile 与 TensorRT 不应同时启用，已禁用 TensorRT")
             self.config.tensorrt.enabled = False
 
-        # 按顺序应用优化
         logger.info("开始 VRAM 优化工具链应用...")
 
-        # 1. xformers
         if self.config.xformers.enabled:
             logger.info("[1/5] 应用 xformers 显存高效注意力...")
             model = self._xformers.apply(model)
             logger.info(f"[1/5] xformers 完成, 模式={self._xformers.effective_mode}")
 
-        # 2. Gradient Checkpointing
         if self.config.checkpoint.enabled:
             logger.info("[2/5] 应用 Gradient Checkpointing...")
             model = self._checkpoint.apply(model)
             logger.info("[2/5] Gradient Checkpointing 完成")
 
-        # 3. torch.compile
         if self.config.torch_compile.enabled:
             logger.info("[3/5] 应用 torch.compile...")
             model = self._compile.compile(model)
             logger.info("[3/5] torch.compile 完成")
 
-        # 4. FP8 量化
         if self.config.fp8_quant.enabled:
             logger.info("[4/5] 应用 FP8 量化...")
             model = self._fp8.quantize(model)
             logger.info("[4/5] FP8 量化完成")
 
-        # 5. TensorRT (独立编译)
         if self.config.tensorrt.enabled:
             logger.info("[5/5] TensorRT 为独立编译流程，需单独调用")
             logger.info("[5/5] 跳过自动编译，请手动调用 tensorrt.compile_model()")
@@ -1081,7 +1198,11 @@ class VRAMToolchainOrchestrator:
         return model
 
     def get_status(self) -> dict[str, Any]:
-        """获取工具链应用状态"""
+        """获取工具链各组件的应用状态
+
+        Returns:
+            dict: 各优化技术的启用/应用状态字典
+        """
         return {
             "xformers": {
                 "enabled": self.config.xformers.enabled,
@@ -1110,7 +1231,11 @@ class VRAMToolchainOrchestrator:
         }
 
     def get_availability_report(self) -> dict[str, bool]:
-        """获取各工具的可用性报告"""
+        """获取各优化工具的可用性报告
+
+        Returns:
+            dict: 各工具是否可用的布尔字典
+        """
         return {
             "xformers_available": self._xformers.is_available(),
             "sdpa_available": self._xformers.is_sdpa_available(),
@@ -1120,15 +1245,19 @@ class VRAMToolchainOrchestrator:
         }
 
 
-# ---------------------------------------------------------------------------
+# ===========================================================================
 # 便捷工厂函数
-# ---------------------------------------------------------------------------
+# ===========================================================================
 
 def create_low_vram_toolchain() -> VRAMToolchainOrchestrator:
-    """创建低显存优化工具链
+    """创建低显存优化工具链预设
 
     适合 12GB 以下显存的 GPU，最大化显存节省。
-    启用: xformers + checkpoint + FP8 量化
+    启用: xformers + Gradient Checkpointing (60%) + FP8 权重量化
+    禁用: torch.compile、TensorRT
+
+    Returns:
+        VRAMToolchainOrchestrator: 配置好的编排器实例
     """
     config = VRAMToolchainConfig()
     config.xformers.enabled = True
@@ -1144,10 +1273,14 @@ def create_low_vram_toolchain() -> VRAMToolchainOrchestrator:
 
 
 def create_high_performance_toolchain() -> VRAMToolchainOrchestrator:
-    """创建高性能优化工具链
+    """创建高性能优化工具链预设
 
     适合 24GB+ 显存的 GPU，优先推理速度。
-    启用: xformers + torch.compile
+    启用: xformers + torch.compile (max-autotune)
+    禁用: Gradient Checkpointing、FP8 量化、TensorRT
+
+    Returns:
+        VRAMToolchainOrchestrator: 配置好的编排器实例
     """
     config = VRAMToolchainConfig()
     config.xformers.enabled = True

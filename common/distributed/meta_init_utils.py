@@ -12,6 +12,22 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
+"""Utilities for materializing meta-device tensors, particularly non-persistent buffers.
+
+When models are initialized on the PyTorch ``meta`` device (for FSDP/FSDP2 with
+``sync_module_states`` or to avoid allocating large GPU memory during model
+construction), all parameters and buffers are created as meta tensors (no data).
+Parameters are typically materialized via FSDP's sharding mechanism, but
+**non-persistent buffers** (buffers excluded from ``state_dict`` via
+``register_buffer(..., persistent=False)``) are not saved in checkpoints and
+thus not restored by FSDP, which can lead to runtime errors when these buffers
+are accessed.
+
+This module provides a materialization hook that specifically handles the case
+of RoPE (Rotary Position Embedding) dummy buffers, which are non-persistent and
+need to be instantiated on CPU before moving to GPU.
+"""
+
 import torch
 from rotary_embedding_torch import RotaryEmbedding
 from torch import nn
@@ -25,13 +41,34 @@ __all__ = ["meta_non_persistent_buffer_init_fn"]
 
 
 def meta_non_persistent_buffer_init_fn(module: nn.Module) -> nn.Module:
-    """
-    Used for materializing `non-persistent tensor buffers` while model resuming.
+    """Materialize non-persistent buffers that were created on the meta device.
 
-    Since non-persistent tensor buffers are not saved in state_dict,
-    when initializing model with meta device, user should materialize those buffers manually.
+    Iterates through all submodules and locates any non-persistent buffers
+    (specifically RotaryEmbedding "dummy" buffers) that are still on the meta
+    device, then creates real zero-initialized CPU tensors to replace them.
 
-    Currently, only `rope.dummy` is this special case.
+    This is necessary because:
+    1. Non-persistent buffers are not stored in ``state_dict``, so they are not
+       restored when loading checkpoints.
+    2. When initializing a model on meta device (e.g., for FSDP initialization),
+       these buffers remain as meta tensors and will cause errors when accessed
+       during forward passes.
+    3. The rotary_embedding_torch library creates a "dummy" buffer that requires
+       materialization.
+
+    After calling this function, all buffers in the module should be real tensors
+    (not meta), as verified by the assertion.
+
+    Args:
+        module: The nn.Module whose meta non-persistent buffers should be
+            materialized. The module is modified in-place and also returned.
+
+    Returns:
+        The same module (modified in-place) with all meta buffers materialized
+        as CPU zero tensors.
+
+    Raises:
+        AssertionError: If any buffer remains on meta device after processing.
     """
     with torch.no_grad():
         for submodule in module.modules():

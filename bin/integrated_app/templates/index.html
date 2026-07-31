@@ -55,6 +55,37 @@
     </div>
 </section>
 
+<!-- 快速功能卡片 -->
+<section class="sv-home-section sv-quick-cards">
+    <a href="/restore" class="sv-quick-card">
+        <div class="sv-quick-card-icon">
+            <i class="bi bi-cloud-upload"></i>
+        </div>
+        <div class="sv-quick-card-content">
+            <h4>{{ t('home.quick.upload') or '单文件修复' }}</h4>
+            <p>{{ t('home.quick.upload_desc') or '上传单个视频文件进行AI修复' }}</p>
+        </div>
+    </a>
+    <a href="/restore?mode=batch" class="sv-quick-card">
+        <div class="sv-quick-card-icon">
+            <i class="bi bi-folder2-open"></i>
+        </div>
+        <div class="sv-quick-card-content">
+            <h4>{{ t('home.quick.batch') or '批量修复' }}</h4>
+            <p>{{ t('home.quick.batch_desc') or '选择文件夹批量处理多个视频' }}</p>
+        </div>
+    </a>
+    <a href="/history" class="sv-quick-card">
+        <div class="sv-quick-card-icon">
+            <i class="bi bi-clock-history"></i>
+        </div>
+        <div class="sv-quick-card-content">
+            <h4>{{ t('home.quick.history') or '历史记录' }}</h4>
+            <p>{{ t('home.quick.history_desc') or '查看和管理之前的修复任务' }}</p>
+        </div>
+    </a>
+</section>
+
 <!-- 最近任务 -->
 <section class="sv-home-section" aria-label="{{ t('home.recent_tasks') }}">
     <div class="sv-section-header">
@@ -63,7 +94,12 @@
     </div>
     <div class="sv-recent-list sv-anim-rise sv-anim-d4" id="recentList">
         <div class="sv-recent-empty" id="recentEmpty" style="display:none;">
-            {{ t('home.no_tasks_desc') if t('home.no_tasks_desc') else 'No restoration tasks yet.' }}
+            <p>{{ t('home.no_tasks_desc') if t('home.no_tasks_desc') else 'No restoration tasks yet.' }}</p>
+            <div class="sv-recent-empty-actions" style="margin-top: 12px;">
+                <a href="/restore" class="sv-btn sv-btn-primary sv-btn-sm">
+                    <i class="bi bi-lightning-charge"></i> {{ t('home.start') }}
+                </a>
+            </div>
         </div>
     </div>
 </section>
@@ -77,17 +113,44 @@ document.addEventListener('DOMContentLoaded', async () => {
     const heroStatusText = document.getElementById('heroStatusText');
     const heroModelStatus = document.getElementById('heroModelStatus');
 
-    function setDot(id, on) {
+    function setDot(id, state) {
         const el = document.getElementById(id);
-        if (el) el.className = 'sv-ov-dot ' + (on ? 'on' : 'off');
+        if (!el) return;
+        let cls = 'off';
+        if (state === true || state === 'on' || state === 'online') cls = 'on';
+        else if (state === 'warn' || state === 'warning') cls = 'warn';
+        else if (state === 'critical' || state === 'error' || state === 'offline' || state === false) cls = state === 'offline' ? 'off' : (state === false ? 'off' : 'critical');
+        el.className = 'sv-ov-dot ' + cls;
     }
     function setPct(id, pct) {
         const el = document.getElementById(id);
         if (!el) return;
         const clamped = Math.max(0, Math.min(100, Math.round(pct)));
         el.textContent = clamped + '%';
-        el.classList.remove('sv-skeleton-text');
-        el.classList.toggle('warn', clamped >= 85);
+        el.classList.remove('sv-skeleton-text', 'warn', 'critical');
+        if (clamped >= 90) el.classList.add('critical');
+        else if (clamped >= 70) el.classList.add('warn');
+        const card = el.closest('.sv-ov-item');
+        if (card) {
+            card.classList.remove('status-warn', 'status-critical');
+            if (clamped >= 90) card.classList.add('status-critical');
+            else if (clamped >= 70) card.classList.add('status-warn');
+        }
+        const dotId = id === 'memUsageValue' ? 'memDot' : (id === 'gpuUsageValue' ? 'gpuDot' : null);
+        if (dotId) {
+            const dotState = clamped >= 90 ? 'critical' : (clamped >= 70 ? 'warn' : 'on');
+            setDot(dotId, dotState);
+        }
+    }
+
+    function setCardStatus(cardChildId, status) {
+        const el = document.getElementById(cardChildId);
+        if (!el) return;
+        const card = el.closest('.sv-ov-item');
+        if (card) {
+            card.classList.remove('status-off', 'status-warn', 'status-critical');
+            if (status) card.classList.add('status-' + status);
+        }
     }
 
     function removeSkeleton(id) {
@@ -124,11 +187,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 document.getElementById('overviewGpu').textContent = gpuName + ' · ' + availGb + '/' + totalGb + ' GB';
             } catch (e) {
                 document.getElementById('gpuUsageValue').textContent = 'N/A';
+                removeSkeleton('gpuUsageValue');
             }
         } else {
             document.getElementById('gpuUsageValue').textContent = 'N/A';
+            removeSkeleton('gpuUsageValue');
             document.getElementById('overviewGpu').textContent = I["system.cpu_mode"] || 'CUDA unavailable';
             setDot('gpuDot', false);
+            setCardStatus('gpuUsageValue', 'off');
         }
 
         // 模型
@@ -139,11 +205,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 '<span class="sv-text-success">SeedVR2-' + size.toUpperCase() + '</span>';
             heroModelStatus.innerHTML = '<span class="sv-text-success">SeedVR2-' + size.toUpperCase() + '</span>';
             setDot('modelDot', true);
+            setCardStatus('overviewModel', null);
         } else {
             document.getElementById('overviewModel').innerHTML =
                 '<span class="sv-text-muted">' + (I["system.not_loaded"] || 'Not loaded') + '</span>';
             heroModelStatus.textContent = I["system.not_loaded"] || 'Not loaded';
             setDot('modelDot', false);
+            setCardStatus('overviewModel', 'off');
         }
         removeSkeleton('overviewModel');
 
@@ -155,7 +223,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ? ((health.system.memory_total_gb - health.system.memory_available_gb) / health.system.memory_total_gb * 100)
                 : 0;
             setPct('memUsageValue', memUsedPct);
-            setDot('memDot', true);
         }
 
         // 运行时间
@@ -185,6 +252,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (records.length === 0) {
             empty.style.display = '';
         } else {
+            empty.style.display = 'none';
             const rows = records.map(r => {
                 const rawName = r.input_file || '--';
                 const name = rawName.split(/[\\/]/).pop();

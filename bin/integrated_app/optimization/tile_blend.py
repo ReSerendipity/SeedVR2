@@ -1,16 +1,26 @@
-"""
-Tile Blending Utilities for SeedVR2
+﻿"""SeedVR2 分块融合工具模块
 
-Provides weighted overlap blending for tiled processing to eliminate seam artifacts
-between adjacent tiles. Also provides temporal tiling support for long video processing.
+本模块属于 SeedVR2 视频修复项目的 AI 推理优化层，提供分块 (tile)
+处理时的加权重叠融合功能，用于消除相邻 tile 之间的接缝伪影。同时支持
+长视频处理的时序分块功能。
 
-Inspired by RVRT's temporal+spatial tiling with overlap blending and DiffVSR's
-sliding window approach.
+受 RVRT 的时空分块重叠融合和 DiffVSR 的滑动窗口方法启发。
+
+核心技术栈:
+- PyTorch: 张量计算与卷积操作
+- Linear Weight: 线性权重渐变融合
+- Cosine Weight: 余弦权重平滑融合
+- Temporal Overlap: 时序重叠帧融合
 
 Key Features:
-- Linear and cosine weight blending for spatial tile overlaps
-- Temporal segment processing with configurable overlap for long videos
-- Seamless integration with existing VAE tiled encode/decode
+- 空间分块线性/余弦权重融合，平滑过渡重叠区域
+- 长视频时序分段处理，可配置重叠帧数
+- 与现有 VAE 分块编解码无缝集成
+- 统一的融合接口，易于扩展新策略
+
+参考来源:
+- RVRT: 递归视频恢复时序+空间分块重叠融合
+- DiffVSR: 滑动窗口时序处理方法
 """
 
 import logging
@@ -33,43 +43,43 @@ def create_linear_weight_map(
     device: torch.device | str = "cpu",
     dtype: torch.dtype = torch.float32,
 ) -> torch.Tensor:
-    """Create a linear weight map for blending overlapping spatial tiles.
+    """创建空间分块线性融合权重图
 
-    Produces a weight tensor where the overlap region has smoothly varying weights
-    (0 to 1) to enable seamless blending between adjacent tiles.
+    生成权重张量，重叠区域权重从 0 到 1 平滑渐变，实现相邻 tile 之间无缝融合。
+    权重在 tile 中心最高（为1），边缘重叠区域线性降低到 0。
 
     Args:
-        tile_size: Size of each spatial tile
-        overlap: Number of overlapping pixels between adjacent tiles
-        num_dims: Number of spatial dimensions (2 for H,W)
-        device: Target device
-        dtype: Tensor dtype
+        tile_size: 每个空间分块的大小
+        overlap: 相邻分块之间的重叠像素数
+        num_dims: 空间维度数，2 表示 H,W 二维
+        device: 目标计算设备
+        dtype: 张量数据类型
 
     Returns:
-        Weight map tensor of shape (tile_size,) * num_dims
+        权重图张量，形状为 (tile_size,) * num_dims
 
     Example:
-        # For a 512x512 tile with 64px overlap:
+        # 对于 512x512 tile，64px 重叠:
         weights = create_linear_weight_map(512, 64)
-        # weights is 512x512 with smooth transition in overlap regions
+        # weights 为 512x512，重叠区域平滑过渡
     """
     if overlap <= 0:
         return torch.ones([tile_size] * num_dims, device=device, dtype=dtype)
 
-    # Create 1D linear ramp
+    # 创建1D线性渐变梯度
     ramp = torch.ones(tile_size, device=device, dtype=dtype)
     for i in range(overlap):
         weight = (i + 1) / (overlap + 1)
         ramp[i] = weight
         ramp[tile_size - 1 - i] = weight
 
-    # Expand to N dimensions
+    # 扩展到N维
     weight_map = ramp
     for _ in range(num_dims - 1):
         weight_map = weight_map.unsqueeze(-1) * ramp.view(
             [-1] + [1] * _
         )
-        # Reshape for broadcasting
+        # 重塑以支持广播
         weight_map = weight_map.expand([tile_size] * num_dims).clone()
 
     return weight_map

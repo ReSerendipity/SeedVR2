@@ -1,5 +1,19 @@
-#!/usr/bin/env python3
-"""Klar - 文件缓存管理"""
+﻿#!/usr/bin/env python3
+"""SeedVR2 - 文件缓存与内存缓存管理模块
+
+提供两类缓存实现:
+1. FileCache: 上传文件的磁盘缓存，支持大文件异步流式写入、TTL过期自动清理
+2. LRUCache: 基于 OrderedDict 的固定容量 LRU 内存缓存，线程安全
+3. AdaptiveLRUCache: 根据 GPU 显存使用率自适应调整容量的 LRU 缓存，
+   在高 GPU 负载时自动收缩以释放内存，低负载时扩展以提高命中率
+
+缓存设计遵循以下原则:
+- 大文件流式写入，避免阻塞 asyncio 事件循环
+- 自动过期清理，防止磁盘空间无限增长
+- 线程安全，支持多线程并发访问
+- GPU 感知，自适应调整内存缓存容量以配合推理任务
+"""
+
 import asyncio
 import logging
 import os
@@ -14,12 +28,20 @@ logger = logging.getLogger(__name__)
 
 
 class FileCache:
-    """上传文件缓存管理
+    """上传文件磁盘缓存管理器
 
-    功能：
-    - 上传文件缓存管理
-    - 自动清理过期文件
-    - 生成唯一文件名
+    管理用户上传文件的临时存储，提供:
+    - 唯一文件名生成（时间戳 + UUID + 原始扩展名）
+    - 大文件/小文件差异化写入策略（大文件异步流式，小文件一次性读取）
+    - TTL 过期文件自动清理（后台任务，默认每小时执行一次）
+    - 缓存统计信息查询
+
+    Attributes:
+        cache_dir: 缓存文件存储目录路径。
+        ttl: 文件存活时间（秒），超过此时间未访问的文件将被清理。
+        large_file_threshold: 大文件阈值（字节），超过则使用流式写入。
+        chunk_size: 流式写入时的块大小（字节）。
+        _cleanup_task: 后台自动清理的 asyncio Task 引用。
     """
 
     def __init__(
@@ -30,12 +52,13 @@ class FileCache:
         large_file_threshold_mb: int = 10,
         chunk_size_bytes: int = 8192,
     ):
-        """
+        """初始化文件缓存管理器。
+
         Args:
-            cache_dir: 缓存目录
-            ttl: 文件存活时间（秒），默认24小时
-            large_file_threshold_mb: 大文件阈值（MB），超过则使用流式写入
-            chunk_size_bytes: 流式写入的块大小（字节）
+            cache_dir: 缓存目录路径，不存在时自动创建。
+            ttl: 文件存活时间（秒），默认 86400 秒（24小时）。
+            large_file_threshold_mb: 大文件阈值（MB），超过此大小使用流式写入，避免阻塞事件循环。
+            chunk_size_bytes: 流式写入的块大小（字节），默认 8192（8KB）。
         """
         self.cache_dir = cache_dir
         self.ttl = ttl
@@ -60,7 +83,14 @@ class FileCache:
         return f"{timestamp}_{unique_id}{ext}"
 
     def get_cache_path(self, filename: str) -> str:
-        """获取缓存文件的完整路径"""
+        """获取缓存文件的完整路径。
+
+        Args:
+            filename: 缓存文件名。
+
+        Returns:
+            缓存文件的绝对/相对完整路径（拼接 cache_dir 与 filename）。
+        """
         return os.path.join(self.cache_dir, filename)
 
     async def save_upload_file(self, upload_file, sub_dir: str | None = None) -> tuple[str, str]:
@@ -142,11 +172,26 @@ class FileCache:
         return unique_name, file_path
 
     def file_exists(self, filename: str) -> bool:
-        """检查缓存文件是否存在"""
+        """检查缓存文件是否存在。
+
+        Args:
+            filename: 缓存文件名。
+
+        Returns:
+            文件存在返回 True，否则返回 False。
+        """
         return os.path.exists(os.path.join(self.cache_dir, filename))
 
     def get_file_path(self, filename: str, sub_dir: str | None = None) -> str | None:
-        """获取缓存文件路径，不存在则返回 None"""
+        """获取缓存文件路径，不存在则返回 None。
+
+        Args:
+            filename: 缓存文件名。
+            sub_dir: 可选的子目录名称。
+
+        Returns:
+            文件存在时返回完整路径，否则返回 None。
+        """
         if sub_dir:
             path = os.path.join(self.cache_dir, sub_dir, filename)
         else:
@@ -154,7 +199,14 @@ class FileCache:
         return path if os.path.exists(path) else None
 
     def delete_file(self, file_path: str) -> bool:
-        """删除指定缓存文件"""
+        """删除指定缓存文件。
+
+        Args:
+            file_path: 要删除的文件完整路径。
+
+        Returns:
+            删除成功返回 True，文件不存在或删除失败返回 False。
+        """
         try:
             if os.path.exists(file_path):
                 os.remove(file_path)
@@ -211,14 +263,22 @@ class FileCache:
         logger.info(f"缓存自动清理任务已启动，间隔: {interval}s")
 
     def stop_cleanup_task(self):
-        """停止后台自动清理任务"""
+        """停止后台自动清理任务。
+
+        取消正在运行的 asyncio 清理任务，重置 _cleanup_task 引用。
+        在应用关闭时调用以确保资源正确释放。
+        """
         if self._cleanup_task is not None:
             self._cleanup_task.cancel()
             self._cleanup_task = None
             logger.info("缓存自动清理任务已停止")
 
     def clear_all(self):
-        """清空所有缓存文件"""
+        """清空所有缓存文件（保留目录结构）。
+
+        递归遍历缓存目录，删除所有文件但保留子目录结构。
+        用于手动触发全量缓存清理或用户请求清空缓存。
+        """
         if not os.path.exists(self.cache_dir):
             return
 
@@ -232,7 +292,15 @@ class FileCache:
         logger.info("所有缓存文件已清空")
 
     def get_cache_stats(self) -> dict:
-        """获取缓存统计信息"""
+        """获取缓存统计信息。
+
+        Returns:
+            包含以下字段的字典:
+            - total_files: 缓存文件总数
+            - total_size_mb: 缓存总大小（MB）
+            - cache_dir: 缓存目录路径
+            - ttl_seconds: 文件 TTL（秒）
+        """
         if not os.path.exists(self.cache_dir):
             return {"total_files": 0, "total_size_mb": 0}
 
@@ -257,18 +325,28 @@ class FileCache:
 
 
 class LRUCache:
-    """基于 LRU 策略的固定容量缓存
+    """基于 LRU（最近最少使用）策略的固定容量线程安全内存缓存。
 
-    使用 OrderedDict 跟踪访问顺序，当超出容量时淘汰最久未访问的条目。
+    使用 collections.OrderedDict 跟踪访问顺序，当缓存条目数超出 maxsize 时，
+    自动淘汰最久未访问的条目（弹出 OrderedDict 首位元素）。
+
+    所有公共方法均通过 threading.Lock 保证线程安全，支持多线程并发访问。
+    同时提供命中/未命中统计，用于监控缓存效果。
 
     Attributes:
-        _cache: 存储缓存项的 OrderedDict。
-        _maxsize: 缓存最大条目数。
-        _hits: 缓存命中次数。
-        _misses: 缓存未命中次数。
+        _cache: 存储缓存键值对的 OrderedDict，键为 str，值为 Any。
+        _maxsize: 缓存最大条目数，超出时自动淘汰。
+        _hits: 缓存命中次数计数器。
+        _misses: 缓存未命中次数计数器。
+        _lock: 线程同步锁，保证并发安全。
     """
 
     def __init__(self, maxsize: int = 50) -> None:
+        """初始化 LRU 缓存。
+
+        Args:
+            maxsize: 缓存最大条目数，默认 50。超出容量时自动淘汰最久未使用的条目。
+        """
         self._cache: OrderedDict = OrderedDict()
         self._maxsize = maxsize
         self._hits = 0
@@ -295,10 +373,25 @@ class LRUCache:
                 self._cache.popitem(last=False)
 
     def __contains__(self, key: str) -> bool:
+        """检查键是否存在于缓存中（支持 ``key in cache`` 语法）。
+
+        Args:
+            key: 要检查的缓存键。
+
+        Returns:
+            键存在返回 True，否则返回 False。
+        """
         with self._lock:
             return key in self._cache
 
     def __delitem__(self, key: str) -> None:
+        """从缓存中删除指定键（支持 ``del cache[key]`` 语法）。
+
+        如果键不存在则静默忽略，不抛出异常。
+
+        Args:
+            key: 要删除的缓存键。
+        """
         with self._lock:
             if key in self._cache:
                 del self._cache[key]
@@ -350,6 +443,13 @@ class AdaptiveLRUCache(LRUCache):
     _MEMORY_LIMIT_MB = 512
 
     def __init__(self, default_maxsize: int = 15, adapt_interval: float = 30.0) -> None:
+        """初始化自适应 LRU 缓存。
+
+        Args:
+            default_maxsize: 默认初始最大条目数，默认 15。
+            adapt_interval: 容量自适应调整的最小间隔时间（秒），默认 30 秒。
+                防止频繁查询 GPU 状态造成开销。
+        """
         super().__init__(maxsize=default_maxsize)
         self._adapt_lock = threading.Lock()
         self._adapt_interval = adapt_interval
@@ -460,6 +560,13 @@ class AdaptiveLRUCache(LRUCache):
             self._put_count = 0
 
     def __delitem__(self, key: str) -> None:
+        """从缓存中删除指定键，同时更新内存估算。
+
+        重写父类方法，在删除前减去被删除条目的估算内存占用。
+
+        Args:
+            key: 要删除的缓存键。
+        """
         with self._adapt_lock:
             if key in self._cache:
                 self._total_memory_estimate -= self._estimate_item_size(self._cache[key])

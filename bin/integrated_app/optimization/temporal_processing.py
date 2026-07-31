@@ -1,6 +1,14 @@
-"""帧间一致性 / 时序处理模块
+﻿"""帧间一致性 / 时序处理模块
 
-提供多种时序一致性增强技术，用于视频修复中保持帧间平滑过渡。
+本模块属于 SeedVR2 视频修复项目的 AI 推理优化层，提供多种视频帧间时序一致性
+增强技术，解决视频修复中常见的闪烁、帧间不连续等问题，确保输出视频流畅自然。
+
+核心技术栈:
+- PyTorch: 张量计算与神经网络操作
+- 光流估计与对齐: RAFT/grid_sample 帧运动补偿
+- 注意力机制: 时序注意力、双向采样策略
+- 特征传播: 可变形对齐、递归状态传递
+- KV 缓存: 流式推理加速
 
 竞品来源:
 - Upscale-A-Video: 特征传播模块 (P1)
@@ -18,6 +26,11 @@ Key Features:
 - 光流引导可变形对齐: BasicVSR++ 的 Flow-guided Deformable Alignment
 - fbConsistencyCheck: 前向-后向一致性检查遮挡检测
 - Patch-level KV Cache: Turtle 的 patch 级 K/V 缓存 + 增量更新
+- 双向采样策略: 交替使用前帧/后帧引导
+- 二次网格传播: 多层级邻帧特征聚合
+- ARTG 自回归对齐: 逐帧递进式时序对齐
+- Temporal Processor: 轻量级时序感知解码器
+- 递归-并行混合架构: clip 内并行 + clip 间递归
 """
 
 import logging
@@ -84,6 +97,11 @@ class TemporalTextureGuidance:
     """
 
     def __init__(self, config: TemporalGuidanceConfig | None = None):
+        """初始化时序纹理引导模块
+
+        Args:
+            config: 时序引导配置，为 None 时使用默认配置
+        """
         self.config = config or TemporalGuidanceConfig()
         self._previous_x0_est: torch.Tensor | None = None
         self._previous_flow: torch.Tensor | None = None

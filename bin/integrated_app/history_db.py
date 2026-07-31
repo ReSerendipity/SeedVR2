@@ -1,4 +1,17 @@
-"""SQLite 历史记录数据库 - 修复任务历史追踪"""
+"""SQLite 历史记录与任务状态持久化模块
+
+使用 aiosqlite 提供异步 SQLite 数据库访问，管理两类数据:
+1. HistoryRecord: 修复任务历史记录（视频/图像），支持全文搜索（FTS5）
+2. TaskRecord: 后台运行任务的实时状态持久化，用于崩溃恢复
+
+数据库特性:
+- WAL 模式: 启用 Write-Ahead Logging 提升并发读写性能
+- FTS5 全文搜索: 对输入/输出文件名、模型大小、状态建立全文索引
+- 自动触发器: INSERT/UPDATE/DELETE 时自动同步 FTS 索引
+- 异步上下文管理器: 支持 async with 语法，确保连接正确释放
+- 白名单列验证: UPDATE 操作验证列名，防止 SQL 注入
+- 批量插入降级: 批量插入失败时自动回退到逐条插入，保证鲁棒性
+"""
 from __future__ import annotations
 
 import logging
@@ -17,14 +30,30 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class HistoryRecord:
-    """历史记录"""
+    """修复任务历史记录数据类。
+
+    存储单次视频/图像修复任务的完整元信息，用于历史页面展示和统计。
+
+    Attributes:
+        id: 数据库自增主键，None 表示新记录尚未插入。
+        task_type: 任务类型，"video" 或 "image"。
+        input_file: 输入文件路径。
+        output_file: 输出文件路径。
+        model_size: 使用的模型大小/版本标识。
+        status: 任务状态: pending / processing / completed / failed / cancelled。
+        parameters: 任务参数 JSON 字符串。
+        processing_time: 处理耗时（秒）。
+        created_at: 记录创建时间（ISO 格式字符串）。
+        error_message: 失败时的错误信息。
+    """
+
     id: int | None = None
-    task_type: str = ""  # video / image
+    task_type: str = ""
     input_file: str = ""
     output_file: str = ""
     model_size: str = ""
-    status: str = ""  # pending, processing, completed, failed, cancelled
-    parameters: str = ""  # JSON string
+    status: str = ""
+    parameters: str = ""
     processing_time: float = 0.0
     created_at: str = ""
     error_message: str = ""
@@ -32,10 +61,23 @@ class HistoryRecord:
 
 @dataclass
 class TaskRecord:
-    """后台任务记录"""
+    """后台任务实时状态记录数据类。
+
+    持久化运行中任务的状态，用于应用重启后恢复未完成任务。
+
+    Attributes:
+        task_id: 任务唯一标识符（UUID）。
+        record_id: 关联的 HistoryRecord 主键 ID。
+        status: 任务状态: pending / processing / completed / failed / cancelled。
+        progress: 任务进度（0.0 ~ 100.0）。
+        output_path: 输出文件路径（任务完成后填充）。
+        error_message: 失败时的错误信息。
+        updated_at: 最后更新时间（ISO 格式字符串）。
+    """
+
     task_id: str = ""
     record_id: int = 0
-    status: str = ""  # pending, processing, completed, failed, cancelled
+    status: str = ""
     progress: float = 0.0
     output_path: str = ""
     error_message: str = ""
@@ -43,9 +85,24 @@ class TaskRecord:
 
 
 class HistoryDB:
-    """历史记录数据库管理器"""
+    """历史记录与任务状态异步数据库管理器。
+
+    提供历史记录 CRUD、全文搜索、统计，以及任务状态持久化接口。
+    支持异步上下文管理器协议（async with），确保异常路径下数据库连接也能正确释放。
+
+    Attributes:
+        db_path: SQLite 数据库文件路径。
+        _initialized: 数据库是否已初始化（表结构已创建）。
+        _db: aiosqlite 持久连接对象，None 表示未连接。
+    """
 
     def __init__(self, db_path: str = "data/history.db"):
+        """初始化历史数据库管理器。
+
+        Args:
+            db_path: SQLite 数据库文件路径，默认 "data/history.db"。
+                路径所在目录不存在时会在 initialize() 中自动创建。
+        """
         self.db_path = db_path
         self._initialized = False
         self._db: aiosqlite.Connection | None = None

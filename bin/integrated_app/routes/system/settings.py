@@ -1,5 +1,23 @@
-#!/usr/bin/env python3
-"""Klar - 设置管理路由"""
+﻿#!/usr/bin/env python3
+"""系统设置管理路由模块。
+
+提供系统配置读取/更新、模型加载/卸载/切换、语言切换、
+本地目录浏览、资源管理器打开等端点。包含路径安全校验防止路径遍历。
+
+API 端点：
+- GET /api/system/settings: 获取当前设置
+- POST /api/system/settings: 更新设置
+- POST /api/system/model/load: 加载模型
+- POST /api/system/model/unload: 卸载模型
+- POST /api/system/model/switch: 切换模型
+- GET /api/system/model/status: 获取模型状态
+- POST /api/system/locale: 切换语言
+- GET /api/system/locales: 获取可用语言列表
+- GET /api/system/browse-dir: 浏览本地目录
+- POST /api/system/open-explorer: 在资源管理器中打开路径
+
+所属项目：SeedVR2 (SeedVR2 视频/图像修复工具)
+"""
 import asyncio
 import logging
 import os
@@ -23,32 +41,40 @@ from bin.integrated_app.model_manager import ModelManager
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# 允许的根目录列表（为空则不限制）
 ALLOWED_ROOT_DIRS: list[str] = []
 
 
 def validate_path(path: str, allowed_roots: list[str] | None = None) -> str:
-    """验证路径安全性，防止路径遍历攻击
+    """验证路径安全性，防止路径遍历攻击（内部工具函数）。
 
-    - 使用 os.path.realpath() 解析真实路径
-    - 拒绝包含 '..' 的路径
-    - 可选限制到允许的根目录列表
+    安全校验步骤：
+    1. 拒绝空路径
+    2. 拒绝原始输入中包含 '..' 的路径
+    3. 使用 os.path.realpath() 解析真实路径（消除符号链接）
+    4. 再次检查解析后的路径是否包含 '..'
+    5. 如配置了允许根目录列表，验证路径在允许范围内
+
+    Args:
+        path: 待验证的路径字符串。
+        allowed_roots: 允许的根目录列表，为空或 None 则不限制（除路径遍历外）。
+
+    Returns:
+        解析后的真实绝对路径。
+
+    Raises:
+        HTTPException: 路径不安全时抛出 400 或 403。
     """
     if not path:
         raise HTTPException(status_code=400, detail="路径为空")
 
-    # 拒绝包含路径遍历的原始输入
     if ".." in path:
         raise HTTPException(status_code=400, detail="路径不允许包含 '..'")
 
-    # 解析真实路径（消除符号链接等）
     real_path = os.path.realpath(path)
 
-    # 再次检查解析后的路径是否包含路径遍历
     if ".." in real_path:
         raise HTTPException(status_code=400, detail="解析后的路径不允许包含 '..'")
 
-    # 如果配置了允许的根目录，检查路径是否在允许范围内
     roots = allowed_roots if allowed_roots is not None else ALLOWED_ROOT_DIRS
     if roots and not any(real_path.startswith(os.path.realpath(r)) for r in roots):
         raise HTTPException(status_code=403, detail="路径不在允许的目录范围内")
@@ -57,18 +83,48 @@ def validate_path(path: str, allowed_roots: list[str] | None = None) -> str:
 
 
 class ModelLoadRequest(BaseModel):
+    """模型加载请求体。
+
+    Attributes:
+        size: 模型尺寸，如 "3b"、"7b"，默认 "3b"。
+        device: 目标设备，如 "cuda:0"，默认 None（自动选择）。
+        precision: 精度模式，"fp16"/"fp8"，默认 None（自动选择）。
+    """
     size: str = "3b"
     device: str | None = None
-    precision: str | None = None  # fp16 / fp8, 默认自动选择
+    precision: str | None = None
 
 
 class ModelSwitchRequest(BaseModel):
+    """模型切换请求体。
+
+    Attributes:
+        size: 目标模型尺寸，如 "3b"、"7b"，默认 "3b"。
+        device: 目标设备，默认 None。
+        precision: 精度模式，默认 None。
+    """
     size: str = "3b"
     device: str | None = None
-    precision: str | None = None  # fp16 / fp8, 默认自动选择
+    precision: str | None = None
 
 
 class SettingsUpdateRequest(BaseModel):
+    """设置更新请求体。
+
+    所有字段均为可选，仅传入需要更新的字段。
+
+    Attributes:
+        default_model_size: 默认模型尺寸。
+        default_precision: 默认精度。
+        default_locale: 默认语言。
+        gpu_backend: GPU 后端。
+        memory_strategy: 内存策略。
+        enable_fp16: 是否启用 FP16。
+        auto_load: 是否自动加载模型。
+        default_resolution_h: 默认输出高度。
+        default_resolution_w: 默认输出宽度。
+        seed: 默认随机种子。
+    """
     default_model_size: str | None = None
     default_precision: str | None = None
     default_locale: str | None = None
@@ -83,8 +139,27 @@ class SettingsUpdateRequest(BaseModel):
 
 @router.get("/settings")
 async def get_settings(config: dict = Depends(get_config)):
-    """获取当前设置（含用户偏好）"""
-    # 加载用户偏好
+    """获取当前系统设置（含用户偏好）。
+
+    API 端点：GET /api/system/settings
+
+    请求参数：无
+
+    返回格式（JSON）：
+    {
+        "model": { ... },        // 模型相关配置
+        "gpu": { ... },          // GPU 相关配置
+        "i18n": { ... },         // 国际化配置
+        "restore": { ... },      // 修复相关配置
+        "user_preferences": { ... }  // 用户偏好设置
+    }
+
+    Args:
+        config: 应用配置（通过依赖注入）。
+
+    Returns:
+        JSONResponse 包含当前配置。
+    """
     try:
         from bin.integrated_app.optimization.webui_enhancement import SettingsPersistence
         persistence = SettingsPersistence()
@@ -106,7 +181,25 @@ async def update_settings(
     settings: SettingsUpdateRequest,
     config: dict = Depends(get_config),
 ):
-    """更新设置"""
+    """更新系统设置并保存到配置文件。
+
+    API 端点：POST /api/system/settings
+
+    请求体（JSON，所有字段可选）：见 SettingsUpdateRequest。
+
+    返回格式（JSON）：
+    {
+        "status": "ok",
+        "message": "设置已更新"
+    }
+
+    Args:
+        settings: 设置更新请求体。
+        config: 应用配置（通过依赖注入）。
+
+    Returns:
+        JSONResponse 确认更新成功。
+    """
     if settings.default_model_size is not None:
         config.setdefault("model", {})["default_size"] = settings.default_model_size
     if settings.default_precision is not None:
@@ -130,12 +223,10 @@ async def update_settings(
 
     await run_in_threadpool(save_config, config)
 
-    # 同步保存用户偏好到 user_preferences 段
     try:
         from bin.integrated_app.optimization.webui_enhancement import SettingsPersistence
         persistence = SettingsPersistence()
         prefs = persistence.load()
-        # 将设置值映射到偏好
         if settings.default_resolution_h is not None:
             prefs.default_resolution = settings.default_resolution_h
         if settings.seed is not None:
@@ -152,7 +243,24 @@ async def load_model(
     req: ModelLoadRequest,
     model_manager: ModelManager = Depends(get_model_manager),
 ):
-    """加载模型"""
+    """加载 SeedVR2 模型到 GPU。
+
+    API 端点：POST /api/system/model/load
+
+    请求体（JSON）：见 ModelLoadRequest。
+
+    返回格式（JSON）：模型加载结果状态。
+
+    错误响应：
+    - 500: 模型加载失败，返回错误信息
+
+    Args:
+        req: 模型加载请求体。
+        model_manager: 模型管理器实例（通过依赖注入）。
+
+    Returns:
+        JSONResponse 包含加载结果。
+    """
     try:
         result = await model_manager.load_model(
             model_size=req.size, device=req.device, precision=req.precision
@@ -168,7 +276,23 @@ async def load_model(
 
 @router.post("/model/unload")
 async def unload_model(model_manager: ModelManager = Depends(get_model_manager)):
-    """卸载模型"""
+    """从 GPU 卸载当前模型，释放显存。
+
+    API 端点：POST /api/system/model/unload
+
+    请求体：无
+
+    返回格式（JSON）：卸载结果状态。
+
+    错误响应：
+    - 500: 卸载失败
+
+    Args:
+        model_manager: 模型管理器实例（通过依赖注入）。
+
+    Returns:
+        JSONResponse 包含卸载结果。
+    """
     try:
         result = await model_manager.unload_model()
         return JSONResponse(result)
@@ -185,7 +309,24 @@ async def switch_model(
     req: ModelSwitchRequest,
     model_manager: ModelManager = Depends(get_model_manager),
 ):
-    """切换模型"""
+    """切换到另一个尺寸/精度的模型（先卸载后加载）。
+
+    API 端点：POST /api/system/model/switch
+
+    请求体（JSON）：见 ModelSwitchRequest。
+
+    返回格式（JSON）：切换结果状态。
+
+    错误响应：
+    - 500: 切换失败
+
+    Args:
+        req: 模型切换请求体。
+        model_manager: 模型管理器实例（通过依赖注入）。
+
+    Returns:
+        JSONResponse 包含切换结果。
+    """
     try:
         result = await model_manager.switch_model(
             model_size=req.size, device=req.device, precision=req.precision
@@ -201,7 +342,20 @@ async def switch_model(
 
 @router.get("/model/status")
 async def model_status(model_manager: ModelManager = Depends(get_model_manager)):
-    """获取模型状态"""
+    """获取当前模型加载状态。
+
+    API 端点：GET /api/system/model/status
+
+    请求参数：无
+
+    返回格式（JSON）：模型状态详情（是否加载、模型尺寸、设备、显存占用等）。
+
+    Args:
+        model_manager: 模型管理器实例（通过依赖注入）。
+
+    Returns:
+        JSONResponse 包含模型状态。
+    """
     return JSONResponse(model_manager.get_status())
 
 
@@ -211,7 +365,30 @@ async def set_locale(
     i18n: I18n = Depends(get_i18n),
     config: dict = Depends(get_config),
 ):
-    """切换语言"""
+    """切换界面语言。
+
+    API 端点：POST /api/system/locale
+
+    请求体（JSON）：
+    {
+        "locale": str  // 语言代码，如 "zh"、"en"、"ja"、"fr"
+    }
+
+    返回格式（JSON）：
+    {
+        "status": "ok",
+        "locale": str,
+        "message": str
+    }
+
+    Args:
+        request: FastAPI 请求对象。
+        i18n: 国际化实例（通过依赖注入）。
+        config: 应用配置（通过依赖注入）。
+
+    Returns:
+        JSONResponse 确认语言切换。
+    """
     try:
         body = await request.json()
         locale = body.get("locale", "zh")
@@ -220,7 +397,6 @@ async def set_locale(
 
     i18n.set_locale(locale)
 
-    # 同时保存到配置文件
     config.setdefault("i18n", {})["default_locale"] = locale
     await run_in_threadpool(save_config, config)
 
@@ -233,7 +409,29 @@ async def set_locale(
 
 @router.get("/locales")
 async def get_locales(i18n: I18n = Depends(get_i18n)):
-    """获取可用语言列表"""
+    """获取可用语言列表。
+
+    API 端点：GET /api/system/locales
+
+    请求参数：无
+
+    返回格式（JSON）：
+    {
+        "current": str,        // 当前语言代码
+        "locales": [
+            {
+                "code": str,   // 语言代码
+                "name": str    // 语言名称
+            }
+        ]
+    }
+
+    Args:
+        i18n: 国际化实例（通过依赖注入）。
+
+    Returns:
+        JSONResponse 包含可用语言列表。
+    """
     locales = []
     for code in i18n.available_locales:
         locales.append({
@@ -248,14 +446,45 @@ async def get_locales(i18n: I18n = Depends(get_i18n)):
 
 @router.get("/browse-dir")
 async def browse_directory(path: str = "", show_files: bool = False):
-    """浏览服务器本地目录，返回子目录列表（用于文件夹选择器）
+    """浏览服务器本地目录，返回子目录列表（用于文件夹选择器）。
 
-    参数:
-        path: 要浏览的目录路径，为空则返回根驱动器列表
-        show_files: 是否同时显示文件
+    API 端点：GET /api/system/browse-dir
+
+    查询参数：
+    - path (optional): 要浏览的目录路径，为空则返回根驱动器列表
+    - show_files (optional): 是否同时显示文件，默认 false
+
+    返回格式（JSON）：
+    {
+        "current_path": str,
+        "parent_path": str,
+        "items": [
+            {
+                "name": str,
+                "path": str,
+                "type": "drive"|"directory"|"file",
+                "ext"?: str,    // 文件扩展名（仅文件）
+                "size"?: int    // 文件大小（仅文件）
+            }
+        ]
+    }
+
+    错误响应：
+    - 403: 权限不足
+    - 404: 路径不存在
+    - 400: 路径不是目录
+
+    Args:
+        path: 目录路径，空字符串返回驱动器列表。
+        show_files: 是否包含文件列表。
+
+    Returns:
+        JSONResponse 包含目录内容。
+
+    Raises:
+        HTTPException: 路径无效或无权限时抛出。
     """
     if not path:
-        # Windows: 返回可用驱动器列表
         drives = []
         if os.name == "nt":
             import string
@@ -267,10 +496,8 @@ async def browse_directory(path: str = "", show_files: bool = False):
             drives.append({"name": "/", "path": "/", "type": "drive"})
         return JSONResponse({"current_path": "", "items": drives})
 
-    # 路径安全验证
     path = validate_path(path)
 
-    # 验证路径存在且是目录
     if not await asyncio.to_thread(os.path.exists, path):
         raise HTTPException(status_code=404, detail=f"Path not found: {path}")
     if not await asyncio.to_thread(os.path.isdir, path):
@@ -305,10 +532,9 @@ async def browse_directory(path: str = "", show_files: bool = False):
         except (PermissionError, OSError):
             continue
 
-    # 返回父目录信息
     parent = os.path.dirname(path.rstrip("/\\"))
     if parent == path.rstrip("/\\"):
-        parent = ""  # 已经是根目录
+        parent = ""
 
     return JSONResponse({
         "current_path": path,
@@ -319,13 +545,45 @@ async def browse_directory(path: str = "", show_files: bool = False):
 
 @router.post("/open-explorer")
 async def open_in_explorer(request: Request):
-    """在系统资源管理器中打开指定路径"""
+    """在系统资源管理器中打开指定路径。
+
+    API 端点：POST /api/system/open-explorer
+
+    请求体（JSON）：
+    {
+        "path": str  // 要打开的路径
+    }
+
+    返回格式（JSON）：
+    {
+        "success": true,
+        "message": str
+    }
+
+    支持平台：
+    - Windows: 使用 os.startfile() 打开资源管理器
+    - macOS: 使用 open 命令
+    - Linux: 使用 xdg-open 命令
+
+    错误响应：
+    - 400: 路径为空
+    - 404: 路径不存在
+    - 500: 打开失败
+
+    Args:
+        request: FastAPI 请求对象。
+
+    Returns:
+        JSONResponse 确认打开操作。
+
+    Raises:
+        HTTPException: 路径无效或打开失败时抛出。
+    """
     body = await request.json()
     path = body.get("path", "").strip()
     if not path:
         raise HTTPException(status_code=400, detail="路径为空")
 
-    # 路径安全验证
     path = validate_path(path)
 
     if not await asyncio.to_thread(os.path.exists, path):

@@ -12,12 +12,32 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
+"""NaDiT MMSR (Multi-Modal Swin Restorer) Transformer Block 模块。
+
+实现 NaDiT (Native Resolution DiT) 的变长窗口注意力 Transformer block：
+
+- **NaSwinAttention**: NaDiT 版本的 Swin 风格窗口注意力，继承自 MMWindowAttention，
+  支持变长序列（使用 Flash Attention v2 cu_seqlens API）、动态窗口划分（通过索引映射）、
+  缓存加速。视频分支使用窗口注意力，文本分支在每个窗口内被复制并与视频 token 联合注意力。
+- **NaMMSRTransformerBlock**: 完整的 NaDiT Transformer block，包含
+  NaSwinAttention + MLP + AdaLN-Zero 自适应调制 + 残差连接，支持变长 hid_len。
+
+变长窗口注意力:
+    与标准 MMWindowAttention 使用固定尺寸 reshape 划分窗口不同，NaSwinAttention
+    通过预计算窗口索引 (window_partition/window_reverse) 来支持任意视频尺寸，
+    包括非 window_size 整数倍的尺寸。所有窗口的 token 被 flatten 成一维序列，
+    使用 Flash Attention v2 的变长 API (cu_seqlens) 批量计算所有窗口的注意力。
+
+    视频窗口和文本 token 通过 repeat_concat_idx 按窗口拼接：每个视频窗口
+    对应一组 K/V，包含该窗口内视频 token 和全部文本 token，从而每个窗口的
+    视频查询都能关注到窗口内视频和全局文本信息。
+"""
+
 from typing import Tuple, Union
 import torch
 from einops import rearrange
 from torch.nn import functional as F
 
-# from ..cache import Cache
 from common.cache import Cache
 from common.distributed.ops import gather_heads_scatter_seq, gather_seq_scatter_heads_qkv
 from common.utils import safe_pad_operation
@@ -32,7 +52,31 @@ from ..window import get_window_op
 
 
 class NaSwinAttention(MMWindowAttention):
-    """NaDiT 版 Swin 窗口注意力，支持变长序列和 Flash Attention。"""
+    """NaDiT 版 Swin 窗口注意力，支持变长序列和 Flash Attention。
+
+    继承自 MMWindowAttention，替换注意力实现为 FlashAttentionVarlen，
+    使用索引映射而非 reshape 实现窗口划分，支持任意视频尺寸。
+
+    Args:
+        vid_dim (int): 视频特征维度。
+        txt_dim (int): 文本特征维度。
+        heads (int): 注意力头数。
+        head_dim (int): 每头维度。
+        qk_bias (bool): Q/K 投影偏置。
+        qk_rope (bool): 是否启用 RoPE。
+        qk_norm (norm_layer_type): Q/K 归一化层。
+        qk_norm_eps (float): Q/K 归一化 epsilon。
+        window (Union[int, Tuple[int,int,int]]): 窗口配置。
+        window_method (str): 窗口划分方法。
+        shared_qkv (bool): QKV 是否共享权重。
+        **kwargs: 额外参数。
+
+    Attributes:
+        rope (NaRotaryEmbedding3d): 变长 RoPE 位置编码。
+        attn (FlashAttentionVarlen): Flash Attention v2 变长实现。
+        window_op: 窗口划分操作函数。
+    """
+
     def __init__(
         self,
         vid_dim: int,
@@ -67,16 +111,28 @@ class NaSwinAttention(MMWindowAttention):
 
     def forward(
         self,
-        vid: torch.FloatTensor,  # l c
-        txt: torch.FloatTensor,  # l c
-        vid_shape: torch.LongTensor,  # b 3
-        txt_shape: torch.LongTensor,  # b 1
+        vid: torch.FloatTensor,
+        txt: torch.FloatTensor,
+        vid_shape: torch.LongTensor,
+        txt_shape: torch.LongTensor,
         cache: Cache,
     ) -> Tuple[
         torch.FloatTensor,
         torch.FloatTensor,
     ]:
+        """前向传播，执行变长多模态窗口注意力。
 
+        Args:
+            vid (torch.FloatTensor): 视频 token，展平形状 (sum_vid_len, c)。
+            txt (torch.FloatTensor): 文本 token，展平形状 (sum_txt_len, c)。
+            vid_shape (torch.LongTensor): 每个样本的视频网格大小 (b, 3)，即 (nt, nh, nw)。
+            txt_shape (torch.LongTensor): 每个样本的文本长度 (b, 1)。
+            cache (Cache): 缓存对象，用于缓存窗口索引、累积长度等重复计算结果。
+
+        Returns:
+            Tuple[torch.FloatTensor, torch.FloatTensor]: (vid_out, txt_out) 元组，
+                形状分别为 (sum_vid_len, vid_dim) 和 (sum_txt_len, txt_dim)。
+        """
         vid_qkv, txt_qkv = self.proj_qkv(vid, txt)
         vid_qkv = gather_seq_scatter_heads_qkv(
             vid_qkv,
@@ -91,7 +147,6 @@ class NaSwinAttention(MMWindowAttention):
             cache=cache.namespace("txt"),
         )
 
-        # re-org the input seq for window attn
         cache_win = cache.namespace(f"{self.window_method}_{self.window}_sd3")
 
         def make_window(x: torch.Tensor):
@@ -123,7 +178,6 @@ class NaSwinAttention(MMWindowAttention):
             "mm_pnp", lambda: na.repeat_concat_idx(vid_len_win, txt_len, window_count)
         )
 
-        # window rope
         if self.rope:
             vid_q, vid_k = self.rope(vid_q, vid_k, window_shape, cache_win)
 
@@ -141,7 +195,6 @@ class NaSwinAttention(MMWindowAttention):
             max_seqlen_k=cache_win("vid_max_seqlen_k", lambda: all_len_win.max().item()),
         ).type_as(vid_q)
 
-        # text pooling
         vid_out, txt_out = unconcat_win(out)
 
         vid_out = rearrange(vid_out, "l h d -> l (h d)")
@@ -157,7 +210,30 @@ class NaSwinAttention(MMWindowAttention):
 
 
 class NaMMSRTransformerBlock(MMWindowTransformerBlock):
-    """NaDiT MMSR Transformer block，使用 NaSwinAttention 替代标准窗口注意力。"""
+    """NaDiT MMSR Transformer block，使用 NaSwinAttention 替代标准窗口注意力。
+
+    继承自 MMWindowTransformerBlock，替换注意力层为 NaSwinAttention 以支持
+    变长序列输入，并使用变长 hid_len 参数进行 AdaLN 调制。
+
+    Args:
+        vid_dim (int): 视频特征维度。
+        txt_dim (int): 文本特征维度。
+        emb_dim (int): 时间步嵌入维度。
+        heads (int): 注意力头数。
+        head_dim (int): 每头维度。
+        expand_ratio (int): MLP 扩展倍数。
+        norm (norm_layer_type): 归一化层构造函数。
+        norm_eps (float): 归一化 epsilon。
+        ada (ada_layer_type): 自适应调制层构造函数。
+        qk_bias (bool): Q/K 投影偏置。
+        qk_rope (bool): 是否启用 RoPE。
+        qk_norm (norm_layer_type): Q/K 归一化层。
+        shared_qkv (bool): QKV 是否共享权重。
+        shared_mlp (bool): MLP 是否共享权重。
+        mlp_type (str): MLP 类型。
+        **kwargs: 额外参数（包含 window, window_method, block_id, fp8 等）。
+    """
+
     def __init__(
         self,
         *,
@@ -212,10 +288,10 @@ class NaMMSRTransformerBlock(MMWindowTransformerBlock):
 
     def forward(
         self,
-        vid: torch.FloatTensor,  # l c
-        txt: torch.FloatTensor,  # l c
-        vid_shape: torch.LongTensor,  # b 3
-        txt_shape: torch.LongTensor,  # b 1
+        vid: torch.FloatTensor,
+        txt: torch.FloatTensor,
+        vid_shape: torch.LongTensor,
+        txt_shape: torch.LongTensor,
         emb: torch.FloatTensor,
         cache: Cache,
     ) -> Tuple[
@@ -224,6 +300,20 @@ class NaMMSRTransformerBlock(MMWindowTransformerBlock):
         torch.LongTensor,
         torch.LongTensor,
     ]:
+        """前向传播，执行完整的 NaDiT Transformer block。
+
+        Args:
+            vid (torch.FloatTensor): 视频 token，展平形状 (sum_vid_len, c)。
+            txt (torch.FloatTensor): 文本 token，展平形状 (sum_txt_len, c)。
+            vid_shape (torch.LongTensor): 每个样本的视频网格大小 (b, 3)。
+            txt_shape (torch.LongTensor): 每个样本的文本长度 (b, 1)。
+            emb (torch.FloatTensor): 时间步嵌入，形状 (b, emb_dim)。
+            cache (Cache): 缓存对象。
+
+        Returns:
+            Tuple[torch.FloatTensor, torch.FloatTensor, torch.LongTensor, torch.LongTensor]:
+                (vid_out, txt_out, vid_shape, txt_shape) 元组，保持 shape 传递。
+        """
         hid_len = MMArg(
             cache("vid_len", lambda: vid_shape.prod(-1)),
             cache("txt_len", lambda: txt_shape.prod(-1)),

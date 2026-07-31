@@ -1,6 +1,12 @@
-"""扩散调度 / CFG / 采样器增强模块
+﻿"""扩散调度 / CFG / 采样器增强模块
 
-提供多种采样策略和 CFG 优化技术。
+本模块属于 SeedVR2 视频修复项目的 AI 推理优化层，提供多种扩散采样策略和
+Classifier-Free Guidance (CFG) 优化技术，用于提升视频修复的质量和速度。
+
+核心技术栈:
+- PyTorch: 张量计算与自动微分
+- 扩散模型采样算法: Euler/DPM-Solver/Flow Matching 等
+- 数值优化: 时间步调度、权重混合、蒸馏加速
 
 竞品来源:
 - Vivid-VR: Restoration-Guided Sampling (P0)
@@ -20,6 +26,8 @@ Key Features:
 - guide_rescale: CFG 稳定性增强
 - Noise Inversion: 反向 ODE 精确噪声恢复
 - 多采样器统一接口
+- 四步/一步蒸馏推理加速
+- SD3 时间偏移支持高分辨率生成
 """
 
 import logging
@@ -170,19 +178,37 @@ class RestorationGuidedSampling:
 class DynamicCFG:
     """动态 Classifier-Free Guidance
 
-    参考 CogVideo 的 Dynamic CFG:
-    在采样过程中动态调整 CFG scale，
-    前期使用较低的 CFG (避免伪影)，后期使用较高的 CFG (增强细节)。
+    参考 CogVideo 的 Dynamic CFG 策略，在采样过程中线性调整 CFG scale:
+    前期使用较低的 CFG (避免伪影和过度约束)，后期使用较高的 CFG (增强细节)。
+
+    Attributes:
+        initial_scale: 初始 CFG scale (采样开始时)
+        final_scale: 最终 CFG scale (采样结束时)
     """
 
     def __init__(self, initial_scale: float = 3.0, final_scale: float = 7.5):
+        """初始化动态 CFG 调度器
+
+        Args:
+            initial_scale: 初始 CFG scale，默认 3.0
+            final_scale: 最终 CFG scale，默认 7.5
+        """
         self.initial_scale = initial_scale
         self.final_scale = final_scale
 
     def get_scale(self, current_step: int, total_steps: int) -> float:
-        """计算当前步的动态 CFG scale"""
+        """计算当前步的动态 CFG scale
+
+        使用线性插值从 initial_scale 过渡到 final_scale。
+
+        Args:
+            current_step: 当前采样步 (0-based)
+            total_steps: 总采样步数
+
+        Returns:
+            当前步的 CFG scale 值
+        """
         progress = current_step / total_steps if total_steps > 0 else 0
-        # 线性过渡
         return self.initial_scale + (self.final_scale - self.initial_scale) * progress
 
 
@@ -193,21 +219,42 @@ class DynamicCFG:
 class LinearCFGStrategy:
     """线性 CFG 策略
 
-    参考 SUPIR 的 CFG scale 随 sigma 线性变化:
-    在噪声水平高时使用较低的 CFG，噪声水平低时使用较高的 CFG。
+    参考 SUPIR 的 CFG scale 随噪声水平 sigma 线性变化策略:
+    在噪声水平高时 (采样前期) 使用较低的 CFG，避免高噪声下的伪影;
+    在噪声水平低时 (采样后期) 使用较高的 CFG，增强细节生成。
+
+    Attributes:
+        low_noise_scale: 低噪声时的 CFG scale (采样后期)
+        high_noise_scale: 高噪声时的 CFG scale (采样前期)
     """
 
     def __init__(self, low_noise_scale: float = 7.5, high_noise_scale: float = 3.0):
-        self.low_noise_scale = low_noise_scale  # sigma 低时 (后期)
-        self.high_noise_scale = high_noise_scale  # sigma 高时 (前期)
+        """初始化线性 CFG 策略
+
+        Args:
+            low_noise_scale: 低噪声 (sigma 小) 时使用的 CFG scale，默认 7.5
+            high_noise_scale: 高噪声 (sigma 大) 时使用的 CFG scale，默认 3.0
+        """
+        self.low_noise_scale = low_noise_scale
+        self.high_noise_scale = high_noise_scale
 
     def get_scale(self, sigma: float, sigma_max: float, sigma_min: float = 0.0) -> float:
-        """根据 sigma 计算 CFG scale"""
+        """根据当前噪声水平 sigma 计算线性插值的 CFG scale
+
+        Args:
+            sigma: 当前噪声水平
+            sigma_max: 最大噪声水平 (采样开始时)
+            sigma_min: 最小噪声水平 (采样结束时)，默认 0.0
+
+        Returns:
+            线性插值后的 CFG scale 值
+
+        Raises:
+            无异常 (异常输入时回退到 low_noise_scale)
+        """
         if sigma_max <= sigma_min:
             return self.low_noise_scale
 
-        # sigma 从大到小: sigma_max -> sigma_min
-        # CFG 从 high_noise_scale -> low_noise_scale
         ratio = (sigma - sigma_min) / (sigma_max - sigma_min)
         return self.high_noise_scale + (self.low_noise_scale - self.high_noise_scale) * (1 - ratio)
 
@@ -274,6 +321,13 @@ class NoiseInversion:
     """
 
     def __init__(self, schedule, sampler, num_steps: int = 50):
+        """初始化噪声反转器
+
+        Args:
+            schedule: 噪声调度器，提供 sigma/alpha 等时间步参数
+            sampler: 采样器实例，用于执行反向 ODE 积分
+            num_steps: 反转步数，默认 50 步 (精度与速度的权衡)
+        """
         self.schedule = schedule
         self.sampler = sampler
         self.num_steps = num_steps
@@ -314,22 +368,42 @@ class NoiseInversion:
 class SamplerRegistry:
     """采样器统一注册和切换接口
 
-    参考 DiffBIR 的 14 种采样器通过统一 sampler.sample() 切换。
+    参考 DiffBIR 的 14 种采样器通过统一 sampler.sample() 切换机制。
+    使用类级别的字典维护采样器名称到实现函数的映射，支持运行时动态注册和查询。
     """
 
     _samplers: dict[str, Callable] = {}
 
     @classmethod
     def register(cls, name: str, sampler_fn: Callable):
+        """注册一个新的采样器
+
+        Args:
+            name: 采样器名称 (唯一标识)
+            sampler_fn: 采样器函数，接收 (model, x, cond, ...) 返回采样结果
+        """
         cls._samplers[name] = sampler_fn
         logger.debug(f"采样器注册: {name}")
 
     @classmethod
     def get_sampler(cls, name: str) -> Callable | None:
+        """根据名称获取已注册的采样器
+
+        Args:
+            name: 采样器名称
+
+        Returns:
+            采样器函数，未找到时返回 None
+        """
         return cls._samplers.get(name)
 
     @classmethod
     def list_samplers(cls) -> list[str]:
+        """列出所有已注册的采样器名称
+
+        Returns:
+            采样器名称列表
+        """
         return list(cls._samplers.keys())
 
 
@@ -360,6 +434,11 @@ class DistilledSampling:
     RECOMMENDED_4STEP_TIMESTEPS = [999, 749, 499, 249]
 
     def __init__(self, config: DistillationConfig | None = None):
+        """初始化蒸馏采样器
+
+        Args:
+            config: 蒸馏配置，为 None 时使用默认配置 (4步蒸馏)
+        """
         self.config = config or DistillationConfig()
 
     def get_timesteps(self, total_timesteps: int = 1000) -> list[int]:

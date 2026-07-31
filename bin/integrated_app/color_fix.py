@@ -1,6 +1,19 @@
-"""颜色校正后处理 - LAB 颜色匹配算法
+"""颜色校正后处理模块
 
-参考: https://github.com/pkuliyi2015/sd-webui-stablesr/blob/master/srmodule/colorfix.py
+提供多种颜色匹配/校正算法，用于将模型修复后图像的颜色分布对齐到原始输入图像，
+解决 AI 修复后可能出现的色偏、饱和度异常等问题。
+
+支持的算法:
+- lab: LAB 色彩空间均值方差匹配（推荐默认，效果自然）
+- hsv: HSV 色彩空间均值方差匹配
+- wavelet: 小波颜色匹配（保留参考图像低频，保留结果高频细节）
+- wavelet_adaptive: 小波 + 自适应饱和度混合
+- adain: 自适应实例归一化（RGB空间均值方差匹配）
+- none: 不做颜色校正
+
+所有函数输入输出均为 RGB 格式的 numpy 数组 (H, W, 3) dtype=uint8。
+
+参考实现: https://github.com/pkuliyi2015/sd-webui-stablesr/blob/master/srmodule/colorfix.py
 """
 import logging
 

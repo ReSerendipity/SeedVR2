@@ -1,9 +1,22 @@
-"""专用引擎 / 场景扩展模块
+﻿"""专用引擎 / 场景扩展模块
 
-提供面向特定场景的专用修复引擎，扩展 SeedVR2 的多引擎调度体系。
-每个引擎继承 Upscaler 抽象基类，通过 @EngineRegistry.register() 自动注册。
+所属项目: SeedVR2 (SeedVR2 视频/图像修复应用)
+核心技术栈: Python, PyTorch, 人脸修复, 视频修复, 图像上色, Transformer
 
-竞品来源:
+本模块提供面向特定场景的专用修复引擎实现，扩展SeedVR2的多引擎调度体系。
+所有引擎均继承Upscaler抽象基类，通过@EngineRegistry.register()装饰器
+自动注册到引擎注册表，可被EngineScheduler统一调度。
+
+包含的专用引擎:
+- FaceRestorationEngine: CodeFormer风格VQ码本+Transformer三阶段人脸修复
+- AnimeEngine: Real-CUGAN风格级联U-Net+SEBlock通道注意力动漫专用引擎
+- CPULightweightEngine: Anime4KCPP风格ACNet极轻量CNN+多架构SIMD CPU回退引擎
+- ColorizationEngine: DeOldify风格NoGAN+YUV空间旧视频/图像上色引擎
+- CompressedVideoEngine: FTVSR风格频域注意力压缩伪影修复引擎
+- DiffBIREngine: SwiNIR+ControlNet+小波重建图像修复引擎
+- VideoInpaintingEngine: ProPainter风格双向传播+Temporal Sparse Transformer视频修复引擎
+
+参考竞品与设计来源:
 - CodeFormer: VQ codebook + Transformer 三阶段人脸修复 (P2)
 - Real-CUGAN: 级联 U-Net + SEBlock 通道注意力动漫专用 (P2)
 - Anime4KCPP: ACNet 极轻量 CNN + 多架构 SIMD CPU 回退 (P1)
@@ -11,15 +24,6 @@
 - FTVSR: 频域注意力压缩伪影修复 (P3)
 - DiffBIR: SwiNIR + ControlNet + 小波重建图像修复 (P1)
 - ProPainter: 双向传播 + Temporal Sparse Transformer 视频修复 (P3)
-
-Key Features:
-- FaceRestorationEngine: CodeFormer 风格 VQ 码本 + Transformer 三阶段人脸修复
-- AnimeEngine: Real-CUGAN 风格级联 U-Net + SEBlock 动漫专用引擎
-- CPULightweightEngine: Anime4KCPP 风格 ACNet 极轻量 CPU 回退引擎
-- ColorizationEngine: DeOldify 风格 NoGAN + YUV 上色引擎
-- CompressedVideoEngine: FTVSR 风格频域注意力压缩伪影修复引擎
-- DiffBIREngine: SwiNIR + ControlNet + 小波重建图像修复引擎
-- VideoInpaintingEngine: ProPainter 风格双向传播视频修复引擎
 """
 
 import logging

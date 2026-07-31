@@ -1,4 +1,18 @@
-"""视频处理工具链 - FFmpeg 集成与视频分帧处理"""
+"""视频处理工具链 - FFmpeg 集成与视频分帧/合帧处理
+
+提供基于 FFmpeg/FFprobe 命令行工具的视频处理能力:
+1. FFmpegWrapper: FFmpeg/FFprobe 可执行文件封装，提供视频信息查询、帧提取、视频合成、音频提取/合并等功能
+2. VideoProcessor: 已废弃的视频分段处理流水线（引擎直接使用 FFmpegWrapper）
+3. rife_interpolate_video: RIFE 帧插值接口（可选功能）
+
+特性:
+- 自动查找 FFmpeg: 优先使用项目 bin 目录下的 FFmpeg，其次查找系统 PATH
+- 多种视频编码: H.264 编码（libx264），CRF 18 高质量，yuv420p 兼容性好
+- 音频处理: 支持从源视频提取并合并音轨，AAC 192k 编码
+- 超时保护: 所有子进程调用设置超时，防止卡死
+
+注意: 需要系统安装 FFmpeg 或将 ffmpeg.exe/ffprobe.exe 放置于项目 bin/ 目录。
+"""
 import json
 import logging
 import os
@@ -16,7 +30,22 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class VideoInfo:
-    """视频信息"""
+    """视频元信息数据类。
+
+    由 FFprobe 解析视频文件得到的元数据。
+
+    Attributes:
+        path: 视频文件路径。
+        width: 视频宽度（像素）。
+        height: 视频高度（像素）。
+        fps: 帧率（帧/秒）。
+        frame_count: 总帧数。
+        duration: 时长（秒）。
+        codec: 视频编码名称（如 h264、hevc）。
+        has_audio: 是否包含音频轨道。
+        audio_codec: 音频编码名称（如 aac），无音频时为空字符串。
+    """
+
     path: str
     width: int
     height: int
@@ -29,15 +58,46 @@ class VideoInfo:
 
 
 class FFmpegWrapper:
-    """FFmpeg 命令行封装"""
+    """FFmpeg/FFprobe 命令行工具封装类。
+
+    封装对 ffmpeg 和 ffprobe 可执行文件的调用，提供视频元信息查询、
+    帧提取、视频合成、音频提取/音视频合并等常用操作。
+
+    可执行文件查找顺序:
+    1. 项目根目录 bin/ 下的 ffmpeg.exe/ffprobe.exe（Windows）或 ffmpeg/ffprobe（Linux/macOS）
+    2. 系统 PATH 中的 ffmpeg/ffprobe
+    3. 返回默认名称（依赖 PATH 查找）
+
+    Attributes:
+        ffmpeg_path: ffmpeg 可执行文件路径。
+        ffprobe_path: ffprobe 可执行文件路径。
+    """
 
     def __init__(self, ffmpeg_path: str = "ffmpeg", ffprobe_path: str = "ffprobe"):
+        """初始化 FFmpeg 封装，自动查找可执行文件路径。
+
+        Args:
+            ffmpeg_path: ffmpeg 可执行文件名称或路径，默认 "ffmpeg"。
+            ffprobe_path: ffprobe 可执行文件名称或路径，默认 "ffprobe"。
+        """
         self.ffmpeg_path = self._find_executable(ffmpeg_path, "ffmpeg")
         self.ffprobe_path = self._find_executable(ffprobe_path, "ffprobe")
 
     def _find_executable(self, name: str, base_name: str) -> str:
-        """查找可执行文件"""
-        # 1. 检查项目 bin 目录
+        """查找 FFmpeg/FFprobe 可执行文件路径。
+
+        查找顺序:
+        1. 项目根目录 bin/ 下的本地可执行文件（Windows 下带 .exe 后缀）
+        2. 系统 PATH 环境变量中的可执行文件
+        3. 都找不到时返回传入的默认名称（依赖运行时 PATH）
+
+        Args:
+            name: 用户传入的可执行文件名称或路径。
+            base_name: 可执行文件基础名（"ffmpeg" 或 "ffprobe"），用于拼接 Windows 后缀。
+
+        Returns:
+            找到的可执行文件路径，找不到时返回 name 参数本身。
+        """
         project_root = Path(__file__).parent.parent.parent.parent
         bin_dir = project_root / "bin"
         exe_name = f"{base_name}.exe" if sys.platform == "win32" else base_name
@@ -46,16 +106,20 @@ class FFmpegWrapper:
         if local_path.exists():
             return str(local_path)
 
-        # 2. 检查系统 PATH
         system_path = shutil.which(name)
         if system_path:
             return system_path
 
-        # 3. 返回默认名称（依赖 PATH）
         return name
 
     def is_available(self) -> bool:
-        """检查 FFmpeg 是否可用"""
+        """检查 FFmpeg 是否可用。
+
+        通过执行 ``ffmpeg -version`` 验证可执行文件存在且可正常运行。
+
+        Returns:
+            FFmpeg 可用返回 True，否则返回 False。
+        """
         try:
             result = subprocess.run(
                 [self.ffmpeg_path, "-version"],
@@ -250,7 +314,15 @@ class FFmpegWrapper:
             return False
 
     def extract_audio(self, video_path: str, output_path: str) -> bool:
-        """从视频提取音频轨道"""
+        """从视频中提取音频轨道（直接复制流，不重新编码）。
+
+        Args:
+            video_path: 输入视频路径。
+            output_path: 输出音频文件路径（推荐 .aac 格式）。
+
+        Returns:
+            提取成功返回 True，失败返回 False。
+        """
         cmd = [
             self.ffmpeg_path,
             "-y",
@@ -272,7 +344,19 @@ class FFmpegWrapper:
         audio_path: str,
         output_path: str,
     ) -> bool:
-        """合并音频和视频"""
+        """合并视频和音频轨道。
+
+        视频流直接复制（不重新编码），音频转码为 AAC 192kbps，
+        使用 -shortest 标志以较短流的时长为准截断输出。
+
+        Args:
+            video_path: 输入视频文件路径（无音频）。
+            audio_path: 输入音频文件路径。
+            output_path: 输出合并后视频路径。
+
+        Returns:
+            合并成功返回 True，失败返回 False。
+        """
         cmd = [
             self.ffmpeg_path,
             "-y",
@@ -426,23 +510,24 @@ class VideoProcessor:
         return True, output_path
 
 
-# RIFE frame interpolation reference (CogVideo inspired)
 def rife_interpolate_video(input_path: str, output_path: str, multiplier: int = 2) -> bool:
-    """Attempt RIFE-based frame interpolation for video rate enhancement.
-    
+    """使用 RIFE 算法进行视频帧率插值提升。
+
+    通过在现有帧之间插入中间帧来提高视频帧率，使视频更流畅。
+    需要安装 optimization.video_processing_enhance 模块中的 RIFEInterpolator。
+
     Args:
-        input_path: Input video path
-        output_path: Output video path  
-        multiplier: Frame rate multiplier (2 = double fps)
-    
+        input_path: 输入视频文件路径。
+        output_path: 输出视频文件路径。
+        multiplier: 帧率倍数，2 表示帧率翻倍（如 30fps -> 60fps）。
+
     Returns:
-        True if interpolation succeeded, False otherwise
+        插值成功返回 True，RIFE 不可用或处理失败返回 False。
     """
     try:
         from bin.integrated_app.optimization.video_processing_enhance import RIFEInterpolator
         interpolator = RIFEInterpolator()
         return interpolator.interpolate_file(input_path, output_path, multiplier)
     except Exception as e:
-        import logging
-        logging.getLogger(__name__).debug(f"RIFE interpolation not available: {e}")
+        logger.debug(f"RIFE 插值不可用: {e}")
         return False
