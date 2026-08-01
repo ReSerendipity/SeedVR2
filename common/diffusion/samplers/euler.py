@@ -46,14 +46,10 @@ arbitrary timesteps without requiring explicit velocity computation.
 Reference: https://en.wikipedia.org/wiki/Euler_method
 """
 
-from typing import Callable
+from collections.abc import Callable
+
 import torch
-from einops import rearrange
-from torch.nn import functional as F
 
-from models.dit_v2 import na
-
-from ..types import PredictionType
 from ..utils import expand_dims
 from .base import Sampler, SamplerModelArgs
 
@@ -99,7 +95,7 @@ class EulerSampler(Sampler):
         timesteps = self.timesteps.timesteps
         progress = self.get_progress_bar()
         i = 0
-        for t, s in zip(timesteps[:-1], timesteps[1:]):
+        for t, s in zip(timesteps[:-1], timesteps[1:], strict=False):
             pred = f(SamplerModelArgs(x, t, i))
             x = self.step_to(pred, x, t, s)
             i += 1

@@ -33,12 +33,10 @@ Key Features:
 """
 
 import logging
-from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -50,11 +48,13 @@ logger = logging.getLogger(__name__)
 # 帧插值一体化框架 (VEnhancer inspired) - P1
 # ---------------------------------------------------------------------------
 
+
 class InterpolationStage(Enum):
     """帧插值处理阶段"""
-    SPATIAL = "spatial"      # 空间超分辨率
-    TEMPORAL = "temporal"    # 时间插帧
-    REFINE = "refine"        # 精炼后处理
+
+    SPATIAL = "spatial"  # 空间超分辨率
+    TEMPORAL = "temporal"  # 时间插帧
+    REFINE = "refine"  # 精炼后处理
 
 
 @dataclass
@@ -71,6 +71,7 @@ class VEnhancerConfig:
     - 精炼阶段: 对插帧结果进行后处理，消除伪影和时序不连续
     - 三阶段共享特征提取器，避免重复计算
     """
+
     # 是否启用一体化帧插值
     enabled: bool = False
     # 空间放大倍数
@@ -165,7 +166,7 @@ class VEnhancerPipeline:
         result_frames = []
 
         for t in range(T - 1):
-            frame0 = frames[:, t]      # [B, C, H, W]
+            frame0 = frames[:, t]  # [B, C, H, W]
             frame1 = frames[:, t + 1]  # [B, C, H, W]
             result_frames.append(frame0)
 
@@ -176,9 +177,7 @@ class VEnhancerPipeline:
                 if flow_estimator is not None:
                     # 使用光流进行精确插帧
                     # 实际实现需要调用 flow_estimator 并进行双向 warp
-                    mid_frame = self._flow_interpolate(
-                        frame0, frame1, t_mid, flow_estimator
-                    )
+                    mid_frame = self._flow_interpolate(frame0, frame1, t_mid, flow_estimator)
                 else:
                     # 简单线性插值
                     mid_frame = (1 - t_mid) * frame0 + t_mid * frame1
@@ -236,12 +235,8 @@ class VEnhancerPipeline:
         norm_grid_bwd[..., 0] = norm_grid_bwd[..., 0] / (W - 1) - 1
         norm_grid_bwd[..., 1] = norm_grid_bwd[..., 1] / (H - 1) - 1
 
-        warped_fwd = F.grid_sample(
-            frame0, norm_grid_fwd, mode="bilinear", align_corners=True
-        )
-        warped_bwd = F.grid_sample(
-            frame1, norm_grid_bwd, mode="bilinear", align_corners=True
-        )
+        warped_fwd = F.grid_sample(frame0, norm_grid_fwd, mode="bilinear", align_corners=True)
+        warped_bwd = F.grid_sample(frame1, norm_grid_bwd, mode="bilinear", align_corners=True)
 
         # 加权混合
         mid_frame = (1 - t_mid) * warped_fwd + t_mid * warped_bwd
@@ -294,15 +289,15 @@ class VEnhancerPipeline:
                 result = self.process_spatial(result, spatial_model)
             elif stage == InterpolationStage.TEMPORAL:
                 result = self.process_temporal(result, flow_estimator)
-            elif stage == InterpolationStage.REFINE:
-                if self.config.use_refine:
-                    result = self.process_refine(result, refine_model)
+            elif stage == InterpolationStage.REFINE and self.config.use_refine:
+                result = self.process_refine(result, refine_model)
         return result
 
 
 # ---------------------------------------------------------------------------
 # RAFT 光流集成参考 (Upscale-A-Video inspired) - P2
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class RAFTFlowConfig:
@@ -317,6 +312,7 @@ class RAFTFlowConfig:
     - 精确的光流用于: 帧对齐、特征传播、运动补偿
     - 在视频修复中，光流引导前一帧的特征对齐到当前帧位置
     """
+
     # 是否启用 RAFT 光流
     enabled: bool = False
     # RAFT 模型类型: 'sintel', 'kitti', 'things'
@@ -451,6 +447,7 @@ class RAFTFlowEstimator:
 # 深度感知帧插值参考 (DAIN inspired) - P3
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class DepthAwareInterpConfig:
     """深度感知帧插值配置
@@ -465,6 +462,7 @@ class DepthAwareInterpConfig:
     - 在深度不连续处 (遮挡边界) 使用深度感知的流融合权重
     - 前景物体的光流优先级高于后景
     """
+
     # 是否启用深度感知插帧
     enabled: bool = False
     # 深度估计模型类型: 'midas', 'zoedepth', 'depth_anything'
@@ -527,13 +525,14 @@ class DepthAwareInterpolator:
         # Sobel 边缘检测
         sobel_x = torch.tensor(
             [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]],
-            dtype=torch.float32, device=depth.device,
+            dtype=torch.float32,
+            device=depth.device,
         ).reshape(1, 1, 3, 3)
         sobel_y = sobel_x.permute(0, 1, 3, 2)
 
         grad_x = F.conv2d(depth, sobel_x, padding=1)
         grad_y = F.conv2d(depth, sobel_y, padding=1)
-        grad_mag = (grad_x ** 2 + grad_y ** 2).sqrt()
+        grad_mag = (grad_x**2 + grad_y**2).sqrt()
 
         edges = (grad_mag > cfg.depth_edge_threshold).float()
         return edges
@@ -563,10 +562,7 @@ class DepthAwareInterpolator:
         # 在遮挡边界处使用混合权重
         edges = self.detect_depth_edges(depth0)
 
-        weights = (
-            foreground_mask * cfg.foreground_weight
-            + (1 - foreground_mask) * cfg.background_weight
-        )
+        weights = foreground_mask * cfg.foreground_weight + (1 - foreground_mask) * cfg.background_weight
 
         # 在边缘区域平滑过渡
         weights = weights * (1 - edges) + 0.5 * edges
@@ -613,14 +609,13 @@ class DepthAwareInterpolator:
         Returns:
             插值帧 [B, C, H, W]
         """
-        cfg = self.config
         B, C, H, W = frame0.shape
         device = frame0.device
 
         # ---- 步骤 1: 深度边缘检测 ----
         # 深度不连续处 = 遮挡边界候选区域
-        depth_edges0 = self.detect_depth_edges(depth0)   # [B, 1, H, W]
-        depth_edges1 = self.detect_depth_edges(depth1)   # [B, 1, H, W]
+        depth_edges0 = self.detect_depth_edges(depth0)  # [B, 1, H, W]
+        depth_edges1 = self.detect_depth_edges(depth1)  # [B, 1, H, W]
 
         # ---- 步骤 2: 遮挡区域识别 ----
         # 前向遮挡: frame0 中的像素经 flow_forward 投影到中间时刻时，
@@ -633,17 +628,17 @@ class DepthAwareInterpolator:
             torch.arange(W, device=device, dtype=torch.float32),
             indexing="ij",
         )
-        grid = torch.stack([grid_x, grid_y], dim=-1)          # [H, W, 2]
-        grid = grid.unsqueeze(0).expand(B, -1, -1, -1)        # [B, H, W, 2]
+        grid = torch.stack([grid_x, grid_y], dim=-1)  # [H, W, 2]
+        grid = grid.unsqueeze(0).expand(B, -1, -1, -1)  # [B, H, W, 2]
 
         # 缩放光流到中间时刻
-        flow_fwd_scaled = flow_forward * t_mid                 # [B, 2, H, W]
-        flow_bwd_scaled = flow_backward * (1 - t_mid)          # [B, 2, H, W]
+        flow_fwd_scaled = flow_forward * t_mid  # [B, 2, H, W]
+        flow_bwd_scaled = flow_backward * (1 - t_mid)  # [B, 2, H, W]
 
         # 构造采样网格 (归一化到 [-1, 1] 以配合 grid_sample)
         def _make_sample_grid(base_grid: torch.Tensor, flow: torch.Tensor) -> torch.Tensor:
             """将像素坐标 + 光流转换为 grid_sample 所需的归一化坐标"""
-            coords = base_grid + flow.permute(0, 2, 3, 1)      # [B, H, W, 2]
+            coords = base_grid + flow.permute(0, 2, 3, 1)  # [B, H, W, 2]
             norm_coords = coords.clone()
             norm_coords[..., 0] = norm_coords[..., 0] / (W - 1) * 2 - 1
             norm_coords[..., 1] = norm_coords[..., 1] / (H - 1) * 2 - 1
@@ -665,7 +660,7 @@ class DepthAwareInterpolator:
         # 说明 frame0 的投影被 frame1 的投影遮挡 (frame1 更近)
         # occlusion0 = 1 表示 frame0 的该像素被遮挡，应使用反向投影
         # TODO: 接入真实深度估计模型后，此遮挡判断将更精确
-        occlusion0 = (warped_depth0 < warped_depth1).float()   # [B, 1, H, W]
+        occlusion0 = (warped_depth0 < warped_depth1).float()  # [B, 1, H, W]
         occlusion1 = (warped_depth1 <= warped_depth0).float()  # [B, 1, H, W]
 
         # 在深度边缘区域，增强遮挡掩码的权重
@@ -680,8 +675,8 @@ class DepthAwareInterpolator:
         depth_aware_weights = self.compute_depth_aware_weights(depth0, depth1)  # [B, 1, H, W]
 
         # 基础融合权重: 前帧权重 = depth_aware_weights, 后帧权重 = 1 - depth_aware_weights
-        w0 = depth_aware_weights       # [B, 1, H, W]
-        w1 = 1 - depth_aware_weights   # [B, 1, H, W]
+        w0 = depth_aware_weights  # [B, 1, H, W]
+        w1 = 1 - depth_aware_weights  # [B, 1, H, W]
 
         # 在遮挡区域修正权重:
         # 若 frame0 被遮挡 → 降低 w0，提高 w1
@@ -699,18 +694,20 @@ class DepthAwareInterpolator:
         w1 = w1 / weight_sum
 
         # 加权融合两方向的投影结果
-        mid_frame = w0 * warped0 + w1 * warped1   # [B, C, H, W]
+        mid_frame = w0 * warped0 + w1 * warped1  # [B, C, H, W]
 
         # 处理 warp 后可能超出边界的像素 (用原始帧线性插值填充)
         # 检测有效区域: warp 后坐标在画面内
         valid_fwd = (
-            (grid_fwd[..., 0] >= -1) & (grid_fwd[..., 0] <= 1) &
-            (grid_fwd[..., 1] >= -1) & (grid_fwd[..., 1] <= 1)
-        ).unsqueeze(1).float()                     # [B, 1, H, W]
+            ((grid_fwd[..., 0] >= -1) & (grid_fwd[..., 0] <= 1) & (grid_fwd[..., 1] >= -1) & (grid_fwd[..., 1] <= 1))
+            .unsqueeze(1)
+            .float()
+        )  # [B, 1, H, W]
         valid_bwd = (
-            (grid_bwd[..., 0] >= -1) & (grid_bwd[..., 0] <= 1) &
-            (grid_bwd[..., 1] >= -1) & (grid_bwd[..., 1] <= 1)
-        ).float().unsqueeze(1)                     # [B, 1, H, W]
+            ((grid_bwd[..., 0] >= -1) & (grid_bwd[..., 0] <= 1) & (grid_bwd[..., 1] >= -1) & (grid_bwd[..., 1] <= 1))
+            .float()
+            .unsqueeze(1)
+        )  # [B, 1, H, W]
         valid_mask = torch.clamp(valid_fwd + valid_bwd, 0, 1)
 
         # 对无效区域用简单线性插值兜底
@@ -744,9 +741,12 @@ class DepthAwareInterpolator:
 
         # 使用深度感知流投影替代简单加权混合
         mid_frame = self._depth_flow_projection(
-            frame0, frame1,
-            flow_forward, flow_backward,
-            depth0, depth1,
+            frame0,
+            frame1,
+            flow_forward,
+            flow_backward,
+            depth0,
+            depth1,
             t_mid,
         )
 
@@ -756,6 +756,7 @@ class DepthAwareInterpolator:
 # ---------------------------------------------------------------------------
 # 因果条件推理 (Stream-DiffVSR inspired) - P3
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class CausalInferenceConfig:
@@ -771,6 +772,7 @@ class CausalInferenceConfig:
     - 通过因果注意力掩码确保模型只能看到当前和过去的帧
     - 适用于实时视频修复、直播增强等场景
     """
+
     # 是否启用因果推理模式
     enabled: bool = False
     # 因果历史窗口大小 (使用多少个过去帧)
@@ -825,9 +827,7 @@ class CausalInferenceEngine:
         frame_mask = torch.tril(frame_mask)  # 下三角 = 因果
 
         # 扩展到 token 级别
-        token_mask = frame_mask.unsqueeze(1).unsqueeze(2).expand(
-            -1, seq_len, -1, seq_len
-        ).reshape(total_len, total_len)
+        token_mask = frame_mask.unsqueeze(1).unsqueeze(2).expand(-1, seq_len, -1, seq_len).reshape(total_len, total_len)
 
         return token_mask
 
@@ -935,16 +935,18 @@ class CausalInferenceEngine:
         # TODO: 接入真实条件编码器 (如 Stream-DiffVSR 的 CLIP/VAE 编码器)
         if condition_encoder is not None:
             # 使用编码器: 将各帧编码为条件特征
-            cond_stack = torch.stack(condition_frames, dim=0)   # [T_cond, C, H, W]
-            cond_features = condition_encoder(cond_stack)       # [T_cond, D, h, w]
+            cond_stack = torch.stack(condition_frames, dim=0)  # [T_cond, C, H, W]
+            cond_features = condition_encoder(cond_stack)  # [T_cond, D, h, w]
         else:
             # 无编码器时直接使用帧像素 (降采样以减少计算量)
-            cond_stack = torch.stack(condition_frames, dim=0)   # [T_cond, C, H, W]
+            cond_stack = torch.stack(condition_frames, dim=0)  # [T_cond, C, H, W]
             # 简单降采样到 1/4 分辨率作为伪特征
             cond_downsampled = F.avg_pool2d(
-                cond_stack, kernel_size=4, stride=4,
+                cond_stack,
+                kernel_size=4,
+                stride=4,
             )  # [T_cond, C, H/4, W/4]
-            cond_features = cond_downsampled                   # [T_cond, C, H/4, W/4]
+            cond_features = cond_downsampled  # [T_cond, C, H/4, W/4]
 
         # 缓存当前帧的条件特征 (用于增量推理)
         self._feature_buffer.append(cond_features[-1])
@@ -957,13 +959,13 @@ class CausalInferenceEngine:
             # 计算每帧的 token 数 (特征的空间维度展平)
             T_cond, D_feat, h_feat, w_feat = cond_features.shape
             tokens_per_frame = h_feat * w_feat
-            causal_mask = self.create_causal_mask(
+            self.create_causal_mask(
                 seq_len=tokens_per_frame,
                 num_frames=T_cond,
                 device=device,
             )  # [T_cond * tokens_per_frame, T_cond * tokens_per_frame]
         else:
-            causal_mask = None
+            pass
 
         # ---- 步骤 5: 模型推理 ----
         if model is not None:
@@ -985,7 +987,9 @@ class CausalInferenceEngine:
                     size=(H, W),
                     mode="bilinear",
                     align_corners=False,
-                ).squeeze(0)  # [D, H, W]
+                ).squeeze(
+                    0
+                )  # [D, H, W]
                 # 取前 C 通道与当前帧混合
                 cond_for_mix = global_cond_up[:C] if global_cond_up.shape[0] >= C else global_cond_up
                 result_frame = 0.7 * current_frame + 0.3 * cond_for_mix[:C, :, :]
@@ -1011,8 +1015,7 @@ class CausalInferenceEngine:
         # (本框架已通过 _feature_buffer 自动管理)
         if cfg.incremental_mode and not is_warmup:
             logger.debug(
-                f"因果增量推理: 帧 #{self._frame_count}, "
-                f"条件帧数={num_cond}, 预热={'是' if is_warmup else '否'}"
+                f"因果增量推理: 帧 #{self._frame_count}, " f"条件帧数={num_cond}, 预热={'是' if is_warmup else '否'}"
             )
 
         return result_frame
@@ -1029,6 +1032,7 @@ class CausalInferenceEngine:
 # 视频帧分析 (Waifu2x-Extension-GUI inspired) - P2
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class FrameAnalysisConfig:
     """视频帧分析配置
@@ -1041,6 +1045,7 @@ class FrameAnalysisConfig:
     - 重复帧不需要重复处理，可以复用之前的结果
     - 场景切换点需要特殊处理 (不能跨场景做时序对齐)
     """
+
     # 是否启用帧分析
     enabled: bool = True
     # 重复帧检测阈值: 帧间 MSE 低于此值视为重复帧
@@ -1058,6 +1063,7 @@ class FrameAnalysisConfig:
 @dataclass
 class FrameAnalysisResult:
     """帧分析结果"""
+
     # 帧索引
     frame_idx: int
     # 是否为重复帧
@@ -1129,21 +1135,19 @@ class FrameAnalyzer:
         mu0 = F.avg_pool2d(gray0, window_size, stride=1, padding=window_size // 2)
         mu1 = F.avg_pool2d(gray1, window_size, stride=1, padding=window_size // 2)
 
-        mu0_sq = mu0 ** 2
-        mu1_sq = mu1 ** 2
+        mu0_sq = mu0**2
+        mu1_sq = mu1**2
         mu01 = mu0 * mu1
 
         # 方差和协方差
-        sigma0_sq = F.avg_pool2d(gray0 ** 2, window_size, stride=1, padding=window_size // 2) - mu0_sq
-        sigma1_sq = F.avg_pool2d(gray1 ** 2, window_size, stride=1, padding=window_size // 2) - mu1_sq
+        sigma0_sq = F.avg_pool2d(gray0**2, window_size, stride=1, padding=window_size // 2) - mu0_sq
+        sigma1_sq = F.avg_pool2d(gray1**2, window_size, stride=1, padding=window_size // 2) - mu1_sq
         sigma01 = F.avg_pool2d(gray0 * gray1, window_size, stride=1, padding=window_size // 2) - mu01
 
-        C1 = 0.01 ** 2
-        C2 = 0.03 ** 2
+        C1 = 0.01**2
+        C2 = 0.03**2
 
-        ssim_map = ((2 * mu01 + C1) * (2 * sigma01 + C2)) / (
-            (mu0_sq + mu1_sq + C1) * (sigma0_sq + sigma1_sq + C2)
-        )
+        ssim_map = ((2 * mu01 + C1) * (2 * sigma01 + C2)) / ((mu0_sq + mu1_sq + C1) * (sigma0_sq + sigma1_sq + C2))
 
         return ssim_map.mean().item()
 
@@ -1263,6 +1267,7 @@ class FrameAnalyzer:
 # RIFE 帧插值参考 (CogVideo inspired) - P2
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class RIFEInterpConfig:
     """RIFE 帧插值配置
@@ -1276,6 +1281,7 @@ class RIFEInterpConfig:
     - 相比双向光流方法，RIFE 在遮挡区域表现更优
     - 推理速度快，适合实时处理
     """
+
     # 是否启用 RIFE 帧插值
     enabled: bool = False
     # RIFE 模型版本: 'rife4', 'rife2'
@@ -1376,10 +1382,12 @@ class RIFEInterpolator:
 # 分层退化处理 (STAR inspired) - P2
 # ---------------------------------------------------------------------------
 
+
 class DegradationLevel(Enum):
     """退化级别"""
-    LIGHT = "light_deg"    # 轻度退化: 适合质量较好的输入
-    HEAVY = "heavy_deg"    # 重度退化: 适合严重退化的输入
+
+    LIGHT = "light_deg"  # 轻度退化: 适合质量较好的输入
+    HEAVY = "heavy_deg"  # 重度退化: 适合严重退化的输入
 
 
 @dataclass
@@ -1390,6 +1398,7 @@ class DegradationParams:
     根据输入视频的退化程度选择不同的预处理参数，
     light_deg 适用于轻微退化的视频，heavy_deg 适用于严重退化的视频。
     """
+
     # 退化级别
     level: DegradationLevel = DegradationLevel.LIGHT
     # 降采样倍数 (用于退化模拟)
@@ -1445,6 +1454,7 @@ class HierarchicalDegradationConfig:
     根据输入质量自动或手动选择退化级别，
     对应不同的模型配置和参数设置。
     """
+
     # 是否启用分层退化处理
     enabled: bool = True
     # 默认退化级别
@@ -1454,9 +1464,7 @@ class HierarchicalDegradationConfig:
     # 自动检测阈值: MSE 低于此值使用 light_deg
     auto_detect_mse_threshold: float = 0.05
     # 退化预设参数
-    presets: dict[DegradationLevel, DegradationParams] = field(
-        default_factory=lambda: dict(STAR_DEGRADATION_PRESETS)
-    )
+    presets: dict[DegradationLevel, DegradationParams] = field(default_factory=lambda: dict(STAR_DEGRADATION_PRESETS))
 
 
 class HierarchicalDegradationProcessor:
@@ -1501,7 +1509,7 @@ class HierarchicalDegradationProcessor:
         # 局部均值和方差
         kernel_size = 7
         local_mean = F.avg_pool2d(gray, kernel_size, stride=1, padding=kernel_size // 2)
-        local_var = F.avg_pool2d(gray ** 2, kernel_size, stride=1, padding=kernel_size // 2) - local_mean ** 2
+        local_var = F.avg_pool2d(gray**2, kernel_size, stride=1, padding=kernel_size // 2) - local_mean**2
         noise_estimate = local_var.mean().sqrt().item()
 
         # 根据噪声水平判断退化级别
@@ -1574,8 +1582,8 @@ class HierarchicalDegradationProcessor:
             C = result.shape[0]
             result = result.unsqueeze(0)
             for c in range(C):
-                result[:, c:c + 1] = F.conv2d(
-                    result[:, c:c + 1],
+                result[:, c : c + 1] = F.conv2d(
+                    result[:, c : c + 1],
                     kernel.unsqueeze(0).unsqueeze(0),
                     padding=params.blur_kernel_size // 2,
                 )
@@ -1596,7 +1604,7 @@ class HierarchicalDegradationProcessor:
     def _make_gaussian_kernel(size: int, sigma: float) -> torch.Tensor:
         """创建高斯模糊核"""
         coords = torch.arange(size, dtype=torch.float32) - size // 2
-        g = torch.exp(-coords ** 2 / (2 * sigma ** 2))
+        g = torch.exp(-(coords**2) / (2 * sigma**2))
         kernel = g.outer(g)
         kernel = kernel / kernel.sum()
         return kernel
@@ -1605,6 +1613,7 @@ class HierarchicalDegradationProcessor:
 # ---------------------------------------------------------------------------
 # 辅助函数
 # ---------------------------------------------------------------------------
+
 
 def get_video_processing_summary() -> dict[str, Any]:
     """获取视频处理增强模块的功能摘要

@@ -1,4 +1,5 @@
 """SeedVR2 测试配置"""
+
 import os
 import sys
 from typing import TYPE_CHECKING

@@ -27,13 +27,14 @@
     - cu_seqlens: ``(batch+1,)`` int32 累积长度，``cu_seqlens[i+1] - cu_seqlens[i] = len(sample_i)``。
 """
 
+from collections.abc import Callable
 from itertools import chain
-from typing import Callable, List, Tuple
+
 import torch
 import torch.nn.functional as F
 
 
-def flatten(x_list: List[torch.Tensor]) -> Tuple[torch.Tensor, torch.LongTensor]:
+def flatten(x_list: list[torch.Tensor]) -> tuple[torch.Tensor, torch.LongTensor]:
     """将不同形状的张量列表打包为扁平 2D 张量和 shape 信息。
 
     每个张量除最后一维（通道维）外可以有不同形状。flatten 将每个张量
@@ -60,7 +61,7 @@ def flatten(x_list: List[torch.Tensor]) -> Tuple[torch.Tensor, torch.LongTensor]
     return flat_x, shapes
 
 
-def unflatten(flat_x: torch.Tensor, shapes: torch.LongTensor) -> List[torch.Tensor]:
+def unflatten(flat_x: torch.Tensor, shapes: torch.LongTensor) -> list[torch.Tensor]:
     """flatten 的逆操作，将扁平张量还原为不同形状的张量列表。
 
     Args:
@@ -86,7 +87,7 @@ def _build_interleaved_indices(
     lengths_a: torch.LongTensor,
     lengths_b: torch.LongTensor,
     device: torch.device,
-) -> Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor]:
+) -> tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor]:
     """构建两组序列交错拼接的前向/反向索引。
 
     拼接顺序: ``[a_0, b_0, a_1, b_1, ..., a_b, b_b]``。
@@ -104,8 +105,8 @@ def _build_interleaved_indices(
     total = total_a + total_b
     batch = len(lengths_a)
 
-    cu_a = F.pad(lengths_a.cumsum(0), (1, 0))
-    cu_b = F.pad(lengths_b.cumsum(0), (1, 0))
+    F.pad(lengths_a.cumsum(0), (1, 0))
+    F.pad(lengths_b.cumsum(0), (1, 0))
 
     concat_idx = torch.zeros(total, dtype=torch.long, device=device)
     offset = 0
@@ -142,7 +143,7 @@ def _build_interleaved_indices(
 def concat_idx(
     lengths_a: torch.LongTensor,
     lengths_b: torch.LongTensor,
-) -> Tuple[Callable, Callable]:
+) -> tuple[Callable, Callable]:
     """生成两组变长序列交错拼接/拆分的函数对。
 
     拼接顺序为 ``[a_0, b_0, a_1, b_1, ...]``，适用于 Flash Attention v2
@@ -164,7 +165,7 @@ def concat_idx(
         ab = torch.cat([a, b], dim=0)
         return ab[c_idx]
 
-    def unconcat_fn(x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def unconcat_fn(x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         a = x[ua_idx]
         b = x[ub_idx]
         return a, b
@@ -176,7 +177,7 @@ def repeat_concat_idx(
     vid_len_win: torch.LongTensor,
     txt_len: torch.LongTensor,
     window_count: torch.LongTensor,
-) -> Tuple[Callable, Callable]:
+) -> tuple[Callable, Callable]:
     """生成窗口级多模态序列交错拼接/拆分的函数对。
 
     与 ``concat_idx`` 类似，但处理窗口注意力场景：每个样本被划分为
@@ -202,9 +203,8 @@ def repeat_concat_idx(
 
     _, ub_unique_idx = [], []
     offset = 0
-    b_pos = 0
     unique_b_indices = []
-    cu_vw = F.pad(vid_len_win.cumsum(0), (1, 0))
+    F.pad(vid_len_win.cumsum(0), (1, 0))
     w_offset = 0
     for i in range(len(window_count)):
         nw = window_count[i].item()
@@ -223,14 +223,14 @@ def repeat_concat_idx(
             pass
         else:
             txt_list = unflatten(txt, torch.stack([txt_len], dim=-1) if txt.ndim == 2 else txt_len.unsqueeze(-1))
-            txt_expanded = list(chain.from_iterable([t] * nw for t, nw in zip(txt_list, window_count)))
+            txt_expanded = list(chain.from_iterable([t] * nw for t, nw in zip(txt_list, window_count, strict=False)))
             txt, _ = flatten(txt_expanded) if txt_expanded else (txt, None)
             if txt is None:
                 txt = torch.zeros(0, vid.shape[-1], device=device, dtype=vid.dtype)
         vt = torch.cat([vid, txt], dim=0)
         return vt[c_idx]
 
-    def unconcat_fn(x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def unconcat_fn(x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         vid_out = x[ua_idx]
         txt_out = x[ub_unique_idx]
         return vid_out, txt_out
@@ -241,7 +241,7 @@ def repeat_concat_idx(
 def window_idx(
     vid_shape: torch.LongTensor,
     make_window_fn: Callable,
-) -> Tuple[Callable, Callable, torch.LongTensor, torch.LongTensor]:
+) -> tuple[Callable, Callable, torch.LongTensor, torch.LongTensor]:
     """生成窗口划分/还原函数对及窗口形状信息。
 
     用于变长窗口注意力：将不同分辨率的视频 token 分别划分为固定大小窗口，
@@ -278,7 +278,7 @@ def window_idx(
         sample_size = t * h * w
         s_indices = torch.zeros(sample_size, dtype=torch.long, device=device)
 
-        for wi, (st, sh, sw) in enumerate(slices):
+        for _wi, (st, sh, sw) in enumerate(slices):
             wt = st.stop - st.start
             wh = sh.stop - sh.start
             ww = sw.stop - sw.start
@@ -288,7 +288,7 @@ def window_idx(
                 torch.arange(st.start, st.stop, device=device),
                 torch.arange(sh.start, sh.stop, device=device),
                 torch.arange(sw.start, sw.stop, device=device),
-                indexing='ij',
+                indexing="ij",
             )
             local_flat = (tt * h * w + hh * w + ww_idx).flatten()
             global_flat = local_flat + flat_offset
@@ -303,8 +303,16 @@ def window_idx(
 
     partition_idx = torch.cat(p_list, dim=0) if p_list else torch.zeros(0, dtype=torch.long, device=device)
     reverse_idx = torch.cat(r_list, dim=0) if r_list else torch.zeros(0, dtype=torch.long, device=device)
-    window_shape = torch.tensor(all_window_shapes, dtype=torch.long, device=device) if all_window_shapes else torch.zeros(0, 3, dtype=torch.long, device=device)
-    window_count = torch.tensor(counts, dtype=torch.long, device=device) if counts else torch.zeros(0, dtype=torch.long, device=device)
+    window_shape = (
+        torch.tensor(all_window_shapes, dtype=torch.long, device=device)
+        if all_window_shapes
+        else torch.zeros(0, 3, dtype=torch.long, device=device)
+    )
+    window_count = (
+        torch.tensor(counts, dtype=torch.long, device=device)
+        if counts
+        else torch.zeros(0, dtype=torch.long, device=device)
+    )
 
     def window_partition(x: torch.Tensor) -> torch.Tensor:
         return x[partition_idx]

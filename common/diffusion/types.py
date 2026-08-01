@@ -19,10 +19,10 @@ This module defines enumerations that specify:
 2. Which direction the ODE solver traverses (SamplingDirection)
 """
 
-from enum import Enum
+from enum import StrEnum
 
 
-class PredictionType(str, Enum):
+class PredictionType(StrEnum):
     """Enumeration of diffusion model prediction targets.
 
     The neural network can be trained to predict different quantities in the
@@ -92,7 +92,7 @@ class PredictionType(str, Enum):
     """
 
 
-class SamplingDirection(str, Enum):
+class SamplingDirection(StrEnum):
     """Enumeration of ODE sampling traversal directions.
 
     During sampling, the ODE solver can move either forward or backward in time:

@@ -19,6 +19,7 @@ API 端点：
 
 所属项目：SeedVR2 (SeedVR2 视频/图像修复工具)
 """
+
 import logging
 
 from fastapi import APIRouter
@@ -37,6 +38,7 @@ def _get_optimizer():
         参数面板优化器实例。
     """
     from bin.integrated_app.optimization.webui_enhancement import create_default_parameter_panel
+
     return create_default_parameter_panel()
 
 
@@ -47,6 +49,7 @@ def _get_persistence():
         SettingsPersistence 实例。
     """
     from bin.integrated_app.optimization.webui_enhancement import SettingsPersistence
+
     return SettingsPersistence()
 
 
@@ -57,6 +60,7 @@ def _get_layout_manager():
         AccordionLayoutManager 实例。
     """
     from bin.integrated_app.optimization.webui_enhancement import AccordionLayoutManager
+
     return AccordionLayoutManager()
 
 
@@ -106,32 +110,33 @@ async def get_parameters():
 
     params = []
     for p in optimizer.get_all_params():
-        params.append({
-            "id": p.id,
-            "name": p.name,
-            "type": p.param_type,
-            "default": p.default,
-            "min": p.min_value,
-            "max": p.max_value,
-            "step": p.step,
-            "choices": p.choices,
-            "description": p.description,
-            "group": p.group,
-            "advanced": p.advanced,
-        })
+        params.append(
+            {
+                "id": p.id,
+                "name": p.name,
+                "type": p.param_type,
+                "default": p.default,
+                "min": p.min_value,
+                "max": p.max_value,
+                "step": p.step,
+                "choices": p.choices,
+                "description": p.description,
+                "group": p.group,
+                "advanced": p.advanced,
+            }
+        )
 
     presets = []
     for preset in optimizer.get_presets():
-        presets.append({
-            "name": preset.name,
-            "description": preset.description,
-            "values": preset.preset_values,
-            "recommended_ranges": {
-                k: {"min": v[0], "max": v[1]}
-                for k, v in preset.recommended_ranges.items()
-            },
-            "use_case": preset.use_case,
-        })
+        presets.append(
+            {
+                "name": preset.name,
+                "description": preset.description,
+                "values": preset.preset_values,
+                "recommended_ranges": {k: {"min": v[0], "max": v[1]} for k, v in preset.recommended_ranges.items()},
+                "use_case": preset.use_case,
+            }
+        )
 
     return {"success": True, "data": {"parameters": params, "presets": presets}}
 
@@ -181,13 +186,15 @@ async def get_recommendations(cfg_scale: float = 3.0, denoising_strength: float 
     result = []
     for rec in recommendations:
         preset = rec["preset"]
-        result.append({
-            "name": preset.name,
-            "description": preset.description,
-            "values": preset.preset_values,
-            "match_score": rec["match_score"],
-            "use_case": rec["use_case"],
-        })
+        result.append(
+            {
+                "name": preset.name,
+                "description": preset.description,
+                "values": preset.preset_values,
+                "match_score": rec["match_score"],
+                "use_case": rec["use_case"],
+            }
+        )
 
     return {"success": True, "data": {"recommendations": result}}
 
@@ -335,13 +342,15 @@ async def get_layout():
     manager = _get_layout_manager()
     groups = []
     for group in manager.get_layout():
-        groups.append({
-            "id": group.id,
-            "name": group.name,
-            "description": group.description,
-            "default_expanded": group.default_expanded,
-            "priority": group.priority,
-            "param_ids": group.param_ids,
-        })
+        groups.append(
+            {
+                "id": group.id,
+                "name": group.name,
+                "description": group.description,
+                "default_expanded": group.default_expanded,
+                "priority": group.priority,
+                "param_ids": group.param_ids,
+            }
+        )
 
     return {"success": True, "data": {"groups": groups}}

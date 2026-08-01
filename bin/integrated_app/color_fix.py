@@ -15,6 +15,7 @@
 
 参考实现: https://github.com/pkuliyi2015/sd-webui-stablesr/blob/master/srmodule/colorfix.py
 """
+
 import logging
 
 import cv2
@@ -118,8 +119,8 @@ def color_fix_wavelet(result: np.ndarray, reference: np.ndarray, level: int = 5)
 
     for c in range(3):
         # 小波分解
-        coeffs_res = pywt.wavedec2(result_float[:, :, c], 'haar', level=level)
-        coeffs_ref = pywt.wavedec2(reference_float[:, :, c], 'haar', level=level)
+        coeffs_res = pywt.wavedec2(result_float[:, :, c], "haar", level=level)
+        coeffs_ref = pywt.wavedec2(reference_float[:, :, c], "haar", level=level)
 
         # 保留 result 的低频，使用 reference 的高频细节
         new_coeffs = [coeffs_ref[0]]  # 使用 reference 的近似系数
@@ -127,14 +128,15 @@ def color_fix_wavelet(result: np.ndarray, reference: np.ndarray, level: int = 5)
             new_coeffs.append(coeffs_res[i])  # 使用 result 的细节系数
 
         # 小波重构
-        result_out[:, :, c] = pywt.waverec2(new_coeffs, 'haar')
+        result_out[:, :, c] = pywt.waverec2(new_coeffs, "haar")
 
     result_out = np.clip(result_out * 255, 0, 255).astype(np.uint8)
     return result_out
 
 
-def color_fix_wavelet_adaptive(result: np.ndarray, reference: np.ndarray,
-                                level: int = 5, saturation_weight: float = 0.5) -> np.ndarray:
+def color_fix_wavelet_adaptive(
+    result: np.ndarray, reference: np.ndarray, level: int = 5, saturation_weight: float = 0.5
+) -> np.ndarray:
     """小波 + 自适应饱和度颜色校正
 
     在小波颜色重建的基础上，对饱和度进行自适应调整，保留更多原始色彩信息。
@@ -156,10 +158,7 @@ def color_fix_wavelet_adaptive(result: np.ndarray, reference: np.ndarray,
     wavelet_hsv = cv2.cvtColor(wavelet_result, cv2.COLOR_RGB2HSV).astype(np.float32)
 
     # 混合饱和度通道 (S 通道, index=1)
-    result_hsv[:, :, 1] = (
-        (1 - saturation_weight) * wavelet_hsv[:, :, 1]
-        + saturation_weight * result_hsv[:, :, 1]
-    )
+    result_hsv[:, :, 1] = (1 - saturation_weight) * wavelet_hsv[:, :, 1] + saturation_weight * result_hsv[:, :, 1]
 
     result_out = np.clip(result_hsv, 0, 255).astype(np.uint8)
     return cv2.cvtColor(result_out, cv2.COLOR_HSV2RGB)
@@ -193,11 +192,7 @@ def color_fix_adain(result: np.ndarray, reference: np.ndarray) -> np.ndarray:
     return (np.clip(result_float, 0, 1) * 255).astype(np.uint8)
 
 
-def apply_color_correction(
-    result: np.ndarray,
-    reference: np.ndarray,
-    method: str = "lab"
-) -> np.ndarray:
+def apply_color_correction(result: np.ndarray, reference: np.ndarray, method: str = "lab") -> np.ndarray:
     """应用颜色校正
 
     Args:

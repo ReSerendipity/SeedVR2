@@ -34,4 +34,11 @@ exit /b 1
 :python_found
 echo Using Python: %PYTHON_CMD%
 "%PYTHON_CMD%" verify_engine.py > verify_output.log 2>&1
+set "VERIFY_EXIT=%ERRORLEVEL%"
 type verify_output.log
+if not "%VERIFY_EXIT%"=="0" (
+    echo [ERROR] engine self-check failed with exit code %VERIFY_EXIT%
+    exit /b %VERIFY_EXIT%
+)
+echo [OK] engine self-check passed
+exit /b 0

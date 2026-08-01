@@ -11,11 +11,12 @@
     - pathlib (路径处理)
     - subprocess (pip 依赖安装)
 """
+
+import logging
 import os
+import platform
 import sys
 import urllib.request
-import logging
-import platform
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -24,12 +25,14 @@ PROJECT_ROOT = Path(__file__).parent.parent
 
 # WinPython 目录（支持多种命名格式）
 WINPYTHON_DIRS = [
-    PROJECT_ROOT / "WPy64-312101",           # WinPython64-3.12.10.1dot 解压后的实际目录名
+    PROJECT_ROOT / "WPy64-312101",  # WinPython64-3.12.10.1dot 解压后的实际目录名
     PROJECT_ROOT / "WinPython64-3.12.10.1dot",  # 计划书原始命名
-    PROJECT_ROOT / "WinPython",               # 旧版目录名
+    PROJECT_ROOT / "WinPython",  # 旧版目录名
 ]
 
-WINPYTHON_DOWNLOAD_URL = "https://github.com/winpython/winpython/releases/download/8.2.20240618/Winpython64-3.12.4.1.exe"
+WINPYTHON_DOWNLOAD_URL = (
+    "https://github.com/winpython/winpython/releases/download/8.2.20240618/Winpython64-3.12.4.1.exe"
+)
 
 
 def find_winpython() -> str:
@@ -61,7 +64,8 @@ def find_winpython() -> str:
 
             # 检查嵌套结构
             import os as _os
-            for root, dirs, files in _os.walk(str(wp_dir)):
+
+            for root, _dirs, files in _os.walk(str(wp_dir)):
                 for f in files:
                     if f == "python.exe":
                         return _os.path.join(root, f)
@@ -69,7 +73,7 @@ def find_winpython() -> str:
     # 2. 搜索所有 WPy64-* 和 WinPython* 目录
     for item in PROJECT_ROOT.iterdir():
         if item.is_dir() and (item.name.startswith("WPy64-") or item.name.startswith("WinPython")):
-            for root, dirs, files in os.walk(str(item)):
+            for root, _dirs, files in os.walk(str(item)):
                 for f in files:
                     if f == "python.exe":
                         return os.path.join(root, f)
@@ -150,9 +154,9 @@ def setup_environment() -> None:
     if requirements_path.exists():
         print(f"\n安装依赖: {requirements_path}")
         import subprocess
+
         result = subprocess.run(
-            [python_path, "-m", "pip", "install", "-r", str(requirements_path)],
-            capture_output=True, text=True
+            [python_path, "-m", "pip", "install", "-r", str(requirements_path)], capture_output=True, text=True
         )
         if result.returncode == 0:
             print("依赖安装完成")

@@ -34,7 +34,6 @@
     - 多尺度特征融合前的尺寸对齐
 """
 
-from typing import Union
 import torch
 from PIL import Image
 from torchvision.transforms import functional as TVF
@@ -54,7 +53,7 @@ class DivisibleCrop:
         其中 new_h % height_factor == 0, new_w % width_factor == 0
     """
 
-    def __init__(self, factor: Union[int, tuple[int, int]]):
+    def __init__(self, factor: int | tuple[int, int]):
         """初始化 DivisibleCrop 变换。
 
         Args:
@@ -67,7 +66,7 @@ class DivisibleCrop:
 
         self.height_factor, self.width_factor = factor[0], factor[1]
 
-    def __call__(self, image: Union[torch.Tensor, Image.Image]) -> Union[torch.Tensor, Image.Image]:
+    def __call__(self, image: torch.Tensor | Image.Image) -> torch.Tensor | Image.Image:
         """执行整除中心裁剪变换。
 
         从图像中心裁剪出宽高都能被对应因子整除的最大矩形区域。

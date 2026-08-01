@@ -10,6 +10,7 @@ API 端点：
 所属项目：SeedVR2 (SeedVR2 视频/图像修复工具)
 注意：SeedVR2 仅支持 NVIDIA CUDA GPU。
 """
+
 import logging
 import platform
 import time
@@ -110,10 +111,11 @@ async def health_check(
     """
     try:
         import psutil
+
         cpu_count = psutil.cpu_count()
         mem = psutil.virtual_memory()
-        memory_total_gb = round(mem.total / (1024 ** 3), 2)
-        memory_available_gb = round(mem.available / (1024 ** 3), 2)
+        memory_total_gb = round(mem.total / (1024**3), 2)
+        memory_available_gb = round(mem.available / (1024**3), 2)
         memory_pct = mem.percent
     except ImportError:
         cpu_count = 0
@@ -123,21 +125,23 @@ async def health_check(
 
     uptime = round(time.time() - _start_time, 1)
 
-    return JSONResponse({
-        "status": "ok",
-        "uptime_seconds": uptime,
-        "system": {
-            "platform": platform.platform(),
-            "python_version": platform.python_version(),
-            "cpu_count": cpu_count,
-            "memory_total_gb": memory_total_gb,
-            "memory_available_gb": memory_available_gb,
-            "memory_utilization_pct": memory_pct,
-        },
-        "model": model_manager.get_status(),
-        "gpu": {
-            "backend": gpu_backend.backend.value,
-            "device_name": gpu_backend.device_name,
-            "is_gpu_available": gpu_backend.is_gpu_available,
-        },
-    })
+    return JSONResponse(
+        {
+            "status": "ok",
+            "uptime_seconds": uptime,
+            "system": {
+                "platform": platform.platform(),
+                "python_version": platform.python_version(),
+                "cpu_count": cpu_count,
+                "memory_total_gb": memory_total_gb,
+                "memory_available_gb": memory_available_gb,
+                "memory_utilization_pct": memory_pct,
+            },
+            "model": model_manager.get_status(),
+            "gpu": {
+                "backend": gpu_backend.backend.value,
+                "device_name": gpu_backend.device_name,
+                "is_gpu_available": gpu_backend.is_gpu_available,
+            },
+        }
+    )

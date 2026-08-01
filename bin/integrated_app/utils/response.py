@@ -12,6 +12,7 @@
     成功: {"success": true, "data": <业务数据>, ...<额外字段>}
     失败: {"success": false, "error": {"code": <错误码>, "message": <消息>, "detail": <详情>}}
 """
+
 from typing import Any
 
 from fastapi.responses import JSONResponse

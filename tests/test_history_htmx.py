@@ -1,4 +1,5 @@
 """HTMX 历史表格片段测试"""
+
 from bin.integrated_app.history_db import HistoryRecord
 
 

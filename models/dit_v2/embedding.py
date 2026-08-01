@@ -32,13 +32,12 @@
     而非 v1 的两层 MLP。
 """
 
-from typing import Optional, Union
 import torch
 from diffusers.models.embeddings import get_timestep_embedding
 from torch import nn
 
 
-def emb_add(emb1: torch.Tensor, emb2: Optional[torch.Tensor]):
+def emb_add(emb1: torch.Tensor, emb2: torch.Tensor | None):
     """将两个嵌入向量相加，emb2 为 None 时返回 emb1。
 
     Args:
@@ -82,7 +81,7 @@ class TimeEmbedding(nn.Module):
 
     def forward(
         self,
-        timestep: Union[int, float, torch.IntTensor, torch.FloatTensor],
+        timestep: int | float | torch.IntTensor | torch.FloatTensor,
         device: torch.device,
         dtype: torch.dtype,
     ) -> torch.FloatTensor:

@@ -37,6 +37,7 @@
     │  - 支持重启恢复、历史查询                        │
     └─────────────────────────────────────────────────┘
 """
+
 from __future__ import annotations
 
 import logging
@@ -285,6 +286,7 @@ class TaskStateStore:
             dict[str, dict]: task_id -> 状态字典的映射（深拷贝）
         """
         import copy
+
         with self._lock:
             return copy.deepcopy(self._cache)
 

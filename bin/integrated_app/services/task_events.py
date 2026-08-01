@@ -22,6 +22,7 @@
     - 最终事件 TTL：默认 60 秒，超过后自动清理
     - 显式清理：任务删除时调用 clear_task 彻底清除相关资源
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -194,10 +195,7 @@ class TaskEventBus:
         """
         now = time.time()
         with self._thread_lock:
-            expired = [
-                tid for tid, (ts, _) in self._final_events.items()
-                if now - ts > self._final_ttl
-            ]
+            expired = [tid for tid, (ts, _) in self._final_events.items() if now - ts > self._final_ttl]
             for tid in expired:
                 del self._final_events[tid]
         return len(expired)

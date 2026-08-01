@@ -39,6 +39,7 @@ import torch.nn.functional as F
 
 try:
     from flash_attn import flash_attn_varlen_func
+
     _flash_attn_available = True
 except ImportError:
     _flash_attn_available = False
@@ -148,7 +149,9 @@ class FlashAttentionVarlen(nn.Module):
         if _flash_attn_available:
             kwargs["deterministic"] = torch.are_deterministic_algorithms_enabled()
             return flash_attn_varlen_func(
-                q, k, v,
+                q,
+                k,
+                v,
                 cu_seqlens_q=cu_seqlens_q,
                 cu_seqlens_k=cu_seqlens_k,
                 max_seqlen_q=max_seqlen_q,
@@ -157,7 +160,9 @@ class FlashAttentionVarlen(nn.Module):
             )
         else:
             return _sdpa_varlen_fallback(
-                q, k, v,
+                q,
+                k,
+                v,
                 cu_seqlens_q=cu_seqlens_q,
                 cu_seqlens_k=cu_seqlens_k,
                 max_seqlen_q=max_seqlen_q,

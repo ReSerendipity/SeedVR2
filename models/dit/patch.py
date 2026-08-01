@@ -30,7 +30,8 @@ Patch 化算法:
     2*2*2 = 8 个体素，展平为 8*c 维向量后投影到 dim 维。
 """
 
-from typing import Sequence, Tuple
+from collections.abc import Sequence
+
 import torch
 from einops import rearrange
 from torch import nn
@@ -95,7 +96,7 @@ class PatchifyEmbed(nn.Module):
         self,
         in_channels: int,
         dim: int,
-        patch_size: Tuple[int, int, int] = (1, 2, 2),
+        patch_size: tuple[int, int, int] = (1, 2, 2),
     ):
         super().__init__()
         self.patch_size = patch_size
@@ -157,7 +158,7 @@ class UnPatchify(nn.Module):
         self,
         out_channels: int,
         dim: int,
-        patch_size: Tuple[int, int, int] = (1, 2, 2),
+        patch_size: tuple[int, int, int] = (1, 2, 2),
     ):
         super().__init__()
         self.patch_size = patch_size

@@ -18,6 +18,7 @@
     显存估算常量集中管理，避免魔法数字散落在代码中。
     TODO: 未来应从 config.yaml 注入，保持单一数据源。
 """
+
 import functools
 import gc
 import logging
@@ -31,12 +32,12 @@ logger = logging.getLogger(__name__)
 # TODO: 这些估值应与 config.yaml 中 models.*.min_vram_fp16_gb / min_vram_fp8_gb 对齐，
 #       当前为独立硬编码，未来应从 config 注入以保持单一数据源 (F1)
 _BASE_VRAM_MB = {
-    "3b": {"fp16": 8000, "fp8": 4000},   # 3B 模型约需 8GB(FP16) / 4GB(FP8) 基础显存
+    "3b": {"fp16": 8000, "fp8": 4000},  # 3B 模型约需 8GB(FP16) / 4GB(FP8) 基础显存
     "7b": {"fp16": 16000, "fp8": 8000},  # 7B 模型约需 16GB(FP16) / 8GB(FP8) 基础显存
 }
 _DEFAULT_MODEL_VRAM_MB = {"fp16": 8000, "fp8": 4000}  # 未知模型大小的默认估值
 _BASE_RESOLUTION_PIXELS = 1080 * 1920  # 基准分辨率（用于计算像素比例因子）
-_BASE_INFERENCE_VRAM_MB = 4000         # 推理额外显存基线（4GB 起，随分辨率线性增长）
+_BASE_INFERENCE_VRAM_MB = 4000  # 推理额外显存基线（4GB 起，随分辨率线性增长）
 
 
 def get_gpu_memory_info() -> dict:
@@ -57,6 +58,7 @@ def get_gpu_memory_info() -> dict:
     """
     try:
         import torch
+
         if torch.cuda.is_available():
             # mem_get_info 返回 (free, total)，反映驱动层面实际可用显存
             free_memory, total_memory = torch.cuda.mem_get_info(0)
@@ -99,7 +101,7 @@ def check_vram_available(required_mb: int) -> tuple[bool, int]:
     return available >= required_mb, available
 
 
-def estimate_model_vram(model_size: str, resolution: tuple = None, precision: str = "fp16") -> int:
+def estimate_model_vram(model_size: str, resolution: tuple | None = None, precision: str = "fp16") -> int:
     """估算模型加载和推理所需的总显存（MB）
 
     显存估算公式：
@@ -141,6 +143,7 @@ def clear_gpu_cache():
     """
     try:
         import torch
+
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
             logger.info("GPU 缓存已清理")
@@ -179,6 +182,7 @@ def oom_protect(func: Callable) -> Callable:
     Raises:
         MemoryError: 捕获到 CUDA OOM 时抛出，包含解决建议信息
     """
+
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
         try:
@@ -189,10 +193,7 @@ def oom_protect(func: Callable) -> Callable:
                 # OOM 后立即强制清理，尽可能回收显存
                 force_garbage_collect()
                 raise MemoryError(
-                    "GPU 显存不足，请尝试：\n"
-                    "1. 切换到 3B 模型\n"
-                    "2. 降低输出分辨率\n"
-                    "3. 关闭其他占用显存的程序"
+                    "GPU 显存不足，请尝试：\n" "1. 切换到 3B 模型\n" "2. 降低输出分辨率\n" "3. 关闭其他占用显存的程序"
                 ) from e
             raise
         except Exception as e:
@@ -218,6 +219,7 @@ def get_system_memory_info() -> dict:
     """
     try:
         import psutil
+
         mem = psutil.virtual_memory()
         return {
             "total_mb": mem.total // (1024 * 1024),
@@ -253,6 +255,7 @@ def get_full_system_info() -> dict:
     mem_info = get_system_memory_info()
 
     import platform
+
     return {
         "os": platform.system(),
         "os_version": platform.version(),

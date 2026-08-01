@@ -46,7 +46,6 @@ discrete mode (T=N, t∈{0,1,...,N}).
 - Stable Diffusion 3: https://arxiv.org/abs/2403.03206
 """
 
-from typing import Union
 import torch
 
 from .base import Schedule
@@ -65,11 +64,11 @@ class LinearInterpolationSchedule(Schedule):
             Defaults to 1.0 (continuous).
     """
 
-    def __init__(self, T: Union[int, float] = 1.0):
+    def __init__(self, T: int | float = 1.0):
         self._T = T
 
     @property
-    def T(self) -> Union[int, float]:
+    def T(self) -> int | float:
         """Maximum timestep of the schedule.
 
         Returns:

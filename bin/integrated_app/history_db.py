@@ -12,6 +12,7 @@
 - 白名单列验证: UPDATE 操作验证列名，防止 SQL 注入
 - 批量插入降级: 批量插入失败时自动回退到逐条插入，保证鲁棒性
 """
+
 from __future__ import annotations
 
 import logging
@@ -96,14 +97,18 @@ class HistoryDB:
         _db: aiosqlite 持久连接对象，None 表示未连接。
     """
 
-    def __init__(self, db_path: str = "data/history.db"):
+    def __init__(self, db_path: str = "data/history.db", timeout: float = 30.0):
         """初始化历史数据库管理器。
 
         Args:
             db_path: SQLite 数据库文件路径，默认 "data/history.db"。
                 路径所在目录不存在时会在 initialize() 中自动创建。
+            timeout: 获取数据库锁的最长等待时间（秒），默认 30.0。
+                传递给底层 sqlite3.connect，避免高并发写入时因锁竞争
+                立即抛出 "database is locked"，而是在超时窗口内重试等待。
         """
         self.db_path = db_path
+        self.timeout = timeout
         self._initialized = False
         self._db: aiosqlite.Connection | None = None
 
@@ -122,12 +127,14 @@ class HistoryDB:
 
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
 
-        self._db = await aiosqlite.connect(self.db_path)
+        self._db = await aiosqlite.connect(self.db_path, timeout=self.timeout)
         db = self._db
 
         # 启用 WAL 模式以提升并发读写性能
         await db.execute("PRAGMA journal_mode=WAL")
         await db.execute("PRAGMA synchronous=NORMAL")
+        # 与连接 timeout 对齐：锁竞争时在超时窗口内忙等重试（毫秒）
+        await db.execute(f"PRAGMA busy_timeout={int(self.timeout * 1000)}")
 
         await db.execute("""
             CREATE TABLE IF NOT EXISTS history (
@@ -240,7 +247,7 @@ class HistoryDB:
         assert self._db is not None
         self._db.row_factory = sqlite3.Row
         cursor = await self._db.execute(sql, params)
-        return await cursor.fetchall()
+        return list(await cursor.fetchall())
 
     # ==================== 历史记录管理 ====================
 
@@ -252,8 +259,17 @@ class HistoryDB:
         return await self._execute_write(
             """INSERT INTO history (task_type, input_file, output_file, model_size, status, parameters, processing_time, created_at, error_message)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (record.task_type, record.input_file, record.output_file, record.model_size,
-             record.status, record.parameters, record.processing_time, record.created_at, record.error_message)
+            (
+                record.task_type,
+                record.input_file,
+                record.output_file,
+                record.model_size,
+                record.status,
+                record.parameters,
+                record.processing_time,
+                record.created_at,
+                record.error_message,
+            ),
         )
 
     async def add_records(self, records: list[HistoryRecord]) -> list[int]:
@@ -266,10 +282,19 @@ class HistoryDB:
         for record in records:
             if not record.created_at:
                 record.created_at = now
-            rows.append((
-                record.task_type, record.input_file, record.output_file, record.model_size,
-                record.status, record.parameters, record.processing_time, record.created_at, record.error_message
-            ))
+            rows.append(
+                (
+                    record.task_type,
+                    record.input_file,
+                    record.output_file,
+                    record.model_size,
+                    record.status,
+                    record.parameters,
+                    record.processing_time,
+                    record.created_at,
+                    record.error_message,
+                )
+            )
 
         sql = """INSERT INTO history (task_type, input_file, output_file, model_size, status, parameters, processing_time, created_at, error_message)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"""
@@ -295,6 +320,7 @@ class HistoryDB:
             if last_id is None:
                 return []
 
+        assert last_id is not None
         return list(range(last_id - len(rows) + 1, last_id + 1))
 
     async def update_record(self, record_id: int, **kwargs) -> bool:
@@ -350,7 +376,7 @@ class HistoryDB:
         limit: int = 50,
         offset: int = 0,
         order_by: str = "created_at",
-        order_dir: str = "DESC"
+        order_dir: str = "DESC",
     ) -> tuple[list[HistoryRecord], int]:
         """获取记录列表（分页）"""
         conditions = []
@@ -378,17 +404,12 @@ class HistoryDB:
 
         rows = await self._fetch_all(
             f"SELECT * FROM history WHERE {where_clause} ORDER BY {order_by} {order_dir} LIMIT ? OFFSET ?",
-            params + [limit, offset]
+            params + [limit, offset],
         )
         records = [self._row_to_record(row) for row in rows]
         return records, total
 
-    async def search_records(
-        self,
-        query: str,
-        limit: int = 50,
-        offset: int = 0
-    ) -> tuple[list[HistoryRecord], int]:
+    async def search_records(self, query: str, limit: int = 50, offset: int = 0) -> tuple[list[HistoryRecord], int]:
         """全文搜索记录"""
         if not query.strip():
             return await self.get_records(limit=limit, offset=offset)
@@ -404,15 +425,12 @@ class HistoryDB:
                WHERE history_fts MATCH ?
                ORDER BY h.created_at DESC
                LIMIT ? OFFSET ?""",
-            (safe_query, limit, offset)
+            (safe_query, limit, offset),
         )
         records = [self._row_to_record(row) for row in rows]
 
         # 获取搜索结果总数
-        count_row = await self._fetch_one(
-            "SELECT COUNT(*) FROM history_fts WHERE history_fts MATCH ?",
-            (safe_query,)
-        )
+        count_row = await self._fetch_one("SELECT COUNT(*) FROM history_fts WHERE history_fts MATCH ?", (safe_query,))
         total = count_row[0] if count_row else 0
 
         return records, total
@@ -425,9 +443,7 @@ class HistoryDB:
     async def clear_records(self, before_date: str | None = None) -> int:
         """清除记录"""
         if before_date:
-            return await self._execute_write(
-                "DELETE FROM history WHERE created_at < ?", (before_date,)
-            )
+            return await self._execute_write("DELETE FROM history WHERE created_at < ?", (before_date,))
         return await self._execute_write("DELETE FROM history")
 
     # ==================== 任务状态持久化 ====================
@@ -440,8 +456,15 @@ class HistoryDB:
         await self._execute_write(
             """INSERT INTO tasks (task_id, record_id, status, progress, output_path, error_message, updated_at)
                VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (record.task_id, record.record_id, record.status, record.progress,
-             record.output_path, record.error_message, record.updated_at)
+            (
+                record.task_id,
+                record.record_id,
+                record.status,
+                record.progress,
+                record.output_path,
+                record.error_message,
+                record.updated_at,
+            ),
         )
         return True
 
@@ -460,7 +483,7 @@ class HistoryDB:
 
         await self._execute_write(
             f"UPDATE tasks SET {set_clause}, updated_at = ? WHERE task_id = ?",
-            list(kwargs.values()) + [datetime.now().isoformat(), task_id]
+            list(kwargs.values()) + [datetime.now().isoformat(), task_id],
         )
         return True
 
@@ -474,8 +497,7 @@ class HistoryDB:
     async def get_task_by_record_id(self, record_id: int) -> TaskRecord | None:
         """通过历史记录 ID 获取关联任务"""
         row = await self._fetch_one(
-            "SELECT * FROM tasks WHERE record_id = ? ORDER BY updated_at DESC LIMIT 1",
-            (record_id,)
+            "SELECT * FROM tasks WHERE record_id = ? ORDER BY updated_at DESC LIMIT 1", (record_id,)
         )
         if row:
             return self._row_to_task_record(row)
@@ -488,8 +510,7 @@ class HistoryDB:
         params = list(statuses)
 
         rows = await self._fetch_all(
-            f"SELECT * FROM tasks WHERE status IN ({placeholders}) ORDER BY updated_at DESC",
-            params
+            f"SELECT * FROM tasks WHERE status IN ({placeholders}) ORDER BY updated_at DESC", params
         )
         return [self._row_to_task_record(row) for row in rows]
 
@@ -509,21 +530,15 @@ class HistoryDB:
         total = total_row[0] if total_row else 0
 
         # 按类型统计
-        type_rows = await self._fetch_all(
-            "SELECT task_type, COUNT(*) as cnt FROM history GROUP BY task_type"
-        )
-        by_type = dict(type_rows)
+        type_rows = await self._fetch_all("SELECT task_type, COUNT(*) as cnt FROM history GROUP BY task_type")
+        by_type: dict[str, int] = {row[0]: row[1] for row in type_rows}
 
         # 按状态统计
-        status_rows = await self._fetch_all(
-            "SELECT status, COUNT(*) as cnt FROM history GROUP BY status"
-        )
-        by_status = dict(status_rows)
+        status_rows = await self._fetch_all("SELECT status, COUNT(*) as cnt FROM history GROUP BY status")
+        by_status: dict[str, int] = {row[0]: row[1] for row in status_rows}
 
         # 平均处理时间
-        avg_row = await self._fetch_one(
-            "SELECT AVG(processing_time) FROM history WHERE status = 'completed'"
-        )
+        avg_row = await self._fetch_one("SELECT AVG(processing_time) FROM history WHERE status = 'completed'")
         avg_time = avg_row[0] if avg_row and avg_row[0] else 0
 
         return {

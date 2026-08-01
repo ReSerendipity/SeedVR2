@@ -15,6 +15,7 @@ API 路由前缀：
 - /api/sse/events: SSE 事件流端点
 页面路由：/, /restore, /settings, /history
 """
+
 import importlib
 import logging
 
@@ -62,7 +63,7 @@ def auto_discover_routes(app: FastAPI):
             logger.error(f"注册路由失败 {module_path}: {e}")
 
 
-def _render_template(request: Request, template_name: str, context: dict = None) -> HTMLResponse:
+def _render_template(request: Request, template_name: str, context: dict | None = None) -> HTMLResponse:
     """使用 Jinja2 Environment 渲染模板（内部工具函数）。
 
     Args:
@@ -269,9 +270,7 @@ def register_page_routes(app: FastAPI):
             API 请求返回 JSON 错误响应；页面请求返回重定向响应。
         """
         if request.url.path.startswith("/api/"):
-            return JSONResponse(
-                status_code=404,
-                content={"error": "API endpoint not found", "path": request.url.path}
-            )
+            return JSONResponse(status_code=404, content={"error": "API endpoint not found", "path": request.url.path})
         from fastapi.responses import RedirectResponse
+
         return RedirectResponse(url="/", status_code=302)

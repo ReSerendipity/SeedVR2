@@ -55,6 +55,7 @@ _memory_check_block_counter = 0
 # BlockSwap 配置辅助函数
 # ===========================================================================
 
+
 def is_blockswap_enabled(config: dict[str, Any] | None) -> bool:
     """检查 BlockSwap 配置是否表示应启用 BlockSwap
 
@@ -82,6 +83,7 @@ def is_blockswap_enabled(config: dict[str, Any] | None) -> bool:
 # ===========================================================================
 # 计时辅助函数（被 @torch._dynamo.disable 装饰，排除在 torch.compile 追踪外）
 # ===========================================================================
+
 
 @torch._dynamo.disable
 def _get_swap_start_time(enabled: bool) -> float | None:
@@ -114,6 +116,7 @@ def _log_swap_timing(t_start: float | None, component_id, component_type: str) -
 # 内存测量
 # ===========================================================================
 
+
 def get_module_memory_mb(module: torch.nn.Module | None) -> float:
     """计算 PyTorch 模块的显存/内存占用（MB）
 
@@ -142,6 +145,7 @@ def get_module_memory_mb(module: torch.nn.Module | None) -> float:
 # ===========================================================================
 # 主入口函数
 # ===========================================================================
+
 
 def apply_block_swap_to_dit(
     model: torch.nn.Module,
@@ -195,9 +199,13 @@ def apply_block_swap_to_dit(
 
         block_text = "block" if effective_blocks <= 1 else "blocks"
         if effective_blocks > 0 and swap_io_components:
-            logger.info(f"BlockSwap: {effective_blocks}/{total_blocks} transformer {block_text} + I/O components offloaded to {offload_device}")
+            logger.info(
+                f"BlockSwap: {effective_blocks}/{total_blocks} transformer {block_text} + I/O components offloaded to {offload_device}"
+            )
         elif effective_blocks > 0:
-            logger.info(f"BlockSwap: {effective_blocks}/{total_blocks} transformer {block_text} offloaded to {offload_device}")
+            logger.info(
+                f"BlockSwap: {effective_blocks}/{total_blocks} transformer {block_text} offloaded to {offload_device}"
+            )
         elif swap_io_components:
             logger.info(f"BlockSwap: I/O components offloaded to {offload_device} (0/{total_blocks} blocks swapped)")
 
@@ -230,8 +238,8 @@ def apply_block_swap_to_dit(
             "total_blocks": total_blocks,
             "offload_device": offload_device,
             "main_device": main_device,
-            "offload_memory": memory_stats['offload_memory'],
-            "main_memory": memory_stats['main_memory'],
+            "offload_memory": memory_stats["offload_memory"],
+            "main_memory": memory_stats["main_memory"],
         }
 
         _protect_model_from_move(model)
@@ -242,6 +250,7 @@ def apply_block_swap_to_dit(
 # ===========================================================================
 # I/O 组件配置
 # ===========================================================================
+
 
 def _configure_io_components(
     model: torch.nn.Module,
@@ -290,16 +299,17 @@ def _configure_io_components(
                 logger.info(f"  {name} -> {device} ({module_memory:.2f}MB)")
 
     return {
-        'components': io_components_offloaded,
-        'memory_mb': io_memory_mb,
-        'gpu_components': io_components_on_gpu,
-        'gpu_memory_mb': io_gpu_memory_mb,
+        "components": io_components_offloaded,
+        "memory_mb": io_memory_mb,
+        "gpu_components": io_components_on_gpu,
+        "gpu_memory_mb": io_gpu_memory_mb,
     }
 
 
 # ===========================================================================
 # Block 配置
 # ===========================================================================
+
 
 def _configure_blocks(
     model: torch.nn.Module,
@@ -352,6 +362,7 @@ def _configure_blocks(
 # 内存汇总日志
 # ===========================================================================
 
+
 def _log_memory_summary(
     memory_stats: dict[str, float],
     io_config: dict[str, Any],
@@ -370,23 +381,25 @@ def _log_memory_summary(
     """
     logger.info("BlockSwap memory configuration:")
 
-    blocks_offloaded = memory_stats['offload_memory']
-    blocks_on_gpu = memory_stats['main_memory']
+    blocks_offloaded = memory_stats["offload_memory"]
+    blocks_on_gpu = memory_stats["main_memory"]
 
     if blocks_on_gpu == 0:
         logger.info(f"  Transformer blocks: {blocks_offloaded:.2f}MB on {offload_device} (dynamic swapping)")
     else:
-        logger.info(f"  Transformer blocks: {blocks_on_gpu:.2f}MB on {device}, {blocks_offloaded:.2f}MB on {offload_device}")
+        logger.info(
+            f"  Transformer blocks: {blocks_on_gpu:.2f}MB on {device}, {blocks_offloaded:.2f}MB on {offload_device}"
+        )
 
-    io_memory = io_config.get('memory_mb', 0.0)
-    io_gpu_memory = io_config.get('gpu_memory_mb', 0.0)
+    io_memory = io_config.get("memory_mb", 0.0)
+    io_gpu_memory = io_config.get("gpu_memory_mb", 0.0)
 
     if swap_io_components and io_memory > 0:
-        io_components = io_config.get('components', [])
+        io_components = io_config.get("components", [])
         logger.info(f"  I/O components: {io_memory:.2f}MB on {offload_device} (dynamic swapping)")
         logger.info(f"    {', '.join(io_components)}")
     elif io_gpu_memory > 0:
-        io_gpu_components = io_config.get('gpu_components', [])
+        io_gpu_components = io_config.get("gpu_components", [])
         logger.info(f"  I/O components: {io_gpu_memory:.2f}MB on {device}")
         logger.info(f"    {', '.join(io_gpu_components)}")
 
@@ -398,6 +411,7 @@ def _log_memory_summary(
 # ===========================================================================
 # Block forward 包装
 # ===========================================================================
+
 
 def _wrap_block_forward(
     block: torch.nn.Module,
@@ -422,7 +436,7 @@ def _wrap_block_forward(
         block_idx: block 在 model.blocks 中的索引
         model: 父 DiT 模型引用
     """
-    if hasattr(block, '_original_forward'):
+    if hasattr(block, "_original_forward"):
         return
 
     original_forward = block.forward
@@ -435,7 +449,7 @@ def _wrap_block_forward(
         if not model:
             return original_forward(*args, **kwargs)
 
-        if hasattr(model, 'blocks_to_swap') and self._block_idx <= model.blocks_to_swap:
+        if hasattr(model, "blocks_to_swap") and self._block_idx <= model.blocks_to_swap:
             t_start = _get_swap_start_time(True)
 
             current_device = next(self.parameters()).device
@@ -448,9 +462,7 @@ def _wrap_block_forward(
 
             cache_manager = _get_cache_manager_for_blockswap(model)
             if cache_manager is not None and isinstance(output, torch.Tensor) and output.is_cuda:
-                cache_manager.maybe_cache_tensor(
-                    output, f"block_{self._block_idx}_output"
-                )
+                cache_manager.maybe_cache_tensor(output, f"block_{self._block_idx}_output")
 
             self.to(model.offload_device, non_blocking=False)
 
@@ -478,17 +490,18 @@ def _get_cache_manager_for_blockswap(model: torch.nn.Module) -> TensorCacheManag
         TensorCacheManager | None: 缓存管理器实例；失败时返回 None
     """
     with _BLOCKSWAP_LOCK:
-        if not hasattr(model, '_tensor_cache_manager'):
+        if not hasattr(model, "_tensor_cache_manager"):
             try:
                 model._tensor_cache_manager = get_cache_manager()
             except Exception:
                 return None
-        return getattr(model, '_tensor_cache_manager', None)
+        return getattr(model, "_tensor_cache_manager", None)
 
 
 # ===========================================================================
 # I/O 组件 forward 包装
 # ===========================================================================
+
 
 def _wrap_io_forward(
     module: torch.nn.Module,
@@ -508,7 +521,7 @@ def _wrap_io_forward(
         module_name: 模块名称（用于日志）
         model: 父 DiT 模型引用
     """
-    if hasattr(module, '_is_io_wrapped') and module._is_io_wrapped:
+    if hasattr(module, "_is_io_wrapped") and module._is_io_wrapped:
         return
 
     original_forward = module.forward
@@ -545,7 +558,7 @@ def _wrap_io_forward(
     module._is_io_wrapped = True
 
     with _BLOCKSWAP_LOCK:
-        if not hasattr(model, '_io_swappers'):
+        if not hasattr(model, "_io_swappers"):
             model._io_swappers = []
         model._io_swappers.append((module, module_name))
 
@@ -553,6 +566,7 @@ def _wrap_io_forward(
 # ===========================================================================
 # RoPE 补丁（BlockSwap 设备感知回退）
 # ===========================================================================
+
 
 def _patch_rope_for_blockswap(model: torch.nn.Module) -> None:
     """为 RoPE（旋转位置编码）模块打补丁以支持设备感知回退
@@ -574,7 +588,7 @@ def _patch_rope_for_blockswap(model: torch.nn.Module) -> None:
 
     for name, module in model.named_modules():
         if "rope" in name.lower() and hasattr(module, "get_axial_freqs"):
-            if hasattr(module, '_blockswap_wrapped') and module._blockswap_wrapped:
+            if hasattr(module, "_blockswap_wrapped") and module._blockswap_wrapped:
                 continue
 
             current_method = module.get_axial_freqs
@@ -592,14 +606,14 @@ def _patch_rope_for_blockswap(model: torch.nn.Module) -> None:
                                 current_device = next(self.parameters()).device
                             except StopIteration:
                                 m = model_ref()
-                                if m is not None and hasattr(m, 'main_device'):
+                                if m is not None and hasattr(m, "main_device"):
                                     current_device = torch.device(m.main_device)
-                                elif m is not None and hasattr(m, 'offload_device'):
+                                elif m is not None and hasattr(m, "offload_device"):
                                     current_device = torch.device(m.offload_device)
                                 else:
                                     current_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-                            if hasattr(current_fn, 'cache_clear'):
+                            if hasattr(current_fn, "cache_clear"):
                                 current_fn.cache_clear()
                                 try:
                                     return current_fn(*args, **kwargs)
@@ -609,14 +623,18 @@ def _patch_rope_for_blockswap(model: torch.nn.Module) -> None:
                             self.cpu()
 
                             try:
-                                original_fn = getattr(self, '_original_get_axial_freqs', current_fn)
+                                original_fn = getattr(self, "_original_get_axial_freqs", current_fn)
                                 with torch.cuda.amp.autocast(enabled=False):
                                     result = original_fn(*args, **kwargs)
 
                                 self.to(current_device)
 
-                                if hasattr(result, 'to'):
-                                    target_device = args[0].device if len(args) > 0 and hasattr(args[0], 'device') else current_device
+                                if hasattr(result, "to"):
+                                    target_device = (
+                                        args[0].device
+                                        if len(args) > 0 and hasattr(args[0], "device")
+                                        else current_device
+                                    )
                                     return result.to(target_device)
                                 return result
 
@@ -628,13 +646,10 @@ def _patch_rope_for_blockswap(model: torch.nn.Module) -> None:
 
                 return device_aware_rope_wrapper
 
-            module.get_axial_freqs = types.MethodType(
-                make_device_aware_wrapper(name, current_method),
-                module
-            )
+            module.get_axial_freqs = types.MethodType(make_device_aware_wrapper(name, current_method), module)
             module._blockswap_wrapped = True
 
-            original_method = getattr(module, '_original_get_axial_freqs', current_method)
+            original_method = getattr(module, "_original_get_axial_freqs", current_method)
             rope_patches.append((module, original_method))
 
     if rope_patches:
@@ -646,6 +661,7 @@ def _patch_rope_for_blockswap(model: torch.nn.Module) -> None:
 # ===========================================================================
 # 模型保护
 # ===========================================================================
+
 
 def _protect_model_from_move(model: torch.nn.Module) -> None:
     """保护 BlockSwap 模型防止意外整体设备迁移
@@ -661,24 +677,24 @@ def _protect_model_from_move(model: torch.nn.Module) -> None:
     Args:
         model: 要保护的 DiT 模型
     """
-    if not hasattr(model, '_original_to'):
+    if not hasattr(model, "_original_to"):
         model._original_to = model.to
 
         def protected_model_to(self, device, *args, **kwargs):
-            if getattr(self, "_blockswap_bypass_protection", False) and hasattr(self, '_original_to'):
+            if getattr(self, "_blockswap_bypass_protection", False) and hasattr(self, "_original_to"):
                 return self._original_to(device, *args, **kwargs)
 
             blockswap_offload_device = "cpu"
             if hasattr(self, "_block_swap_config"):
                 blockswap_offload_device = self._block_swap_config.get("offload_device", "cpu")
 
-            blockswap_is_active = getattr(self, '_blockswap_active', False)
+            blockswap_is_active = getattr(self, "_blockswap_active", False)
 
             if blockswap_is_active and str(device) != str(blockswap_offload_device):
                 logger.warning(f"Blocked attempt to move BlockSwap model from {blockswap_offload_device} to {device}")
                 return self
 
-            if hasattr(self, '_original_to'):
+            if hasattr(self, "_original_to"):
                 return self._original_to(device, *args, **kwargs)
             else:
                 return super(type(self), self).to(device, *args, **kwargs)
@@ -690,6 +706,7 @@ def _protect_model_from_move(model: torch.nn.Module) -> None:
 # Bypass 控制
 # ===========================================================================
 
+
 def set_blockswap_bypass(model: torch.nn.Module, bypass: bool) -> None:
     """设置或取消 BlockSwap 保护 bypass 标志
 
@@ -699,7 +716,7 @@ def set_blockswap_bypass(model: torch.nn.Module, bypass: bool) -> None:
         model: 启用了 BlockSwap 的 DiT 模型
         bypass: True 绕过保护（允许迁移），False 启用保护
     """
-    if not getattr(model, '_blockswap_active', False):
+    if not getattr(model, "_blockswap_active", False):
         return
 
     with _BLOCKSWAP_LOCK:
@@ -714,6 +731,7 @@ def set_blockswap_bypass(model: torch.nn.Module, bypass: bool) -> None:
 # ===========================================================================
 # 清理
 # ===========================================================================
+
 
 def cleanup_blockswap(model: torch.nn.Module) -> None:
     """从模型清理 BlockSwap 配置，恢复原始状态
@@ -731,46 +749,46 @@ def cleanup_blockswap(model: torch.nn.Module) -> None:
         model: 要清理的 DiT 模型
     """
     with _BLOCKSWAP_LOCK:
-        if not getattr(model, '_blockswap_active', False) and not hasattr(model, '_block_swap_config'):
+        if not getattr(model, "_blockswap_active", False) and not hasattr(model, "_block_swap_config"):
             return
 
         logger.info("Starting BlockSwap cleanup")
 
-        if hasattr(model, 'blocks'):
+        if hasattr(model, "blocks"):
             restored_count = 0
             for block in model.blocks:
-                if hasattr(block, '_original_forward'):
+                if hasattr(block, "_original_forward"):
                     block.forward = block._original_forward
-                    delattr(block, '_original_forward')
+                    delattr(block, "_original_forward")
                     restored_count += 1
 
-                    for attr in ['_block_idx', '_blockswap_wrapped']:
+                    for attr in ["_block_idx", "_blockswap_wrapped"]:
                         if hasattr(block, attr):
                             delattr(block, attr)
 
             if restored_count > 0:
                 logger.info(f"Restored {restored_count} block forward methods")
 
-        if hasattr(model, '_rope_patches'):
+        if hasattr(model, "_rope_patches"):
             for module, original_method in model._rope_patches:
                 module.get_axial_freqs = original_method
-                for attr in ['_rope_wrapped', '_original_get_axial_freqs', '_blockswap_wrapped']:
+                for attr in ["_rope_wrapped", "_original_get_axial_freqs", "_blockswap_wrapped"]:
                     if hasattr(module, attr):
                         delattr(module, attr)
             logger.info(f"Restored {len(model._rope_patches)} RoPE methods")
-            delattr(model, '_rope_patches')
+            delattr(model, "_rope_patches")
 
-        if hasattr(model, '_io_swappers'):
+        if hasattr(model, "_io_swappers"):
             for module, _module_name in model._io_swappers:
-                if hasattr(module, '_original_forward'):
+                if hasattr(module, "_original_forward"):
                     module.forward = module._original_forward
-                    for attr in ['_original_forward', '_module_name', '_is_io_wrapped']:
+                    for attr in ["_original_forward", "_module_name", "_is_io_wrapped"]:
                         if hasattr(module, attr):
                             delattr(module, attr)
             logger.info(f"Restored {len(model._io_swappers)} I/O components")
-            delattr(model, '_io_swappers')
+            delattr(model, "_io_swappers")
 
-        if hasattr(model, 'offload_device'):
+        if hasattr(model, "offload_device"):
             offload_device = model.offload_device
             moved_count = 0
             for name, module in model.named_children():
@@ -780,22 +798,28 @@ def cleanup_blockswap(model: torch.nn.Module) -> None:
             if moved_count > 0:
                 logger.info(f"Moved {moved_count} IO components to offload device")
 
-        if hasattr(model, '_original_to'):
+        if hasattr(model, "_original_to"):
             model.to = model._original_to
-            delattr(model, '_original_to')
+            delattr(model, "_original_to")
             logger.info("Restored original .to() method")
 
-        for attr in ['_blockswap_active', 'blocks_to_swap', 'main_device',
-                     'offload_device', '_block_swap_config', '_blockswap_bypass_protection']:
+        for attr in [
+            "_blockswap_active",
+            "blocks_to_swap",
+            "main_device",
+            "offload_device",
+            "_block_swap_config",
+            "_blockswap_bypass_protection",
+        ]:
             if hasattr(model, attr):
                 delattr(model, attr)
 
-        if hasattr(model, '_tensor_cache_manager'):
+        if hasattr(model, "_tensor_cache_manager"):
             cache_mgr = model._tensor_cache_manager
             if cache_mgr is not None and cache_mgr.cache_size > 0:
                 logger.info(f"Clearing {cache_mgr.cache_size} cached tensors from CPU cache")
                 cache_mgr.clear()
-            delattr(model, '_tensor_cache_manager')
+            delattr(model, "_tensor_cache_manager")
 
         logger.info("BlockSwap cleanup complete")
 
@@ -803,6 +827,7 @@ def cleanup_blockswap(model: torch.nn.Module) -> None:
 # ===========================================================================
 # 内存管理辅助函数（限频调用）
 # ===========================================================================
+
 
 def _clear_memory_if_needed() -> None:
     """仅在显存压力高时清理 GPU 缓存（空闲 < 5%）
@@ -819,8 +844,7 @@ def _clear_memory_if_needed() -> None:
         current_time = time.time()
         time_elapsed_ms = (current_time - _last_memory_check_time) * 1000
 
-        if (_memory_check_block_counter < _MEMORY_CHECK_INTERVAL_BLOCKS and
-                time_elapsed_ms < _MEMORY_CHECK_INTERVAL_MS):
+        if _memory_check_block_counter < _MEMORY_CHECK_INTERVAL_BLOCKS and time_elapsed_ms < _MEMORY_CHECK_INTERVAL_MS:
             return
 
         _memory_check_block_counter = 0

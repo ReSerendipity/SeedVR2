@@ -113,9 +113,9 @@ class FileCache:
 
         # 尝试获取文件大小以决定写入策略
         file_size = 0
-        if hasattr(upload_file, 'size') and upload_file.size is not None:
+        if hasattr(upload_file, "size") and upload_file.size is not None:
             file_size = upload_file.size
-        elif hasattr(upload_file, 'file') and hasattr(upload_file.file, 'seek') and hasattr(upload_file.file, 'tell'):
+        elif hasattr(upload_file, "file") and hasattr(upload_file.file, "seek") and hasattr(upload_file.file, "tell"):
             try:
                 pos = upload_file.file.tell()
                 upload_file.file.seek(0, 2)  # seek to end
@@ -129,6 +129,7 @@ class FileCache:
             # 原实现使用 upload_file.file.read() 同步阻塞事件循环（注释却写着"异步"）；
             # 改为 await upload_file.read() 走 asyncio.to_thread，真正不阻塞 (E7/C10)
             import aiofiles
+
             await upload_file.seek(0)
             async with aiofiles.open(file_path, "wb") as f:
                 while True:
@@ -251,6 +252,7 @@ class FileCache:
         Args:
             interval: 清理间隔（秒），默认1小时
         """
+
         async def _cleanup_loop():
             while True:
                 try:
@@ -472,15 +474,15 @@ class AdaptiveLRUCache(LRUCache):
         try:
             if isinstance(value, tuple) and len(value) > 0:
                 first = value[0]
-                if hasattr(first, 'nbytes'):
+                if hasattr(first, "nbytes"):
                     total = first.nbytes
                     for item in value[1:]:
-                        if hasattr(item, 'nbytes'):
+                        if hasattr(item, "nbytes"):
                             total += item.nbytes
                         else:
-                            total += getattr(item, '__sizeof__', lambda: 1024)()
+                            total += getattr(item, "__sizeof__", lambda: 1024)()
                     return total
-            if hasattr(value, '__sizeof__'):
+            if hasattr(value, "__sizeof__"):
                 return value.__sizeof__()
         except Exception:
             pass

@@ -43,7 +43,9 @@ Higher-level convenience functions:
 """
 
 from collections import defaultdict
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from collections.abc import Callable
+from typing import Any
+
 import torch
 import torch.distributed as dist
 from torch import Tensor
@@ -99,9 +101,7 @@ def single_all_to_all(
 
     inp_shape = list(local_input.shape)
     inp_shape[scatter_dim] = inp_shape[scatter_dim] // seq_world_size
-    input_t = local_input.reshape(
-        [seq_world_size, inp_shape[scatter_dim]] + inp_shape[scatter_dim + 1 :]
-    ).contiguous()
+    input_t = local_input.reshape([seq_world_size, inp_shape[scatter_dim]] + inp_shape[scatter_dim + 1 :]).contiguous()
     output = torch.empty_like(input_t)
     comm = dist.all_to_all_single(output, input_t, group=group, async_op=async_op)
     if async_op:
@@ -135,9 +135,7 @@ def _all_to_all(
         Gathered output tensor.
     """
     seq_world_size = dist.get_world_size(group)
-    input_list = [
-        t.contiguous() for t in torch.tensor_split(local_input, seq_world_size, scatter_dim)
-    ]
+    input_list = [t.contiguous() for t in torch.tensor_split(local_input, seq_world_size, scatter_dim)]
     output_list = [torch.empty_like(input_list[0]) for _ in range(seq_world_size)]
     dist.all_to_all(output_list, input_list, group=group)
     return torch.cat(output_list, dim=gather_dim).contiguous()
@@ -192,7 +190,7 @@ class SeqAllToAll(torch.autograd.Function):
         return _all_to_all(local_input, scatter_dim, gather_dim, group)
 
     @staticmethod
-    def backward(ctx: Any, *grad_output: Tensor) -> Tuple[None, Tensor, None, None]:
+    def backward(ctx: Any, *grad_output: Tensor) -> tuple[None, Tensor, None, None]:
         """Backward pass: reverse the all-to-all for gradient computation.
 
         Gradient flows back through the transpose of the forward operation.
@@ -241,7 +239,7 @@ class Slice(torch.autograd.Function):
         return local_input.split(dim_size // seq_world_size, dim=dim)[ctx.rank].contiguous()
 
     @staticmethod
-    def backward(ctx: Any, grad_output: Tensor) -> Tuple[None, Tensor, None]:
+    def backward(ctx: Any, grad_output: Tensor) -> tuple[None, Tensor, None]:
         """Backward: all-gather to reconstruct full gradient."""
         dim_size = list(grad_output.size())
         split_size = dim_size[0]
@@ -264,7 +262,7 @@ class Gather(torch.autograd.Function):
         group: dist.ProcessGroup,
         local_input: Tensor,
         dim: int,
-        grad_scale: Optional[bool] = False,
+        grad_scale: bool | None = False,
     ) -> Tensor:
         """Forward: all-gather local shards and concatenate.
 
@@ -293,7 +291,7 @@ class Gather(torch.autograd.Function):
         return torch.cat(output.split(split_size), dim=dim)
 
     @staticmethod
-    def backward(ctx: Any, grad_output: Tensor) -> Tuple[None, Tensor]:
+    def backward(ctx: Any, grad_output: Tensor) -> tuple[None, Tensor]:
         """Backward: slice gradient to local shard, optionally scaling."""
         if ctx.grad_scale:
             grad_output = grad_output * ctx.seq_world_size
@@ -309,7 +307,7 @@ def gather_seq_scatter_heads_qkv(
     qkv_tensor: Tensor,
     *,
     seq_dim: int,
-    qkv_shape: Optional[Tensor] = None,
+    qkv_shape: Tensor | None = None,
     cache: Cache = Cache(disable=True),
     restore_shape: bool = True,
 ):
@@ -353,9 +351,7 @@ def gather_seq_scatter_heads_qkv(
         qkv_tensor = qkv_tensor.view(out_shape)
 
     if qkv_shape is not None:
-        unpad_dim_size = cache(
-            "unpad_dim_size", lambda: torch.sum(torch.prod(qkv_shape, dim=-1)).item()
-        )
+        unpad_dim_size = cache("unpad_dim_size", lambda: torch.sum(torch.prod(qkv_shape, dim=-1)).item())
         if unpad_dim_size % world != 0:
             padding_size = qkv_tensor.size(seq_dim) - unpad_dim_size
             qkv_tensor = _unpad_tensor(qkv_tensor, seq_dim, padding_size)
@@ -474,7 +470,7 @@ def scatter_heads(x: Tensor, dim: int) -> Tensor:
     return Slice.apply(group, x, dim)
 
 
-def gather_heads(x: Tensor, dim: int, grad_scale: Optional[bool] = False) -> Tensor:
+def gather_heads(x: Tensor, dim: int, grad_scale: bool | None = False) -> Tensor:
     """Gather heads from all sequence parallel ranks.
 
     Args:
@@ -495,8 +491,8 @@ def gather_outputs(
     x: Tensor,
     *,
     gather_dim: int,
-    padding_dim: Optional[int] = None,
-    unpad_shape: Optional[Tensor] = None,
+    padding_dim: int | None = None,
+    unpad_shape: Tensor | None = None,
     cache: Cache = Cache(disable=True),
     scale_grad=True,
 ):
@@ -520,9 +516,7 @@ def gather_outputs(
         return x
     x = Gather.apply(group, x, gather_dim, scale_grad)
     if padding_dim is not None:
-        unpad_dim_size = cache(
-            "unpad_dim_size", lambda: torch.sum(torch.prod(unpad_shape, dim=1)).item()
-        )
+        unpad_dim_size = cache("unpad_dim_size", lambda: torch.sum(torch.prod(unpad_shape, dim=1)).item())
         x = remove_seqeunce_parallel_padding(x, padding_dim, unpad_dim_size)
     return x
 
@@ -586,7 +580,7 @@ def _broadcast_data(data, shape, dtype, src, group, async_op):
     return comms
 
 
-def _traverse(data: Any, op: Callable) -> Union[None, List, Dict, Any]:
+def _traverse(data: Any, op: Callable) -> None | list | dict | Any:
     """Recursively traverse nested data structures applying an operation to Tensors.
 
     Args:
@@ -736,11 +730,7 @@ class SPDistForward:
                 dtypes = _SEQ_DATA_META_DTYPES[self.name]
                 buf_id = local_step % 2
                 if local_step == 0:
-                    sync_data = (
-                        local_result
-                        if is_src
-                        else _construct_broadcast_buffer(shapes, dtypes, device)
-                    )
+                    sync_data = local_result if is_src else _construct_broadcast_buffer(shapes, dtypes, device)
                     _broadcast_data(sync_data, shapes, dtypes, src_rank, group, False)
                     _SEQ_DATA_BUF[self.name][buf_id] = sync_data
 
@@ -753,9 +743,7 @@ class SPDistForward:
                     src_rank = dist.get_global_rank(group, local_step + 1)
                     is_src = sp_rank == local_step + 1
                     next_sync_data = (
-                        _SEQ_DATA_BUF[self.name][-1]
-                        if is_src
-                        else _construct_broadcast_buffer(shapes, dtypes, device)
+                        _SEQ_DATA_BUF[self.name][-1] if is_src else _construct_broadcast_buffer(shapes, dtypes, device)
                     )
                     _SEQ_DATA_ASYNC_COMMS[self.name] = _broadcast_data(
                         next_sync_data, shapes, dtypes, src_rank, group, True

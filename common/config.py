@@ -26,13 +26,15 @@ extend parent configs, with child values overriding parent values.
 """
 
 import importlib
-from typing import Any, Callable, List, Union
+from collections.abc import Callable
+from typing import Any
+
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 OmegaConf.register_new_resolver("eval", eval)
 
 
-def load_config(path: str, argv: List[str] = None) -> Union[DictConfig, ListConfig]:
+def load_config(path: str, argv: list[str] = None) -> DictConfig | ListConfig:
     """Load a configuration file and resolve inheritance hierarchies.
 
     Loads a YAML config from the specified path, optionally merges command-line
@@ -61,7 +63,7 @@ def load_config(path: str, argv: List[str] = None) -> Union[DictConfig, ListConf
 
 def resolve_recursive(
     config: Any,
-    resolver: Callable[[Union[DictConfig, ListConfig]], Union[DictConfig, ListConfig]],
+    resolver: Callable[[DictConfig | ListConfig], DictConfig | ListConfig],
 ) -> Any:
     """Recursively apply a resolver function to all nested config nodes.
 
@@ -78,7 +80,7 @@ def resolve_recursive(
     """
     config = resolver(config)
     if isinstance(config, DictConfig):
-        for k in config.keys():
+        for k in config:
             v = config.get(k)
             if isinstance(v, (DictConfig, ListConfig)):
                 config[k] = resolve_recursive(v, resolver)
@@ -90,7 +92,7 @@ def resolve_recursive(
     return config
 
 
-def resolve_inheritance(config: Union[DictConfig, ListConfig]) -> Any:
+def resolve_inheritance(config: DictConfig | ListConfig) -> Any:
     """Recursively resolve ``__inherit__`` directives in config dicts.
 
     When a DictConfig contains an ``__inherit__`` key, the specified parent

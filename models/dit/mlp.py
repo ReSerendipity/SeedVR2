@@ -37,13 +37,12 @@ SwiGLU 算法:
     并对齐到 multiple_of (通常为 256) 以优化 GPU 计算效率。
 """
 
-from typing import Optional
 import torch
 import torch.nn.functional as F
 from torch import nn
 
 
-def get_mlp(mlp_type: Optional[str] = "normal"):
+def get_mlp(mlp_type: str | None = "normal"):
     """根据类型字符串返回对应的 MLP 类。
 
     Args:

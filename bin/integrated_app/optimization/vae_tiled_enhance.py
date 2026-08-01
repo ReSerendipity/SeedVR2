@@ -35,7 +35,6 @@ import logging
 import math
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
 
 import torch
 import torch.nn.functional as F
@@ -46,6 +45,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # 自动 tile size 推荐 (SCST get_recommend_encoder_tile_size/get_recommend_decoder_tile_size inspired)
 # ---------------------------------------------------------------------------
+
 
 def get_recommend_encoder_tile_size(device: torch.device | str | None = None) -> int:
     """根据 GPU 显存推荐编码器 tile size
@@ -193,6 +193,7 @@ def detect_nan(tensor: torch.Tensor, stage: str = "unknown") -> bool:
 # 高斯权重混合 (SCST / VEnhancer inspired)
 # ---------------------------------------------------------------------------
 
+
 def create_gaussian_weight_map(
     tile_size: int,
     overlap: int,
@@ -289,8 +290,7 @@ def blend_tiles_gaussian(
 
     # 创建高斯权重映射
     weight_map = create_gaussian_weight_map(
-        tile_size, overlap, sigma=sigma,
-        num_dims=num_dims, device=device, dtype=dtype
+        tile_size, overlap, sigma=sigma, num_dims=num_dims, device=device, dtype=dtype
     )
 
     # 初始化输出和权重累加器
@@ -299,7 +299,7 @@ def blend_tiles_gaussian(
     weight_sum_shape = (1,) + output_shape
     weight_sum = torch.zeros(weight_sum_shape, device=device, dtype=dtype)
 
-    for tile, pos in zip(tiles, tile_positions):
+    for tile, pos in zip(tiles, tile_positions, strict=False):
         if tile.ndim == num_dims:
             tile = tile.unsqueeze(0)
 
@@ -339,6 +339,7 @@ def blend_tiles_gaussian(
 # GroupNorm 跨 tile 统计 (SCST inspired)
 # ---------------------------------------------------------------------------
 
+
 def _get_group_norm_stats(
     input_tensor: torch.Tensor,
     num_groups: int = 32,
@@ -365,12 +366,8 @@ def _get_group_norm_stats(
     else:
         fp32_tensor = input_tensor
 
-    input_reshaped = fp32_tensor.contiguous().view(
-        1, b * num_groups, channel_in_group, *input_tensor.shape[2:]
-    )
-    var, mean = torch.var_mean(
-        input_reshaped, dim=[0, 2] + list(range(3, input_reshaped.ndim)), unbiased=False
-    )
+    input_reshaped = fp32_tensor.contiguous().view(1, b * num_groups, channel_in_group, *input_tensor.shape[2:])
+    var, mean = torch.var_mean(input_reshaped, dim=[0, 2] + list(range(3, input_reshaped.ndim)), unbiased=False)
 
     # clamp 避免 fp16 溢出
     if input_tensor.dtype == torch.float16:
@@ -409,15 +406,9 @@ def custom_group_norm(
     b, c = input_tensor.shape[0], input_tensor.shape[1]
     channel_in_group = c // num_groups
 
-    input_reshaped = input_tensor.contiguous().view(
-        1, b * num_groups, channel_in_group, *input_tensor.shape[2:]
-    )
+    input_reshaped = input_tensor.contiguous().view(1, b * num_groups, channel_in_group, *input_tensor.shape[2:])
 
-    out = F.batch_norm(
-        input_reshaped, mean, var,
-        weight=None, bias=None,
-        training=False, momentum=0, eps=eps
-    )
+    out = F.batch_norm(input_reshaped, mean, var, weight=None, bias=None, training=False, momentum=0, eps=eps)
 
     out = out.view(b, c, *input_tensor.shape[2:])
 
@@ -575,9 +566,7 @@ class GroupNormAccumulator:
         var_stacked = torch.vstack(var_list)
         mean_stacked = torch.vstack(mean_list)
         max_pixels = max(pixel_list)
-        pixels = torch.tensor(
-            pixel_list, dtype=torch.float32, device=var_stacked.device
-        ) / max_pixels
+        pixels = torch.tensor(pixel_list, dtype=torch.float32, device=var_stacked.device) / max_pixels
         sum_pixels = pixels.sum()
         pixels = pixels.unsqueeze(1) / sum_pixels
 
@@ -610,9 +599,7 @@ class GroupNormAccumulator:
                     var_stacked = torch.vstack(var_list)
                     mean_stacked = torch.vstack(mean_list)
                     max_pixels = max(pixel_list)
-                    pixels = torch.tensor(
-                        pixel_list, dtype=torch.float32, device=var_stacked.device
-                    ) / max_pixels
+                    pixels = torch.tensor(pixel_list, dtype=torch.float32, device=var_stacked.device) / max_pixels
                     sum_pixels = pixels.sum()
                     pixels = pixels.unsqueeze(1) / sum_pixels
 
@@ -654,6 +641,7 @@ class GroupNormAccumulator:
 # ---------------------------------------------------------------------------
 # 通用 tiled 推理封装 (DiffBIR make_tiled_fn inspired)
 # ---------------------------------------------------------------------------
+
 
 def make_tiled_fn(
     fn: Callable,
@@ -872,11 +860,13 @@ def make_tiled_fn(
                         output[tuple(out_slices)] += tile_crop * w_crop
 
                         ws_slices = [slice(None)]
-                        ws_slices.extend([
-                            slice(t_pos, t_pos + actual_t),
-                            slice(y_pos, y_pos + actual_h),
-                            slice(x_pos, x_pos + actual_w)
-                        ])
+                        ws_slices.extend(
+                            [
+                                slice(t_pos, t_pos + actual_t),
+                                slice(y_pos, y_pos + actual_h),
+                                slice(x_pos, x_pos + actual_w),
+                            ]
+                        )
                         weight_sum[tuple(ws_slices)] += w_crop
 
                         processed += 1
@@ -901,6 +891,7 @@ def make_tiled_fn(
 # ---------------------------------------------------------------------------
 # 条件 VAE 解码 (Upscale-A-Video decode_latents_vsr inspired)
 # ---------------------------------------------------------------------------
+
 
 def conditional_vae_decode(
     vae_model: torch.nn.Module,
@@ -947,8 +938,12 @@ def conditional_vae_decode(
     # 使用低通滤波提取低频
     kernel_size = 15
     sigma = 3.0
-    kernel = _create_gaussian_kernel(kernel_size, sigma, device=high_res_output.device,
-                                      channels=high_res_output.shape[1] if high_res_output.ndim == 4 else 1)
+    kernel = _create_gaussian_kernel(
+        kernel_size,
+        sigma,
+        device=high_res_output.device,
+        channels=high_res_output.shape[1] if high_res_output.ndim == 4 else 1,
+    )
 
     # 对高分辨率输出应用低通滤波
     high_res_low_freq = _apply_gaussian_filter(high_res_output, kernel)
@@ -1037,6 +1032,7 @@ def _apply_gaussian_filter(
 # VAE Slicing 支持 (CogVideo inspired)
 # ---------------------------------------------------------------------------
 
+
 def enable_vae_slicing(
     vae_model: torch.nn.Module,
     slice_size: int = 1,
@@ -1079,6 +1075,7 @@ def disable_vae_slicing(vae_model: torch.nn.Module) -> torch.nn.Module:
 # ---------------------------------------------------------------------------
 # CPU Offload 机制 (CogVideo / Upscale-A-Video inspired)
 # ---------------------------------------------------------------------------
+
 
 def enable_sequential_cpu_offload(
     model: torch.nn.Module,
@@ -1137,6 +1134,7 @@ def load_module_to_gpu(module: torch.nn.Module, device: torch.device | str = "cu
 # 8bit 缓存量化 (Real-CUGAN q()/dq() inspired) - P2
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class CacheQuantizerConfig:
     """8bit 缓存量化配置
@@ -1178,9 +1176,7 @@ class CacheQuantizer:
         self.config = config or CacheQuantizerConfig()
         self._quant_max = (1 << self.config.num_bits) - 1  # 255 for 8bit
 
-    def q(
-        self, tensor: torch.Tensor
-    ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    def q(self, tensor: torch.Tensor) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
         """将 float32 张量量化为 uint8"""
         if not self.config.enabled:
             return tensor, {}
@@ -1190,18 +1186,14 @@ class CacheQuantizer:
 
         if mode == "symmetric":
             scale = tensor.abs().max().clamp(min=eps) / self._quant_max
-            quantized = torch.clamp(
-                torch.round(tensor / scale), 0, self._quant_max
-            ).to(torch.uint8)
+            quantized = torch.clamp(torch.round(tensor / scale), 0, self._quant_max).to(torch.uint8)
             meta = {"scale": scale.detach()}
         else:
             t_min = tensor.min()
             t_max = tensor.max()
             scale = (t_max - t_min).clamp(min=eps) / self._quant_max
             offset = t_min
-            quantized = torch.clamp(
-                torch.round((tensor - offset) / scale), 0, self._quant_max
-            ).to(torch.uint8)
+            quantized = torch.clamp(torch.round((tensor - offset) / scale), 0, self._quant_max).to(torch.uint8)
             meta = {"scale": scale.detach(), "offset": offset.detach()}
 
         return quantized, meta
@@ -1227,6 +1219,7 @@ class CacheQuantizer:
 # ---------------------------------------------------------------------------
 # VAE Tiled Hook - 捕获 tile 输出用于高斯权重混合
 # ---------------------------------------------------------------------------
+
 
 class TiledVAEHook:
     """VAE Tiled 解码 Hook - 捕获内部 tile 输出并应用高斯权重混合
@@ -1257,18 +1250,18 @@ class TiledVAEHook:
 
         def _patched_decode(batch, tiled=False, tile_size=None, tile_overlap=None, **kwargs):
             if not tiled or tile_size is None:
-                return self._original_decode(batch, tiled=tiled, tile_size=tile_size,
-                                             tile_overlap=tile_overlap, **kwargs)
+                return self._original_decode(
+                    batch, tiled=tiled, tile_size=tile_size, tile_overlap=tile_overlap, **kwargs
+                )
 
             # 执行原始 tiled decode
-            result = self._original_decode(batch, tiled=tiled, tile_size=tile_size,
-                                           tile_overlap=tile_overlap, **kwargs)
+            result = self._original_decode(batch, tiled=tiled, tile_size=tile_size, tile_overlap=tile_overlap, **kwargs)
 
             # 尝试从 VAE 内部状态捕获 tile 信息
-            tile_state = getattr(self.vae, '_internal_tile_state', None)
-            if tile_state and 'outputs' in tile_state and 'positions' in tile_state:
-                self.vae._last_tile_outputs = tile_state['outputs']
-                self.vae._last_tile_positions = tile_state['positions']
+            tile_state = getattr(self.vae, "_internal_tile_state", None)
+            if tile_state and "outputs" in tile_state and "positions" in tile_state:
+                self.vae._last_tile_outputs = tile_state["outputs"]
+                self.vae._last_tile_positions = tile_state["positions"]
                 self.vae._last_tile_size = tile_size if isinstance(tile_size, int) else tile_size[0]
                 self.vae._last_tile_overlap = tile_overlap if isinstance(tile_overlap, int) else tile_overlap[0]
                 logger.debug(f"TiledVAEHook: 捕获到 {len(tile_state['outputs'])} 个 tile 输出")
@@ -1291,7 +1284,7 @@ class TiledVAEHook:
             self._original_decode = None
         self._installed = False
         # 清理临时属性
-        for attr in ['_last_tile_outputs', '_last_tile_positions', '_last_tile_size', '_last_tile_overlap']:
+        for attr in ["_last_tile_outputs", "_last_tile_positions", "_last_tile_size", "_last_tile_overlap"]:
             if hasattr(self.vae, attr):
                 delattr(self.vae, attr)
         logger.info("TiledVAEHook 已卸载")

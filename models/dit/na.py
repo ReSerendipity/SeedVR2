@@ -25,7 +25,6 @@ NaDiT (Native Resolution Diffusion Transformer) 是一种支持原生分辨率�
 使得模型可以处理任意分辨率和长度的视频输入，无需固定尺寸裁剪或 padding。
 """
 
-from typing import List, Optional, Tuple
 import torch
 import torch.nn.functional as F
 
@@ -35,7 +34,7 @@ def na_concat(
     txt: torch.FloatTensor,
     vid_len: torch.LongTensor,
     txt_len: torch.LongTensor,
-) -> Tuple[
+) -> tuple[
     torch.FloatTensor,
     torch.LongTensor,
     torch.LongTensor,
@@ -81,7 +80,7 @@ def na_split(
     x: torch.FloatTensor,
     vid_len: torch.LongTensor,
     txt_len: torch.LongTensor,
-) -> Tuple[
+) -> tuple[
     torch.FloatTensor,
     torch.FloatTensor,
 ]:
@@ -99,7 +98,7 @@ def na_split(
     """
     b = x.shape[0]
     seq_lens = vid_len + txt_len
-    cu = F.pad(seq_lens.cumsum(0), (1, 0))
+    F.pad(seq_lens.cumsum(0), (1, 0))
     vid = torch.cat([x[i, : vid_len[i]] for i in range(b)])
     txt = torch.cat([x[i, vid_len[i] : vid_len[i] + txt_len[i]] for i in range(b)])
     return vid, txt
@@ -130,7 +129,7 @@ def unpatchify(
     outs = []
     for i in range(b):
         nt, nh, nw = nws[i]
-        n_windows = nt * nh * nw
+        nt * nh * nw
         xi = x[i : i + 1, nw_cu[i] * wt * wh * ww : nw_cu[i + 1] * wt * wh * ww]
         xi = xi.reshape(-1, nt, nh, nw, wt, wh, ww, xi.shape[-1])
         xi = torch.einsum("b t h w p q r c -> b c t p h q w r", xi)

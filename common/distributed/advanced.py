@@ -49,14 +49,12 @@ for operations that need to run on CPU tensors (e.g., meta-device initialization
 shape inference).
 """
 
-from typing import Optional, List
 import torch
 import torch.distributed as dist
 from torch.distributed.device_mesh import DeviceMesh, init_device_mesh
 from torch.distributed.fsdp import ShardingStrategy
 
 from .basic import get_global_rank, get_world_size
-
 
 _DATA_PARALLEL_GROUP = None
 _SEQUENCE_PARALLEL_GROUP = None
@@ -68,7 +66,7 @@ _MODEL_SHARD_INTRA_GROUP = None
 _SEQUENCE_PARALLEL_GLOBAL_RANKS = None
 
 
-def get_data_parallel_group() -> Optional[dist.ProcessGroup]:
+def get_data_parallel_group() -> dist.ProcessGroup | None:
     """Get the data parallel (inter-SP) process group.
 
     GPUs in the same DP group hold different data shards but the same model
@@ -81,7 +79,7 @@ def get_data_parallel_group() -> Optional[dist.ProcessGroup]:
     return _DATA_PARALLEL_GROUP
 
 
-def get_sequence_parallel_group() -> Optional[dist.ProcessGroup]:
+def get_sequence_parallel_group() -> dist.ProcessGroup | None:
     """Get the sequence parallel (intra-SP) process group.
 
     GPUs in the same SP group work together on the same data sample, with
@@ -94,7 +92,7 @@ def get_sequence_parallel_group() -> Optional[dist.ProcessGroup]:
     return _SEQUENCE_PARALLEL_GROUP
 
 
-def get_sequence_parallel_cpu_group() -> Optional[dist.ProcessGroup]:
+def get_sequence_parallel_cpu_group() -> dist.ProcessGroup | None:
     """Get the sequence parallel CPU (Gloo) process group.
 
     Same membership as the GPU SP group but uses Gloo backend for CPU tensors.
@@ -153,7 +151,7 @@ def get_sequence_parallel_world_size() -> int:
     return 1
 
 
-def get_model_shard_cpu_intra_group() -> Optional[dist.ProcessGroup]:
+def get_model_shard_cpu_intra_group() -> dist.ProcessGroup | None:
     """Get the CPU (Gloo) intra-node process group for model sharding.
 
     Used for CPU-side operations during FSDP initialization (e.g., parameter
@@ -165,7 +163,7 @@ def get_model_shard_cpu_intra_group() -> Optional[dist.ProcessGroup]:
     return _MODEL_SHARD_CPU_INTRA_GROUP
 
 
-def get_model_shard_cpu_inter_group() -> Optional[dist.ProcessGroup]:
+def get_model_shard_cpu_inter_group() -> dist.ProcessGroup | None:
     """Get the CPU (Gloo) inter-node process group for model sharding.
 
     Returns:
@@ -174,7 +172,7 @@ def get_model_shard_cpu_inter_group() -> Optional[dist.ProcessGroup]:
     return _MODEL_SHARD_CPU_INTER_GROUP
 
 
-def get_model_shard_intra_group() -> Optional[dist.ProcessGroup]:
+def get_model_shard_intra_group() -> dist.ProcessGroup | None:
     """Get the GPU (NCCL) intra-node process group for model sharding.
 
     Parameters, gradients, and optimizer states are sharded within this group.
@@ -185,7 +183,7 @@ def get_model_shard_intra_group() -> Optional[dist.ProcessGroup]:
     return _MODEL_SHARD_INTRA_GROUP
 
 
-def get_model_shard_inter_group() -> Optional[dist.ProcessGroup]:
+def get_model_shard_inter_group() -> dist.ProcessGroup | None:
     """Get the GPU (NCCL) inter-node process group for model sharding.
 
     Sharded models are replicated across this group for data parallelism
@@ -241,7 +239,7 @@ def init_sequence_parallel(sequence_parallel_size: int):
 def init_model_shard_group(
     *,
     sharding_strategy: ShardingStrategy,
-    device_mesh: Optional[DeviceMesh] = None,
+    device_mesh: DeviceMesh | None = None,
 ):
     """Initialize process groups for FSDP / hybrid model sharding.
 
@@ -293,7 +291,7 @@ def init_model_shard_group(
     _MODEL_SHARD_CPU_INTRA_GROUP = cpu_mesh_2d.get_group("intra")
 
 
-def get_sequence_parallel_global_ranks() -> List[int]:
+def get_sequence_parallel_global_ranks() -> list[int]:
     """Get the global ranks of all processes in the current SP group.
 
     Returns:

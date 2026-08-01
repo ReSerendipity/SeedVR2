@@ -37,12 +37,12 @@ VAE 潜变量空间：
 - 输入视频 [B,3,T,H,W] → 潜变量 [B,16,T/8,H/8,W/8]。
 """
 
+from collections.abc import Callable
 from contextlib import nullcontext
-from typing import Optional, Tuple, Literal, Callable, Union
+from typing import Literal
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from diffusers.models.autoencoders.vae import DiagonalGaussianDistribution
 from einops import rearrange
 
@@ -74,7 +74,7 @@ from models.video_vae_v3.modules.types import (
 logger = get_logger(__name__)  # pylint: disable=invalid-name
 
 
-def gradient_checkpointing(module: Union[Callable, nn.Module], *args, enabled: bool, **kwargs):
+def gradient_checkpointing(module: Callable | nn.Module, *args, enabled: bool, **kwargs):
     """梯度检查点包装函数（推理时直接执行，不重计算）。
 
     训练时若 enabled=True 使用 torch 梯度检查点节省显存；推理时直接前向。
@@ -102,9 +102,7 @@ class ResnetBlock2D(nn.Module):
         dropout: Dropout 概率。
     """
 
-    def __init__(
-        self, *, in_channels: int, out_channels: Optional[int] = None, dropout: float = 0.0
-    ):
+    def __init__(self, *, in_channels: int, out_channels: int | None = None, dropout: float = 0.0):
         super().__init__()
         self.in_channels = in_channels
         out_channels = in_channels if out_channels is None else out_channels
@@ -112,15 +110,11 @@ class ResnetBlock2D(nn.Module):
 
         self.nonlinearity = nn.SiLU()
 
-        self.norm1 = torch.nn.GroupNorm(
-            num_groups=32, num_channels=in_channels, eps=1e-6, affine=True
-        )
+        self.norm1 = torch.nn.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True)
 
         self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1)
 
-        self.norm2 = torch.nn.GroupNorm(
-            num_groups=32, num_channels=out_channels, eps=1e-6, affine=True
-        )
+        self.norm2 = torch.nn.GroupNorm(num_groups=32, num_channels=out_channels, eps=1e-6, affine=True)
 
         self.dropout = torch.nn.Dropout(dropout)
         self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1)
@@ -129,9 +123,7 @@ class ResnetBlock2D(nn.Module):
 
         self.conv_shortcut = None
         if self.use_in_shortcut:
-            self.conv_shortcut = nn.Conv2d(
-                in_channels, out_channels, kernel_size=1, stride=1, padding=0
-            )
+            self.conv_shortcut = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
 
     def forward(self, input_tensor: torch.Tensor) -> torch.Tensor:
         """2D残差块前向传播。
@@ -200,12 +192,8 @@ class Upsample3D(nn.Module):
         self.slicing = slicing
 
         upscale_ratio = (self.spatial_ratio**2) * self.temporal_ratio
-        self.upscale_conv = nn.Conv3d(
-            self.channels, self.channels * upscale_ratio, kernel_size=1, padding=0
-        )
-        identity = (
-            torch.eye(self.channels).repeat(upscale_ratio, 1).reshape_as(self.upscale_conv.weight)
-        )
+        self.upscale_conv = nn.Conv3d(self.channels, self.channels * upscale_ratio, kernel_size=1, padding=0)
+        identity = torch.eye(self.channels).repeat(upscale_ratio, 1).reshape_as(self.upscale_conv.weight)
 
         self.upscale_conv.weight.data.copy_(identity)
         nn.init.zeros_(self.upscale_conv.bias)
@@ -243,9 +231,7 @@ class Upsample3D(nn.Module):
 
         if self.slicing:
             split_size = hidden_states.size(2) // 2
-            hidden_states = list(
-                hidden_states.split([split_size, hidden_states.size(2) - split_size], dim=2)
-            )
+            hidden_states = list(hidden_states.split([split_size, hidden_states.size(2) - split_size], dim=2))
         else:
             hidden_states = [hidden_states]
 
@@ -411,9 +397,7 @@ class ResnetBlock3D(ResnetBlock2D):
             enabled=self.training and self.gradient_checkpointing,
         )
 
-    def custom_forward(
-        self, input_tensor: torch.Tensor, memory_state: MemoryState = MemoryState.UNSET
-    ):
+    def custom_forward(self, input_tensor: torch.Tensor, memory_state: MemoryState = MemoryState.UNSET):
         """3D残差块前向实现。
 
         流程：GN → SiLU → CausalConv3d → GN → SiLU → Dropout → CausalConv3d + Shortcut。
@@ -508,9 +492,7 @@ class DownEncoderBlock3D(nn.Module):
                 ]
             )
 
-    def forward(
-        self, hidden_states: torch.FloatTensor, memory_state: MemoryState
-    ) -> torch.FloatTensor:
+    def forward(self, hidden_states: torch.FloatTensor, memory_state: MemoryState) -> torch.FloatTensor:
         """下采样块前向。
 
         依次通过所有残差块，然后通过下采样层（如果有）。
@@ -598,9 +580,7 @@ class UpDecoderBlock3D(nn.Module):
                 ]
             )
 
-    def forward(
-        self, hidden_states: torch.FloatTensor, memory_state: MemoryState
-    ) -> torch.FloatTensor:
+    def forward(self, hidden_states: torch.FloatTensor, memory_state: MemoryState) -> torch.FloatTensor:
         """上采样块前向。"""
         for resnet in self.resnets:
             hidden_states = resnet(hidden_states, memory_state=memory_state)
@@ -663,13 +643,13 @@ class Encoder3D(nn.Module):
         self,
         in_channels: int = 3,
         out_channels: int = 3,
-        block_out_channels: Tuple[int, ...] = (64,),
+        block_out_channels: tuple[int, ...] = (64,),
         layers_per_block: int = 2,
         double_z: bool = True,
         temporal_down_num: int = 2,
         inflation_mode: _inflation_mode_t = "tail",
         time_receptive_field: _receptive_field_t = "half",
-        selective_checkpointing: Tuple[_selective_checkpointing_t] = ("none",),
+        selective_checkpointing: tuple[_selective_checkpointing_t] = ("none",),
     ):
         """初始化3D编码器。
 
@@ -728,9 +708,7 @@ class Encoder3D(nn.Module):
         )
 
         # out
-        self.conv_norm_out = nn.GroupNorm(
-            num_channels=block_out_channels[-1], num_groups=32, eps=1e-6
-        )
+        self.conv_norm_out = nn.GroupNorm(num_channels=block_out_channels[-1], num_groups=32, eps=1e-6)
         self.conv_act = nn.SiLU()
 
         conv_out_channels = 2 * out_channels if double_z else out_channels
@@ -749,7 +727,7 @@ class Encoder3D(nn.Module):
                 'coarse'=块级检查点，'fine'=模块级检查点，其他=禁用。
         """
         gradient_checkpointing = []
-        for down_block, sac_type in zip(self.down_blocks, checkpointing_types):
+        for down_block, sac_type in zip(self.down_blocks, checkpointing_types, strict=False):
             if sac_type == "coarse":
                 gradient_checkpointing.append(True)
             elif sac_type == "fine":
@@ -775,7 +753,7 @@ class Encoder3D(nn.Module):
         """
         sample = self.conv_in(sample, memory_state=memory_state)
         # down
-        for down_block, sac in zip(self.down_blocks, self.gradient_checkpointing):
+        for down_block, sac in zip(self.down_blocks, self.gradient_checkpointing, strict=False):
             sample = gradient_checkpointing(
                 down_block,
                 sample,
@@ -805,13 +783,13 @@ class Decoder3D(nn.Module):
         self,
         in_channels: int = 3,
         out_channels: int = 3,
-        block_out_channels: Tuple[int, ...] = (64,),
+        block_out_channels: tuple[int, ...] = (64,),
         layers_per_block: int = 2,
         inflation_mode: _inflation_mode_t = "tail",
         time_receptive_field: _receptive_field_t = "half",
         temporal_up_num: int = 2,
         slicing_up_num: int = 0,
-        selective_checkpointing: Tuple[_selective_checkpointing_t] = ("none",),
+        selective_checkpointing: tuple[_selective_checkpointing_t] = ("none",),
     ):
         """初始化3D解码器。
 
@@ -872,9 +850,7 @@ class Decoder3D(nn.Module):
             self.up_blocks.append(up_block)
 
         # out
-        self.conv_norm_out = nn.GroupNorm(
-            num_channels=block_out_channels[0], num_groups=32, eps=1e-6
-        )
+        self.conv_norm_out = nn.GroupNorm(num_channels=block_out_channels[0], num_groups=32, eps=1e-6)
         self.conv_act = nn.SiLU()
         self.conv_out = init_causal_conv3d(
             block_out_channels[0], out_channels, 3, padding=1, inflation_mode=inflation_mode
@@ -886,7 +862,7 @@ class Decoder3D(nn.Module):
     def set_gradient_checkpointing(self, checkpointing_types):
         """设置解码器的选择性梯度检查点策略。"""
         gradient_checkpointing = []
-        for up_block, sac_type in zip(self.up_blocks, checkpointing_types):
+        for up_block, sac_type in zip(self.up_blocks, checkpointing_types, strict=False):
             if sac_type == "coarse":
                 gradient_checkpointing.append(True)
             elif sac_type == "fine":
@@ -916,7 +892,7 @@ class Decoder3D(nn.Module):
         sample = self.mid_block(sample, memory_state=memory_state)
 
         # up
-        for up_block, sac in zip(self.up_blocks, self.gradient_checkpointing):
+        for up_block, sac in zip(self.up_blocks, self.gradient_checkpointing, strict=False):
             sample = gradient_checkpointing(
                 up_block,
                 sample,
@@ -951,13 +927,13 @@ class VideoAutoencoderKL(nn.Module):
         self,
         in_channels: int = 3,
         out_channels: int = 3,
-        block_out_channels: Tuple[int] = (64,),
+        block_out_channels: tuple[int] = (64,),
         layers_per_block: int = 1,
         latent_channels: int = 4,
         use_quant_conv: bool = True,
         use_post_quant_conv: bool = True,
-        enc_selective_checkpointing: Tuple[_selective_checkpointing_t] = ("none",),
-        dec_selective_checkpointing: Tuple[_selective_checkpointing_t] = ("none",),
+        enc_selective_checkpointing: tuple[_selective_checkpointing_t] = ("none",),
+        dec_selective_checkpointing: tuple[_selective_checkpointing_t] = ("none",),
         temporal_scale_num: int = 3,
         slicing_up_num: int = 0,
         inflation_mode: _inflation_mode_t = "tail",
@@ -1099,11 +1075,7 @@ class VideoAutoencoderKL(nn.Module):
         序列并行切分 → post_quant_conv → decoder → 序列并行聚合。
         """
         z = causal_conv_slice_inputs(z, self.slicing_latent_min_size, memory_state=memory_state)
-        z = (
-            self.post_quant_conv(z, memory_state=memory_state)
-            if self.post_quant_conv is not None
-            else z
-        )
+        z = self.post_quant_conv(z, memory_state=memory_state) if self.post_quant_conv is not None else z
         x = self.decoder(z, memory_state=memory_state)
         x = causal_conv_gather_outputs(x)
         return x
@@ -1132,9 +1104,7 @@ class VideoAutoencoderKL(nn.Module):
                 )
             ]
             for x_idx in range(1, len(x_slices)):
-                encoded_slices.append(
-                    self._encode(x_slices[x_idx], memory_state=MemoryState.ACTIVE)
-                )
+                encoded_slices.append(self._encode(x_slices[x_idx], memory_state=MemoryState.ACTIVE))
             return torch.cat(encoded_slices, dim=2)
         else:
             return self._encode(x, memory_state=MemoryState.DISABLED)
@@ -1158,9 +1128,7 @@ class VideoAutoencoderKL(nn.Module):
                 )
             ]
             for z_idx in range(1, len(z_slices)):
-                decoded_slices.append(
-                    self._decode(z_slices[z_idx], memory_state=MemoryState.ACTIVE)
-                )
+                decoded_slices.append(self._decode(z_slices[z_idx], memory_state=MemoryState.ACTIVE))
             return torch.cat(decoded_slices, dim=2)
         else:
             return self._decode(z, memory_state=MemoryState.DISABLED)
@@ -1198,7 +1166,7 @@ class VideoAutoencoderKL(nn.Module):
     def set_causal_slicing(
         self,
         *,
-        split_size: Optional[int],
+        split_size: int | None,
         memory_device: _memory_device_t,
     ):
         """配置因果切片推理参数。
@@ -1207,9 +1175,7 @@ class VideoAutoencoderKL(nn.Module):
             split_size: 时间维切片大小，None 禁用切片。
             memory_device: 记忆缓存设备（None时split_size也必须为None）。
         """
-        assert (
-            split_size is None or memory_device is not None
-        ), "if split_size is set, memory_device must not be None."
+        assert split_size is None or memory_device is not None, "if split_size is set, memory_device must not be None."
         if split_size is not None:
             self.enable_slicing()
             self.slicing_sample_min_size = split_size
@@ -1220,7 +1186,7 @@ class VideoAutoencoderKL(nn.Module):
             if isinstance(module, InflatedCausalConv3d):
                 module.set_memory_device(memory_device)
 
-    def set_memory_limit(self, conv_max_mem: Optional[float], norm_max_mem: Optional[float]):
+    def set_memory_limit(self, conv_max_mem: float | None, norm_max_mem: float | None):
         """设置卷积和归一化的显存限制。
 
         Args:
@@ -1239,9 +1205,7 @@ class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
     处理4D/5D张量自动转换，squeeze/unsqueeze时间维度。
     """
 
-    def __init__(
-        self, *args, spatial_downsample_factor: int, temporal_downsample_factor: int, **kwargs
-    ):
+    def __init__(self, *args, spatial_downsample_factor: int, temporal_downsample_factor: int, **kwargs):
         self.spatial_downsample_factor = spatial_downsample_factor
         self.temporal_downsample_factor = temporal_downsample_factor
         super().__init__(*args, **kwargs)
@@ -1274,12 +1238,10 @@ class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
     def set_causal_slicing(
         self,
         *,
-        split_size: Optional[int],
-        memory_device: Optional[Literal["cpu", "same"]],
+        split_size: int | None,
+        memory_device: Literal["cpu", "same"] | None,
     ):
-        assert (
-            split_size is None or memory_device is not None
-        ), "if split_size is set, memory_device must not be None."
+        assert split_size is None or memory_device is not None, "if split_size is set, memory_device must not be None."
         if split_size is not None:
             self.enable_slicing()
         else:

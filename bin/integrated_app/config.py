@@ -16,6 +16,7 @@ SeedVR2 - 配置加载模块
     - tempfile + os.replace 实现原子写入
     - contextlib.suppress 安全清理临时文件
 """
+
 import contextlib
 import os
 import tempfile
@@ -159,8 +160,10 @@ def save_config(config: dict, config_path: str | None = None) -> None:
         raise
 
 
+_config_manager: "YAMLConfigManager | None" = None
 try:
     from bin.integrated_app.optimization.framework_engineering import YAMLConfigManager
+
     _config_manager = YAMLConfigManager()
 except Exception:
     _config_manager = None

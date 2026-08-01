@@ -30,7 +30,8 @@ side（短边缩放）、square（方形缩放+中心裁剪）三种模式。
     - square: 将图像短边缩放到 resolution 后中心裁剪为 resolution x resolution 正方形
 """
 
-from typing import Literal, Union
+from typing import Literal
+
 from torchvision.transforms import CenterCrop, Compose, InterpolationMode, Resize
 
 from .area_resize import AreaResize
@@ -42,7 +43,7 @@ def NaResize(
     mode: Literal["area", "side", "square"],
     downsample_only: bool,
     interpolation: InterpolationMode = InterpolationMode.BICUBIC,
-) -> Union[AreaResize, SideResize, Compose]:
+) -> AreaResize | SideResize | Compose:
     """创建原生分辨率图像缩放变换的工厂函数。
 
     根据指定的缩放模式返回对应的变换对象（或变换组合），统一接口便于在

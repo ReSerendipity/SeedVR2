@@ -35,14 +35,14 @@ Timesteps can be used for both:
 2. **Training**: Timestep sampling during training (not implemented in this base class)
 """
 
-from abc import ABC, abstractmethod
-from typing import Sequence, Union
+from abc import ABC
+
 import torch
 
 from ..types import SamplingDirection
 
 
-class Timesteps(ABC):
+class Timesteps(ABC):  # noqa: B024  # 作为不可实例化的共享基类，抽象方法由子类各自定义
     """Abstract base class for diffusion timestep definitions.
 
     Timesteps encapsulate the maximum timestep T and whether the schedule
@@ -54,12 +54,12 @@ class Timesteps(ABC):
         T: Maximum timestep (inclusive). Must be positive.
     """
 
-    def __init__(self, T: Union[int, float]):
+    def __init__(self, T: int | float):
         assert T > 0
         self._T = T
 
     @property
-    def T(self) -> Union[int, float]:
+    def T(self) -> int | float:
         """Maximum timestep (inclusive) of the schedule.
 
         Returns:
@@ -95,7 +95,7 @@ class SamplingTimesteps(Timesteps):
 
     def __init__(
         self,
-        T: Union[int, float],
+        T: int | float,
         timesteps: torch.Tensor,
         direction: SamplingDirection,
     ):
@@ -112,7 +112,7 @@ class SamplingTimesteps(Timesteps):
         """
         return len(self.timesteps)
 
-    def __getitem__(self, idx: Union[int, torch.IntTensor]) -> torch.Tensor:
+    def __getitem__(self, idx: int | torch.IntTensor) -> torch.Tensor:
         """Get timestep value(s) at the given step index/indices.
 
         Args:

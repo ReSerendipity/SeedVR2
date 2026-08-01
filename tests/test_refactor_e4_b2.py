@@ -15,18 +15,18 @@
 - 遵循 AAA (Arrange-Act-Assert) 模式
 - 测试名称表达意图
 """
+
 import asyncio
 import threading
-import time
 
 import pytest
 
 from bin.integrated_app.exceptions import InferenceCancelledError, RestoreError
 
-
 # ---------------------------------------------------------------------------
 # 1. InferenceCancelledError 异常属性 (提案 2B)
 # ---------------------------------------------------------------------------
+
 
 class TestInferenceCancelledError:
     """验证推理取消异常的属性与继承关系"""
@@ -80,8 +80,8 @@ class TestInferenceCancelledError:
 # 2. TaskStateStoreProxy 浅拷贝语义 (提案 2A)
 # ---------------------------------------------------------------------------
 
-from bin.integrated_app.services.task_state import TaskStateStore, task_state_store
 from bin.integrated_app.routes.restore.common import TaskStateStoreProxy
+from bin.integrated_app.services.task_state import TaskStateStore
 
 
 @pytest.fixture
@@ -172,6 +172,7 @@ class TestTaskStateStoreProxyShallowCopy:
 # ---------------------------------------------------------------------------
 # 3. TaskStateStore.update_cached / get_cached_or_create (提案 2A)
 # ---------------------------------------------------------------------------
+
 
 class TestTaskStateStoreCachedMethods:
     """验证 TaskStateStore 的缓存操作方法"""
@@ -301,6 +302,7 @@ class TestTaskQueueOnCancel:
     @pytest.mark.asyncio
     async def test_on_cancel_exception_does_not_crash_worker(self, short_timeout_queue):
         """on_cancel 回调抛异常不应导致 worker 崩溃"""
+
         def bad_cancel():
             raise RuntimeError("on_cancel 内部错误")
 
@@ -328,6 +330,7 @@ class TestTaskQueueOnCancel:
 # 5. SeedVR2Engine CancellationToken 机制 (提案 2B)
 # ---------------------------------------------------------------------------
 
+
 class TestSeedVR2EngineCancellationToken:
     """验证 SeedVR2Engine 的 CancellationToken 机制
 
@@ -337,9 +340,11 @@ class TestSeedVR2EngineCancellationToken:
     def _make_engine(self):
         """构造一个最小化的 SeedVR2Engine 实例（不加载模型）"""
         from bin.integrated_app.engines.seedvr2_engine import SeedVR2Engine
+
         engine = SeedVR2Engine.__new__(SeedVR2Engine)
         engine.config = {}
         engine._cancel_event = threading.Event()
+        engine._thread_lock = threading.Lock()
         return engine
 
     def test_request_cancel_sets_event(self):
@@ -430,6 +435,7 @@ class TestExplicitParameterization:
 
     def _make_engine(self):
         from bin.integrated_app.engines.seedvr2_engine import SeedVR2Engine
+
         engine = SeedVR2Engine.__new__(SeedVR2Engine)
         engine.config = {}
         return engine
