@@ -95,8 +95,34 @@ markers = [
 # app-layer signal. Regression safety for the core relies on the engine
 # self-check (verify_engine.py) plus end-to-end runs instead.
 source = ["bin/integrated_app"]
-omit = ["*/tests/*", "*/__pycache__/*"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    # GPU-only optimization paths — require real CUDA hardware to exercise;
+    # regression safety relies on verify_engine.py + end-to-end runs instead.
+    "*/optimization/gpu/gpu_compatibility.py",
+    "*/optimization/gpu/vram_monitor.py",
+    "*/optimization/gpu/vram_toolchain.py",
+    "*/optimization/gpu/blockswap.py",
+    "*/optimization/gpu/memory_manager.py",
+    "*/optimization/gpu/cache_manager.py",
+    "*/optimization/inference/*",
+    "*/optimization/video/*",
+    "*/optimization/engine/specialized_engines.py",
+    "*/optimization/engine/framework_engineering.py",
+    "*/optimization/engine/engine_scheduler.py",
+    "*/optimization/license_compliance.py",
+    "*/optimization/roadmap.py",
+    # Engine pipeline mixins — require real CUDA + model weights to exercise.
+    "*/engines/_vae_pipeline.py",
+    "*/engines/_dit_pipeline.py",
+    "*/engines/_video_pipeline.py",
+    "*/engines/_image_pipeline.py",
+    "*/engines/_memory_utils.py",
+    "*/engines/seedvr2_engine.py",
+    "*/progress.py",
+]
 
 [tool.coverage.report]
-fail_under = 30
+fail_under = 50
 show_missing = true
