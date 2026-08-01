@@ -29,6 +29,7 @@
     - 空间分块（patch）前的维度重排
 """
 
+import torch
 from einops import rearrange
 
 

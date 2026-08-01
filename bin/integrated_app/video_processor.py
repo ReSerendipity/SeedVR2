@@ -13,6 +13,7 @@
 
 注意: 需要系统安装 FFmpeg 或将 ffmpeg.exe/ffprobe.exe 放置于项目 bin/ 目录。
 """
+
 import json
 import logging
 import os
@@ -121,10 +122,7 @@ class FFmpegWrapper:
             FFmpeg 可用返回 True，否则返回 False。
         """
         try:
-            result = subprocess.run(
-                [self.ffmpeg_path, "-version"],
-                capture_output=True, text=True, timeout=10
-            )
+            result = subprocess.run([self.ffmpeg_path, "-version"], capture_output=True, text=True, timeout=10)
             return result.returncode == 0
         except Exception:
             return False
@@ -138,11 +136,13 @@ class FFmpegWrapper:
         try:
             cmd = [
                 self.ffprobe_path,
-                "-v", "quiet",
-                "-print_format", "json",
+                "-v",
+                "quiet",
+                "-print_format",
+                "json",
                 "-show_format",
                 "-show_streams",
-                video_path
+                video_path,
             ]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
 
@@ -214,17 +214,16 @@ class FFmpegWrapper:
 
         cmd = [
             self.ffmpeg_path,
-            "-i", video_path,
-            "-start_number", str(start_frame),
+            "-i",
+            video_path,
+            "-start_number",
+            str(start_frame),
         ]
 
         if end_frame is not None:
             cmd.extend(["-frames:v", str(end_frame - start_frame)])
 
-        cmd.extend([
-            "-q:v", "2" if fmt == "jpg" else "1",
-            os.path.join(output_dir, f"frame_%06d.{fmt}")
-        ])
+        cmd.extend(["-q:v", "2" if fmt == "jpg" else "1", os.path.join(output_dir, f"frame_%06d.{fmt}")])
 
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
@@ -233,11 +232,13 @@ class FFmpegWrapper:
                 return []
 
             # 收集帧文件
-            frames = sorted([
-                os.path.join(output_dir, f)
-                for f in os.listdir(output_dir)
-                if f.startswith("frame_") and f.endswith(f".{fmt}")
-            ])
+            frames = sorted(
+                [
+                    os.path.join(output_dir, f)
+                    for f in os.listdir(output_dir)
+                    if f.startswith("frame_") and f.endswith(f".{fmt}")
+                ]
+            )
             logger.info(f"提取了 {len(frames)} 帧")
             return frames
 
@@ -276,8 +277,10 @@ class FFmpegWrapper:
         cmd = [
             self.ffmpeg_path,
             "-y",
-            "-framerate", str(fps),
-            "-i", os.path.join(frames_dir, f"frame_%06d{ext}"),
+            "-framerate",
+            str(fps),
+            "-i",
+            os.path.join(frames_dir, f"frame_%06d{ext}"),
         ]
 
         # 添加音频
@@ -290,14 +293,21 @@ class FFmpegWrapper:
             else:
                 cmd.extend(["-c:a", "none"])
 
-        cmd.extend([
-            "-c:v", "libx264",
-            "-preset", "medium",
-            "-crf", "18",
-            "-pix_fmt", "yuv420p",
-            "-movflags", "+faststart",
-            output_path
-        ])
+        cmd.extend(
+            [
+                "-c:v",
+                "libx264",
+                "-preset",
+                "medium",
+                "-crf",
+                "18",
+                "-pix_fmt",
+                "yuv420p",
+                "-movflags",
+                "+faststart",
+                output_path,
+            ]
+        )
 
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=7200)
@@ -323,14 +333,7 @@ class FFmpegWrapper:
         Returns:
             提取成功返回 True，失败返回 False。
         """
-        cmd = [
-            self.ffmpeg_path,
-            "-y",
-            "-i", video_path,
-            "-vn",
-            "-acodec", "copy",
-            output_path
-        ]
+        cmd = [self.ffmpeg_path, "-y", "-i", video_path, "-vn", "-acodec", "copy", output_path]
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
             return result.returncode == 0
@@ -360,13 +363,18 @@ class FFmpegWrapper:
         cmd = [
             self.ffmpeg_path,
             "-y",
-            "-i", video_path,
-            "-i", audio_path,
-            "-c:v", "copy",
-            "-c:a", "aac",
-            "-b:a", "192k",
+            "-i",
+            video_path,
+            "-i",
+            audio_path,
+            "-c:v",
+            "copy",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "192k",
             "-shortest",
-            output_path
+            output_path,
         ]
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
@@ -384,7 +392,7 @@ class VideoProcessor:
         将在未来版本中移除。
     """
 
-    def __init__(self, ffmpeg: FFmpegWrapper = None, max_segment_frames: int = 30):
+    def __init__(self, ffmpeg: FFmpegWrapper | None = None, max_segment_frames: int = 30):
         warnings.warn(
             "VideoProcessor 已废弃，请直接使用 FFmpegWrapper",
             DeprecationWarning,
@@ -399,7 +407,7 @@ class VideoProcessor:
         output_dir: str,
         restore_func: Callable,
         progress_callback: Callable | None = None,
-        **kwargs
+        **kwargs,
     ) -> tuple[bool, str]:
         """处理视频的完整流水线
 
@@ -446,7 +454,8 @@ class VideoProcessor:
                 os.makedirs(segment_dir, exist_ok=True)
 
                 frames = self.ffmpeg.extract_frames(
-                    video_path, segment_dir,
+                    video_path,
+                    segment_dir,
                     start_frame=frame_index,
                     end_frame=end_frame,
                 )
@@ -457,6 +466,7 @@ class VideoProcessor:
 
                 # 修复当前段的帧
                 import cv2
+
                 frame_arrays = []
                 for f in frames:
                     img = cv2.imread(f)
@@ -469,8 +479,7 @@ class VideoProcessor:
                     # 保存修复后的帧
                     for i, frame in enumerate(restored):
                         output_frame = os.path.join(
-                            all_restored_frames_dir,
-                            f"frame_{global_frame_index + i + 1:06d}.png"
+                            all_restored_frames_dir, f"frame_{global_frame_index + i + 1:06d}.png"
                         )
                         cv2.imwrite(output_frame, cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
 
@@ -482,7 +491,7 @@ class VideoProcessor:
                     await progress_callback(
                         current_frame=global_frame_index,
                         total_frames=total_frames,
-                        progress=global_frame_index / total_frames * 100
+                        progress=global_frame_index / total_frames * 100,
                     )
 
             # 4. 合成视频
@@ -490,11 +499,7 @@ class VideoProcessor:
             output_path = os.path.join(output_dir, output_filename)
 
             temp_video = os.path.join(temp_dir, "temp_video.mp4")
-            if not self.ffmpeg.compose_video(
-                all_restored_frames_dir, temp_video,
-                fps=info.fps,
-                include_audio=False
-            ):
+            if not self.ffmpeg.compose_video(all_restored_frames_dir, temp_video, fps=info.fps, include_audio=False):
                 return False, "视频合成失败"
 
             # 5. 合并音频
@@ -525,9 +530,11 @@ def rife_interpolate_video(input_path: str, output_path: str, multiplier: int = 
         插值成功返回 True，RIFE 不可用或处理失败返回 False。
     """
     try:
-        from bin.integrated_app.optimization.video_processing_enhance import RIFEInterpolator
-        interpolator = RIFEInterpolator()
-        return interpolator.interpolate_file(input_path, output_path, multiplier)
+        # RIFEInterpolator 仅提供基于张量（[B, T, C, H, W]）的 interpolate_video 接口，
+        # 尚未实现基于文件路径的插帧流水线（需先集成实际 RIFE 模型），
+        # 因此此文件级入口目前不可用，返回 False。
+        logger.debug("RIFE 文件级插帧尚未实现（RIFEInterpolator 仅提供张量接口）")
+        return False
     except Exception as e:
         logger.debug(f"RIFE 插值不可用: {e}")
         return False

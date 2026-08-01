@@ -26,7 +26,7 @@ Typical use case: During diffusion sampling, certain precomputed values
 denoising steps and can be cached after first computation.
 """
 
-from typing import Callable
+from collections.abc import Callable
 
 
 class Cache:

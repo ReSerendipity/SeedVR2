@@ -133,6 +133,7 @@ class ProgressTracker:
         """通知 SSE 事件总线状态已变化。"""
         try:
             from .routes.system.sse import event_bus
+
             event_bus.publish("progress", self.get_progress())
         except Exception:
             pass

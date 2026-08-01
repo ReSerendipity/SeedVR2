@@ -16,6 +16,7 @@
 API 路由前缀：/api/restore（由子模块注册）
 所属项目：SeedVR2 (SeedVR2 视频/图像修复工具)
 """
+
 import os
 
 from fastapi import Form

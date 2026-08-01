@@ -17,6 +17,7 @@ FTS5 特殊字符说明:
     :^  - 字段/权重
     空白 - 词元分隔符
 """
+
 import re
 
 _FTS5_SPECIAL_CHARS = re.compile(r'["\*\(\)\+\-:^\s]')

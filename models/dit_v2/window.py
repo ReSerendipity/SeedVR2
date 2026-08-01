@@ -19,7 +19,8 @@ v2 相比 v1 新增了 ``make_720Pwindows_bysize``：根据空间尺寸自适应
 并确保窗口大小是 window_shift 的倍数以支持移位窗口。
 """
 
-from typing import Tuple, List, Callable
+from collections.abc import Callable
+
 import torch
 
 
@@ -33,22 +34,27 @@ def get_window_op(method: str) -> Callable:
         函数 f(shape, window) -> List[Tuple[slice, slice, slice]]。
     """
     if method == "win":
-        def _win_op(shape: Tuple[int, int, int], window: Tuple[int, int, int]) -> List[Tuple[slice, slice, slice]]:
+
+        def _win_op(shape: tuple[int, int, int], window: tuple[int, int, int]) -> list[tuple[slice, slice, slice]]:
             t, h, w = shape
             wt, wh, ww = window
             slices = []
             for it in range(0, t, max(wt, 1)):
                 for ih in range(0, h, max(wh, 1)):
                     for iw in range(0, w, max(ww, 1)):
-                        slices.append((
-                            slice(it, min(it + max(wt, 1), t)),
-                            slice(ih, min(ih + max(wh, 1), h)),
-                            slice(iw, min(iw + max(ww, 1), w)),
-                        ))
+                        slices.append(
+                            (
+                                slice(it, min(it + max(wt, 1), t)),
+                                slice(ih, min(ih + max(wh, 1), h)),
+                                slice(iw, min(iw + max(ww, 1), w)),
+                            )
+                        )
             return slices
+
         return _win_op
     elif method == "win_by_size":
-        def _win_by_size_op(shape: Tuple[int, int, int], window) -> List[Tuple[slice, slice, slice]]:
+
+        def _win_by_size_op(shape: tuple[int, int, int], window) -> list[tuple[slice, slice, slice]]:
             t, h, w = shape
             if isinstance(window, (tuple, list)):
                 wt = window[0] if len(window) > 0 else 1
@@ -71,18 +77,21 @@ def get_window_op(method: str) -> Callable:
             for it in range(0, t, max(wt, 1)):
                 for ih in range(0, h, wh):
                     for iw in range(0, w, ww):
-                        slices.append((
-                            slice(it, min(it + max(wt, 1), t)),
-                            slice(ih, min(ih + wh, h)),
-                            slice(iw, min(iw + ww, w)),
-                        ))
+                        slices.append(
+                            (
+                                slice(it, min(it + max(wt, 1), t)),
+                                slice(ih, min(ih + wh, h)),
+                                slice(iw, min(iw + ww, w)),
+                            )
+                        )
             return slices
+
         return _win_by_size_op
     else:
         raise ValueError(f"Unknown window method: {method}")
 
 
-def window_partition(x: torch.FloatTensor, window_size: Tuple[int]) -> torch.FloatTensor:
+def window_partition(x: torch.FloatTensor, window_size: tuple[int]) -> torch.FloatTensor:
     """将特征张量划分为不重叠的 3D 窗口。
 
     Args:
@@ -99,7 +108,7 @@ def window_partition(x: torch.FloatTensor, window_size: Tuple[int]) -> torch.Flo
     return windows
 
 
-def window_reverse(windows: torch.FloatTensor, window_size: Tuple[int], t: int, h: int, w: int):
+def window_reverse(windows: torch.FloatTensor, window_size: tuple[int], t: int, h: int, w: int):
     """window_partition 的逆操作，将窗口拼回原形状。"""
     b = int(windows.shape[0] / (t * h * w / window_size[0] / window_size[1] / window_size[2]))
     wt, wh, ww = window_size
@@ -110,8 +119,11 @@ def window_reverse(windows: torch.FloatTensor, window_size: Tuple[int], t: int, 
 
 def calc_out_size(pad_func, size, window_size, window_shift):
     """计算 padding 后对齐到窗口的输出尺寸。"""
-    size_padded = pad_func(2 * window_shift - (size + window_shift) % window_size) if \
-        (size + window_shift) % window_size != 0 else 0
+    size_padded = (
+        pad_func(2 * window_shift - (size + window_shift) % window_size)
+        if (size + window_shift) % window_size != 0
+        else 0
+    )
     out_size = size + size_padded
     return out_size, size_padded
 

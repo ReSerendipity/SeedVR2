@@ -41,8 +41,9 @@ The base class provides:
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
+
 import torch
 from tqdm import tqdm
 

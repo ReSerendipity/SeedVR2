@@ -30,7 +30,6 @@
     - PIL Image: (W, H) 尺寸通过 size 属性获取
 """
 
-from typing import Union
 import torch
 from PIL import Image
 from torchvision.transforms import InterpolationMode
@@ -68,7 +67,7 @@ class SideResize:
         self.downsample_only = downsample_only
         self.interpolation = interpolation
 
-    def __call__(self, image: Union[torch.Tensor, Image.Image]) -> Union[torch.Tensor, Image.Image]:
+    def __call__(self, image: torch.Tensor | Image.Image) -> torch.Tensor | Image.Image:
         """执行短边等比缩放变换。
 
         将图像较短边缩放到目标尺寸，长边按宽高比等比例缩放。若 downsample_only=True

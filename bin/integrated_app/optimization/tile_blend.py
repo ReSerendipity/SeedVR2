@@ -25,7 +25,6 @@ Key Features:
 
 import logging
 import math
-from typing import Callable
 
 import torch
 
@@ -35,6 +34,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Spatial tile blending
 # ---------------------------------------------------------------------------
+
 
 def create_linear_weight_map(
     tile_size: int,
@@ -76,9 +76,7 @@ def create_linear_weight_map(
     # 扩展到N维
     weight_map = ramp
     for _ in range(num_dims - 1):
-        weight_map = weight_map.unsqueeze(-1) * ramp.view(
-            [-1] + [1] * _
-        )
+        weight_map = weight_map.unsqueeze(-1) * ramp.view([-1] + [1] * _)
         # 重塑以支持广播
         weight_map = weight_map.expand([tile_size] * num_dims).clone()
 
@@ -121,7 +119,7 @@ def create_cosine_weight_map(
 
     # Build N-dimensional weight map
     weight_map = ramp
-    for dim in range(1, num_dims):
+    for _dim in range(1, num_dims):
         weight_map = weight_map.unsqueeze(-1) * ramp.unsqueeze(0)
 
     return weight_map
@@ -167,17 +165,15 @@ def blend_tiled_output(
 
     # Create weight map
     if weight_type == "cosine":
-        weight_map = create_cosine_weight_map(tile_size, overlap, num_dims=2,
-                                               device=device, dtype=dtype)
+        weight_map = create_cosine_weight_map(tile_size, overlap, num_dims=2, device=device, dtype=dtype)
     else:
-        weight_map = create_linear_weight_map(tile_size, overlap, num_dims=2,
-                                               device=device, dtype=dtype)
+        weight_map = create_linear_weight_map(tile_size, overlap, num_dims=2, device=device, dtype=dtype)
 
     # Accumulators for weighted blending
     output = torch.zeros(c, h, w, device=device, dtype=dtype)
     weight_sum = torch.zeros(1, h, w, device=device, dtype=dtype)
 
-    for tile, (y, x) in zip(tiles, tile_positions):
+    for tile, (y, x) in zip(tiles, tile_positions, strict=False):
         # Ensure tile has channel dimension
         if tile.ndim == 2:
             tile = tile.unsqueeze(0)
@@ -185,15 +181,15 @@ def blend_tiled_output(
         # Clamp tile to output bounds
         tile_h = min(tile_size, h - y)
         tile_w = min(tile_size, w - x)
-        tile_c = tile.shape[0]
+        tile.shape[0]
 
         # Extract tile region and weight
         tile_crop = tile[:, :tile_h, :tile_w]
         w_crop = weight_map[:tile_h, :tile_w].unsqueeze(0)
 
         # Weighted accumulation
-        output[:, y:y+tile_h, x:x+tile_w] += tile_crop * w_crop
-        weight_sum[:, y:y+tile_h, x:x+tile_w] += w_crop
+        output[:, y : y + tile_h, x : x + tile_w] += tile_crop * w_crop
+        weight_sum[:, y : y + tile_h, x : x + tile_w] += w_crop
 
     # Normalize
     weight_sum = weight_sum.clamp(min=1e-8)
@@ -205,6 +201,7 @@ def blend_tiled_output(
 # ---------------------------------------------------------------------------
 # Temporal tiling for long videos
 # ---------------------------------------------------------------------------
+
 
 def compute_temporal_segments(
     total_frames: int,
@@ -236,8 +233,7 @@ def compute_temporal_segments(
     stride = segment_size - overlap
     if stride <= 0:
         stride = segment_size // 2
-        logger.warning(f"Overlap ({overlap}) >= segment_size ({segment_size}), "
-                       f"using stride={stride}")
+        logger.warning(f"Overlap ({overlap}) >= segment_size ({segment_size}), " f"using stride={stride}")
 
     start = 0
     while start < total_frames:
@@ -248,8 +244,10 @@ def compute_temporal_segments(
             break
         start += stride
 
-    logger.info(f"Temporal segments: {len(segments)} segments for {total_frames} frames "
-                f"(segment_size={segment_size}, overlap={overlap}, stride={stride})")
+    logger.info(
+        f"Temporal segments: {len(segments)} segments for {total_frames} frames "
+        f"(segment_size={segment_size}, overlap={overlap}, stride={stride})"
+    )
     return segments
 
 
@@ -294,18 +292,16 @@ def blend_temporal_segments(
     if c_dim == 1:
         c = sample.shape[1]
         h, w = sample.shape[2], sample.shape[3]
-        dim_order = "TCHW"
     else:
         c = sample.shape[0]
         h, w = sample.shape[2], sample.shape[3]
-        dim_order = "CTHW"
 
     # Create output accumulator
     output = torch.zeros(total_frames, c, h, w, device=sample.device, dtype=sample.dtype)
     weight_sum = torch.zeros(total_frames, 1, 1, 1, device=sample.device, dtype=sample.dtype)
 
     # Create temporal weight vector for overlap blending
-    for seg_idx, (result, (start, end)) in enumerate(zip(segment_results, segments)):
+    for _seg_idx, (result, (start, end)) in enumerate(zip(segment_results, segments, strict=False)):
         seg_len = end - start
 
         if c_dim == 1:
@@ -334,7 +330,7 @@ def blend_temporal_segments(
 
         # Accumulate
         weight = weight.view(-1, 1, 1, 1)
-        output[start:end] += seg_data[:end-start] * weight
+        output[start:end] += seg_data[: end - start] * weight
         weight_sum[start:end] += weight
 
     # Normalize

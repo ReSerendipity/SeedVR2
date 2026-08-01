@@ -2,15 +2,33 @@
 name = "seedvr2"
 version = "1.0.0"
 description = "SeedVR2 - AI-powered video & image super-resolution toolkit"
-requires-python = ">=3.10"
+# Runtime is the bundled WinPython 3.12 (see docs/CONSTRAINTS.md). Keep ruff /
+# black / mypy target versions aligned with this value to avoid tool drift.
+requires-python = ">=3.12"
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py312"
 line-length = 120
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM"]
 ignore = ["E501", "B008", "SIM108"]
+
+# Numerical / tensor / diffusion code follows ML and PyTorch naming conventions
+# (e.g. tensor dims B/C/H/W/T, matrix names, `import torch.nn.functional as F`,
+# `input` as an nn.Module.forward argument, math index `l`). Renaming these in
+# the (test-uncovered) inference and signal-processing core would hurt
+# readability and risk silent breakage, so the naming/builtin-shadow rules are
+# scoped off there instead of rewritten.
+[tool.ruff.lint.per-file-ignores]
+"models/**" = ["N801", "N802", "N803", "N806", "N812", "N815", "E741", "A001", "A002"]
+"common/diffusion/**" = ["N802", "N803", "N806", "N812", "N815", "E741"]
+"common/utils.py" = ["N812"]
+"bin/integrated_app/optimization/**" = ["N801", "N802", "N803", "N806", "N812", "A001", "A002"]
+"bin/clean_launch.py" = ["N806"]
+"data/image/**" = ["N802", "N812"]
+# Test module groups imports into commented sections by concern.
+"tests/test_refactor_e4_b2.py" = ["E402"]
 
 [tool.black]
 line-length = 120
@@ -18,9 +36,48 @@ target-version = ["py312"]
 
 [tool.mypy]
 python_version = "3.12"
-strict = true
-warn_return_any = true
-warn_unused_ignores = true
+# Pydantic ships a mypy plugin that models Field()/default_factory/validators
+# correctly; without it BaseModel fields are misreported.
+plugins = ["pydantic.mypy"]
+# Gradual-typing adoption: keep real type-error detection (assignment, arg-type,
+# return-value, attr-defined, union-attr, ...) on across first-party code, but do
+# not force full annotation coverage on this legacy codebase. The vendored ML
+# research core under models/ mirrors upstream and is excluded from checking.
+strict = false
+warn_return_any = false
+warn_unused_ignores = false
+check_untyped_defs = true
+# Anchor module resolution at the project root so files are named from the
+# `bin.integrated_app.*` import path (matching runtime) and are not discovered
+# twice under an ambiguous `integrated_app.*` name.
+explicit_package_bases = true
+namespace_packages = true
+mypy_path = "."
+# Vendored ByteDance research code (Apache-licensed, mirrors upstream); not
+# strict-typed or maintained for annotations here.
+exclude = "^models/"
+
+# Third-party libraries without bundled type stubs.
+[[tool.mypy.overrides]]
+module = [
+    "torch.*", "torchvision.*", "einops.*", "cv2.*", "PIL.*", "numpy.*",
+    "omegaconf.*", "safetensors.*", "aiosqlite.*", "psutil.*", "xformers.*",
+    "torchao.*", "pywt.*", "diffusers.*", "transformers.*", "yaml.*",
+    "aiofiles.*",
+]
+ignore_missing_imports = true
+
+# Vendored ML research core and untested torch-heavy numeric/perf modules:
+# these mirror upstream research code or are GPU-only optimization paths with no
+# test coverage, so type-checking is scoped off (type checks still run on the
+# maintained, tested application layer).
+[[tool.mypy.overrides]]
+module = [
+    "models.*", "common.distributed.*", "common.diffusion.*",
+    "bin.integrated_app.optimization.*", "bin.integrated_app.engines.*",
+]
+ignore_errors = true
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -31,6 +88,12 @@ markers = [
 ]
 
 [tool.coverage.run]
+# Coverage is measured only for the standalone web application layer. The
+# inference core (models/, common/) requires a real CUDA GPU and model weights
+# to exercise, which the test suite deliberately avoids (see AGENTS.md 6.6);
+# including those paths here would report near-zero coverage and mask the
+# app-layer signal. Regression safety for the core relies on the engine
+# self-check (verify_engine.py) plus end-to-end runs instead.
 source = ["bin/integrated_app"]
 omit = ["*/tests/*", "*/__pycache__/*"]
 

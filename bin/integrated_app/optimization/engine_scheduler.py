@@ -32,10 +32,11 @@ import os
 import subprocess
 import threading
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable
+from typing import Any
 
 import torch
 
@@ -45,6 +46,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Engine Status Enum
 # ---------------------------------------------------------------------------
+
 
 class EngineStatus(Enum):
     """引擎运行状态枚举。
@@ -60,6 +62,7 @@ class EngineStatus(Enum):
         RUNNING: 引擎正在执行推理任务
         ERROR: 引擎加载或推理过程中发生错误
     """
+
     UNAVAILABLE = "unavailable"
     AVAILABLE = "available"
     LOADING = "loading"
@@ -83,6 +86,7 @@ class EngineCapability(Enum):
         COLOR_FIX: 颜色校正/上色
         FRAME_INTERPOLATE: 视频帧插值
     """
+
     IMAGE_UPSCALE = "image_upscale"
     VIDEO_UPSCALE = "video_upscale"
     IMAGE_RESTORE = "image_restore"
@@ -95,6 +99,7 @@ class EngineCapability(Enum):
 # ---------------------------------------------------------------------------
 # Upscaler 抽象体系 (clarity-upscaler inspired) - P1
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class UpscaleResult:
@@ -111,6 +116,7 @@ class UpscaleResult:
         processing_time: 处理耗时（秒）
         metadata: 额外元数据字典（如引擎信息、参数、帧数等）
     """
+
     success: bool
     output_path: str | None = None
     output_tensor: torch.Tensor | None = None
@@ -174,26 +180,20 @@ class Upscaler(ABC):
             UpscaleResult
         """
         if not self.is_available():
-            return UpscaleResult(
-                success=False,
-                error=f"引擎 {self.engine_name} 不可用"
-            )
+            return UpscaleResult(success=False, error=f"引擎 {self.engine_name} 不可用")
 
         try:
             result = self.do_upscale(input_path, output_path, **kwargs)
             return result
         except Exception as e:
             logger.error(f"引擎 {self.engine_name} 放大失败: {e}")
-            return UpscaleResult(
-                success=False,
-                error=str(e),
-                metadata={"engine": self.engine_name}
-            )
+            return UpscaleResult(success=False, error=str(e), metadata={"engine": self.engine_name})
 
 
 # ---------------------------------------------------------------------------
 # EngineRegistry (BasicSR @ARCH_REGISTRY inspired) - P2
 # ---------------------------------------------------------------------------
+
 
 class EngineRegistry:
     """引擎注册表
@@ -223,11 +223,13 @@ class EngineRegistry:
         Args:
             name: 注册名称，None 时使用类名
         """
+
         def decorator(upscaler_cls: type[Upscaler]):
             reg_name = name or upscaler_cls.engine_name or upscaler_cls.__name__.lower()
             cls._registry[reg_name] = upscaler_cls
             logger.info(f"引擎注册: {reg_name} -> {upscaler_cls.__name__}")
             return upscaler_cls
+
         return decorator
 
     @classmethod
@@ -255,7 +257,7 @@ class EngineRegistry:
     def get_available_engines(cls) -> list[str]:
         """获取所有可用引擎名称"""
         available = []
-        for name, upscaler_cls in cls._registry.items():
+        for name, _upscaler_cls in cls._registry.items():
             try:
                 instance = cls.get_engine(name)
                 if instance and instance.is_available():
@@ -280,6 +282,7 @@ class EngineRegistry:
 # EngineScheduler (Waifu2x-Extension-GUI inspired) - P0
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ScheduledTask:
     """调度任务数据类。
@@ -297,6 +300,7 @@ class ScheduledTask:
         result: 任务执行结果（完成后填充）
         error: 错误信息（失败时填充）
     """
+
     task_id: str
     engine_name: str
     input_path: str
@@ -394,6 +398,7 @@ class EngineScheduler:
             task_id
         """
         import uuid
+
         task_id = str(uuid.uuid4())[:8]
 
         # 自动选择引擎
@@ -478,6 +483,7 @@ class EngineScheduler:
 # SeedVR2 Upscaler 实现 (将现有引擎接入抽象体系)
 # ---------------------------------------------------------------------------
 
+
 @EngineRegistry.register("seedvr2")
 class SeedVR2Upscaler(Upscaler):
     """SeedVR2 Upscaler - 接入统一抽象体系"""
@@ -524,10 +530,11 @@ class SeedVR2Upscaler(Upscaler):
 
         async def _run():
             from bin.integrated_app.engines.seedvr2_engine import SeedVR2Engine
+
             engine = SeedVR2Engine(self.config)
             await engine.load_model()
 
-            if input_path.endswith(('.mp4', '.avi', '.mkv', '.mov', '.webm')):
+            if input_path.endswith((".mp4", ".avi", ".mkv", ".mov", ".webm")):
                 result = await engine.infer_video(input_path, os.path.dirname(output_path), **kwargs)
             else:
                 result = await engine.infer_image(input_path, os.path.dirname(output_path), **kwargs)
@@ -540,6 +547,7 @@ class SeedVR2Upscaler(Upscaler):
             if loop.is_running():
                 # 在已有事件循环中运行
                 import concurrent.futures
+
                 with concurrent.futures.ThreadPoolExecutor() as pool:
                     future = pool.submit(asyncio.run, _run())
                     restore_result = future.result(timeout=600)
@@ -560,6 +568,7 @@ class SeedVR2Upscaler(Upscaler):
 # ---------------------------------------------------------------------------
 # Pipeline 继承体系 (DiffBIR inspired) - P2
 # ---------------------------------------------------------------------------
+
 
 class RestorePipeline(ABC):
     """修复流水线抽象基类。
@@ -648,6 +657,7 @@ class RestorePipeline(ABC):
 # 多后端 Processor 工厂模式 (Anime4KCPP inspired) - P2
 # ---------------------------------------------------------------------------
 
+
 class ProcessorBackend(Enum):
     """处理器计算后端类型枚举。
 
@@ -660,6 +670,7 @@ class ProcessorBackend(Enum):
         OPENCL: OpenCL跨平台GPU计算后端
         CUDA: NVIDIA CUDA GPU计算后端（性能最优）
     """
+
     CPU = "cpu"
     OPENCL = "opencl"
     CUDA = "cuda"
@@ -679,6 +690,7 @@ class ProcessorFactoryConfig:
         opencl_device_index: OpenCL 设备索引
         cuda_device_index: CUDA 设备索引
     """
+
     preferred_backend: ProcessorBackend | None = None
     fallback_order: list[ProcessorBackend] = field(
         default_factory=lambda: [ProcessorBackend.CUDA, ProcessorBackend.OPENCL, ProcessorBackend.CPU]
@@ -714,6 +726,7 @@ class ProcessorFactory:
         # OpenCL 检测 (尝试导入 pyopencl)
         try:
             import pyopencl  # noqa: F401
+
             self._available_backends[ProcessorBackend.OPENCL] = True
         except ImportError:
             self._available_backends[ProcessorBackend.OPENCL] = False
@@ -733,9 +746,10 @@ class ProcessorFactory:
             最优可用后端
         """
         # 如果指定了首选后端且可用，直接使用
-        if self.config.preferred_backend is not None:
-            if self._available_backends.get(self.config.preferred_backend, False):
-                return self.config.preferred_backend
+        if self.config.preferred_backend is not None and self._available_backends.get(
+            self.config.preferred_backend, False
+        ):
+            return self.config.preferred_backend
 
         # 按回退顺序查找
         for backend in self.config.fallback_order:
@@ -780,9 +794,7 @@ class ProcessorFactory:
             device_idx = self.config.cuda_device_index
             processor_config["device"] = f"cuda:{device_idx}"
             processor_config["device_name"] = torch.cuda.get_device_name(device_idx)
-            processor_config["vram_gb"] = (
-                torch.cuda.get_device_properties(device_idx).total_memory / (1024 ** 3)
-            )
+            processor_config["vram_gb"] = torch.cuda.get_device_properties(device_idx).total_memory / (1024**3)
         elif backend == ProcessorBackend.OPENCL:
             processor_config["device"] = f"opencl:{self.config.opencl_device_index}"
             processor_config["device_name"] = "OpenCL Device"
@@ -801,6 +813,7 @@ class ProcessorFactory:
 # Registry 模式 - 模型架构注册 (BasicSR @ARCH_REGISTRY inspired) - P2
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ArchRegistryConfig:
     """架构注册表配置
@@ -812,6 +825,7 @@ class ArchRegistryConfig:
         allow_override: 是否允许同名覆盖注册
         strict_category: 是否严格类别校验
     """
+
     allow_override: bool = False
     strict_category: bool = True
 
@@ -864,9 +878,7 @@ class ArchRegistry:
         valid_categories = {"backbone", "neck", "head", "loss"}
 
         if cls._config.strict_category and category not in valid_categories:
-            raise ValueError(
-                f"无效的架构类别: {category}，有效值为: {valid_categories}"
-            )
+            raise ValueError(f"无效的架构类别: {category}，有效值为: {valid_categories}")
 
         def decorator(arch_cls: type):
             reg_name = name or arch_cls.__name__
@@ -908,11 +920,7 @@ class ArchRegistry:
         Returns:
             {name: class} 字典
         """
-        return {
-            name: entry["class"]
-            for name, entry in cls._registry.items()
-            if entry["category"] == category
-        }
+        return {name: entry["class"] for name, entry in cls._registry.items() if entry["category"] == category}
 
     @classmethod
     def list_all(cls) -> dict[str, dict[str, Any]]:
@@ -929,6 +937,7 @@ class ArchRegistry:
 # 多 GPU 多线程调度 (Real-CUGAN inspired) - P2
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class MultiGPUConfig:
     """多 GPU 调度配置
@@ -942,6 +951,7 @@ class MultiGPUConfig:
         queue_timeout: 队列等待超时 (秒)
         balance_strategy: 负载均衡策略 ('round_robin', 'least_loaded', 'memory_aware')
     """
+
     gpu_ids: list[int] = field(default_factory=lambda: [0])
     max_workers_per_gpu: int = 1
     queue_timeout: float = 300.0
@@ -973,7 +983,7 @@ class MultiGPUDispatcher:
         self._task_counter: int = 0
         self._lock = threading.Lock()
         self._results: dict[str, Any] = {}
-        self._gpu_loads: dict[int, int] = {gid: 0 for gid in self.config.gpu_ids}
+        self._gpu_loads: dict[int, int] = dict.fromkeys(self.config.gpu_ids, 0)
 
         # 验证 GPU 可用性
         available_gpus = []
@@ -989,10 +999,7 @@ class MultiGPUDispatcher:
         self._available_gpus = available_gpus
         self._round_robin_idx = 0
 
-        logger.info(
-            f"多 GPU 调度器初始化: gpus={available_gpus}, "
-            f"strategy={self.config.balance_strategy}"
-        )
+        logger.info(f"多 GPU 调度器初始化: gpus={available_gpus}, " f"strategy={self.config.balance_strategy}")
 
     def _select_gpu(self) -> int | None:
         """根据负载均衡策略选择 GPU
@@ -1041,6 +1048,7 @@ class MultiGPUDispatcher:
             task_id
         """
         import uuid
+
         task_id = str(uuid.uuid4())[:8]
 
         gpu_id = self._select_gpu()
@@ -1098,6 +1106,7 @@ class MultiGPUDispatcher:
 # 子进程引擎调用 (upscayl spawnUpscayl() inspired) - P2
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class SubprocessEngineConfig:
     """子进程引擎配置
@@ -1115,6 +1124,7 @@ class SubprocessEngineConfig:
         max_retries: 最大重试次数
         encoding: 子进程输出编码
     """
+
     engine_command: str = ""
     args: list[str] = field(default_factory=list)
     timeout: float = 600.0
@@ -1208,12 +1218,11 @@ class SubprocessEngineWrapper:
                     result["stderr"] = stderr
 
                     if process.returncode == 0:
-                        logger.info(f"子进程引擎完成: returncode=0")
+                        logger.info("子进程引擎完成: returncode=0")
                         return result
                     else:
                         logger.warning(
-                            f"子进程引擎返回非零: returncode={process.returncode}, "
-                            f"stderr={stderr[:200]}"
+                            f"子进程引擎返回非零: returncode={process.returncode}, " f"stderr={stderr[:200]}"
                         )
 
                 except subprocess.TimeoutExpired:
@@ -1221,8 +1230,7 @@ class SubprocessEngineWrapper:
                     process.wait()
                     result["timed_out"] = True
                     logger.error(
-                        f"子进程引擎超时 ({self.config.timeout}s)，"
-                        f"尝试 {attempt + 1}/{self.config.max_retries + 1}"
+                        f"子进程引擎超时 ({self.config.timeout}s)，" f"尝试 {attempt + 1}/{self.config.max_retries + 1}"
                     )
 
             except FileNotFoundError:

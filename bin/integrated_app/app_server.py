@@ -19,13 +19,13 @@ SeedVR2 - 应用服务器入口模块
     - Jinja2 用于模板渲染
     - 观察者模式实现模型状态到 SSE 的桥接
 """
+
 import asyncio
 import logging
 import os
 import sys
 import webbrowser
 from contextlib import asynccontextmanager
-
 
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
@@ -150,6 +150,7 @@ async def lifespan(app: FastAPI):
 
     try:
         from bin.integrated_app.routes.restore import unified as unified_routes
+
         recovered_count = await unified_routes.recover_tasks(history_db, task_queue, config)
         if recovered_count:
             logger.info(f"已从数据库恢复 {recovered_count} 个未完成任务")
@@ -159,18 +160,8 @@ async def lifespan(app: FastAPI):
     file_cache: FileCache = app.state.file_cache
     file_cache.start_cleanup_task(interval=3600)
 
-    backend_value = gpu_manager.backend.value if gpu_manager.backend else 'unavailable'
+    backend_value = gpu_manager.backend.value if gpu_manager.backend else "unavailable"
     logger.info(f"GPU 后端: {backend_value}, 设备: {gpu_manager.device_name}")
-
-    try:
-        from bin.integrated_app.optimization.gpu_compatibility import GPUCompatibilityDetector
-        detector = GPUCompatibilityDetector()
-        gpu_info = detector.detect()
-        logger.info(f"GPU detected: {gpu_info.get('name', 'unknown')}, "
-                    f"VRAM: {gpu_info.get('vram_gb', '?')}GB, "
-                    f"Compute capability: {gpu_info.get('compute_capability', '?')}")
-    except Exception as e:
-        logger.debug(f"GPU compatibility check skipped: {e}")
 
     if gpu_manager.is_gpu_available and config.get("model", {}).get("auto_load", True):
         try:
@@ -197,11 +188,11 @@ async def lifespan(app: FastAPI):
 
     file_cache.stop_cleanup_task()
 
-    task_queue: TaskQueue = app.state.task_queue
+    task_queue = app.state.task_queue
     try:
         await asyncio.wait_for(task_queue.stop(), timeout=30.0)
         logger.info("任务队列已优雅停止")
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.warning("任务队列停止超时（30s），强制退出")
 
     model_manager = app.state.model_manager
@@ -213,7 +204,7 @@ async def lifespan(app: FastAPI):
     logger.info("SeedVR2已关闭")
 
 
-def create_app(config: dict = None) -> FastAPI:
+def create_app(config: dict | None = None) -> FastAPI:
     """创建并配置 FastAPI 应用实例。
 
     完整的应用构建流程：
@@ -265,6 +256,7 @@ def create_app(config: dict = None) -> FastAPI:
     app.add_middleware(CSRFMiddleware)
 
     from bin.integrated_app.middleware.error_handler import register_error_handlers
+
     register_error_handlers(app)
 
     app.state.config = config
@@ -295,6 +287,7 @@ def create_app(config: dict = None) -> FastAPI:
         app.mount("/static", VersionedStaticFiles(directory=static_dir), name="static")
 
     import jinja2
+
     if os.path.exists(templates_dir):
         env = jinja2.Environment(
             loader=jinja2.FileSystemLoader(templates_dir),
@@ -316,7 +309,8 @@ def create_app(config: dict = None) -> FastAPI:
     register_page_routes(app)
 
     try:
-        from bin.integrated_app.optimization.engine_scheduler import EngineScheduler, EngineRegistry
+        from bin.integrated_app.optimization.engine_scheduler import EngineScheduler
+
         _engine_scheduler = EngineScheduler()
         logger.info("Engine Scheduler initialized")
     except Exception as e:
@@ -324,16 +318,8 @@ def create_app(config: dict = None) -> FastAPI:
         logger.debug(f"Engine Scheduler not available: {e}")
 
     if _engine_scheduler is not None:
-        try:
-            from bin.integrated_app.optimization.specialized_engines import (
-                FaceRestorationEngine, AnimeEngine, CPULightweightEngine,
-            )
-            logger.info("Specialized engines registered")
-        except Exception as e:
-            logger.debug(f"Specialized engines registration skipped: {e}")
-
-    if _engine_scheduler is not None:
         from fastapi import APIRouter
+
         engine_router = APIRouter(prefix="/api/engine", tags=["engine"])
 
         @engine_router.get("/list")
@@ -344,6 +330,7 @@ def create_app(config: dict = None) -> FastAPI:
                 dict: 统一响应格式，包含所有引擎名称列表和当前可用引擎列表。
             """
             from bin.integrated_app.optimization.engine_scheduler import EngineRegistry
+
             all_engines = EngineRegistry.get_all_registered()
             available_engines = EngineRegistry.get_available_engines()
             return {
@@ -351,7 +338,7 @@ def create_app(config: dict = None) -> FastAPI:
                 "data": {
                     "engines": list(all_engines.keys()),
                     "available": available_engines,
-                }
+                },
             }
 
         @engine_router.get("/detect")
@@ -366,16 +353,13 @@ def create_app(config: dict = None) -> FastAPI:
             """
             try:
                 status = _engine_scheduler.detect_available_engines()
-                return {
-                    "success": True,
-                    "data": {k: v.value for k, v in status.items()}
-                }
+                return {"success": True, "data": {k: v.value for k, v in status.items()}}
             except Exception as e:
                 return {"success": False, "error": str(e)}
 
         @engine_router.post("/submit")
         async def submit_task(
-            engine_name: str = None,
+            engine_name: str | None = None,
             input_path: str = "",
             output_path: str = "",
         ):
@@ -398,10 +382,7 @@ def create_app(config: dict = None) -> FastAPI:
                     input_path=input_path,
                     output_path=output_path,
                 )
-                return {
-                    "success": True,
-                    "data": {"task_id": task_id}
-                }
+                return {"success": True, "data": {"task_id": task_id}}
             except Exception as e:
                 return {"success": False, "error": str(e)}
 
@@ -423,7 +404,7 @@ def create_app(config: dict = None) -> FastAPI:
                     "task_id": task_id,
                     "status": status,
                     "result": result.__dict__ if result else None,
-                }
+                },
             }
 
         app.include_router(engine_router)
@@ -431,6 +412,7 @@ def create_app(config: dict = None) -> FastAPI:
 
     try:
         from bin.integrated_app.optimization.webui_enhancement import FileListManager, SettingsPersistence
+
         _file_list_manager = FileListManager()
         _settings_persistence = SettingsPersistence()
         logger.info("WebUI Enhancement modules loaded")
@@ -460,19 +442,22 @@ def _kill_port_process(port: int) -> bool:
         - 此函数仅在端口被占用且需要自动释放时调用
     """
     import subprocess
+
     try:
         result = subprocess.run(
             ["netstat", "-ano"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         for line in result.stdout.splitlines():
             if f":{port}" in line and "LISTENING" in line:
                 parts = line.strip().split()
                 pid = int(parts[-1])
                 logger.warning(f"端口 {port} 被进程 PID={pid} 占用，尝试终止...")
-                subprocess.run(["taskkill", "/PID", str(pid), "/F"],
-                               capture_output=True, timeout=5)
+                subprocess.run(["taskkill", "/PID", str(pid), "/F"], capture_output=True, timeout=5)
                 import time
+
                 time.sleep(1)
                 return True
     except Exception as e:

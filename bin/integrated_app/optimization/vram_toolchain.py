@@ -20,9 +20,8 @@
 """
 
 import logging
-from contextlib import contextmanager
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 import torch
@@ -34,7 +33,8 @@ logger = logging.getLogger(__name__)
 # 1. FP8 量化集成框架 (CogVideo/torchao P1)
 # ===========================================================================
 
-class QuantizationDtype(str, Enum):
+
+class QuantizationDtype(StrEnum):
     """量化数据类型枚举
 
     参考 CogVideo 使用 torchao 的 FP8/INT8 量化策略：
@@ -47,13 +47,14 @@ class QuantizationDtype(str, Enum):
         FLOAT8_E4M3FN: E4M3 格式（指数4位，尾数3位），适合前向传播权重
         FLOAT8_E5M2: E5M2 格式（指数5位，尾数2位），适合梯度/反向传播
     """
+
     FP8 = "fp8"
     INT8 = "int8"
     FLOAT8_E4M3FN = "float8_e4m3fn"
     FLOAT8_E5M2 = "float8_e5m2"
 
 
-class QuantizationGranularity(str, Enum):
+class QuantizationGranularity(StrEnum):
     """量化粒度枚举
 
     参考 torchao 的量化粒度选项，控制量化参数的共享范围。
@@ -63,6 +64,7 @@ class QuantizationGranularity(str, Enum):
         PER_ROW: 每行独立量化（适合线性层权重，精度更好）
         PER_CHANNEL: 每个输出通道独立量化（精度最好但开销略大）
     """
+
     PER_TENSOR = "per_tensor"
     PER_ROW = "per_row"
     PER_CHANNEL = "per_channel"
@@ -89,16 +91,27 @@ class FP8QuantConfig:
         verify_accuracy: 量化后是否验证精度（预留功能）
         accuracy_tolerance: 精度验证余弦相似度下限
     """
+
     enabled: bool = False
     dtype: QuantizationDtype = QuantizationDtype.FP8
     granularity: QuantizationGranularity = QuantizationGranularity.PER_ROW
     mode: str = "weight_only"
-    exclude_module_types: list[str] = field(default_factory=lambda: [
-        "LayerNorm", "RMSNorm", "Embedding", "TimestepEmbedding",
-    ])
-    exclude_module_names: list[str] = field(default_factory=lambda: [
-        "norm", "embed", "time_embed", "pos_embed",
-    ])
+    exclude_module_types: list[str] = field(
+        default_factory=lambda: [
+            "LayerNorm",
+            "RMSNorm",
+            "Embedding",
+            "TimestepEmbedding",
+        ]
+    )
+    exclude_module_names: list[str] = field(
+        default_factory=lambda: [
+            "norm",
+            "embed",
+            "time_embed",
+            "pos_embed",
+        ]
+    )
     verify_accuracy: bool = True
     accuracy_tolerance: float = 0.98
 
@@ -144,6 +157,7 @@ class FP8Quantizer:
         """
         try:
             import torchao  # noqa: F401
+
             return True
         except ImportError:
             logger.debug("torchao 未安装，FP8 量化不可用")
@@ -157,6 +171,7 @@ class FP8Quantizer:
         """
         try:
             import torchao
+
             return getattr(torchao, "__version__", "unknown")
         except ImportError:
             return None
@@ -184,19 +199,16 @@ class FP8Quantizer:
             return model
 
         if not self.is_available():
-            raise RuntimeError(
-                "torchao 未安装，无法使用 FP8 量化。"
-                "请运行: pip install torchao"
-            )
+            raise RuntimeError("torchao 未安装，无法使用 FP8 量化。" "请运行: pip install torchao")
 
         if self._quantized:
             logger.warning("模型已量化，跳过重复量化")
             return model
 
         try:
-            import torchao
+            import torchao  # noqa: F401
         except ImportError:
-            raise RuntimeError("torchao 导入失败")
+            raise RuntimeError("torchao 导入失败") from None
 
         self._save_original_dtypes(model)
 
@@ -209,20 +221,19 @@ class FP8Quantizer:
                 else:
                     quantizable_count += 1
 
-        logger.info(
-            f"FP8 量化配置: mode={self.config.mode}, "
-            f"可量化层={quantizable_count}, 排除层={excluded_count}"
-        )
+        logger.info(f"FP8 量化配置: mode={self.config.mode}, " f"可量化层={quantizable_count}, 排除层={excluded_count}")
 
         try:
             if self.config.mode == "weight_only":
                 from torchao.quantization import float8_weight_only, quantize_
+
                 quantize_(model, float8_weight_only())
             elif self.config.mode == "dynamic_activation_weight":
                 from torchao.quantization import (
                     float8_dynamic_activation_float8_weight,
                     quantize_,
                 )
+
                 quantize_(model, float8_dynamic_activation_float8_weight())
             else:
                 logger.warning(f"未知的量化模式: {self.config.mode}，跳过量化")
@@ -254,11 +265,7 @@ class FP8Quantizer:
             if excluded_type in module_type:
                 return True
 
-        for excluded_name in self.config.exclude_module_names:
-            if excluded_name in name.lower():
-                return True
-
-        return False
+        return any(excluded_name in name.lower() for excluded_name in self.config.exclude_module_names)
 
     def _save_original_dtypes(self, model: torch.nn.Module):
         """保存模型各模块参数的原始数据类型（内部方法）
@@ -308,6 +315,7 @@ class FP8Quantizer:
 # 2. TensorRT 加速框架 (Stream-DiffVSR P2)
 # ===========================================================================
 
+
 @dataclass
 class TensorRTConfig:
     """TensorRT 加速配置数据类
@@ -329,6 +337,7 @@ class TensorRTConfig:
         optimization_level: 优化级别（1-5，越高优化越激进）
         tf32_enabled: 是否启用 TF32 精度（Ampere+ GPU）
     """
+
     enabled: bool = False
     precision: str = "fp16"
     cache_engine: bool = True
@@ -381,6 +390,7 @@ class TensorRTRuntime:
         """
         try:
             import tensorrt  # noqa: F401
+
             return True
         except ImportError:
             logger.debug("TensorRT 未安装，加速不可用")
@@ -394,6 +404,7 @@ class TensorRTRuntime:
         """
         try:
             import tensorrt
+
             return getattr(tensorrt, "__version__", "unknown")
         except ImportError:
             return None
@@ -430,10 +441,7 @@ class TensorRTRuntime:
         if not self.is_available():
             raise RuntimeError("TensorRT 未安装，无法编译引擎")
 
-        logger.info(
-            f"TensorRT 编译配置: precision={self.config.precision}, "
-            f"max_batch={self.config.max_batch_size}"
-        )
+        logger.info(f"TensorRT 编译配置: precision={self.config.precision}, " f"max_batch={self.config.max_batch_size}")
 
         logger.info("TensorRT 引擎编译流程 (参考实现):")
         logger.info("  1. torch.onnx.export(model, sample_input, onnx_path)")
@@ -479,6 +487,7 @@ class TensorRTRuntime:
 # 3. torch.compile 集成 (Fast-SRGAN P2)
 # ===========================================================================
 
+
 @dataclass
 class CompileConfig:
     """torch.compile 编译配置数据类
@@ -500,6 +509,7 @@ class CompileConfig:
         dynamic: 是否支持动态形状
         exclude_module_names: 排除编译的模块名列表
     """
+
     enabled: bool = False
     mode: str = "max-autotune"
     backend: str = "inductor"
@@ -576,10 +586,7 @@ class CompileOptimizer:
             return model
 
         if not self.is_available():
-            logger.warning(
-                "torch.compile 不可用 (需要 PyTorch 2.0+)，"
-                f"当前版本: {torch.__version__}"
-            )
+            logger.warning("torch.compile 不可用 (需要 PyTorch 2.0+)，" f"当前版本: {torch.__version__}")
             return model
 
         logger.info(
@@ -598,10 +605,7 @@ class CompileOptimizer:
                 dynamic=self.config.dynamic,
             )
             self._compiled = True
-            logger.info(
-                "torch.compile 已应用。首次推理将触发编译 (约30-120秒)，"
-                "后续推理将加速。"
-            )
+            logger.info("torch.compile 已应用。首次推理将触发编译 (约30-120秒)，" "后续推理将加速。")
             return compiled_model
 
         except Exception as e:
@@ -622,6 +626,7 @@ class CompileOptimizer:
 # 4. xformers 显存高效注意力 (CogVideo/StableVSR/DiffVSR P1)
 # ===========================================================================
 
+
 @dataclass
 class XFormersConfig:
     """xformers 显存高效注意力配置数据类
@@ -641,6 +646,7 @@ class XFormersConfig:
         auto_fallback: 不可用时是否自动回退到次优实现
         verify_correctness: 是否验证 xformers 输出与标准实现一致（预留）
     """
+
     enabled: bool = False
     attention_mode: str = "xformers"
     auto_fallback: bool = True
@@ -689,7 +695,8 @@ class XFormersIntegration:
         """
         try:
             import xformers  # noqa: F401
-            import xformers.ops
+            import xformers.ops  # noqa: F401
+
             return True
         except ImportError:
             return False
@@ -710,6 +717,7 @@ class XFormersIntegration:
         """
         try:
             import xformers
+
             return getattr(xformers, "__version__", "unknown")
         except ImportError:
             return None
@@ -788,8 +796,11 @@ class XFormersIntegration:
             bool: 是注意力模块返回 True
         """
         attention_types = (
-            "Attention", "SelfAttention", "CrossAttention",
-            "MultiHeadAttention", "FlashAttention",
+            "Attention",
+            "SelfAttention",
+            "CrossAttention",
+            "MultiHeadAttention",
+            "FlashAttention",
         )
         module_type = type(module).__name__
         return any(t in module_type for t in attention_types)
@@ -808,12 +819,16 @@ class XFormersIntegration:
         original_forward = module.forward
 
         if self._effective_mode == "xformers":
+
             def xformers_forward(query, key, value, **kwargs):
                 try:
                     import xformers.ops
+
                     output = xformers.ops.memory_efficient_attention(
-                        query, key, value,
-                        attn_bias=kwargs.get("attn_bias", None),
+                        query,
+                        key,
+                        value,
+                        attn_bias=kwargs.get("attn_bias"),
                     )
                     return output
                 except Exception as e:
@@ -823,11 +838,14 @@ class XFormersIntegration:
             module.forward = xformers_forward
 
         elif self._effective_mode == "sdpa":
+
             def sdpa_forward(query, key, value, **kwargs):
                 try:
                     output = torch.nn.functional.scaled_dot_product_attention(
-                        query, key, value,
-                        attn_mask=kwargs.get("attn_mask", None),
+                        query,
+                        key,
+                        value,
+                        attn_mask=kwargs.get("attn_mask"),
                         is_causal=kwargs.get("is_causal", False),
                     )
                     return output
@@ -860,6 +878,7 @@ class XFormersIntegration:
 # 5. Gradient Checkpointing (RVRT P2)
 # ===========================================================================
 
+
 @dataclass
 class CheckpointConfig:
     """Gradient Checkpointing 配置数据类
@@ -885,6 +904,7 @@ class CheckpointConfig:
             - "torch": 使用 torch.utils.checkpoint.checkpoint（推荐）
             - "custom": 使用自定义实现（预留）
     """
+
     enabled: bool = False
     strategy: str = "auto"
     selected_blocks: list[int] = field(default_factory=list)
@@ -998,10 +1018,7 @@ class GradientCheckpointManager:
 
         step = total_blocks / num_to_checkpoint
         selected = [int(i * step) for i in range(num_to_checkpoint)]
-        logger.debug(
-            f"自动选择 checkpoint blocks: {selected} "
-            f"({num_to_checkpoint}/{total_blocks})"
-        )
+        logger.debug(f"自动选择 checkpoint blocks: {selected} " f"({num_to_checkpoint}/{total_blocks})")
         return selected
 
     def _apply_checkpoint_to_block(self, block: torch.nn.Module, block_idx: int):
@@ -1048,6 +1065,7 @@ class GradientCheckpointManager:
                 def make_checkpointed(orig_fwd):
                     def checkpointed_forward(*args, **kwargs):
                         return checkpoint(orig_fwd, *args, use_reentrant=False, **kwargs)
+
                     return checkpointed_forward
 
                 module.forward = make_checkpointed(original_forward)
@@ -1083,6 +1101,7 @@ class GradientCheckpointManager:
 # 统一 VRAM 工具链编排器
 # ===========================================================================
 
+
 @dataclass
 class VRAMToolchainConfig:
     """VRAM 工具链统一配置数据类
@@ -1096,6 +1115,7 @@ class VRAMToolchainConfig:
         xformers: xformers 注意力配置
         checkpoint: Gradient Checkpointing 配置
     """
+
     fp8_quant: FP8QuantConfig = field(default_factory=FP8QuantConfig)
     tensorrt: TensorRTConfig = field(default_factory=TensorRTConfig)
     torch_compile: CompileConfig = field(default_factory=CompileConfig)
@@ -1248,6 +1268,7 @@ class VRAMToolchainOrchestrator:
 # ===========================================================================
 # 便捷工厂函数
 # ===========================================================================
+
 
 def create_low_vram_toolchain() -> VRAMToolchainOrchestrator:
     """创建低显存优化工具链预设

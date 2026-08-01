@@ -29,13 +29,12 @@
     时间步嵌入为去噪过程提供条件信息，让模型知道当前处于扩散过程的哪个阶段。
 """
 
-from typing import Optional, Union
 import torch
 from diffusers.models.embeddings import get_timestep_embedding
 from torch import nn
 
 
-def emb_add(emb1: torch.Tensor, emb2: Optional[torch.Tensor]):
+def emb_add(emb1: torch.Tensor, emb2: torch.Tensor | None):
     """安全地将两个嵌入张量相加，处理 emb2 为 None 的情况。
 
     Args:
@@ -82,7 +81,7 @@ class TimeEmbedding(nn.Module):
 
     def forward(
         self,
-        timestep: Union[int, float, torch.IntTensor, torch.FloatTensor],
+        timestep: int | float | torch.IntTensor | torch.FloatTensor,
         device: torch.device,
         dtype: torch.dtype,
     ) -> torch.FloatTensor:

@@ -32,7 +32,6 @@ Key Features:
 
 import logging
 import math
-from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -44,6 +43,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Restoration-Guided Sampling (Vivid-VR inspired) - P0
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class RestorationGuidanceConfig:
@@ -57,6 +57,7 @@ class RestorationGuidanceConfig:
     - >1.0: 更强的保真度约束 (输出更接近输入)
     - <1.0: 更强的真实感方向 (输出更自由)
     """
+
     enabled: bool = True
     guidance_scale: float = 1.0  # restoration_guidance_scale
     # 是否对 guidance scale 应用时间步衰减
@@ -114,9 +115,7 @@ class RestorationGuidedSampling:
 
             if progress >= self.config.decay_start_ratio:
                 # 在衰减区间内
-                decay_progress = (progress - self.config.decay_start_ratio) / (
-                    1.0 - self.config.decay_start_ratio
-                )
+                decay_progress = (progress - self.config.decay_start_ratio) / (1.0 - self.config.decay_start_ratio)
 
                 if self.config.decay_type == "linear":
                     decay_factor = 1.0 - decay_progress
@@ -175,6 +174,7 @@ class RestorationGuidedSampling:
 # Dynamic CFG (CogVideo inspired) - P2
 # ---------------------------------------------------------------------------
 
+
 class DynamicCFG:
     """动态 Classifier-Free Guidance
 
@@ -215,6 +215,7 @@ class DynamicCFG:
 # ---------------------------------------------------------------------------
 # 线性 CFG 策略 (SUPIR inspired) - P2
 # ---------------------------------------------------------------------------
+
 
 class LinearCFGStrategy:
     """线性 CFG 策略
@@ -263,6 +264,7 @@ class LinearCFGStrategy:
 # guide_rescale / CFG Rescale (VEnhancer inspired) - P2
 # ---------------------------------------------------------------------------
 
+
 def apply_cfg_rescale(
     cfg_output: torch.Tensor,
     positive_output: torch.Tensor,
@@ -306,6 +308,7 @@ def apply_cfg_rescale(
 # ---------------------------------------------------------------------------
 # Noise Inversion (clarity-upscaler inspired) - P1
 # ---------------------------------------------------------------------------
+
 
 class NoiseInversion:
     """噪声反转 (Noise Inversion)
@@ -365,6 +368,7 @@ class NoiseInversion:
 # 多采样器统一接口 (DiffBIR inspired) - P2
 # ---------------------------------------------------------------------------
 
+
 class SamplerRegistry:
     """采样器统一注册和切换接口
 
@@ -411,12 +415,14 @@ class SamplerRegistry:
 # 四步蒸馏推理 (Stream-DiffVSR inspired) - P1
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class DistillationConfig:
     """四步蒸馏推理配置
 
     参考 Stream-DiffVSR 将多步扩散压缩为四步推理。
     """
+
     enabled: bool = True
     num_steps: int = 4  # 蒸馏步数 (4步蒸馏)
     cfg_scale: float = 1.0  # 蒸馏模式通常使用 cfg=1.0
@@ -466,6 +472,7 @@ class DistilledSampling:
 # Flow Matching 调度器参考 (HunyuanVideo inspired) - P2
 # ---------------------------------------------------------------------------
 
+
 def sd3_time_shift(t: float, shift: float = 3.0) -> float:
     """SD3 时间偏移函数
 
@@ -490,6 +497,7 @@ def sd3_time_shift(t: float, shift: float = 3.0) -> float:
 # One-step Distillation (RCOD-SR inspired) - P1
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class OneStepDistillationConfig:
     """一步蒸馏推理配置
@@ -509,6 +517,7 @@ class OneStepDistillationConfig:
         domain_weights: 各域的蒸馏权重 (长度应等于 num_domain_groups)
         adaptive_grouping: 是否使用自适应域分组
     """
+
     enabled: bool = False
     num_domain_groups: int = 4
     group_strategy: str = "magnitude"
@@ -579,7 +588,7 @@ class OneStepDistillation:
             # 生成分组掩码
             masks = []
             prev_mask = torch.ones_like(latent, dtype=torch.bool)
-            for i, boundary in enumerate(boundaries):
+            for boundary in boundaries:
                 boundary_reshaped = boundary.view(-1, 1, 1, 1)
                 mask = (latent.abs() <= boundary_reshaped) & prev_mask
                 masks.append(mask.float())
@@ -590,14 +599,14 @@ class OneStepDistillation:
             # 按频率分组: 使用 DCT 变换后按频率带分组
             # 使用 torch.fft 进行 2D 频率变换
             freq_latent = torch.fft.fft2(latent)
-            freq_magnitude = freq_latent.abs()
+            freq_latent.abs()
 
             # 按频率半径分组
             h, w = latent.shape[-2:]
             y_coords = torch.arange(h, device=latent.device).float() - h / 2
             x_coords = torch.arange(w, device=latent.device).float() - w / 2
-            yy, xx = torch.meshgrid(y_coords, x_coords, indexing='ij')
-            radius = torch.sqrt(yy ** 2 + xx ** 2)
+            yy, xx = torch.meshgrid(y_coords, x_coords, indexing="ij")
+            radius = torch.sqrt(yy**2 + xx**2)
 
             max_radius = radius.max()
             masks = []
@@ -625,7 +634,7 @@ class OneStepDistillation:
 
         # 统计信息
         statistics = []
-        for i, mask in enumerate(masks):
+        for mask in masks:
             masked_latent = latent * mask
             valid_count = mask.sum().clamp(min=1)
             mean_val = masked_latent.sum() / valid_count
@@ -643,10 +652,7 @@ class OneStepDistillation:
             "statistics": statistics,
         }
 
-        logger.info(
-            f"Latent Domain Grouping: strategy={strategy}, "
-            f"groups={num_groups}, stats={statistics}"
-        )
+        logger.info(f"Latent Domain Grouping: strategy={strategy}, " f"groups={num_groups}, stats={statistics}")
         return result
 
     def one_step_inference(
@@ -709,8 +715,5 @@ class OneStepDistillation:
             weight = weights[i]
             output = output + weight * predicted * mask
 
-        logger.info(
-            f"一步蒸馏推理: timestep={timestep}, "
-            f"groups={cfg.num_domain_groups}, weights={weights}"
-        )
+        logger.info(f"一步蒸馏推理: timestep={timestep}, " f"groups={cfg.num_domain_groups}, weights={weights}")
         return output

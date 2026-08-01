@@ -18,6 +18,7 @@ API 端点：
 
 所属项目：SeedVR2 (SeedVR2 视频/图像修复工具)
 """
+
 import asyncio
 import logging
 import os
@@ -90,6 +91,7 @@ class ModelLoadRequest(BaseModel):
         device: 目标设备，如 "cuda:0"，默认 None（自动选择）。
         precision: 精度模式，"fp16"/"fp8"，默认 None（自动选择）。
     """
+
     size: str = "3b"
     device: str | None = None
     precision: str | None = None
@@ -103,6 +105,7 @@ class ModelSwitchRequest(BaseModel):
         device: 目标设备，默认 None。
         precision: 精度模式，默认 None。
     """
+
     size: str = "3b"
     device: str | None = None
     precision: str | None = None
@@ -125,6 +128,7 @@ class SettingsUpdateRequest(BaseModel):
         default_resolution_w: 默认输出宽度。
         seed: 默认随机种子。
     """
+
     default_model_size: str | None = None
     default_precision: str | None = None
     default_locale: str | None = None
@@ -162,18 +166,21 @@ async def get_settings(config: dict = Depends(get_config)):
     """
     try:
         from bin.integrated_app.optimization.webui_enhancement import SettingsPersistence
+
         persistence = SettingsPersistence()
         user_prefs = persistence.load().to_dict()
     except Exception:
         user_prefs = {}
 
-    return JSONResponse({
-        "model": config.get("model", {}),
-        "gpu": config.get("gpu", {}),
-        "i18n": config.get("i18n", {}),
-        "restore": config.get("restore", {}),
-        "user_preferences": user_prefs,
-    })
+    return JSONResponse(
+        {
+            "model": config.get("model", {}),
+            "gpu": config.get("gpu", {}),
+            "i18n": config.get("i18n", {}),
+            "restore": config.get("restore", {}),
+            "user_preferences": user_prefs,
+        }
+    )
 
 
 @router.post("/settings")
@@ -225,6 +232,7 @@ async def update_settings(
 
     try:
         from bin.integrated_app.optimization.webui_enhancement import SettingsPersistence
+
         persistence = SettingsPersistence()
         prefs = persistence.load()
         if settings.default_resolution_h is not None:
@@ -262,9 +270,7 @@ async def load_model(
         JSONResponse 包含加载结果。
     """
     try:
-        result = await model_manager.load_model(
-            model_size=req.size, device=req.device, precision=req.precision
-        )
+        result = await model_manager.load_model(model_size=req.size, device=req.device, precision=req.precision)
         return JSONResponse(result)
     except Exception as e:
         logger.error(f"模型加载失败: {e}")
@@ -328,9 +334,7 @@ async def switch_model(
         JSONResponse 包含切换结果。
     """
     try:
-        result = await model_manager.switch_model(
-            model_size=req.size, device=req.device, precision=req.precision
-        )
+        result = await model_manager.switch_model(model_size=req.size, device=req.device, precision=req.precision)
         return JSONResponse(result)
     except Exception as e:
         logger.error(f"模型切换失败: {e}")
@@ -400,11 +404,13 @@ async def set_locale(
     config.setdefault("i18n", {})["default_locale"] = locale
     await run_in_threadpool(save_config, config)
 
-    return JSONResponse({
-        "status": "ok",
-        "locale": locale,
-        "message": f"语言已切换为 {i18n.get_locale_name(locale)}",
-    })
+    return JSONResponse(
+        {
+            "status": "ok",
+            "locale": locale,
+            "message": f"语言已切换为 {i18n.get_locale_name(locale)}",
+        }
+    )
 
 
 @router.get("/locales")
@@ -434,14 +440,18 @@ async def get_locales(i18n: I18n = Depends(get_i18n)):
     """
     locales = []
     for code in i18n.available_locales:
-        locales.append({
-            "code": code,
-            "name": i18n.get_locale_name(code),
-        })
-    return JSONResponse({
-        "current": i18n.current_locale,
-        "locales": locales,
-    })
+        locales.append(
+            {
+                "code": code,
+                "name": i18n.get_locale_name(code),
+            }
+        )
+    return JSONResponse(
+        {
+            "current": i18n.current_locale,
+            "locales": locales,
+        }
+    )
 
 
 @router.get("/browse-dir")
@@ -488,6 +498,7 @@ async def browse_directory(path: str = "", show_files: bool = False):
         drives = []
         if os.name == "nt":
             import string
+
             for letter in string.ascii_uppercase:
                 drive = f"{letter}:\\"
                 if await asyncio.to_thread(os.path.exists, drive):
@@ -503,7 +514,7 @@ async def browse_directory(path: str = "", show_files: bool = False):
     if not await asyncio.to_thread(os.path.isdir, path):
         raise HTTPException(status_code=400, detail=f"Not a directory: {path}")
 
-    items = []
+    items: list[dict[str, str | int]] = []
     try:
         entries = await asyncio.to_thread(
             lambda: sorted(os.scandir(path), key=lambda e: (not e.is_dir(), e.name.lower()))
@@ -514,21 +525,25 @@ async def browse_directory(path: str = "", show_files: bool = False):
     for entry in entries:
         try:
             if entry.is_dir():
-                items.append({
-                    "name": entry.name,
-                    "path": entry.path,
-                    "type": "directory",
-                })
+                items.append(
+                    {
+                        "name": entry.name,
+                        "path": entry.path,
+                        "type": "directory",
+                    }
+                )
             elif show_files and entry.is_file():
                 ext = os.path.splitext(entry.name)[1].lower()
                 size = (await asyncio.to_thread(entry.stat)).st_size
-                items.append({
-                    "name": entry.name,
-                    "path": entry.path,
-                    "type": "file",
-                    "ext": ext,
-                    "size": size,
-                })
+                items.append(
+                    {
+                        "name": entry.name,
+                        "path": entry.path,
+                        "type": "file",
+                        "ext": ext,
+                        "size": size,
+                    }
+                )
         except (PermissionError, OSError):
             continue
 
@@ -536,11 +551,13 @@ async def browse_directory(path: str = "", show_files: bool = False):
     if parent == path.rstrip("/\\"):
         parent = ""
 
-    return JSONResponse({
-        "current_path": path,
-        "parent_path": parent,
-        "items": items,
-    })
+    return JSONResponse(
+        {
+            "current_path": path,
+            "parent_path": parent,
+            "items": items,
+        }
+    )
 
 
 @router.post("/open-explorer")

@@ -95,7 +95,7 @@ def _get_vram_usage_gb() -> float:
     """
     try:
         if torch.cuda.is_available():
-            return torch.cuda.memory_allocated(0) / (1024 ** 3)
+            return torch.cuda.memory_allocated(0) / (1024**3)
     except Exception:
         pass
     return 0.0
@@ -111,8 +111,9 @@ def _get_ram_usage_gb() -> float:
     """
     try:
         import psutil
+
         process = psutil.Process()
-        return process.memory_info().rss / (1024 ** 3)
+        return process.memory_info().rss / (1024**3)
     except Exception:
         pass
     return 0.0
@@ -157,7 +158,7 @@ class CachedTensor:
         self.original_device = tensor.device
         self.shape = tensor.shape
         self.numel = tensor.numel()
-        self.size_mb = tensor.numel() * tensor.element_size() / (1024 ** 2)
+        self.size_mb = tensor.numel() * tensor.element_size() / (1024**2)
 
         # 主动迁移到 CPU（非阻塞不必要，此处为有意同步迁移）
         self._cpu_data = tensor.detach().cpu()
@@ -189,8 +190,10 @@ class CachedTensor:
         Returns:
             str: 包含名称、形状、dtype、大小的调试字符串
         """
-        return (f"CachedTensor(name='{self.name}', shape={self.shape}, "
-                f"dtype={self.original_dtype}, size={self.size_mb:.2f}MB)")
+        return (
+            f"CachedTensor(name='{self.name}', shape={self.shape}, "
+            f"dtype={self.original_dtype}, size={self.size_mb:.2f}MB)"
+        )
 
 
 class TensorCacheManager:
@@ -259,8 +262,10 @@ class TensorCacheManager:
             "peak_cache_mb": 0.0,
         }
 
-        logger.info(f"TensorCacheManager 初始化: trigger={trigger_ratio:.0%}, "
-                     f"restore={restore_ratio:.0%}, budget={cpu_budget_mb}MB")
+        logger.info(
+            f"TensorCacheManager 初始化: trigger={trigger_ratio:.0%}, "
+            f"restore={restore_ratio:.0%}, budget={cpu_budget_mb}MB"
+        )
 
     def should_cache(self) -> bool:
         """检查当前 VRAM 压力是否需要缓存张量
@@ -302,32 +307,29 @@ class TensorCacheManager:
         if not self.should_cache():
             return False
 
-        tensor_size_mb = tensor.numel() * tensor.element_size() / (1024 ** 2)
+        tensor_size_mb = tensor.numel() * tensor.element_size() / (1024**2)
 
         with self._lock:
             if len(self._cache) >= self.max_cached:
-                logger.debug(f"缓存已满 ({len(self._cache)}/{self.max_cached}), "
-                             f"跳过缓存 '{name}'")
+                logger.debug(f"缓存已满 ({len(self._cache)}/{self.max_cached}), " f"跳过缓存 '{name}'")
                 return False
 
             current_cache_mb = self._stats["total_cache_mb"]
             if current_cache_mb + tensor_size_mb > self.cpu_budget_mb:
-                logger.debug(f"CPU 缓存预算超出 ({current_cache_mb:.0f}MB + "
-                             f"{tensor_size_mb:.0f}MB > {self.cpu_budget_mb}MB), "
-                             f"跳过缓存 '{name}'")
+                logger.debug(
+                    f"CPU 缓存预算超出 ({current_cache_mb:.0f}MB + "
+                    f"{tensor_size_mb:.0f}MB > {self.cpu_budget_mb}MB), "
+                    f"跳过缓存 '{name}'"
+                )
                 return False
 
             cached = CachedTensor(tensor, name)
             self._cache[name] = cached
             self._stats["total_cached"] += 1
             self._stats["total_cache_mb"] += tensor_size_mb
-            self._stats["peak_cache_mb"] = max(
-                self._stats["peak_cache_mb"],
-                self._stats["total_cache_mb"]
-            )
+            self._stats["peak_cache_mb"] = max(self._stats["peak_cache_mb"], self._stats["total_cache_mb"])
 
-            logger.debug(f"已缓存张量 '{name}' 到 CPU: {cached} "
-                         f"(VRAM 空闲: {_get_vram_free_ratio():.0%})")
+            logger.debug(f"已缓存张量 '{name}' 到 CPU: {cached} " f"(VRAM 空闲: {_get_vram_free_ratio():.0%})")
             return True
 
     def restore_tensor(
@@ -528,8 +530,10 @@ class cached_activation:
             bool: 始终返回 False（不抑制异常）
         """
         if self.manager.should_restore() and self.manager.cache_size > 0:
-            logger.info(f"VRAM 压力缓解，自动恢复 {self.manager.cache_size} 个缓存张量 "
-                        f"(VRAM 空闲: {_get_vram_free_ratio():.0%})")
+            logger.info(
+                f"VRAM 压力缓解，自动恢复 {self.manager.cache_size} 个缓存张量 "
+                f"(VRAM 空闲: {_get_vram_free_ratio():.0%})"
+            )
             self.manager.restore_all()
         return False
 

@@ -37,7 +37,6 @@ Key Features:
 
 import logging
 import math
-from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -52,6 +51,7 @@ logger = logging.getLogger(__name__)
 # LCSA 稀疏注意力 (FlashVSR inspired) - P0
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class LCSAConfig:
     """LCSA (Learnable Conditional Sparse Attention) 配置
@@ -65,6 +65,7 @@ class LCSAConfig:
     - 通过可学习的门控机制动态决定哪些注意力块需要计算
     - 稀疏度越高，计算量越少，但可能损失细节
     """
+
     # 是否启用 LCSA 稀疏注意力
     enabled: bool = False
     # 稀疏度: 0.0 = 全密集注意力, 1.0 = 完全稀疏(无注意力)
@@ -130,8 +131,8 @@ class SparseAttentionMask(nn.Module):
         # 计算注意力块重要性分数
         # 使用 Q 和 K 的交互特征预测重要性
         # 取 Q 的均值作为查询表示
-        q_repr = query.mean(dim=-2)  # [B, num_heads, head_dim]
-        k_repr = key.mean(dim=-2)    # [B, num_heads, head_dim]
+        query.mean(dim=-2)  # [B, num_heads, head_dim]
+        key.mean(dim=-2)  # [B, num_heads, head_dim]
 
         # 对 query 的每个位置计算重要性
         scores = self.mask_predictor(query).squeeze(-1)  # [B, num_heads, L]
@@ -185,7 +186,7 @@ class LCSASparseAttention(nn.Module):
         super().__init__()
         self.config = config
         self.mask_generator = SparseAttentionMask(config)
-        self.scale = config.head_dim ** -0.5
+        self.scale = config.head_dim**-0.5
 
     def forward(
         self,
@@ -207,14 +208,10 @@ class LCSASparseAttention(nn.Module):
         """
         if not self.config.enabled:
             # 稀疏注意力未启用，退回标准注意力
-            return F.scaled_dot_product_attention(
-                query, key, value, attn_mask=attn_mask
-            )
+            return F.scaled_dot_product_attention(query, key, value, attn_mask=attn_mask)
 
         # 生成稀疏掩码
-        sparse_mask = self.mask_generator(
-            query, key, training=self.training
-        )
+        sparse_mask = self.mask_generator(query, key, training=self.training)
 
         # 合并稀疏掩码与原始注意力掩码
         if attn_mask is not None:
@@ -255,7 +252,7 @@ def apply_lcsa_to_dit(
         return {}
 
     results = {}
-    lcsa_module = LCSASparseAttention(config)
+    LCSASparseAttention(config)
 
     for name, module in dit_model.named_modules():
         # 查找 DiT 中的自注意力层
@@ -276,6 +273,7 @@ def apply_lcsa_to_dit(
 # N 维 RoPE 位置编码参考 (HunyuanVideo inspired) - P2
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class NDimRoPEConfig:
     """N 维 RoPE 位置编码配置
@@ -290,6 +288,7 @@ class NDimRoPEConfig:
     - 每个维度独立应用 RoPE，通过不同的频率基实现维度间解耦
     - 支持动态分辨率: 位置编码随输入尺寸自适应生成
     """
+
     # 位置编码维度数: 1 (纯时间), 2 (纯空间), 3 (时空联合)
     num_dims: int = 3
     # 每个维度的 RoPE 频率基
@@ -328,8 +327,7 @@ class NDimRotaryEmbedding(nn.Module):
         self.dim_per_axis = self.head_dim // self.num_dims
         if self.head_dim % self.num_dims != 0:
             logger.warning(
-                f"head_dim ({self.head_dim}) 不能被 num_dims ({self.num_dims}) 整除，"
-                f"最后若干维度将被截断"
+                f"head_dim ({self.head_dim}) 不能被 num_dims ({self.num_dims}) 整除，" f"最后若干维度将被截断"
             )
 
         # 为每个维度预计算频率
@@ -347,9 +345,7 @@ class NDimRotaryEmbedding(nn.Module):
                 # NTK-aware 缩放: 调整基以支持更长序列
                 theta = theta * (cfg.ntk_scale_factor ** (2 / self.dim_per_axis))
 
-            freqs = 1.0 / (theta ** (
-                torch.arange(0, self.dim_per_axis, 2, dtype=torch.float32) / self.dim_per_axis
-            ))
+            freqs = 1.0 / (theta ** (torch.arange(0, self.dim_per_axis, 2, dtype=torch.float32) / self.dim_per_axis))
             freqs_list.append(freqs)
 
         self.register_buffer(
@@ -376,7 +372,6 @@ class NDimRotaryEmbedding(nn.Module):
         Returns:
             (cos_emb, sin_emb): 旋转位置编码的余弦和正弦分量
         """
-        cfg = self.config
 
         if position_ids is not None:
             # 使用显式位置 ID
@@ -425,6 +420,7 @@ class NDimRotaryEmbedding(nn.Module):
 # ControlNet 条件注入参考 (DiffBIR inspired) - P2
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ControlNetConfig:
     """ControlNet 条件注入配置
@@ -439,6 +435,7 @@ class ControlNetConfig:
     - control_strength 控制注入强度: 0.0 = 无控制, 1.0 = 全强度控制
     - 13 层注入点覆盖 DiT 的前/中/后三个阶段
     """
+
     # 是否启用 ControlNet 条件注入
     enabled: bool = False
     # 控制强度: 0.0 ~ 1.0
@@ -549,21 +546,21 @@ class ControlNetInjector(nn.Module):
         self.config = config
 
         # 创建 13 个注入块
-        self.blocks = nn.ModuleList([
-            ControlNetConditionBlock(
-                condition_channels=config.condition_channels,
-                hidden_dim=config.hidden_dim,
-                injection_mode=config.injection_mode,
-                zero_conv_init=config.zero_conv_init,
-            )
-            for _ in range(config.num_control_layers)
-        ])
+        self.blocks = nn.ModuleList(
+            [
+                ControlNetConditionBlock(
+                    condition_channels=config.condition_channels,
+                    hidden_dim=config.hidden_dim,
+                    injection_mode=config.injection_mode,
+                    zero_conv_init=config.zero_conv_init,
+                )
+                for _ in range(config.num_control_layers)
+            ]
+        )
 
         # 每层独立控制强度
         if config.per_layer_strength:
-            self.layer_strengths = nn.Parameter(
-                torch.ones(config.num_control_layers) * config.control_strength
-            )
+            self.layer_strengths = nn.Parameter(torch.ones(config.num_control_layers) * config.control_strength)
         else:
             self.layer_strengths = None
 
@@ -604,6 +601,7 @@ class ControlNetInjector(nn.Module):
 # 双流 DiT 架构参考 (HunyuanVideo MMDoubleStreamBlock inspired) - P3
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class DualStreamConfig:
     """双流 DiT 架构配置
@@ -619,6 +617,7 @@ class DualStreamConfig:
     - FFN 层完全独立，避免文本/视觉特征的相互干扰
     - 相比单流架构，双流在文本条件遵循和视觉质量上表现更优
     """
+
     # 是否启用双流架构
     enabled: bool = False
     # 文本流隐藏维度
@@ -651,12 +650,13 @@ class DualStreamBlock(nn.Module):
         self.layer_idx = layer_idx
 
         # 是否在本层执行交叉注意力
-        self.use_cross_attn = (layer_idx % config.cross_attn_interval == 0)
+        self.use_cross_attn = layer_idx % config.cross_attn_interval == 0
 
         # 视觉流自注意力层 (仅定义接口)
         self.visual_norm1 = nn.LayerNorm(config.visual_hidden_dim)
         self.visual_attn = nn.MultiheadAttention(
-            config.visual_hidden_dim, config.num_heads,
+            config.visual_hidden_dim,
+            config.num_heads,
             batch_first=True,
         )
         self.visual_norm2 = nn.LayerNorm(config.visual_hidden_dim)
@@ -669,7 +669,8 @@ class DualStreamBlock(nn.Module):
         # 文本流自注意力层 (仅定义接口)
         self.text_norm1 = nn.LayerNorm(config.text_hidden_dim)
         self.text_attn = nn.MultiheadAttention(
-            config.text_hidden_dim, config.num_heads,
+            config.text_hidden_dim,
+            config.num_heads,
             batch_first=True,
         )
         self.text_norm2 = nn.LayerNorm(config.text_hidden_dim)
@@ -713,14 +714,20 @@ class DualStreamBlock(nn.Module):
         # 视觉流自注意力
         v_normed = self.visual_norm1(visual_hidden)
         v_attn_out, _ = self.visual_attn(
-            v_normed, v_normed, v_normed, attn_mask=visual_mask,
+            v_normed,
+            v_normed,
+            v_normed,
+            attn_mask=visual_mask,
         )
         visual_hidden = visual_hidden + v_attn_out
 
         # 文本流自注意力
         t_normed = self.text_norm1(text_hidden)
         t_attn_out, _ = self.text_attn(
-            t_normed, t_normed, t_normed, attn_mask=text_mask,
+            t_normed,
+            t_normed,
+            t_normed,
+            attn_mask=text_mask,
         )
         text_hidden = text_hidden + t_attn_out
 
@@ -753,6 +760,7 @@ class DualStreamBlock(nn.Module):
 # ---------------------------------------------------------------------------
 # 辅助函数
 # ---------------------------------------------------------------------------
+
 
 def get_dit_optimization_summary() -> dict[str, Any]:
     """获取 DiT 优化模块的功能摘要
@@ -796,6 +804,7 @@ def get_dit_optimization_summary() -> dict[str, Any]:
 # 频域注意力 (FTVSR inspired) - P3
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class FrequencyDomainAttentionConfig:
     """频域注意力配置
@@ -813,6 +822,7 @@ class FrequencyDomainAttentionConfig:
         num_heads: 注意力头数
         head_dim: 头维度
     """
+
     enabled: bool = False
     transform_type: str = "dct"
     num_freq_bands: int = 4
@@ -860,11 +870,9 @@ class FrequencyDomainAttention(nn.Module):
         # 可学习频域滤波器
         if config.use_learnable_filter:
             # 频域滤波器参数 (在频域中对各频段进行加权)
-            self.freq_filter = nn.Parameter(
-                torch.ones(1, 1, 1, 1)  # 广播到实际频域尺寸
-            )
+            self.freq_filter = nn.Parameter(torch.ones(1, 1, 1, 1))  # 广播到实际频域尺寸
 
-        self.scale = config.head_dim ** -0.5
+        self.scale = config.head_dim**-0.5
 
     def dct_2d(self, x: torch.Tensor) -> torch.Tensor:
         """2D DCT 变换 (可微分)
@@ -880,7 +888,7 @@ class FrequencyDomainAttention(nn.Module):
         """
         # 简化实现: 使用 FFT + 频移近似 DCT
         # 完整的 DCT-II 需要 Pre-FFT 对称延拓
-        x_freq = torch.fft.fft2(x, norm='ortho')
+        x_freq = torch.fft.fft2(x, norm="ortho")
         # 取实部作为 DCT 近似
         return x_freq.real
 
@@ -895,7 +903,7 @@ class FrequencyDomainAttention(nn.Module):
         """
         # 使用 IFFT 近似 IDCT
         x_complex = torch.complex(x, torch.zeros_like(x))
-        x_spatial = torch.fft.ifft2(x_complex, norm='ortho')
+        x_spatial = torch.fft.ifft2(x_complex, norm="ortho")
         return x_spatial.real
 
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
@@ -964,15 +972,11 @@ class FrequencyDomainAttention(nn.Module):
         attn_output = torch.matmul(attn_weight, v_freq_flat)
 
         # 5. 逆变换回空间域
-        attn_output_2d = attn_output.transpose(-2, -1).reshape(
-            B * num_heads, head_dim, H, W
-        )
+        attn_output_2d = attn_output.transpose(-2, -1).reshape(B * num_heads, head_dim, H, W)
         spatial_output = self.idct_2d(attn_output_2d)
 
         # 6. 重塑回序列形式
-        spatial_output = spatial_output.permute(0, 2, 3, 1).reshape(
-            B, num_heads, L, head_dim
-        )
+        spatial_output = spatial_output.permute(0, 2, 3, 1).reshape(B, num_heads, L, head_dim)
         spatial_output = spatial_output.transpose(1, 2).reshape(B, L, -1)
 
         # 7. 输出投影
@@ -984,6 +988,7 @@ class FrequencyDomainAttention(nn.Module):
 # ---------------------------------------------------------------------------
 # Mamba 时序建模 (SCST STCM inspired) - P3
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class MambaTemporalConfig:
@@ -1004,6 +1009,7 @@ class MambaTemporalConfig:
         num_layers: Mamba 层数
         use_bidirectional: 是否使用双向 SSM
     """
+
     enabled: bool = False
     d_model: int = 1536
     d_state: int = 16
@@ -1083,17 +1089,15 @@ class MambaTemporalModeling(nn.Module):
         d_state = self.config.d_state
 
         # 初始化隐状态
-        h = torch.zeros(B, D, d_state, device=x.device, dtype=x.dtype)
+        torch.zeros(B, D, d_state, device=x.device, dtype=x.dtype)
 
         # 简化的 SSM 扫描 (线性递归近似)
         # 完整实现应使用 mamba-ssm 的并行扫描
         outputs = []
 
         # 可学习的 A 矩阵 (对角化)
-        A_log = nn.Parameter(
-            torch.log(torch.arange(1, d_state + 1, device=x.device).float().unsqueeze(0))
-        )
-        A = -torch.exp(A_log)  # [1, d_state]
+        A_log = nn.Parameter(torch.log(torch.arange(1, d_state + 1, device=x.device).float().unsqueeze(0)))
+        -torch.exp(A_log)  # [1, d_state]
 
         # 简化扫描: 使用指数加权平均近似 SSM
         decay = 0.9
@@ -1154,6 +1158,7 @@ class MambaTemporalModeling(nn.Module):
 # Codebook Lookup + Transformer 范式 (CodeFormer inspired) - P3
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class CodebookLookupConfig:
     """Codebook Lookup + Transformer 配置
@@ -1172,6 +1177,7 @@ class CodebookLookupConfig:
         temperature: 码本查找时的 softmax 温度
         use_ema_codebook: 是否使用 EMA 更新码本
     """
+
     enabled: bool = False
     codebook_size: int = 1024
     codebook_dim: int = 256
@@ -1218,7 +1224,7 @@ class CodebookLookupTransformer(nn.Module):
             nhead=config.num_heads,
             dim_feedforward=config.codebook_dim * 4,
             dropout=0.1,
-            activation='gelu',
+            activation="gelu",
             batch_first=True,
         )
         self.transformer = nn.TransformerEncoder(
@@ -1269,7 +1275,7 @@ class CodebookLookupTransformer(nn.Module):
             quantized = features + (quantized - features).detach()
 
         # 计算承诺损失 (commitment loss)
-        commit_loss = F.mse_loss(quantized.detach(), features)
+        F.mse_loss(quantized.detach(), features)
 
         return quantized, indices
 
@@ -1343,6 +1349,7 @@ class CodebookLookupTransformer(nn.Module):
 # 多模态融合架构 (EvTexture inspired) - P3
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class MultiModalFusionConfig:
     """多模态融合架构配置
@@ -1361,6 +1368,7 @@ class MultiModalFusionConfig:
         fusion_strategy: 融合策略 ('cross_attn', 'concat', 'gate', 'add')
         use_temporal_alignment: 是否使用时序对齐
     """
+
     enabled: bool = False
     event_dim: int = 64
     frame_dim: int = 1536
@@ -1398,10 +1406,12 @@ class MultiModalFusion(nn.Module):
         in_dim = config.event_dim
         for i in range(config.num_texture_layers):
             out_dim = config.event_dim if i < config.num_texture_layers - 1 else config.fusion_dim
-            layers.extend([
-                nn.Linear(in_dim, out_dim),
-                nn.GELU(),
-            ])
+            layers.extend(
+                [
+                    nn.Linear(in_dim, out_dim),
+                    nn.GELU(),
+                ]
+            )
             in_dim = out_dim
         self.texture_extractor = nn.Sequential(*layers)
 
@@ -1413,7 +1423,8 @@ class MultiModalFusion(nn.Module):
         if strategy == "cross_attn":
             # 交叉注意力融合
             self.cross_attn = nn.MultiheadAttention(
-                config.fusion_dim, num_heads=8,
+                config.fusion_dim,
+                num_heads=8,
                 batch_first=True,
             )
             self.cross_norm = nn.LayerNorm(config.fusion_dim)
@@ -1474,9 +1485,7 @@ class MultiModalFusion(nn.Module):
             # 截断到可整除的长度
             usable_len = chunk_size * T_f
             event_chunks = event_features[:, :usable_len, :]
-            event_chunks = event_chunks.reshape(
-                frame_features.shape[0], T_f, chunk_size, -1
-            )
+            event_chunks = event_chunks.reshape(frame_features.shape[0], T_f, chunk_size, -1)
             aligned_events = event_chunks.mean(dim=2)  # 平均池化
             return frame_features, aligned_events
 
@@ -1484,7 +1493,7 @@ class MultiModalFusion(nn.Module):
         aligned_events = F.interpolate(
             event_features.permute(0, 2, 1),
             size=T_f,
-            mode='linear',
+            mode="linear",
             align_corners=False,
         ).permute(0, 2, 1)
 
@@ -1520,9 +1529,7 @@ class MultiModalFusion(nn.Module):
 
         # 时序对齐
         if self.config.use_temporal_alignment:
-            frame_proj, texture_features = self.temporal_alignment(
-                frame_proj, texture_features
-            )
+            frame_proj, texture_features = self.temporal_alignment(frame_proj, texture_features)
 
         # 融合
         strategy = self.config.fusion_strategy
@@ -1530,7 +1537,9 @@ class MultiModalFusion(nn.Module):
         if strategy == "cross_attn":
             # 交叉注意力: frame 为 query, event 为 key/value
             aligned_frame, _ = self.cross_attn(
-                frame_proj, texture_features, texture_features,
+                frame_proj,
+                texture_features,
+                texture_features,
             )
             output = self.cross_norm(frame_proj + aligned_frame)
 

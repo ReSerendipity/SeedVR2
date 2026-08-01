@@ -43,6 +43,8 @@ SECURITY CRITICAL: 这是应用文件系统访问安全的核心防线，任何�
     - 输入: /etc/passwd (绝对路径) → 不在白名单 → 拒绝
     - 输入: outputs/../../.. (Windows 反斜杠) → resolve 规范化 → 拒绝
 """
+
+from collections.abc import Sequence
 from pathlib import Path
 
 from fastapi import HTTPException
@@ -64,7 +66,7 @@ class PathGuard:
         _allowed: 已解析为绝对路径的允许根目录列表
     """
 
-    def __init__(self, allowed_base_dirs: list[str | Path]):
+    def __init__(self, allowed_base_dirs: Sequence[str | Path]):
         """初始化路径白名单守卫。
 
         所有路径在初始化时调用 resolve() 转为规范化绝对路径，

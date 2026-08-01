@@ -18,6 +18,7 @@
     - 模型加载锁竞争等待
     - 外部资源暂时不可用的退避重试
 """
+
 import asyncio
 import random
 
@@ -52,7 +53,7 @@ async def exponential_backoff_with_jitter(
     Returns:
         None: 协程无返回值，等待指定时间后返回
     """
-    delay = min(base * (2 ** attempt), max_delay)
+    delay = min(base * (2**attempt), max_delay)
     if jitter_ratio > 0:
         delay += random.uniform(0, jitter_ratio * delay)
     await asyncio.sleep(delay)

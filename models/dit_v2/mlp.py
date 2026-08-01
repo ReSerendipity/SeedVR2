@@ -20,13 +20,12 @@
 - **get_mlp**: 工厂函数。
 """
 
-from typing import Optional
 import torch
 import torch.nn.functional as F
 from torch import nn
 
 
-def get_mlp(mlp_type: Optional[str] = "normal"):
+def get_mlp(mlp_type: str | None = "normal"):
     """根据类型返回 MLP 类。
 
     Args:

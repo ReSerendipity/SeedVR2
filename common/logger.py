@@ -31,7 +31,6 @@ training environments.
 
 import logging
 import sys
-from typing import Optional
 
 from common.distributed import get_global_rank, get_local_rank, get_world_size
 
@@ -47,7 +46,7 @@ _default_handler.setFormatter(
 )
 
 
-def get_logger(name: Optional[str] = None) -> logging.Logger:
+def get_logger(name: str | None = None) -> logging.Logger:
     """Get or create a logger with distributed-aware formatting.
 
     The returned logger is configured with a stdout StreamHandler that includes
@@ -55,9 +54,9 @@ def get_logger(name: Optional[str] = None) -> logging.Logger:
     is set to INFO.
 
     Note:
-        This function adds the default handler each time it is called. Callers
-        should typically call this once per module at import time and reuse the
-        returned logger instance, e.g.::
+        The default handler is attached at most once per logger, so repeated
+        calls with the same name are idempotent and will not produce duplicate
+        log lines. Callers may still cache the returned instance, e.g.::
 
             logger = get_logger(__name__)
 
@@ -69,6 +68,7 @@ def get_logger(name: Optional[str] = None) -> logging.Logger:
         A configured ``logging.Logger`` instance.
     """
     logger = logging.getLogger(name)
-    logger.addHandler(_default_handler)
+    if _default_handler not in logger.handlers:
+        logger.addHandler(_default_handler)
     logger.setLevel(logging.INFO)
     return logger

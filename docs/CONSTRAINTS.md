@@ -10,7 +10,9 @@
 - I/O components (embeddings, norms, etc.) must remain on GPU and not be offloaded to CPU RAM
 - WebUI settings must exactly match workflow parameters, with each settings section corresponding to a ComfyUI node
 - Default parameters (model, resolution, tile size, etc.) in WebUI must match workflow defaults
-- Resolution must be set to 2160 in both WebUI and workflow JSON
+- Default resolution follows config.yaml as the single source of truth (currently restore.default_resolution_h=1080, default_resolution_w=1920, resolution=2048); do not hardcode a fixed value in docs
+- Folder scanning must pass the security/path_guard.py whitelist check; arbitrary directory traversal is forbidden
+- All API responses must converge to the unified {success, data, error} structure
 
 ## Engineering Conventions
 - 3B model uses models.dit_v2.nadit architecture with num_layers=32, vid_dim=2560, mlp_type=swiglu

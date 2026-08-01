@@ -25,6 +25,7 @@
 - 状态变更时通知所有已注册监听器，不直接依赖任何下游模块
 - 单个监听器异常不影响其他监听器执行，并记录 warning 日志
 """
+
 import logging
 import threading
 from collections.abc import Callable
@@ -65,6 +66,7 @@ class _ModelRegistry:
 
     _instance = None
     _lock = threading.Lock()
+    _initialized: bool = False
 
     def __new__(cls):
         """创建或返回单例实例（线程安全）
@@ -249,8 +251,9 @@ class _ModelRegistry:
             self._model_info = {}
         self._notify_listeners()
 
-    def update_status(self, loaded: bool, model_size: str | None = None,
-                      precision: str | None = None, info: dict | None = None) -> None:
+    def update_status(
+        self, loaded: bool, model_size: str | None = None, precision: str | None = None, info: dict | None = None
+    ) -> None:
         """手动更新模型状态（原子操作）
 
         在单次锁获取内同时更新多个状态字段，避免多次通知和中间状态。
@@ -291,8 +294,9 @@ class _ModelRegistry:
     # 批量原子操作
     # ------------------------------------------------------------------
 
-    def set_engine_loaded(self, loaded: bool, model_size: str | None = None,
-                          precision: str | None = None, info: dict | None = None) -> None:
+    def set_engine_loaded(
+        self, loaded: bool, model_size: str | None = None, precision: str | None = None, info: dict | None = None
+    ) -> None:
         """批量原子设置引擎加载状态
 
         在单次锁获取内同时设置 loaded + size + precision + info，
@@ -387,9 +391,7 @@ class _ModelRegistry:
             try:
                 listener("model_status", status)
             except Exception as e:
-                logger.warning(
-                    f"模型状态监听器异常: {type(e).__name__}: {e}", exc_info=True
-                )
+                logger.warning(f"模型状态监听器异常: {type(e).__name__}: {e}", exc_info=True)
 
 
 model_registry = _ModelRegistry()

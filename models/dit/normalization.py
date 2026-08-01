@@ -34,7 +34,8 @@
     RMSNorm 省去了均值计算，仅基于均方根进行归一化，计算效率更高且效果相当。
 """
 
-from typing import Callable, Optional
+from collections.abc import Callable
+
 from diffusers.models.normalization import RMSNorm
 from torch import nn
 
@@ -43,12 +44,13 @@ norm_layer_type = Callable[[int, float, bool], nn.Module]
 try:
     from apex.normalization import FusedLayerNorm as _ApexFusedLayerNorm
     from apex.normalization import FusedRMSNorm as _ApexFusedRMSNorm
+
     _apex_available = True
 except ImportError:
     _apex_available = False
 
 
-def get_norm_layer(norm_type: Optional[str]) -> norm_layer_type:
+def get_norm_layer(norm_type: str | None) -> norm_layer_type:
     """根据类型名称返回归一化层构造函数。
 
     Args:
@@ -85,7 +87,8 @@ def get_norm_layer(norm_type: Optional[str]) -> norm_layer_type:
                 )
             else:
                 import warnings
-                warnings.warn("apex FusedLayerNorm not available, falling back to nn.LayerNorm")
+
+                warnings.warn("apex FusedLayerNorm not available, falling back to nn.LayerNorm", stacklevel=2)
                 return nn.LayerNorm(
                     normalized_shape=dim,
                     eps=eps,
@@ -101,7 +104,8 @@ def get_norm_layer(norm_type: Optional[str]) -> norm_layer_type:
                 )
             else:
                 import warnings
-                warnings.warn("apex FusedRMSNorm not available, falling back to RMSNorm")
+
+                warnings.warn("apex FusedRMSNorm not available, falling back to RMSNorm", stacklevel=2)
                 return RMSNorm(
                     dim=dim,
                     eps=eps,

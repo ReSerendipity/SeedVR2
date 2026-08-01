@@ -50,6 +50,7 @@ class ComputeBackend(Enum):
         VULKAN: Vulkan（跨厂商参考，需额外推理引擎集成）
         CPU: CPU 回退（参考，不支持 SeedVR2 推理）
     """
+
     CUDA = "cuda"
     OPENCL = "opencl"
     MPS = "mps"
@@ -69,6 +70,7 @@ class GPUVendor(Enum):
         APPLE: Apple（M1/M2/M3 系列）
         UNKNOWN: 未知厂商
     """
+
     NVIDIA = "nvidia"
     AMD = "amd"
     INTEL = "intel"
@@ -97,6 +99,7 @@ class GPUDeviceInfo:
         is_compatible: 是否兼容当前引擎（满足最低要求）
         incompatibility_reason: 不兼容原因描述（兼容时为空字符串）
     """
+
     device_index: int
     device_name: str
     vendor: GPUVendor
@@ -173,6 +176,7 @@ class GPUCompatibilityConfig:
         warn_on_incompatible: 是否在检测到不兼容/低配置 GPU 时发出警告日志
         allow_below_recommended: 是否允许在推荐配置以下运行（性能可能不佳）
     """
+
     min_compute_capability: tuple[int, int] = SEEDVR2_MIN_REQUIREMENTS["min_compute_capability"]
     min_vram_mb: int = SEEDVR2_MIN_REQUIREMENTS["min_vram_mb"]
     recommended_compute_capability: tuple[int, int] = SEEDVR2_MIN_REQUIREMENTS["recommended_compute_capability"]
@@ -282,26 +286,21 @@ class GPUCompatibilityDetector:
             total_vram_mb = total_mem // (1024 * 1024)
             if total_vram_mb < cfg.min_vram_mb:
                 is_compatible = False
-                reason = (
-                    f"显存 {total_vram_mb / 1024:.1f}GB "
-                    f"低于最低要求 {cfg.min_vram_mb / 1024:.1f}GB"
-                )
+                reason = f"显存 {total_vram_mb / 1024:.1f}GB " f"低于最低要求 {cfg.min_vram_mb / 1024:.1f}GB"
 
             if is_compatible:
-                if compute_cap < cfg.recommended_compute_capability:
-                    if cfg.warn_on_incompatible:
-                        logger.info(
-                            f"GPU {props.name}: 计算能力 {compute_cap[0]}.{compute_cap[1]} "
-                            f"低于推荐值 {cfg.recommended_compute_capability[0]}."
-                            f"{cfg.recommended_compute_capability[1]}，性能可能不佳"
-                        )
-                if total_vram_mb < cfg.recommended_vram_mb:
-                    if cfg.warn_on_incompatible:
-                        logger.info(
-                            f"GPU {props.name}: 显存 {total_vram_mb / 1024:.1f}GB "
-                            f"低于推荐值 {cfg.recommended_vram_mb / 1024:.1f}GB，"
-                            f"建议启用 BlockSwap"
-                        )
+                if compute_cap < cfg.recommended_compute_capability and cfg.warn_on_incompatible:
+                    logger.info(
+                        f"GPU {props.name}: 计算能力 {compute_cap[0]}.{compute_cap[1]} "
+                        f"低于推荐值 {cfg.recommended_compute_capability[0]}."
+                        f"{cfg.recommended_compute_capability[1]}，性能可能不佳"
+                    )
+                if total_vram_mb < cfg.recommended_vram_mb and cfg.warn_on_incompatible:
+                    logger.info(
+                        f"GPU {props.name}: 显存 {total_vram_mb / 1024:.1f}GB "
+                        f"低于推荐值 {cfg.recommended_vram_mb / 1024:.1f}GB，"
+                        f"建议启用 BlockSwap"
+                    )
 
             cuda_version = torch.version.cuda or ""
 
@@ -383,7 +382,9 @@ class GPUCompatibilityDetector:
         try:
             result = subprocess.run(
                 ["nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader"],
-                capture_output=True, text=True, timeout=5,
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             if result.returncode == 0:
                 return result.stdout.strip().split("\n")[0].strip()
@@ -434,8 +435,7 @@ class GPUCompatibilityDetector:
 
         if not compatible_devices:
             logger.error(
-                "GPU 兼容性检查失败: 没有找到满足要求的 GPU 设备。"
-                "SeedVR2 需要 NVIDIA CUDA GPU (SM 7.5+, 8GB+ VRAM)"
+                "GPU 兼容性检查失败: 没有找到满足要求的 GPU 设备。" "SeedVR2 需要 NVIDIA CUDA GPU (SM 7.5+, 8GB+ VRAM)"
             )
         else:
             best = compatible_devices[0]
@@ -479,6 +479,7 @@ class BackendDetectionConfig:
         allow_cpu_fallback: 是否允许 CPU 回退（SeedVR2 应为 False）
         silent_fail: 检测失败时是否静默不输出日志
     """
+
     backend_priority: list[ComputeBackend] = field(
         default_factory=lambda: [
             ComputeBackend.CUDA,
@@ -605,6 +606,7 @@ class BackendDetector:
         """
         try:
             import pyopencl  # noqa: F401
+
             return True
         except ImportError:
             pass
@@ -613,13 +615,17 @@ class BackendDetector:
             if platform.system() == "Windows":
                 result = subprocess.run(
                     ["where", "opencl.dll"],
-                    capture_output=True, text=True, timeout=3,
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
                 )
                 return result.returncode == 0
             else:
                 result = subprocess.run(
                     ["find", "/usr/lib", "-name", "libOpenCL.so*"],
-                    capture_output=True, text=True, timeout=3,
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
                 )
                 return result.returncode == 0 and len(result.stdout.strip()) > 0
         except Exception:
@@ -637,9 +643,7 @@ class BackendDetector:
         """
         try:
             return (
-                hasattr(torch.backends, "mps")
-                and torch.backends.mps.is_available()
-                and torch.backends.mps.is_built()
+                hasattr(torch.backends, "mps") and torch.backends.mps.is_available() and torch.backends.mps.is_built()
             )
         except Exception:
             return False
@@ -657,13 +661,17 @@ class BackendDetector:
             if platform.system() == "Windows":
                 result = subprocess.run(
                     ["where", "vulkaninfo"],
-                    capture_output=True, text=True, timeout=3,
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
                 )
                 return result.returncode == 0
             else:
                 result = subprocess.run(
                     ["which", "vulkaninfo"],
-                    capture_output=True, text=True, timeout=3,
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
                 )
                 return result.returncode == 0
         except Exception:
@@ -715,9 +723,8 @@ class MultiDeviceConfig:
         allow_non_cuda_degradation: 是否允许非 CUDA 设备降级（SeedVR2 必须为 False）
         min_vram_per_device: 每个设备的最低显存/内存要求（MB），CPU 要求 16GB 内存
     """
-    degradation_chain: list[str] = field(
-        default_factory=lambda: ["cuda:0", "mps", "cpu"]
-    )
+
+    degradation_chain: list[str] = field(default_factory=lambda: ["cuda:0", "mps", "cpu"])
     allow_non_cuda_degradation: bool = False
     min_vram_per_device: dict[str, int] = field(
         default_factory=lambda: {
@@ -770,17 +777,12 @@ class MultiDeviceManager:
         for device_str in cfg.degradation_chain:
             if self._is_device_available(device_str):
                 if not device_str.startswith("cuda") and not cfg.allow_non_cuda_degradation:
-                    logger.warning(
-                        f"设备 {device_str} 可用，但 SeedVR2 不支持非 CUDA 推理，跳过"
-                    )
+                    logger.warning(f"设备 {device_str} 可用，但 SeedVR2 不支持非 CUDA 推理，跳过")
                     continue
 
                 min_vram = cfg.min_vram_per_device.get(device_str, 0)
                 if min_vram > 0 and not self._check_memory(device_str, min_vram):
-                    logger.warning(
-                        f"设备 {device_str} 可用内存不足 "
-                        f"(需要 {min_vram / 1024:.1f}GB)，跳过"
-                    )
+                    logger.warning(f"设备 {device_str} 可用内存不足 " f"(需要 {min_vram / 1024:.1f}GB)，跳过")
                     continue
 
                 self._selected_device = device_str
@@ -811,10 +813,7 @@ class MultiDeviceManager:
             return True
         elif device_str == "mps":
             try:
-                return (
-                    hasattr(torch.backends, "mps")
-                    and torch.backends.mps.is_available()
-                )
+                return hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
             except Exception:
                 return False
         elif device_str == "cpu":
@@ -839,12 +838,9 @@ class MultiDeviceManager:
             if device_str.startswith("cuda"):
                 free_mem, _ = torch.cuda.mem_get_info(device_str)
                 return free_mem >= min_memory_mb * 1024 * 1024
-            elif device_str == "cpu":
+            elif device_str == "cpu" or device_str == "mps":
                 import psutil
-                available = psutil.virtual_memory().available
-                return available >= min_memory_mb * 1024 * 1024
-            elif device_str == "mps":
-                import psutil
+
                 available = psutil.virtual_memory().available
                 return available >= min_memory_mb * 1024 * 1024
         except Exception:
@@ -882,6 +878,7 @@ class VulkanDeviceInfo:
         compute_queue_count: 计算队列数量
         supports_required_extensions: 是否支持所需的 Vulkan 扩展
     """
+
     device_name: str
     vendor: GPUVendor
     api_version: str
@@ -907,6 +904,7 @@ class VulkanCompatConfig:
         min_api_version: 最低 Vulkan API 版本（默认 "1.2"）
         min_compute_queues: 最低计算队列数量（默认 1）
     """
+
     enabled: bool = False
     required_extensions: list[str] = field(
         default_factory=lambda: [
@@ -956,13 +954,17 @@ class VulkanCompatibilityChecker:
             if platform.system() == "Windows":
                 result = subprocess.run(
                     ["vulkaninfo", "--summary"],
-                    capture_output=True, text=True, timeout=5,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
                 )
                 return result.returncode == 0
             elif platform.system() == "Linux":
                 result = subprocess.run(
                     ["which", "vulkaninfo"],
-                    capture_output=True, text=True, timeout=3,
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
                 )
                 return result.returncode == 0
             elif platform.system() == "Darwin":
@@ -990,7 +992,9 @@ class VulkanCompatibilityChecker:
         try:
             result = subprocess.run(
                 ["vulkaninfo", "--summary"],
-                capture_output=True, text=True, timeout=10,
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
             if result.returncode != 0:
                 return devices
@@ -1001,16 +1005,18 @@ class VulkanCompatibilityChecker:
                 if line.startswith("GPU") and "=" in line:
                     name = line.split("=")[-1].strip()
                     vendor = GPUCompatibilityDetector._infer_vendor(name)
-                    devices.append(VulkanDeviceInfo(
-                        device_name=name,
-                        vendor=vendor,
-                        api_version="1.2",
-                        driver_version="unknown",
-                        device_type="discrete_gpu",
-                        max_memory_allocation_mb=0,
-                        compute_queue_count=1,
-                        supports_required_extensions=True,
-                    ))
+                    devices.append(
+                        VulkanDeviceInfo(
+                            device_name=name,
+                            vendor=vendor,
+                            api_version="1.2",
+                            driver_version="unknown",
+                            device_type="discrete_gpu",
+                            max_memory_allocation_mb=0,
+                            compute_queue_count=1,
+                            supports_required_extensions=True,
+                        )
+                    )
         except Exception as e:
             logger.debug(f"Vulkan 设备枚举失败: {e}")
 
@@ -1036,6 +1042,7 @@ class RTXVSRConfig:
         auto_enable: 是否在兼容 GPU 上自动启用 RTX VSR
         quality_level: RTX VSR 质量等级（1-4，4 为最高质量）
     """
+
     enabled: bool = False
     min_gpu_series: int = 30
     auto_enable: bool = False
@@ -1091,8 +1098,17 @@ class RTXVSRChecker:
             gpu_name = props.name
 
             is_rtx_30_plus = False
-            for series in ["RTX 30", "RTX 40", "RTX 50", "RTX 3070", "RTX 3080",
-                           "RTX 3090", "RTX 4070", "RTX 4080", "RTX 4090"]:
+            for series in [
+                "RTX 30",
+                "RTX 40",
+                "RTX 50",
+                "RTX 3070",
+                "RTX 3080",
+                "RTX 3090",
+                "RTX 4070",
+                "RTX 4080",
+                "RTX 4090",
+            ]:
                 if series in gpu_name:
                     is_rtx_30_plus = True
                     break
@@ -1106,9 +1122,7 @@ class RTXVSRChecker:
                 try:
                     major = int(driver_version.split(".")[0])
                     if major < 530:
-                        logger.info(
-                            f"NVIDIA 驱动 {driver_version} 不满足 RTX VSR 最低要求 (530+)"
-                        )
+                        logger.info(f"NVIDIA 驱动 {driver_version} 不满足 RTX VSR 最低要求 (530+)")
                         return False
                 except (ValueError, IndexError):
                     pass
@@ -1142,8 +1156,7 @@ class RTXVSRChecker:
                 "os": "Windows 10/11",
             },
             "note": (
-                "RTX VSR 由 NVIDIA 驱动自动管理，应用层无法直接控制。"
-                "可作为 SeedVR2 的前置处理器或质量对比基准。"
+                "RTX VSR 由 NVIDIA 驱动自动管理，应用层无法直接控制。" "可作为 SeedVR2 的前置处理器或质量对比基准。"
             ),
             "integration_options": [
                 "前置处理: 先 RTX VSR 初步超分，再 SeedVR2 精细修复",

@@ -38,11 +38,9 @@ MM-DiT 注意力模式:
     在窗口内做标准缩放点积注意力。文本 token 则做全局注意力。
 """
 
-from typing import Tuple, Union
 import torch
 from einops import rearrange
 from torch import nn
-from torch.nn import functional as F
 from torch.nn.modules.utils import _triple
 
 from common.distributed.ops import (
@@ -51,7 +49,8 @@ from common.distributed.ops import (
     gather_seq_scatter_heads_qkv,
     scatter_heads,
 )
-from common.utils import safe_pad_operation, safe_interpolate_operation
+from common.utils import safe_pad_operation
+
 from ..attention import TorchAttention
 from ..mlp import get_mlp
 from ..mm import MMArg, MMModule
@@ -101,7 +100,7 @@ class MMWindowAttention(nn.Module):
         qk_rope: bool,
         qk_norm: norm_layer_type,
         qk_norm_eps: float,
-        window: Union[int, Tuple[int, int, int]],
+        window: int | tuple[int, int, int],
         window_method: str,
         shared_qkv: bool,
     ):
@@ -112,7 +111,7 @@ class MMWindowAttention(nn.Module):
 
         self.window = _triple(window)
         self.window_method = window_method
-        assert all(map(lambda v: isinstance(v, int) and v >= 0, self.window))
+        assert all(isinstance(v, int) and v >= 0 for v in self.window)
 
         self.head_dim = head_dim
         self.proj_qkv = MMModule(nn.Linear, dim, qkv_dim, bias=qk_bias, shared_weights=shared_qkv)
@@ -127,7 +126,7 @@ class MMWindowAttention(nn.Module):
         vid: torch.FloatTensor,
         txt: torch.FloatTensor,
         txt_mask: torch.BoolTensor,
-    ) -> Tuple[
+    ) -> tuple[
         torch.FloatTensor,
         torch.FloatTensor,
     ]:
@@ -279,7 +278,7 @@ class MMWindowTransformerBlock(nn.Module):
         qk_bias: bool,
         qk_rope: bool,
         qk_norm: norm_layer_type,
-        window: Union[int, Tuple[int, int, int]],
+        window: int | tuple[int, int, int],
         window_method: str,
         shared_qkv: bool,
         shared_mlp: bool,
@@ -317,7 +316,7 @@ class MMWindowTransformerBlock(nn.Module):
         txt: torch.FloatTensor,
         txt_mask: torch.BoolTensor,
         emb: torch.FloatTensor,
-    ) -> Tuple[
+    ) -> tuple[
         torch.FloatTensor,
         torch.FloatTensor,
     ]:

@@ -42,23 +42,25 @@ __all__ = [
 ]
 
 # Competitive analysis modules (lazy import to avoid dependency issues)
-__all__.extend([
-    "vram_monitor",
-    "vae_tiled_enhance",
-    "temporal_processing",
-    "engine_scheduler",
-    "diffusion_sampling",
-    "post_processing",
-    "dit_optimization",
-    "video_processing_enhance",
-    "gpu_compatibility",
-    "webui_enhancement",
-    "vram_toolchain",
-    "framework_engineering",
-    "specialized_engines",
-    "license_compliance",
-    "roadmap",
-])
+__all__.extend(
+    [
+        "vram_monitor",
+        "vae_tiled_enhance",
+        "temporal_processing",
+        "engine_scheduler",
+        "diffusion_sampling",
+        "post_processing",
+        "dit_optimization",
+        "video_processing_enhance",
+        "gpu_compatibility",
+        "webui_enhancement",
+        "vram_toolchain",
+        "framework_engineering",
+        "specialized_engines",
+        "license_compliance",
+        "roadmap",
+    ]
+)
 
 
 def __getattr__(name):
@@ -83,6 +85,7 @@ def __getattr__(name):
 
     if name in _lazy_modules:
         import importlib
+
         module = importlib.import_module(_lazy_modules[name])
         globals()[name] = module
         return module

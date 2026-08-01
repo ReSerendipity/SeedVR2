@@ -84,6 +84,7 @@ def _normalize_device(device: torch.device | str | None) -> torch.device:
 # VRAM / RAM 监控
 # ===========================================================================
 
+
 def get_basic_vram_info(device: torch.device | None = None) -> dict[str, Any]:
     """获取 GPU 基础显存信息（可用和总显存）
 
@@ -102,10 +103,7 @@ def get_basic_vram_info(device: torch.device | None = None) -> dict[str, Any]:
             # CONSTRAINT: SeedVR2 仅支持 NVIDIA CUDA GPU，不支持 CPU/MPS 推理
             return {"error": "No CUDA GPU backend available"}
 
-        return {
-            "free_gb": free_memory / (1024**3),
-            "total_gb": total_memory / (1024**3)
-        }
+        return {"free_gb": free_memory / (1024**3), "total_gb": total_memory / (1024**3)}
     except Exception as e:
         return {"error": f"Failed to get memory info: {str(e)}"}
 
@@ -226,14 +224,16 @@ def clear_memory(deep: bool = False, force: bool = True) -> None:
         gc.collect()
 
         try:
-            if sys.platform == 'linux':
+            if sys.platform == "linux":
                 import ctypes
+
                 if _os_memory_lib is None:
                     _os_memory_lib = ctypes.CDLL("libc.so.6")
                 _os_memory_lib.malloc_trim(0)
 
-            elif sys.platform == 'win32':
+            elif sys.platform == "win32":
                 import ctypes
+
                 if _os_memory_lib is None:
                     _os_memory_lib = ctypes.windll.kernel32
                 handle = _os_memory_lib.GetCurrentProcess()
@@ -259,6 +259,7 @@ def reset_vram_peak(device: torch.device | None = None) -> None:
 # ===========================================================================
 # 模型设备管理
 # ===========================================================================
+
 
 def manage_model_device(
     model: torch.nn.Module,
@@ -290,11 +291,11 @@ def manage_model_device(
     except StopIteration:
         return False
 
-    if current_device.type == 'meta':
+    if current_device.type == "meta":
         logger.info(f"{model_name} is on meta device - skipping movement")
         return False
 
-    is_blockswap_model = getattr(model, '_blockswap_active', False)
+    is_blockswap_model = getattr(model, "_blockswap_active", False)
     same_device = current_device.type == target_device.type
 
     if same_device and not is_blockswap_model:
@@ -397,10 +398,10 @@ def _standard_model_movement(
     model.to(target_device)
     model.zero_grad(set_to_none=True)
 
-    if target_device.type == 'cpu' and model_name == "VAE":
+    if target_device.type == "cpu" and model_name == "VAE":
         cleared_count = 0
         for module in model.modules():
-            memory = getattr(module, 'memory', None)
+            memory = getattr(module, "memory", None)
             if torch.is_tensor(memory) and memory.is_cuda:
                 module.memory = None
                 cleared_count += 1
@@ -413,6 +414,7 @@ def _standard_model_movement(
 # ===========================================================================
 # 张量内存管理
 # ===========================================================================
+
 
 def release_tensor_memory(tensor: torch.Tensor | None) -> None:
     """原地释放张量的内存（CPU/CUDA 均可），无需设备传输
@@ -464,14 +466,12 @@ def release_model_memory(model: torch.nn.Module | None) -> None:
         released_buffers = 0
 
         for param in model.parameters():
-            if param.is_cuda:
-                if _release_tensor_data(param):
-                    released_params += 1
+            if param.is_cuda and _release_tensor_data(param):
+                released_params += 1
 
         for buffer in model.buffers():
-            if buffer.is_cuda:
-                if _release_tensor_data(buffer):
-                    released_buffers += 1
+            if buffer.is_cuda and _release_tensor_data(buffer):
+                released_buffers += 1
 
         if released_params > 0 or released_buffers > 0:
             logger.info(f"Released GPU memory from {released_params} params and {released_buffers} buffers")
@@ -538,7 +538,7 @@ def clear_rope_lru_caches(model: torch.nn.Module | None) -> int:
     cleared_count = 0
     try:
         for name, module in model.named_modules():
-            if hasattr(module, 'get_axial_freqs') and hasattr(module.get_axial_freqs, 'cache_clear'):
+            if hasattr(module, "get_axial_freqs") and hasattr(module.get_axial_freqs, "cache_clear"):
                 try:
                     module.get_axial_freqs.cache_clear()
                     cleared_count += 1

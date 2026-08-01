@@ -17,6 +17,7 @@ API 端点：
 
 所属项目：SeedVR2 (SeedVR2 视频/图像修复工具)
 """
+
 import asyncio
 import contextlib
 import json
@@ -165,7 +166,7 @@ async def sse_events(request: Request):
                     event_type = event.get("event", "unknown")
                     event_data = event.get("data", {})
                     yield _format_sse(event_type, event_data)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     pass
 
                 now = time.time()

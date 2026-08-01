@@ -33,7 +33,7 @@
 
 import math
 import random
-from typing import Union
+
 import torch
 from PIL import Image
 from torchvision.transforms import functional as TVF
@@ -71,7 +71,7 @@ class AreaResize:
         self.downsample_only = downsample_only
         self.interpolation = interpolation
 
-    def __call__(self, image: Union[torch.Tensor, Image.Image]) -> Union[torch.Tensor, Image.Image]:
+    def __call__(self, image: torch.Tensor | Image.Image) -> torch.Tensor | Image.Image:
         """执行按面积等比缩放变换。
 
         Args:
@@ -157,7 +157,7 @@ class AreaRandomCrop:
         j = random.randint(0, w - tw)
         return i, j, th, tw
 
-    def __call__(self, image: Union[torch.Tensor, Image.Image]) -> Union[torch.Tensor, Image.Image]:
+    def __call__(self, image: torch.Tensor | Image.Image) -> torch.Tensor | Image.Image:
         """执行按面积随机裁剪变换。
 
         根据原始宽高比和目标面积计算目标尺寸，然后调用 get_params 获取随机位置
@@ -216,7 +216,7 @@ class ScaleResize:
         """
         self.scale = scale
 
-    def __call__(self, image: Union[torch.Tensor, Image.Image]) -> Union[torch.Tensor, Image.Image]:
+    def __call__(self, image: torch.Tensor | Image.Image) -> torch.Tensor | Image.Image:
         """执行固定比例缩放变换。
 
         根据输入类型自动选择插值算法和抗锯齿设置：

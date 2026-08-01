@@ -27,8 +27,7 @@
 """
 
 import logging
-from abc import abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 import torch
@@ -38,8 +37,8 @@ import torch.nn.functional as F
 from bin.integrated_app.optimization.engine_scheduler import (
     EngineCapability,
     EngineRegistry,
-    UpscaleResult,
     Upscaler,
+    UpscaleResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -48,6 +47,7 @@ logger = logging.getLogger(__name__)
 # ===========================================================================
 # 1. 人脸修复引擎 (CodeFormer P2)
 # ===========================================================================
+
 
 @dataclass
 class FaceRestorationConfig:
@@ -68,6 +68,7 @@ class FaceRestorationConfig:
         max_face_count: 单帧最大人脸数
         upscale_factor: 人脸区域放大倍率 (通常为 2x 或 4x)
     """
+
     fidelity_weight: float = 0.7
     codebook_size: int = 1024
     codebook_dim: int = 256
@@ -181,9 +182,7 @@ class FaceRestorationEngine(Upscaler):
             token_sequences = self._transformer_predict(faces, fidelity_weight)
 
             # Stage 3: 可控特征变换 + 解码
-            restored_faces = self._controllable_transform(
-                faces, token_sequences, fidelity_weight
-            )
+            restored_faces = self._controllable_transform(faces, token_sequences, fidelity_weight)
 
             # 贴回原图
             self._paste_faces_back(input_path, output_path, restored_faces, faces)
@@ -245,7 +244,7 @@ class FaceRestorationEngine(Upscaler):
         """
         logger.debug("Stage 2: Transformer 码本预测")
         token_sequences = []
-        for face in faces:
+        for _face in faces:
             # 伪代码: VQ 编码 → Transformer 预测
             # latent = self._vq_encoder(face_tensor)
             # tokens = self._transformer(latent)
@@ -278,7 +277,7 @@ class FaceRestorationEngine(Upscaler):
         """
         logger.debug(f"Stage 3: 可控特征变换 (fidelity_weight={fidelity_weight})")
         restored = []
-        for face, tokens in zip(faces, token_sequences):
+        for _face, _tokens in zip(faces, token_sequences, strict=False):
             # decoded_features = self._codebook_decoder(tokens)
             # encoded_features = self._encoder(face_tensor)
             # output = (1 - fidelity_weight) * decoded_features + fidelity_weight * encoded_features
@@ -310,6 +309,7 @@ class FaceRestorationEngine(Upscaler):
 # 2. 动漫专用引擎 (Real-CUGAN P2)
 # ===========================================================================
 
+
 @dataclass
 class AnimeEngineConfig:
     """动漫专用引擎配置 (Real-CUGAN inspired)
@@ -327,6 +327,7 @@ class AnimeEngineConfig:
         use_depth_supervision: 是否启用深度监督
         tile_size: 分块处理大小 (0 = 不分块)
     """
+
     scale_factor: int = 2
     noise_level: int = 1
     cascade_stages: int = 3
@@ -515,9 +516,7 @@ class AnimeEngine(Upscaler):
         reduction = self.config.se_reduction
         fc1 = nn.Linear(c, c // reduction)
         fc2 = nn.Linear(c // reduction, c)
-        excitation = torch.sigmoid(
-            fc2(F.relu(fc1(squeeze.view(b, c))))
-        ).view(b, c, 1, 1)
+        excitation = torch.sigmoid(fc2(F.relu(fc1(squeeze.view(b, c))))).view(b, c, 1, 1)
         # Scale
         return x * excitation
 
@@ -556,6 +555,7 @@ class AnimeEngine(Upscaler):
 # 3. CPU/轻量级引擎 (Anime4KCPP P1)
 # ===========================================================================
 
+
 @dataclass
 class CPULightweightConfig:
     """CPU 轻量级引擎配置 (Anime4KCPP inspired)
@@ -573,6 +573,7 @@ class CPULightweightConfig:
         threads: CPU 线程数 (0 = 自动检测)
         fast_mode: 是否启用快速模式 (降低精度换取速度)
     """
+
     acnet_version: str = "ACNet-HDN"
     hdn_mode: bool = True
     platform: str = "auto"
@@ -723,6 +724,7 @@ class CPULightweightEngine(Upscaler):
         # 自动检测
         try:
             import cpuinfo
+
             flags = cpuinfo.get_cpu_info().get("flags", [])
             if "avx2" in flags:
                 self._simd_detected = "avx2"
@@ -800,6 +802,7 @@ class CPULightweightEngine(Upscaler):
 # 4. 上色引擎 (DeOldify P3)
 # ===========================================================================
 
+
 @dataclass
 class ColorizationConfig:
     """上色引擎配置 (DeOldify inspired)
@@ -815,6 +818,7 @@ class ColorizationConfig:
         yuv_processing: 是否在 YUV 空间处理 (推荐 True)
         temperature: 色温调整 (6500K 为中性)
     """
+
     render_factor: int = 21
     model_type: str = "artistic"
     sat_boost: float = 1.0
@@ -1082,6 +1086,7 @@ class ColorizationEngine(Upscaler):
 # 5. 压缩视频专用引擎 (FTVSR P3)
 # ===========================================================================
 
+
 @dataclass
 class CompressedVideoConfig:
     """压缩视频修复配置 (FTVSR inspired)
@@ -1099,6 +1104,7 @@ class CompressedVideoConfig:
         deblock_strength: 去块效应强度 (0.0-1.0)
         dering_strength: 去振铃效应强度 (0.0-1.0)
     """
+
     frequency_bands: int = 64
     temporal_window: int = 5
     quality_map: bool = True
@@ -1355,9 +1361,7 @@ class CompressedVideoEngine(Upscaler):
         # TODO: 接入实际逆 DCT 实现
         return torch.empty(0)
 
-    def _frequency_attention(
-        self, dct_blocks: torch.Tensor, strength: float
-    ) -> torch.Tensor:
+    def _frequency_attention(self, dct_blocks: torch.Tensor, strength: float) -> torch.Tensor:
         """频域注意力修复
 
         在 DCT 频域中:
@@ -1377,9 +1381,7 @@ class CompressedVideoEngine(Upscaler):
         # TODO: 接入频域注意力网络
         return dct_blocks
 
-    def _save_video(
-        self, frames: list[torch.Tensor], output_path: str, source_path: str
-    ) -> None:
+    def _save_video(self, frames: list[torch.Tensor], output_path: str, source_path: str) -> None:
         """保存修复后的视频帧序列
 
         Args:
@@ -1394,6 +1396,7 @@ class CompressedVideoEngine(Upscaler):
 # ===========================================================================
 # 6. DiffBIR 图像修复引擎 (P1)
 # ===========================================================================
+
 
 @dataclass
 class DiffBIRConfig:
@@ -1414,6 +1417,7 @@ class DiffBIRConfig:
         wavelet_low_freq_weight: 低频权重 (0.5-0.9)
         guidance_scale: 无分类器引导尺度 (1.0-7.5)
     """
+
     swin_depth: int = 12
     swin_heads: int = 12
     swin_window_size: int = 8
@@ -1518,9 +1522,7 @@ class DiffBIREngine(Upscaler):
 
         start_time = time.time()
         guidance_scale = kwargs.get("guidance_scale", self.config.guidance_scale)
-        controlnet_strength = kwargs.get(
-            "controlnet_strength", self.config.controlnet_strength
-        )
+        controlnet_strength = kwargs.get("controlnet_strength", self.config.controlnet_strength)
 
         try:
             input_tensor = self._load_input(input_path)
@@ -1530,15 +1532,11 @@ class DiffBIREngine(Upscaler):
             logger.debug("SwiNIR 粗修复完成")
 
             # Stage 2: ControlNet 条件编码 + 扩散采样
-            diffusion_result = self._diffusion_sample(
-                input_tensor, coarse_result, guidance_scale, controlnet_strength
-            )
+            diffusion_result = self._diffusion_sample(input_tensor, coarse_result, guidance_scale, controlnet_strength)
             logger.debug("扩散采样修复完成")
 
             # Stage 3: 小波重建后处理
-            final_result = self._wavelet_reconstruction(
-                diffusion_result, input_tensor
-            )
+            final_result = self._wavelet_reconstruction(diffusion_result, input_tensor)
             logger.debug("小波重建后处理完成")
 
             self._save_output(final_result, output_path)
@@ -1644,7 +1642,7 @@ class DiffBIREngine(Upscaler):
             小波重建后的最终输出
         """
         try:
-            import pywt
+            import pywt  # noqa: F401
         except ImportError:
             logger.warning("pywt 未安装，跳过小波重建后处理")
             return restored
@@ -1676,6 +1674,7 @@ class DiffBIREngine(Upscaler):
 # 7. 视频修复引擎 (ProPainter P3)
 # ===========================================================================
 
+
 @dataclass
 class VideoInpaintingConfig:
     """视频修复配置 (ProPainter inspired)
@@ -1693,6 +1692,7 @@ class VideoInpaintingConfig:
         max_frame_gap: 最大帧间距 (用于稀疏注意力采样)
         refine_steps: 精修步数
     """
+
     propagation_steps: int = 10
     sparse_attention_ratio: float = 0.3
     flow_guidance: bool = True
@@ -1798,10 +1798,8 @@ class VideoInpaintingEngine(Upscaler):
         import time
 
         start_time = time.time()
-        mask_path = kwargs.get("mask_path", None)
-        propagation_steps = kwargs.get(
-            "propagation_steps", self.config.propagation_steps
-        )
+        mask_path = kwargs.get("mask_path")
+        propagation_steps = kwargs.get("propagation_steps", self.config.propagation_steps)
 
         try:
             frames = self._load_video_frames(input_path)
@@ -1815,12 +1813,8 @@ class VideoInpaintingEngine(Upscaler):
                 flows_forward, flows_backward = None, None
 
             # Step 2: 双向传播
-            forward_prop = self._forward_propagation(
-                frames, masks, flows_forward, propagation_steps
-            )
-            backward_prop = self._backward_propagation(
-                frames, masks, flows_backward, propagation_steps
-            )
+            forward_prop = self._forward_propagation(frames, masks, flows_forward, propagation_steps)
+            backward_prop = self._backward_propagation(frames, masks, flows_backward, propagation_steps)
 
             # Step 3: 融合传播结果
             fused = self._fuse_propagation(forward_prop, backward_prop, masks)
@@ -1855,9 +1849,7 @@ class VideoInpaintingEngine(Upscaler):
     # 算法核心方法
     # ------------------------------------------------------------------
 
-    def _estimate_optical_flow(
-        self, frames: list[torch.Tensor]
-    ) -> tuple[list[torch.Tensor], list[torch.Tensor]]:
+    def _estimate_optical_flow(self, frames: list[torch.Tensor]) -> tuple[list[torch.Tensor], list[torch.Tensor]]:
         """光流估计
 
         估计相邻帧之间的前向光流和后向光流:
@@ -1907,7 +1899,8 @@ class VideoInpaintingEngine(Upscaler):
             for i in range(1, len(result)):
                 if flows is not None and i - 1 < len(flows):
                     result[i] = self._warp_propagate(
-                        result[i - 1], result[i],
+                        result[i - 1],
+                        result[i],
                         flows[i - 1],
                         masks[i] if masks else None,
                     )
@@ -1940,7 +1933,8 @@ class VideoInpaintingEngine(Upscaler):
             for i in range(len(result) - 2, -1, -1):
                 if flows is not None and i < len(flows):
                     result[i] = self._warp_propagate(
-                        result[i + 1], result[i],
+                        result[i + 1],
+                        result[i],
                         flows[i],
                         masks[i] if masks else None,
                     )
@@ -2065,9 +2059,7 @@ class VideoInpaintingEngine(Upscaler):
         # TODO: 接入 FFmpeg 帧提取
         return []
 
-    def _load_masks(
-        self, mask_path: str, num_frames: int
-    ) -> list[torch.Tensor]:
+    def _load_masks(self, mask_path: str, num_frames: int) -> list[torch.Tensor]:
         """加载遮罩序列
 
         Args:
@@ -2080,9 +2072,7 @@ class VideoInpaintingEngine(Upscaler):
         # TODO: 接入遮罩加载逻辑
         return [torch.empty(0)] * num_frames
 
-    def _save_video(
-        self, frames: list[torch.Tensor], output_path: str, source_path: str
-    ) -> None:
+    def _save_video(self, frames: list[torch.Tensor], output_path: str, source_path: str) -> None:
         """保存修复后的视频"""
         # TODO: 接入 FFmpeg 视频编码
         pass
@@ -2091,6 +2081,7 @@ class VideoInpaintingEngine(Upscaler):
 # ===========================================================================
 # 引擎偏好映射更新
 # ===========================================================================
+
 
 def get_specialized_engine_preferences() -> dict[EngineCapability, list[str]]:
     """获取专用引擎偏好映射
@@ -2115,6 +2106,7 @@ def get_specialized_engine_preferences() -> dict[EngineCapability, list[str]]:
 # ===========================================================================
 # 模块级注册信息
 # ===========================================================================
+
 
 def get_all_specialized_engines() -> dict[str, dict[str, Any]]:
     """获取所有专用引擎的注册信息

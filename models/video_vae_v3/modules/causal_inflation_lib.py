@@ -31,7 +31,7 @@
 
 import math
 from contextlib import contextmanager
-from typing import List, Optional, Union
+
 import torch
 import torch.distributed as dist
 import torch.nn.functional as F
@@ -47,8 +47,8 @@ from common.distributed.advanced import (
     get_sequence_parallel_rank,
     get_sequence_parallel_world_size,
 )
-from common.utils import safe_pad_operation
 from common.logger import get_logger
+from common.utils import safe_pad_operation
 from models.video_vae_v3.modules.context_parallel_lib import cache_send_recv, get_cache_size
 from models.video_vae_v3.modules.global_config import get_norm_limit
 from models.video_vae_v3.modules.types import MemoryState, _inflation_mode_t, _memory_device_t
@@ -175,9 +175,7 @@ class InflatedCausalConv3d(Conv3d):
             with ignore_padding(self):
                 return super().forward(x)
 
-        logger.debug(
-            f"Exceed memory limit {memory_occupy} > {self.memory_limit}, split dim {split_dim}"
-        )
+        logger.debug(f"Exceed memory limit {memory_occupy} > {self.memory_limit}, split dim {split_dim}")
 
         # Split input (& prev_cache).
         num_splits = math.ceil(memory_occupy / self.memory_limit)
@@ -217,9 +215,7 @@ class InflatedCausalConv3d(Conv3d):
             )
             if next_catch_size != 0:
                 assert next_catch_size <= x[idx].size(split_dim)
-                next_cache = (
-                    x[idx].transpose(0, split_dim)[-next_catch_size:].transpose(0, split_dim)
-                )
+                next_cache = x[idx].transpose(0, split_dim)[-next_catch_size:].transpose(0, split_dim)
 
             # Recursive.
             x[idx] = self.memory_limit_conv(
@@ -237,7 +233,7 @@ class InflatedCausalConv3d(Conv3d):
 
     def forward(
         self,
-        input: Union[Tensor, List[Tensor]],
+        input: Tensor | list[Tensor],
         memory_state: MemoryState = MemoryState.UNSET,
     ) -> Tensor:
         """因果3D卷积前向入口。
@@ -254,11 +250,7 @@ class InflatedCausalConv3d(Conv3d):
         assert memory_state != MemoryState.UNSET
         if memory_state != MemoryState.ACTIVE:
             self.memory = None
-        if (
-            math.isinf(self.memory_limit)
-            and torch.is_tensor(input)
-            and get_sequence_parallel_group() is None
-        ):
+        if math.isinf(self.memory_limit) and torch.is_tensor(input) and get_sequence_parallel_group() is None:
             return self.basic_forward(input, memory_state)
         return self.slicing_forward(input, memory_state)
 
@@ -279,16 +271,8 @@ class InflatedCausalConv3d(Conv3d):
             input = extend_head(input, memory=self.memory, times=-1)
         else:
             input = extend_head(input, times=self.temporal_padding * 2)
-        memory = (
-            input[:, :, mem_size:].detach()
-            if (mem_size != 0 and memory_state != MemoryState.DISABLED)
-            else None
-        )
-        if (
-            memory_state != MemoryState.DISABLED
-            and not self.training
-            and (self.memory_device is not None)
-        ):
+        memory = input[:, :, mem_size:].detach() if (mem_size != 0 and memory_state != MemoryState.DISABLED) else None
+        if memory_state != MemoryState.DISABLED and not self.training and (self.memory_device is not None):
             self.memory = memory
             if self.memory_device == "cpu" and self.memory is not None:
                 self.memory = self.memory.to("cpu")
@@ -296,7 +280,7 @@ class InflatedCausalConv3d(Conv3d):
 
     def slicing_forward(
         self,
-        input: Union[Tensor, List[Tensor]],
+        input: Tensor | list[Tensor],
         memory_state: MemoryState = MemoryState.UNSET,
     ) -> Tensor:
         """分片前向：支持序列并行和流式切片推理。
@@ -320,9 +304,7 @@ class InflatedCausalConv3d(Conv3d):
             squeeze_out = True
 
         cache_size = self.kernel_size[0] - self.stride[0]
-        cache = cache_send_recv(
-            input, cache_size=cache_size, memory=self.memory, times=self.temporal_padding * 2
-        )
+        cache = cache_send_recv(input, cache_size=cache_size, memory=self.memory, times=self.temporal_padding * 2)
 
         # For slice=4 and sp=2, and 17 frames in total
         #                  sp0                  sp1
@@ -356,9 +338,7 @@ class InflatedCausalConv3d(Conv3d):
                 if sp_rank == 0:
                     shape = list(input[0].size())
                     shape[2] = cache_size
-                    self.memory = torch.empty(
-                        *shape, device=input[0].device, dtype=input[0].dtype
-                    ).contiguous()
+                    self.memory = torch.empty(*shape, device=input[0].device, dtype=input[0].dtype).contiguous()
                     dist.recv(self.memory, recv_src, group=sp_group)
             if self.memory_device == "cpu" and self.memory is not None:
                 self.memory = self.memory.to("cpu")
@@ -497,7 +477,7 @@ def causal_norm_wrapper(norm_layer: nn.Module, x: torch.Tensor) -> torch.Tensor:
                 x = list(x.chunk(num_chunks, dim=1))
                 weights = norm_layer.weight.chunk(num_chunks, dim=0)
                 biases = norm_layer.bias.chunk(num_chunks, dim=0)
-                for i, (w, b) in enumerate(zip(weights, biases)):
+                for i, (w, b) in enumerate(zip(weights, biases, strict=False)):
                     x[i] = F.group_norm(x[i], num_groups_per_chunk, w, b, norm_layer.eps)
                     x[i] = x[i].to(input_dtype)
                 x = torch.cat(x, dim=1)
@@ -527,7 +507,7 @@ def remove_head(tensor: Tensor, times: int = 1) -> Tensor:
     return torch.cat(tensors=(tensor[:, :, :1], tensor[:, :, times + 1 :]), dim=2)
 
 
-def extend_head(tensor: Tensor, times: int = 2, memory: Optional[Tensor] = None) -> Tensor:
+def extend_head(tensor: Tensor, times: int = 2, memory: Tensor | None = None) -> Tensor:
     """在因果卷积前扩展输入的时序头部。
 
     - memory 不为 None：拼接前序缓存帧（流式推理）。

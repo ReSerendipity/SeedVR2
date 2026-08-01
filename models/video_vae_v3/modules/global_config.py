@@ -18,8 +18,6 @@
 超过设定的内存上限时，会自动按通道分组进行分片计算以避免 OOM。
 """
 
-from typing import Optional
-
 _NORM_LIMIT = float("inf")
 """归一化层单张量内存上限（GiB），默认无限制。"""
 
@@ -36,7 +34,7 @@ def get_norm_limit() -> float:
     return _NORM_LIMIT
 
 
-def set_norm_limit(value: Optional[float] = None):
+def set_norm_limit(value: float | None = None):
     """设置归一化层的内存分片阈值。
 
     Args:

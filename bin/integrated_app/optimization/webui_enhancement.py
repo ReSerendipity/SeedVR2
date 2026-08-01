@@ -29,7 +29,7 @@ import logging
 import os
 import time
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +41,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # 1. Gradio WebUI 设计参考 (SUPIR P1)
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class StepExecutionConfig:
@@ -63,15 +64,18 @@ class StepExecutionConfig:
     - Step 4: Postprocess (后处理: 合帧/颜色校正)
     - Step 5: Output (输出保存)
     """
+
     enabled: bool = True
     # 步骤定义列表
-    steps: list[dict[str, Any]] = field(default_factory=lambda: [
-        {"id": "load", "name": "加载输入", "description": "加载图片或视频文件"},
-        {"id": "preprocess", "name": "预处理", "description": "分帧、缩放、颜色空间转换"},
-        {"id": "restore", "name": "推理修复", "description": "DiT 模型推理"},
-        {"id": "postprocess", "name": "后处理", "description": "合帧、颜色校正"},
-        {"id": "output", "name": "输出保存", "description": "保存修复结果"},
-    ])
+    steps: list[dict[str, Any]] = field(
+        default_factory=lambda: [
+            {"id": "load", "name": "加载输入", "description": "加载图片或视频文件"},
+            {"id": "preprocess", "name": "预处理", "description": "分帧、缩放、颜色空间转换"},
+            {"id": "restore", "name": "推理修复", "description": "DiT 模型推理"},
+            {"id": "postprocess", "name": "后处理", "description": "合帧、颜色校正"},
+            {"id": "output", "name": "输出保存", "description": "保存修复结果"},
+        ]
+    )
     # 是否允许从任意步骤重新开始
     allow_restart_from_any_step: bool = True
     # 是否在每步完成后自动暂停等待用户确认
@@ -93,43 +97,48 @@ class ParameterPanelConfig:
     - Stage 2 Settings: edition/starting/ending 控制图像风格
     - Restoration Settings: restoration fix 控制修复程度
     """
+
     # 参数分组定义
-    groups: list[dict[str, Any]] = field(default_factory=lambda: [
-        {
-            "id": "basic",
-            "name": "基本设置",
-            "priority": 0,
-            "default_expanded": True,
-            "params": ["resolution", "seed", "sampler"],
-        },
-        {
-            "id": "sampling",
-            "name": "采样设置",
-            "priority": 1,
-            "default_expanded": True,
-            "params": ["cfg_scale", "steps", "denoising_strength"],
-        },
-        {
-            "id": "advanced",
-            "name": "高级设置",
-            "priority": 2,
-            "default_expanded": False,
-            "params": ["restoration_guidance", "blockswap", "vae_tiling"],
-        },
-    ])
+    groups: list[dict[str, Any]] = field(
+        default_factory=lambda: [
+            {
+                "id": "basic",
+                "name": "基本设置",
+                "priority": 0,
+                "default_expanded": True,
+                "params": ["resolution", "seed", "sampler"],
+            },
+            {
+                "id": "sampling",
+                "name": "采样设置",
+                "priority": 1,
+                "default_expanded": True,
+                "params": ["cfg_scale", "steps", "denoising_strength"],
+            },
+            {
+                "id": "advanced",
+                "name": "高级设置",
+                "priority": 2,
+                "default_expanded": False,
+                "params": ["restoration_guidance", "blockswap", "vae_tiling"],
+            },
+        ]
+    )
     # 参数间的联动约束 (参数A变化时影响参数B的范围)
-    constraints: list[dict[str, Any]] = field(default_factory=lambda: [
-        {
-            "source": "resolution",
-            "target": "denoising_strength",
-            "rule": "resolution > 2048 时建议 denoising_strength >= 0.5",
-        },
-        {
-            "source": "blockswap",
-            "target": "steps",
-            "rule": "blockswap 启用时建议 steps <= 30 以避免超时",
-        },
-    ])
+    constraints: list[dict[str, Any]] = field(
+        default_factory=lambda: [
+            {
+                "source": "resolution",
+                "target": "denoising_strength",
+                "rule": "resolution > 2048 时建议 denoising_strength >= 0.5",
+            },
+            {
+                "source": "blockswap",
+                "target": "steps",
+                "rule": "blockswap 启用时建议 steps <= 30 以避免超时",
+            },
+        ]
+    )
 
 
 @dataclass
@@ -144,6 +153,7 @@ class SliderComparisonConfig:
 
     典型实现: Gradio ImageSlider / ImageComparison 组件
     """
+
     enabled: bool = True
     # 分割线方向: "horizontal" | "vertical"
     direction: str = "horizontal"
@@ -184,7 +194,8 @@ class WebUIDesignReference:
 # 2. 文件列表管理 + 进度上报 (Waifu2x-Extension-GUI P1)
 # ---------------------------------------------------------------------------
 
-class FileItemStatus(str, Enum):
+
+class FileItemStatus(StrEnum):
     """文件项处理状态
 
     参考 Waifu2x-Extension-GUI 的文件处理状态机:
@@ -195,6 +206,7 @@ class FileItemStatus(str, Enum):
     - Skipped: 跳过 (用户取消或不满足条件)
     - Cancelled: 取消
     """
+
     PENDING = "pending"
     PROCESSING = "processing"
     DONE = "done"
@@ -223,6 +235,7 @@ class FileItem:
         output_path: 输出文件路径 (完成时)
         file_size_mb: 文件大小 (MB)
     """
+
     path: str
     name: str
     status: FileItemStatus = FileItemStatus.PENDING
@@ -266,6 +279,7 @@ class FileListProgress:
     - 整体进度百分比
     - 预估剩余时间
     """
+
     total: int = 0
     done: int = 0
     failed: int = 0
@@ -522,9 +536,7 @@ class FileListManager:
                 progress.processing += 1
             elif item.status == FileItemStatus.PENDING:
                 progress.pending += 1
-            elif item.status == FileItemStatus.SKIPPED:
-                progress.skipped += 1
-            elif item.status == FileItemStatus.CANCELLED:
+            elif item.status == FileItemStatus.SKIPPED or item.status == FileItemStatus.CANCELLED:
                 progress.skipped += 1
         return progress
 
@@ -562,6 +574,7 @@ class FileListManager:
 # 3. 参数面板优化 (clarity-upscaler P1)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ParameterDefinition:
     """参数定义
@@ -569,6 +582,7 @@ class ParameterDefinition:
     参考 clarity-upscaler 的参数面板设计:
     每个参数有明确的类型、范围、默认值和联动关系。
     """
+
     id: str
     name: str
     param_type: str  # "slider" | "number" | "select" | "checkbox" | "text"
@@ -597,6 +611,7 @@ class ParameterComboRule:
     - 艺术增强: CFG=5.0, Randomness=0.7, Denoising=0.8
     - 轻度去噪: CFG=2.0, Randomness=0.1, Denoising=0.3
     """
+
     name: str
     description: str
     preset_values: dict[str, Any]
@@ -696,11 +711,13 @@ class ParameterPanelOptimizer:
             else:
                 match_ratio = 0.0
 
-            recommendations.append({
-                "preset": preset,
-                "match_score": round(match_ratio, 3),
-                "use_case": preset.use_case,
-            })
+            recommendations.append(
+                {
+                    "preset": preset,
+                    "match_score": round(match_ratio, 3),
+                    "use_case": preset.use_case,
+                }
+            )
 
         recommendations.sort(key=lambda x: x["match_score"], reverse=True)
         return recommendations
@@ -720,12 +737,10 @@ class ParameterPanelOptimizer:
             if param is None:
                 continue
             param_errors = []
-            if param.min_value is not None and isinstance(value, (int, float)):
-                if value < param.min_value:
-                    param_errors.append(f"值 {value} 小于最小值 {param.min_value}")
-            if param.max_value is not None and isinstance(value, (int, float)):
-                if value > param.max_value:
-                    param_errors.append(f"值 {value} 大于最大值 {param.max_value}")
+            if param.min_value is not None and isinstance(value, (int, float)) and value < param.min_value:
+                param_errors.append(f"值 {value} 小于最小值 {param.min_value}")
+            if param.max_value is not None and isinstance(value, (int, float)) and value > param.max_value:
+                param_errors.append(f"值 {value} 大于最大值 {param.max_value}")
             if param.choices is not None and value not in param.choices:
                 param_errors.append(f"值 '{value}' 不在可选范围 {param.choices} 中")
             if param_errors:
@@ -736,6 +751,7 @@ class ParameterPanelOptimizer:
 # ---------------------------------------------------------------------------
 # 4. Accordion 分组设计 (DiffBIR P2)
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class AccordionGroup:
@@ -748,6 +764,7 @@ class AccordionGroup:
 
     每组可独立展开/折叠，减少界面信息过载。
     """
+
     id: str
     name: str
     description: str = ""
@@ -784,27 +801,33 @@ class AccordionLayoutManager:
 
     def _setup_default_groups(self):
         """设置默认三组折叠面板 (DiffBIR 风格)"""
-        self.add_group(AccordionGroup(
-            id="basic",
-            name="基本设置",
-            description="分辨率、种子等基础参数",
-            default_expanded=True,
-            priority=0,
-        ))
-        self.add_group(AccordionGroup(
-            id="condition",
-            name="条件控制",
-            description="CFG Scale、引导强度、提示词等条件参数",
-            default_expanded=True,
-            priority=1,
-        ))
-        self.add_group(AccordionGroup(
-            id="sampler",
-            name="采样器",
-            description="采样步数、调度器、去噪强度等采样参数",
-            default_expanded=False,
-            priority=2,
-        ))
+        self.add_group(
+            AccordionGroup(
+                id="basic",
+                name="基本设置",
+                description="分辨率、种子等基础参数",
+                default_expanded=True,
+                priority=0,
+            )
+        )
+        self.add_group(
+            AccordionGroup(
+                id="condition",
+                name="条件控制",
+                description="CFG Scale、引导强度、提示词等条件参数",
+                default_expanded=True,
+                priority=1,
+            )
+        )
+        self.add_group(
+            AccordionGroup(
+                id="sampler",
+                name="采样器",
+                description="采样步数、调度器、去噪强度等采样参数",
+                default_expanded=False,
+                priority=2,
+            )
+        )
 
     def add_group(self, group: AccordionGroup):
         """添加折叠面板分组"""
@@ -849,6 +872,7 @@ class AccordionLayoutManager:
 # 5. 设置持久化 (Waifu2x-Extension-GUI P2)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class UserPreferences:
     """用户偏好设置
@@ -863,6 +887,7 @@ class UserPreferences:
     - 输出偏好 (格式、路径模板等)
     - 性能偏好 (BlockSwap 开关、VAE 分块大小等)
     """
+
     # 推理参数默认值
     default_resolution: int = 2048
     default_cfg_scale: float = 3.0
@@ -956,9 +981,7 @@ class SettingsPersistence:
         """
         if config_path is None:
             # 默认路径: 项目根目录/config.yaml
-            project_root = os.path.dirname(os.path.dirname(os.path.dirname(
-                os.path.dirname(os.path.abspath(__file__))
-            )))
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
             config_path = os.path.join(project_root, "config.yaml")
 
         self._config_path = config_path
@@ -977,7 +1000,7 @@ class SettingsPersistence:
             return self._prefs
 
         try:
-            with open(self._config_path, "r", encoding="utf-8") as f:
+            with open(self._config_path, encoding="utf-8") as f:
                 config = yaml.safe_load(f) or {}
 
             prefs_data = config.get(self.PREFERENCES_KEY, {})
@@ -1009,7 +1032,7 @@ class SettingsPersistence:
             # 读取现有配置
             config: dict[str, Any] = {}
             if os.path.exists(self._config_path):
-                with open(self._config_path, "r", encoding="utf-8") as f:
+                with open(self._config_path, encoding="utf-8") as f:
                     config = yaml.safe_load(f) or {}
 
             # 更新偏好段
@@ -1050,6 +1073,7 @@ class SettingsPersistence:
 # 6. 文件拖放支持 (upscayl P2)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class DropTarget:
     """拖放目标区域定义
@@ -1060,6 +1084,7 @@ class DropTarget:
     - 文件类型过滤
     - 递归扫描文件夹
     """
+
     # 目标区域标识
     id: str
     # 接受的文件扩展名 (空列表表示接受所有)
@@ -1077,6 +1102,7 @@ class DropTarget:
 @dataclass
 class DropResult:
     """拖放操作结果"""
+
     accepted_files: list[str] = field(default_factory=list)
     rejected_files: list[dict[str, str]] = field(default_factory=list)
     # 被拒绝的原因: "extension" | "size" | "count"
@@ -1184,10 +1210,12 @@ class FileDropHandler:
                 try:
                     size_mb = os.path.getsize(file_path) / (1024 * 1024)
                     if size_mb > target.max_file_size_mb:
-                        rejected.append({
-                            "path": file_path,
-                            "reason": f"文件过大: {size_mb:.1f}MB > {target.max_file_size_mb:.1f}MB",
-                        })
+                        rejected.append(
+                            {
+                                "path": file_path,
+                                "reason": f"文件过大: {size_mb:.1f}MB > {target.max_file_size_mb:.1f}MB",
+                            }
+                        )
                         rejection_reasons[file_path] = "size"
                         continue
                 except OSError:
@@ -1208,10 +1236,7 @@ class FileDropHandler:
         if self._file_list_manager is not None:
             self._file_list_manager.add_files(accepted)
 
-        logger.debug(
-            f"拖放处理完成: 接受 {len(accepted)} 个文件, "
-            f"拒绝 {len(rejected)} 个文件"
-        )
+        logger.debug(f"拖放处理完成: 接受 {len(accepted)} 个文件, " f"拒绝 {len(rejected)} 个文件")
         return DropResult(
             accepted_files=accepted,
             rejected_files=rejected,
@@ -1248,6 +1273,7 @@ class FileDropHandler:
 # 便捷工厂函数
 # ---------------------------------------------------------------------------
 
+
 def create_default_webui_reference() -> WebUIDesignReference:
     """创建默认 WebUI 设计参考"""
     return WebUIDesignReference()
@@ -1263,54 +1289,96 @@ def create_default_parameter_panel() -> ParameterPanelOptimizer:
     optimizer = ParameterPanelOptimizer()
 
     # 注册 SeedVR2 核心参数
-    optimizer.add_param(ParameterDefinition(
-        id="cfg_scale", name="CFG Scale", param_type="slider",
-        default=3.0, min_value=1.0, max_value=10.0, step=0.5,
-        description="Classifier-Free Guidance 缩放系数",
-        group="condition",
-    ))
-    optimizer.add_param(ParameterDefinition(
-        id="denoising_strength", name="去噪强度", param_type="slider",
-        default=0.6, min_value=0.1, max_value=1.0, step=0.05,
-        description="去噪强度，越高修复越激进",
-        group="sampler",
-    ))
-    optimizer.add_param(ParameterDefinition(
-        id="steps", name="采样步数", param_type="slider",
-        default=20, min_value=5, max_value=100, step=1,
-        description="扩散采样步数",
-        group="sampler",
-    ))
-    optimizer.add_param(ParameterDefinition(
-        id="resolution", name="目标分辨率", param_type="number",
-        default=2048, min_value=512, max_value=8192, step=256,
-        description="输出目标分辨率 (长边)",
-        group="basic",
-    ))
-    optimizer.add_param(ParameterDefinition(
-        id="seed", name="随机种子", param_type="number",
-        default=-1, description="-1 为随机种子",
-        group="basic",
-    ))
+    optimizer.add_param(
+        ParameterDefinition(
+            id="cfg_scale",
+            name="CFG Scale",
+            param_type="slider",
+            default=3.0,
+            min_value=1.0,
+            max_value=10.0,
+            step=0.5,
+            description="Classifier-Free Guidance 缩放系数",
+            group="condition",
+        )
+    )
+    optimizer.add_param(
+        ParameterDefinition(
+            id="denoising_strength",
+            name="去噪强度",
+            param_type="slider",
+            default=0.6,
+            min_value=0.1,
+            max_value=1.0,
+            step=0.05,
+            description="去噪强度，越高修复越激进",
+            group="sampler",
+        )
+    )
+    optimizer.add_param(
+        ParameterDefinition(
+            id="steps",
+            name="采样步数",
+            param_type="slider",
+            default=20,
+            min_value=5,
+            max_value=100,
+            step=1,
+            description="扩散采样步数",
+            group="sampler",
+        )
+    )
+    optimizer.add_param(
+        ParameterDefinition(
+            id="resolution",
+            name="目标分辨率",
+            param_type="number",
+            default=2048,
+            min_value=512,
+            max_value=8192,
+            step=256,
+            description="输出目标分辨率 (长边)",
+            group="basic",
+        )
+    )
+    optimizer.add_param(
+        ParameterDefinition(
+            id="seed",
+            name="随机种子",
+            param_type="number",
+            default=-1,
+            description="-1 为随机种子",
+            group="basic",
+        )
+    )
 
     # 添加预设组合
-    optimizer.add_preset(ParameterComboRule(
-        name="照片修复", description="适合真实照片修复，保留细节",
-        preset_values={"cfg_scale": 3.0, "denoising_strength": 0.6, "steps": 20},
-        recommended_ranges={"cfg_scale": (2.0, 5.0), "denoising_strength": (0.4, 0.8)},
-        use_case="真实照片修复",
-    ))
-    optimizer.add_preset(ParameterComboRule(
-        name="艺术增强", description="更强的创造力，适合艺术化处理",
-        preset_values={"cfg_scale": 5.0, "denoising_strength": 0.8, "steps": 30},
-        recommended_ranges={"cfg_scale": (4.0, 8.0), "denoising_strength": (0.6, 1.0)},
-        use_case="艺术化增强",
-    ))
-    optimizer.add_preset(ParameterComboRule(
-        name="轻度去噪", description="最小干预，保持原始风格",
-        preset_values={"cfg_scale": 2.0, "denoising_strength": 0.3, "steps": 15},
-        recommended_ranges={"cfg_scale": (1.5, 3.0), "denoising_strength": (0.1, 0.4)},
-        use_case="轻度去噪/风格保留",
-    ))
+    optimizer.add_preset(
+        ParameterComboRule(
+            name="照片修复",
+            description="适合真实照片修复，保留细节",
+            preset_values={"cfg_scale": 3.0, "denoising_strength": 0.6, "steps": 20},
+            recommended_ranges={"cfg_scale": (2.0, 5.0), "denoising_strength": (0.4, 0.8)},
+            use_case="真实照片修复",
+        )
+    )
+    optimizer.add_preset(
+        ParameterComboRule(
+            name="艺术增强",
+            description="更强的创造力，适合艺术化处理",
+            preset_values={"cfg_scale": 5.0, "denoising_strength": 0.8, "steps": 30},
+            recommended_ranges={"cfg_scale": (4.0, 8.0), "denoising_strength": (0.6, 1.0)},
+            use_case="艺术化增强",
+        )
+    )
+    optimizer.add_preset(
+        ParameterComboRule(
+            name="轻度去噪",
+            description="最小干预，保持原始风格",
+            preset_values={"cfg_scale": 2.0, "denoising_strength": 0.3, "steps": 15},
+            recommended_ranges={"cfg_scale": (1.5, 3.0), "denoising_strength": (0.1, 0.4)},
+            use_case="轻度去噪/风格保留",
+        )
+    )
 
     return optimizer

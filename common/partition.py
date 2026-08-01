@@ -23,10 +23,10 @@ These are commonly used for data parallel workload distribution, batch
 splitting, and cyclic task assignment in distributed training.
 """
 
-from typing import Any, List
+from typing import Any
 
 
-def partition_by_size(data: List[Any], size: int) -> List[List[Any]]:
+def partition_by_size(data: list[Any], size: int) -> list[list[Any]]:
     """Partition a list into consecutive chunks of a fixed maximum size.
 
     The list is split greedily from left to right. If the total length is
@@ -55,7 +55,7 @@ def partition_by_size(data: List[Any], size: int) -> List[List[Any]]:
     return [data[i : (i + size)] for i in range(0, len(data), size)]
 
 
-def partition_by_groups(data: List[Any], groups: int) -> List[List[Any]]:
+def partition_by_groups(data: list[Any], groups: int) -> list[list[Any]]:
     """Distribute list elements across a fixed number of groups (round-robin).
 
     Elements are assigned to groups in a round-robin fashion: the i-th element
@@ -86,7 +86,7 @@ def partition_by_groups(data: List[Any], groups: int) -> List[List[Any]]:
     return [data[i::groups] for i in range(groups)]
 
 
-def shift_list(data: List[Any], n: int) -> List[Any]:
+def shift_list(data: list[Any], n: int) -> list[Any]:
     """Rotate/cyclically shift a list by n positions to the left.
 
     The first ``n % len(data)`` elements are moved to the end of the list.

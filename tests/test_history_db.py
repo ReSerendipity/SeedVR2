@@ -306,12 +306,16 @@ class TestCloseRobustness:
     async def test_close_resets_state_even_on_error(self, tmp_path):
         db = HistoryDB(db_path=str(tmp_path / "robust.db"))
         await db.initialize()
+        # 保留真实连接引用，避免被替换后孤立导致后台线程残留
+        real_conn = db._db
         # 模拟 close 抛异常
         db._db = type("BadConn", (), {"close": AsyncMock(side_effect=aiosqlite.Error("boom"))})()
         # 不应抛异常
         await db.close()
         assert db._db is None
         assert db._initialized is False
+        # 正确关闭被替换掉的真实连接，停止其 aiosqlite 工作线程
+        await real_conn.close()
 
     @pytest.mark.asyncio
     async def test_close_idempotent(self, tmp_path):
@@ -321,3 +325,29 @@ class TestCloseRobustness:
         # 再次 close 不抛异常
         await db.close()
         assert db._db is None
+
+
+class TestConnectionTimeout:
+    """连接超时与 busy_timeout 健壮性配置"""
+
+    def test_default_timeout(self):
+        """默认 timeout 为 30 秒"""
+        db = HistoryDB(db_path="data/history.db")
+        assert db.timeout == 30.0
+
+    def test_custom_timeout_stored(self):
+        """自定义 timeout 被保留"""
+        db = HistoryDB(db_path="data/history.db", timeout=5.0)
+        assert db.timeout == 5.0
+
+    @pytest.mark.asyncio
+    async def test_busy_timeout_pragma_applied(self, tmp_path):
+        """initialize 后 busy_timeout PRAGMA 与 timeout 对齐（毫秒）"""
+        db = HistoryDB(db_path=str(tmp_path / "timeout.db"), timeout=7.0)
+        await db.initialize()
+        try:
+            async with db._db.execute("PRAGMA busy_timeout") as cursor:
+                row = await cursor.fetchone()
+            assert row[0] == 7000
+        finally:
+            await db.close()

@@ -26,14 +26,14 @@ in debugging).
 """
 
 import random
-from typing import Optional
+
 import numpy as np
 import torch
 
 from common.distributed import get_global_rank
 
 
-def set_seed(seed: Optional[int], same_across_ranks: bool = False):
+def set_seed(seed: int | None, same_across_ranks: bool = False):
     """Set random seed for Python, NumPy, and PyTorch generators.
 
     Initializes all random number generators to ensure reproducible results.

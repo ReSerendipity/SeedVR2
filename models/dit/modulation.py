@@ -33,7 +33,8 @@ AdaLN 算法:
     注意力和 MLP 共 2 个子层，所以总维度为 6 * dim。
 """
 
-from typing import Callable, List, Optional
+from collections.abc import Callable
+
 import torch
 from einops import rearrange
 from torch import nn
@@ -103,7 +104,7 @@ class AdaSingle(nn.Module):
         self,
         dim: int,
         emb_dim: int,
-        layers: List[str],
+        layers: list[str],
     ):
         assert emb_dim == 6 * dim, "AdaSingle requires emb_dim == 6 * dim"
         super().__init__()
@@ -123,7 +124,7 @@ class AdaSingle(nn.Module):
         mode: str,
         cache: Cache = Cache(disable=True),
         branch_tag: str = "",
-        hid_len: Optional[torch.LongTensor] = None,
+        hid_len: torch.LongTensor | None = None,
     ) -> torch.FloatTensor:
         """前向传播，执行自适应调制。
 
@@ -147,7 +148,7 @@ class AdaSingle(nn.Module):
             emb = cache(
                 f"emb_repeat_{idx}_{branch_tag}",
                 lambda: slice_inputs(
-                    torch.cat([e.repeat(l, *([1] * e.ndim)) for e, l in zip(emb, hid_len)]),
+                    torch.cat([e.repeat(l, *([1] * e.ndim)) for e, l in zip(emb, hid_len, strict=False)]),
                     dim=0,
                 ),
             )

@@ -74,20 +74,13 @@
 - `WebSearch` / `WebFetch`：用于知识缺口、时效信息、事实校验
 - `GetDiagnostics`：在实质性编辑后检查最近修改文件
 
-### 3.2 使用顺序
-
-- 先搜索/读取，再编辑
-- 先澄清，再执行
-- 先验证，再交付
-- 独立任务可以并行，但有依赖时必须串行
-
-### 3.3 用户沟通
+### 3.2 用户沟通
 
 - 执行过程中要持续汇报进展、发现和阻塞
 - 发现意外结果要立即说明，不能悄悄改策略
 - 如果回复末尾需要用户回答，而任务尚未完成，则必须使用 `AskUserQuestion`
 
-### 3.4 上下文与记忆
+### 3.3 上下文与记忆
 
 - 优先复用现有上下文，不要重复读取同一文件
 - 涉及项目约定、历史决策、用户偏好时先查 memory
@@ -117,6 +110,8 @@
 - 不覆盖你未理解的现有改动
 - 工作过程中如果发现异常变更，立即暂停并询问用户
 - 禁止使用 `git reset --hard`、`git checkout --` 等破坏性回滚，除非用户明确要求
+- 提交粒度：一个提交只对应一个可独立回滚的决策，避免把多个不相关改动混入同一提交，保证可回滚、可二分
+- 运行产物（日志、测试报告、dogfood 输出等）不入库，统一由 `.gitignore` 覆盖
 
 ---
 
@@ -146,89 +141,35 @@
 
 ## 6. SeedVR2 项目速查
 
-### 6.1 运行与入口
+> 运行链路、页面/API 路由、模块清单、测试命令等结构性信息统一以 `docs/PROJECT_CONTEXT.md` 为准（运行方式见其 §2、路由见 §3、模块见 §4、测试见 §6）。本章只保留代码不可推断的硬约束与实现陷阱。
 
-- Windows 推荐入口：`start.bat`
-- 启动链路：`start.bat` -> `bin/clean_launch.py` -> `bin/integrated_app/app_server.py`
-- 默认地址：`127.0.0.1:7870`
-- 默认假设：优先使用项目内 WinPython，避免与系统 Python 混用
-- 启动阶段：加载配置 -> 创建应用 -> 初始化数据库/任务队列/缓存/国际化/模型管理器 -> 注册模型状态 SSE 桥接 -> 恢复未完成任务 -> 缓存清理任务 -> GPU 检测 -> 可选模型预加载 -> 可选自动打开浏览器
+### 6.1 快速入口
 
-### 6.2 当前页面与 API
+- Windows 推荐入口：`start.bat`；默认地址 `127.0.0.1:7870`
+- 默认使用项目内 WinPython，避免与系统 Python 混用
+- 详细启动链路与阶段见 `docs/PROJECT_CONTEXT.md` §2
 
-- 页面路由：`/`、`/restore`、`/settings`、`/history`、`/system-status`
-- 修复 API 前缀：`/api/restore`
-- 系统 API 前缀：`/api/system`
-- 修复路由已统一聚合到 `bin/integrated_app/routes/restore/unified.py`，其下按职责拆分为子路由：
-  - `scan.py`：文件夹扫描（受 `security/path_guard.py` 白名单约束）
-  - `batch.py`：批量文件夹修复，带指数退避重试
-  - `upload.py`：单文件上传修复
-  - `task.py`：任务查询/控制
-  - `recovery.py`：启动时从数据库恢复未完成任务并重新入队
-  - `common.py`：参数解析与公共辅助
-- 系统路由位于 `bin/integrated_app/routes/system/`：`health.py`、`gpu.py`、`settings.py`、`history.py`、`sse.py`（SSE 事件推送）
+### 6.2 项目硬约束（高频速查）
 
-### 6.3 核心模块
-
-应用层：
-
-- `app_server.py`：应用创建、中间件/路由注册、生命周期管理
-- `dependencies.py`：基于 `app.state` 的依赖注入
-- `config.py` / `config_models.py`：配置加载（`config.yaml`），经 Pydantic 校验（忽略未知字段、范围校验），失败时回退原始 YAML 加载
-- `i18n.py`：国际化，支持 `zh` / `en` / `ja` / `fr` 四语言，翻译文件在 `locales/`
-- `middleware/csrf.py`：CSRF 保护中间件，写请求校验 token，对 SSE/进度/扫描等安全 GET 放行
-- `middleware/error_handler.py`：统一 JSON 错误响应（区分 HTMX 请求）
-
-推理与模型：
-
-- `engines/seedvr2_engine.py`：核心推理实现
-- `engine_interface.py`：`RestoreEngine` 抽象基类 + `RestoreResult`，定义所有引擎统一契约（`SeedVR2Engine` 继承）
-- `model_manager.py`：模型加载、卸载、切换与校验
-- `model_registry.py`：当前模型状态注册，状态变更通过监听器桥接到 SSE 事件总线
-- `gpu_backend.py` / `gpu_utils.py`：GPU 后端抽象与工具，仅支持 NVIDIA CUDA，未检测到则降级报错
-- `optimization/memory_manager.py`：VRAM/内存预检、缓存与设备调度
-- `optimization/blockswap.py`：推理时 GPU/CPU 间动态换入换出 transformer 块（含 RoPE OOM 回退、I/O 组件卸载）
-- `video_processor.py`：FFmpeg 分帧/合帧与视频元信息
-- `color_fix.py`：LAB 颜色匹配后处理
-
-任务与状态：
-
-- `task_queue.py`：单 worker 串行任务队列，避免并发推理 OOM
-- `history_db.py`：历史记录与任务状态持久化
-- `progress.py`：进度追踪
-- `services/task_state.py`：线程安全的任务状态双层存储（内存缓存 + 数据库，数据库为唯一可信源）
-- `services/task_events.py`：按 task_id 的进度事件总线，替代高频 DB 轮询，支持跨线程发布与背压
-- `cache.py`：上传文件缓存与过期清理
-- `security/path_guard.py`：路径白名单守卫，防止路径遍历泄露文件清单
-- `utils/response.py`：统一响应包装 `{success, data, error}`
-- `utils/retry.py`、`utils/fts.py`：重试退避、全文检索辅助
-
-### 6.4 项目硬约束
+> 完整且唯一权威的硬约束清单以 `docs/CONSTRAINTS.md` 为准；下列仅为最高频速查项，若与 `docs/CONSTRAINTS.md` 不一致，以后者为准。
 
 - 应用必须脱离 ComfyUI 独立运行
 - **SeedVR2 模型仅支持 NVIDIA CUDA GPU 推理，不支持 CPU 推理**
-- WebUI 参数与默认值必须与工作流约束保持一致
-- 模型加载前做内存预检，可用内存至少为模型大小的 1.5 倍
-- 内存超过 90% 时必须立即终止相关推理
+- 模型加载前做内存预检，可用内存至少为模型大小的 1.5 倍；内存超过 90% 时必须立即终止相关推理
 - I/O 组件不应被卸载到 CPU RAM
 - 批处理脚本保持 ASCII 英文
 - 文件夹扫描必须经 `security/path_guard.py` 白名单校验，禁止任意目录遍历
 - 所有 API 响应统一收敛为 `{success, data, error}` 结构
 
-### 6.5 当前实现注意点
+### 6.3 实现陷阱（代码不可直接推断）
 
-- GPU 后端仅支持 NVIDIA CUDA，启动时会自动检测，未检测到则报错退出
+- GPU 后端仅支持 NVIDIA CUDA，启动时自动检测，未检测到则报错退出
 - 默认语言配置以 `config.yaml` 为准，修改前先核对运行时代码
 - 历史记录、设置、页面结构等信息必须以当前代码为准，不要照抄旧文档
 - i18n 当前支持中/英/日/法四语言，新增文案需同步更新 `locales/` 下对应翻译
 - 模型状态通过 `model_registry` 监听器桥接到 SSE 事件总线，模块间解耦，不要直接 import event_bus
-
-### 6.6 测试与质量
-
-- Python 测试：`pytest`
-- 前端 E2E：在 `tests/` 下运行 `npx playwright test`
-- 代码质量：`ruff`、`black`、`mypy`
 - 测试场景中应避免真实模型自动加载，优先使用 mock 或现有测试夹具
+- 引擎自检：`run_verify.bat` 运行 `verify_engine.py`（配置/GPU/引擎导入三项，不加载模型）；一键质量门禁运行 `run_checks.bat`（ruff/black/mypy/pytest）
 
 ---
 

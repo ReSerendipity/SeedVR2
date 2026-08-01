@@ -34,6 +34,7 @@
 - Tiled VAE: 支持分块编解码，自动 tile size 推荐和 OOM 回退
 - 推理取消: 支持在阶段切换点取消任务，避免资源泄漏
 """
+
 import asyncio
 import gc
 import json
@@ -60,6 +61,7 @@ from torchvision.transforms import Compose, Lambda, Normalize
 
 try:
     import psutil
+
     _HAS_PSUTIL = True
 except ImportError:
     psutil = None
@@ -68,6 +70,7 @@ except ImportError:
 # 可选导入 - 视频读取
 try:
     from torchvision.io.video import read_video
+
     _HAS_TORCHVISION_IO = True
 except (ImportError, ModuleNotFoundError):
     _HAS_TORCHVISION_IO = False
@@ -87,9 +90,6 @@ from bin.integrated_app.optimization.memory_manager import (  # noqa: E402
     clear_memory,
     clear_rope_lru_caches,
     release_model_memory,
-)
-from bin.integrated_app.optimization.tile_blend import (  # noqa: E402
-    compute_temporal_segments,
 )
 from bin.integrated_app.video_processor import FFmpegWrapper, VideoProcessor  # noqa: E402
 
@@ -124,6 +124,7 @@ DTYPE_CONVERSION_GC_INTERVAL = 50
 
 MAX_SEED = 2**32 - 1
 """最大随机种子值 (32 位无符号整数最大值)，用于生成合法的随机种子范围"""
+
 
 def _check_memory(threshold: float = _MEMORY_THRESHOLD, force_cleanup: bool = True) -> float:
     """检查系统内存使用率，超过阈值立即清理并抛出异常
@@ -166,7 +167,7 @@ def _estimate_model_size_gb(checkpoint_path: str) -> float:
     """估算模型文件大小 (GB)"""
     try:
         size_bytes = os.path.getsize(checkpoint_path)
-        return size_bytes / (1024 ** 3)
+        return size_bytes / (1024**3)
     except OSError:
         return 0.0
 
@@ -188,14 +189,16 @@ def _check_memory_before_load(checkpoint_path: str, label: str = "模型") -> No
         return
     model_size_gb = _estimate_model_size_gb(checkpoint_path)
     mem = psutil.virtual_memory()
-    available_gb = mem.available / (1024 ** 3)
+    available_gb = mem.available / (1024**3)
     usage = mem.percent / 100.0
 
     required_gb = model_size_gb * 1.5
 
-    logger.info(f"[内存预检] {label}: 文件={model_size_gb:.2f}GB, "
-                 f"需要>={required_gb:.1f}GB, 可用={available_gb:.1f}GB, "
-                 f"当前使用率={usage:.1%}")
+    logger.info(
+        f"[内存预检] {label}: 文件={model_size_gb:.2f}GB, "
+        f"需要>={required_gb:.1f}GB, 可用={available_gb:.1f}GB, "
+        f"当前使用率={usage:.1%}"
+    )
 
     if usage > _MEMORY_THRESHOLD:
         raise MemoryError(
@@ -222,8 +225,7 @@ def _log_memory(tag: str = ""):
             ram_info = "RAM: N/A"
         vram_alloc = torch.cuda.memory_allocated(0) / 1024**3 if torch.cuda.is_available() else 0
         vram_resv = torch.cuda.memory_reserved(0) / 1024**3 if torch.cuda.is_available() else 0
-        logger.info(f"[内存{tag}] {ram_info}, "
-                     f"VRAM: {vram_alloc:.2f}GB使用/{vram_resv:.2f}GB保留")
+        logger.info(f"[内存{tag}] {ram_info}, " f"VRAM: {vram_alloc:.2f}GB使用/{vram_resv:.2f}GB保留")
     except Exception:
         pass
 
@@ -247,10 +249,11 @@ def _force_release_memory():
     try:
         import ctypes
         import platform
-        if platform.system() == 'Windows':
-            ctypes.CDLL('msvcrt')._heapmin()
+
+        if platform.system() == "Windows":
+            ctypes.CDLL("msvcrt")._heapmin()
         else:
-            ctypes.CDLL('libc.so.6').malloc_trim(0)
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
     except Exception:
         pass
 
@@ -266,7 +269,7 @@ def _cleanup_cuda_cache(deep: bool = True):
     """
     clear_memory(deep=deep, force=True)
 
-    if hasattr(torch._C, '_cuda_clearCublasWorkspaces'):
+    if hasattr(torch._C, "_cuda_clearCublasWorkspaces"):
         with contextlib.suppress(Exception):
             torch._C._cuda_clearCublasWorkspaces()
 
@@ -284,22 +287,13 @@ def _tensor_to_uint8_np(tensor: torch.Tensor) -> np.ndarray:
     Returns:
         np.ndarray: uint8 类型的 numpy 数组，值域 [0, 255]，通道在最后一维
     """
-    return (
-        tensor.float()
-        .clamp(-1, 1)
-        .mul(0.5)
-        .add(0.5)
-        .mul(255)
-        .round()
-        .to(torch.uint8)
-        .cpu()
-        .numpy()
-    )
+    return tensor.float().clamp(-1, 1).mul(0.5).add(0.5).mul(255).round().to(torch.uint8).cpu().numpy()
 
 
 # ---------------------------------------------------------------------------
 # 数据变换 (与官方 projects/inference_seedvr2_3b.py 一致)
 # ---------------------------------------------------------------------------
+
 
 class _NaResize:
     """自适应分辨率缩放变换（与官方 data.image.transforms.na_resize 对齐）
@@ -314,6 +308,7 @@ class _NaResize:
     输入张量形状: T C H W（时间、通道、高度、宽度）
     输出张量形状: T C H' W'（缩放后尺寸）
     """
+
     def __init__(self, resolution: float, mode: str = "area", downsample_only: bool = False):
         """初始化缩放变换
 
@@ -338,7 +333,7 @@ class _NaResize:
         t, c, h, w = x.shape
         if self.mode == "area":
             current_area = h * w
-            target_area = self.resolution ** 2
+            target_area = self.resolution**2
             if self.downsample_only and current_area <= target_area:
                 scale = 1.0
             else:
@@ -367,6 +362,7 @@ class _DivisibleCrop:
     输入张量形状: ... H W（任意前导维度）
     输出张量形状: ... H' W'，其中 H' % factor_h == 0, W' % factor_w == 0
     """
+
     def __init__(self, factor):
         """初始化整除裁剪
 
@@ -402,6 +398,7 @@ class _RearrangeTCHW2CTHW:
     而预处理流水线输出 T C H W 顺序（时间在前），
     此变换完成维度顺序转换。
     """
+
     def __call__(self, x: torch.Tensor) -> torch.Tensor:
         """执行维度重排
 
@@ -417,6 +414,7 @@ class _RearrangeTCHW2CTHW:
 # ---------------------------------------------------------------------------
 # FP8 反量化
 # ---------------------------------------------------------------------------
+
 
 def dequantize_fp8_to_fp16(state_dict: dict) -> dict:
     """将 FP8 E4M3FN 格式的权重量化为 FP16 格式
@@ -447,6 +445,7 @@ def dequantize_fp8_to_fp16(state_dict: dict) -> dict:
 # ---------------------------------------------------------------------------
 # 图像推理配置数据类
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class ImageInferenceConfig:
@@ -488,6 +487,7 @@ class ImageInferenceConfig:
         offload_device: 通用卸载设备
         enable_debug: 是否启用调试输出
     """
+
     dit_model: str = "3b_fp16"
     dit_device: str = "cuda:0"
     blocks_to_swap: int = 32
@@ -573,6 +573,7 @@ class ImageInferenceConfig:
 # ---------------------------------------------------------------------------
 # SeedVR2 推理引擎
 # ---------------------------------------------------------------------------
+
 
 class SeedVR2Engine(RestoreEngine):
     """SeedVR2 视频/图像修复推理引擎 - 完整 4 阶段推理流水线实现
@@ -700,8 +701,7 @@ class SeedVR2Engine(RestoreEngine):
     # 模型加载
     # ------------------------------------------------------------------
 
-    async def load_model(self, model_size: str = "3b", device: str = "auto",
-                         precision: str = None) -> bool:
+    async def load_model(self, model_size: str = "3b", device: str = "auto", precision: str = None) -> bool:
         """加载 SeedVR2 模型配置 (不加载大模型，推理时按阶段加载/销毁)
         注意: 仅支持 NVIDIA CUDA GPU，不支持 CPU 推理。
 
@@ -786,9 +786,15 @@ class SeedVR2Engine(RestoreEngine):
             self._loaded = False
             raise
 
-    def _destroy_module(self, model_attr: str, *, cleanup_blockswap: bool = False,
-                        cleanup_rope: bool = False, label: str = "模型",
-                        log_tag: str = "模型销毁后"):
+    def _destroy_module(
+        self,
+        model_attr: str,
+        *,
+        cleanup_blockswap: bool = False,
+        cleanup_rope: bool = False,
+        label: str = "模型",
+        log_tag: str = "模型销毁后",
+    ):
         """完全销毁模型模块，释放全部 VRAM 和 RAM
 
         统一 DiT/VAE 的销毁逻辑，避免重复代码。
@@ -812,17 +818,17 @@ class SeedVR2Engine(RestoreEngine):
 
         if cleanup_rope:
             for _name, module in model.named_modules():
-                if hasattr(module, 'get_axial_freqs') and hasattr(module.get_axial_freqs, 'cache_clear'):
+                if hasattr(module, "get_axial_freqs") and hasattr(module.get_axial_freqs, "cache_clear"):
                     with contextlib.suppress(Exception):
                         module.get_axial_freqs.cache_clear()
 
         for param in list(model.parameters()):
             if param.numel() > 0:
-                param.data = torch.empty(0, dtype=param.dtype, device='cpu')
+                param.data = torch.empty(0, dtype=param.dtype, device="cpu")
             param.grad = None
         for buffer in list(model.buffers()):
             if buffer.numel() > 0:
-                buffer.data = torch.empty(0, dtype=buffer.dtype, device='cpu')
+                buffer.data = torch.empty(0, dtype=buffer.dtype, device="cpu")
 
         model.zero_grad(set_to_none=True)
 
@@ -830,7 +836,7 @@ class SeedVR2Engine(RestoreEngine):
         del model
 
         _force_release_memory()
-        if hasattr(torch._C, '_cuda_clearCublasWorkspaces'):
+        if hasattr(torch._C, "_cuda_clearCublasWorkspaces"):
             with contextlib.suppress(Exception):
                 torch._C._cuda_clearCublasWorkspaces()
         _log_memory(log_tag)
@@ -840,19 +846,13 @@ class SeedVR2Engine(RestoreEngine):
         """完全销毁 DiT 模型，释放全部 VRAM 和 RAM"""
         if self.dit is None:
             return
-        self._destroy_module(
-            'dit',
-            cleanup_blockswap=True,
-            cleanup_rope=True,
-            label="DiT 模型",
-            log_tag="DiT销毁后"
-        )
+        self._destroy_module("dit", cleanup_blockswap=True, cleanup_rope=True, label="DiT 模型", log_tag="DiT销毁后")
 
     def _destroy_vae(self):
         """完全销毁 VAE 模型，释放 RAM 和 VRAM"""
         if self.vae is None:
             return
-        self._destroy_module('vae', label="VAE 模型", log_tag="VAE销毁后")
+        self._destroy_module("vae", label="VAE 模型", log_tag="VAE销毁后")
 
     async def unload_model(self) -> bool:
         """卸载模型释放显存"""
@@ -918,9 +918,10 @@ class SeedVR2Engine(RestoreEngine):
             "input_noise_scale": kwargs.get("input_noise_scale", inf_cfg.get("input_noise_scale", 0.0)),
             "latent_noise_scale": kwargs.get("latent_noise_scale", inf_cfg.get("latent_noise_scale", 0.0)),
             "seed": kwargs.get("seed", inf_cfg.get("seed", -1)),
-            "attention_mode": kwargs.get("attention_mode",
-                                         inf_cfg.get("attention_mode",
-                                                     self.config.get("model", {}).get("attention_mode", "sdpa"))),
+            "attention_mode": kwargs.get(
+                "attention_mode",
+                inf_cfg.get("attention_mode", self.config.get("model", {}).get("attention_mode", "sdpa")),
+            ),
             "enable_debug": kwargs.get("enable_debug", inf_cfg.get("enable_debug", False)),
             "inference_mode": inference_mode,
             "cfg_scale": kwargs.get("cfg_scale", default_cfg_scale),
@@ -968,6 +969,7 @@ class SeedVR2Engine(RestoreEngine):
         # VRAM 预检 (DiffBIR inspired)
         try:
             from bin.integrated_app.optimization.vram_monitor import VRAMPeakMonitor
+
             self._vram_monitor = VRAMPeakMonitor(device=self.device, enabled=True)
         except Exception:
             self._vram_monitor = None
@@ -1046,12 +1048,15 @@ class SeedVR2Engine(RestoreEngine):
             if segment_size > 0 and total_frames > segment_size:
                 try:
                     from bin.integrated_app.optimization.tile_blend import compute_temporal_segments
+
                     temporal_segments = compute_temporal_segments(
                         total_frames=total_frames,
                         segment_size=segment_size,
                         overlap=segment_overlap,
                     )
-                    logger.info(f"长视频分段: {len(temporal_segments)} 段, 每段 {segment_size} 帧, 重叠 {segment_overlap} 帧")
+                    logger.info(
+                        f"长视频分段: {len(temporal_segments)} 段, 每段 {segment_size} 帧, 重叠 {segment_overlap} 帧"
+                    )
                 except Exception as e:
                     logger.debug(f"Temporal segments calculation skipped: {e}")
 
@@ -1068,6 +1073,7 @@ class SeedVR2Engine(RestoreEngine):
                 else:
                     # 使用 cv2 作为 fallback
                     import cv2
+
                     cap = cv2.VideoCapture(video_path)
                     frames = []
                     while True:
@@ -1221,14 +1227,20 @@ class SeedVR2Engine(RestoreEngine):
 
                 # 颜色校正和后处理
                 from bin.integrated_app.optimization.post_processing import (
-                    wavelet_reconstruction, apply_sharpening,
+                    apply_sharpening,
+                    wavelet_reconstruction,
                 )
+
                 postprocess_cfg = self.config.get("postprocessing", {})
                 enable_wavelet = postprocess_cfg.get("wavelet_reconstruction", False)  # 视频默认关闭小波重建以节省时间
                 sharpen_strength = postprocess_cfg.get("video_sharpen_strength", 0.0)
 
-                input_frames = rearrange(input_video, "c t h w -> t c h w") if input_video.ndim == 4 else rearrange(input_video[:, None], "c t h w -> t c h w")
-                input_frames_cpu = input_frames[:sample.shape[0]].cpu()
+                input_frames = (
+                    rearrange(input_video, "c t h w -> t c h w")
+                    if input_video.ndim == 4
+                    else rearrange(input_video[:, None], "c t h w -> t c h w")
+                )
+                input_frames_cpu = input_frames[: sample.shape[0]].cpu()
 
                 sample_np = _tensor_to_uint8_np(sample)
                 input_np = _tensor_to_uint8_np(input_frames_cpu)
@@ -1241,6 +1253,7 @@ class SeedVR2Engine(RestoreEngine):
                 if temporal_propagation_enabled:
                     try:
                         from bin.integrated_app.optimization.temporal_processing import FeaturePropagation
+
                         prop_weight = postprocess_cfg.get("temporal_propagation_weight", 0.2)
                         temporal_propagator = FeaturePropagation(propagation_weight=prop_weight)
                     except Exception as e:
@@ -1280,6 +1293,7 @@ class SeedVR2Engine(RestoreEngine):
 
                 # 保存
                 import mediapy
+
                 output_filename = os.path.basename(video_path)
                 output_name = os.path.splitext(output_filename)[0] + "_restored.mp4"
                 output_path = os.path.join(output_dir, output_name)
@@ -1288,6 +1302,7 @@ class SeedVR2Engine(RestoreEngine):
                 if temporal_segments is not None and len(temporal_segments) > 1:
                     try:
                         from bin.integrated_app.optimization.tile_blend import blend_temporal_segments
+
                         # 将 restored_frames 转换为 tensor
                         frames_tensor = torch.from_numpy(np.array(restored_frames))  # T H W C
                         frames_tensor = frames_tensor.permute(0, 3, 1, 2)  # T C H W
@@ -1312,9 +1327,11 @@ class SeedVR2Engine(RestoreEngine):
                 if tensor_cache is not None:
                     tensor_cache.clear()
                     cache_stats = tensor_cache.get_stats()
-                    logger.info(f"Tensor Cache 统计: cached={cache_stats['total_cached']}, "
-                                f"restored={cache_stats['total_restored']}, "
-                                f"peak={cache_stats['peak_cache_mb']:.1f}MB")
+                    logger.info(
+                        f"Tensor Cache 统计: cached={cache_stats['total_cached']}, "
+                        f"restored={cache_stats['total_restored']}, "
+                        f"peak={cache_stats['peak_cache_mb']:.1f}MB"
+                    )
 
                 # VRAM 监控: 结束并输出报告
                 if self._vram_monitor is not None:
@@ -1343,7 +1360,7 @@ class SeedVR2Engine(RestoreEngine):
                     "cfg_scale": cfg_scale,
                     "sample_steps": sample_steps,
                     "inference_mode": inf["inference_mode"],
-                }
+                },
             )
 
         except InferenceCancelledError as e:
@@ -1394,9 +1411,7 @@ class SeedVR2Engine(RestoreEngine):
         self._reset_cancel_token()
         return await asyncio.to_thread(self._infer_image_impl, image_path, output_dir, config)
 
-    def _prepare_image_input(
-        self, image_path: str, resolution: int
-    ) -> tuple:
+    def _prepare_image_input(self, image_path: str, resolution: int) -> tuple:
         """读取图像并预处理为模型输入
 
         Args:
@@ -1407,7 +1422,8 @@ class SeedVR2Engine(RestoreEngine):
             (cond_latent, input_video, res_h, res_w, scale_factor)
         """
         from PIL import Image as PILImage
-        orig_img = PILImage.open(image_path).convert('RGB')
+
+        orig_img = PILImage.open(image_path).convert("RGB")
         orig_w, orig_h = orig_img.size
 
         # 分辨率计算
@@ -1482,12 +1498,17 @@ class SeedVR2Engine(RestoreEngine):
         Returns:
             RestoreResult
         """
-        from bin.integrated_app.optimization.post_processing import (
-            wavelet_reconstruction, apply_sharpening, copy_exif_metadata,
-            extract_alpha_from_image, merge_alpha_to_image,
-            TextRestorationPipeline, TextRestorationConfig,
-        )
         from PIL import Image as PILImage
+
+        from bin.integrated_app.optimization.post_processing import (
+            TextRestorationConfig,
+            TextRestorationPipeline,
+            apply_sharpening,
+            copy_exif_metadata,
+            extract_alpha_from_image,
+            merge_alpha_to_image,
+            wavelet_reconstruction,
+        )
 
         # 读取原始图像，处理 Alpha 通道
         original_alpha = None
@@ -1618,7 +1639,7 @@ class SeedVR2Engine(RestoreEngine):
                     "sharpen": sharpen_strength > 0,
                     "text_restoration": enable_text_restoration,
                 },
-            }
+            },
         )
 
     def _infer_image_impl(
@@ -1679,8 +1700,10 @@ class SeedVR2Engine(RestoreEngine):
             cond_latent, input_video, res_h, res_w, scale_factor = self._prepare_image_input(
                 image_path, inf["resolution"]
             )
-            logger.info(f"图像修复: {image_path}, -> {res_w}x{res_h}, "
-                        f"seed={seed}, mode={inf['inference_mode']}, cfg={cfg_scale}, steps={sample_steps}")
+            logger.info(
+                f"图像修复: {image_path}, -> {res_w}x{res_h}, "
+                f"seed={seed}, mode={inf['inference_mode']}, cfg={cfg_scale}, steps={sample_steps}"
+            )
 
             # REFACTOR [B1-1] [P3-1]: 构建请求级 VAE tiled 配置（从 cfg 读取）
             # 替代原 self.config["model"]["vae"][...] = ... 的配置污染
@@ -1696,14 +1719,16 @@ class SeedVR2Engine(RestoreEngine):
                 "cache_model": cfg.vae_cache_model,
             }
 
-            logger.info(f"工作流参数: dit_model={cfg.dit_model}, dit_device={cfg.dit_device}, "
-                        f"blocks_to_swap={cfg.blocks_to_swap}, swap_io_components={cfg.swap_io_components}, "
-                        f"attention_mode={cfg.attention_mode}, "
-                        f"vae_model={cfg.vae_model}, vae_device={cfg.vae_device}, "
-                        f"encode_tiled={cfg.encode_tiled}, decode_tiled={cfg.decode_tiled}, "
-                        f"encode_tile_size={cfg.encode_tile_size}, decode_tile_size={cfg.decode_tile_size}, "
-                        f"tile_debug={cfg.tile_debug}, "
-                        f"resolution={cfg.resolution}, seed={cfg.seed}, color_correction={cfg.color_correction}")
+            logger.info(
+                f"工作流参数: dit_model={cfg.dit_model}, dit_device={cfg.dit_device}, "
+                f"blocks_to_swap={cfg.blocks_to_swap}, swap_io_components={cfg.swap_io_components}, "
+                f"attention_mode={cfg.attention_mode}, "
+                f"vae_model={cfg.vae_model}, vae_device={cfg.vae_device}, "
+                f"encode_tiled={cfg.encode_tiled}, decode_tiled={cfg.decode_tiled}, "
+                f"encode_tile_size={cfg.encode_tile_size}, decode_tile_size={cfg.decode_tile_size}, "
+                f"tile_debug={cfg.tile_debug}, "
+                f"resolution={cfg.resolution}, seed={cfg.seed}, color_correction={cfg.color_correction}"
+            )
 
             # ==================== 阶段1: 加载VAE → 编码 → 销毁VAE ====================
             # REFACTOR [E4-1]: 阶段切换点检查取消信号
@@ -1882,10 +1907,7 @@ class SeedVR2Engine(RestoreEngine):
 
         # 支持的图片格式
         image_extensions = {".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tiff", ".tif"}
-        image_files = sorted([
-            f for f in input_path.iterdir()
-            if f.is_file() and f.suffix.lower() in image_extensions
-        ])
+        image_files = sorted([f for f in input_path.iterdir() if f.is_file() and f.suffix.lower() in image_extensions])
 
         if not image_files:
             return [RestoreResult(success=False, error=f"目录中未找到图片: {input_dir}")]
@@ -1998,9 +2020,7 @@ class SeedVR2Engine(RestoreEngine):
         if device == "auto":
             if torch.cuda.is_available():
                 return "cuda"
-            raise RuntimeError(
-                "CUDA 不可用。SeedVR2 模型仅支持 NVIDIA GPU 推理，不支持 CPU。"
-            )
+            raise RuntimeError("CUDA 不可用。SeedVR2 模型仅支持 NVIDIA GPU 推理，不支持 CPU。")
         return device
 
     def _load_dit_model(
@@ -2104,6 +2124,7 @@ class SeedVR2Engine(RestoreEngine):
         with torch.device("meta"):
             if model_size == "3b":
                 from models.dit_v2.nadit import NaDiT
+
                 model = NaDiT(
                     vid_in_channels=dit_config["vid_in_channels"],
                     vid_out_channels=dit_config["vid_out_channels"],
@@ -2134,6 +2155,7 @@ class SeedVR2Engine(RestoreEngine):
                 )
             elif model_size == "7b":
                 from models.dit.nadit import NaDiT
+
                 model = NaDiT(
                     vid_in_channels=dit_config["vid_in_channels"],
                     vid_out_channels=dit_config["vid_out_channels"],
@@ -2175,7 +2197,9 @@ class SeedVR2Engine(RestoreEngine):
         # 立即删除 state_dict (模型已通过 assign=True 接管张量)
         del state_dict
         gc.collect()
-        logger.info(f"DiT 加载信息: missing={len(loading_info.missing_keys)}, unexpected={len(loading_info.unexpected_keys)}")
+        logger.info(
+            f"DiT 加载信息: missing={len(loading_info.missing_keys)}, unexpected={len(loading_info.unexpected_keys)}"
+        )
 
         # 手动初始化 meta buffers
         for _name, module in model.named_modules():
@@ -2191,6 +2215,7 @@ class SeedVR2Engine(RestoreEngine):
         # VRAM optimization toolchain (CogVideo/FlashVSR inspired)
         try:
             from bin.integrated_app.optimization.vram_toolchain import FP8Quantizer, XFormersIntegration
+
             # FP8 quantization
             fp8_enabled = self.config.get("inference", {}).get("fp8_enabled", False)
             if fp8_enabled:
@@ -2218,13 +2243,17 @@ class SeedVR2Engine(RestoreEngine):
         if offload_device is None:
             offload_device = model_cfg.get("offload_device", dit_config.get("offload_device", "cpu"))
 
-        logger.info(f"BlockSwap 配置: blocks_to_swap={blocks_to_swap}, "
-                     f"swap_io_components={swap_io_components}, offload_device={offload_device}, "
-                     f"model_blocks={num_blocks}")
+        logger.info(
+            f"BlockSwap 配置: blocks_to_swap={blocks_to_swap}, "
+            f"swap_io_components={swap_io_components}, offload_device={offload_device}, "
+            f"model_blocks={num_blocks}"
+        )
 
         if blocks_to_swap > 0 or swap_io_components:
-            logger.info(f"应用 BlockSwap: blocks_to_swap={blocks_to_swap}, "
-                        f"swap_io_components={swap_io_components}, offload_device={offload_device}")
+            logger.info(
+                f"应用 BlockSwap: blocks_to_swap={blocks_to_swap}, "
+                f"swap_io_components={swap_io_components}, offload_device={offload_device}"
+            )
             apply_block_swap_to_dit(
                 model=model,
                 blocks_to_swap=blocks_to_swap,
@@ -2236,23 +2265,25 @@ class SeedVR2Engine(RestoreEngine):
             self._blockswap_active = True
 
             # 诊断: 验证 BlockSwap 确实生效
-            blockswap_marker = getattr(model, '_blockswap_active', False)
-            blockswap_config = getattr(model, '_block_swap_config', None)
-            logger.info(f"BlockSwap 诊断: model._blockswap_active={blockswap_marker}, "
-                        f"config={blockswap_config}")
+            blockswap_marker = getattr(model, "_blockswap_active", False)
+            blockswap_config = getattr(model, "_block_swap_config", None)
+            logger.info(f"BlockSwap 诊断: model._blockswap_active={blockswap_marker}, " f"config={blockswap_config}")
 
             if not blockswap_marker:
-                logger.error("BlockSwap 未正确应用! 模型._blockswap_active=False，"
-                             "这会导致模型整体加载到 GPU，内存爆满!")
+                logger.error(
+                    "BlockSwap 未正确应用! 模型._blockswap_active=False，" "这会导致模型整体加载到 GPU，内存爆满!"
+                )
                 # 尝试手动设置
                 model._blockswap_active = True
 
             logger.info("BlockSwap 已应用，模型将使用动态块交换")
         else:
             self._blockswap_active = False
-            logger.warning(f"BlockSwap 未启用 (blocks_to_swap={blocks_to_swap}, "
-                          f"swap_io_components={swap_io_components})，"
-                          f"模型将整体加载到 GPU，可能内存不足!")
+            logger.warning(
+                f"BlockSwap 未启用 (blocks_to_swap={blocks_to_swap}, "
+                f"swap_io_components={swap_io_components})，"
+                f"模型将整体加载到 GPU，可能内存不足!"
+            )
             if device in ["cuda", self._resolve_device("auto")]:
                 model.to(device)
 
@@ -2264,8 +2295,7 @@ class SeedVR2Engine(RestoreEngine):
         # Currently disabled as it requires model architecture changes
 
         num_params = sum(p.numel() for p in model.parameters())
-        logger.info(f"DiT 参数数量: {num_params:,}, dtype={dit_dtype}, "
-                     f"blockswap={self._blockswap_active}")
+        logger.info(f"DiT 参数数量: {num_params:,}, dtype={dit_dtype}, " f"blockswap={self._blockswap_active}")
 
         return model
 
@@ -2327,11 +2357,13 @@ class SeedVR2Engine(RestoreEngine):
                 "groupnorm_accumulate": vae_cfg.get("groupnorm_accumulate", True),
             }
         self._vae_tiled_config = vae_tiled_config
-        logger.info(f"VAE tiled 配置: encode_tiled={self._vae_tiled_config['encode_tiled']}, "
-                     f"decode_tiled={self._vae_tiled_config['decode_tiled']}, "
-                     f"encode_tile_size={self._vae_tiled_config['encode_tile_size']}, "
-                     f"decode_tile_size={self._vae_tiled_config['decode_tile_size']}, "
-                     f"tile_overlap={self._vae_tiled_config['encode_tile_overlap']}")
+        logger.info(
+            f"VAE tiled 配置: encode_tiled={self._vae_tiled_config['encode_tiled']}, "
+            f"decode_tiled={self._vae_tiled_config['decode_tiled']}, "
+            f"encode_tile_size={self._vae_tiled_config['encode_tile_size']}, "
+            f"decode_tile_size={self._vae_tiled_config['decode_tile_size']}, "
+            f"tile_overlap={self._vae_tiled_config['encode_tile_overlap']}"
+        )
 
         block_out_channels = tuple(vae_params.get("block_out_channels", [128, 256, 512, 512]))
         down_block_types = tuple(vae_params.get("down_block_types", ["DownEncoderBlock3D"] * len(block_out_channels)))
@@ -2392,7 +2424,9 @@ class SeedVR2Engine(RestoreEngine):
         loading_info = model.load_state_dict(state_dict, strict=False, assign=True)
         del state_dict
         gc.collect()
-        logger.info(f"VAE 加载信息: missing={len(loading_info.missing_keys)}, unexpected={len(loading_info.unexpected_keys)}")
+        logger.info(
+            f"VAE 加载信息: missing={len(loading_info.missing_keys)}, unexpected={len(loading_info.unexpected_keys)}"
+        )
 
         # 初始化 meta buffers (与 ComfyUI model_loader.py 一致)
         for _name, module in model.named_modules():
@@ -2441,6 +2475,7 @@ class SeedVR2Engine(RestoreEngine):
 
         try:
             import yaml as _yaml
+
             with open(str(yaml_path), encoding="utf-8") as f:
                 params = _yaml.safe_load(f)
             return params if isinstance(params, dict) else {}
@@ -2479,15 +2514,13 @@ class SeedVR2Engine(RestoreEngine):
         timesteps_cfg = DictConfig(diff_cfg["timesteps"]["sampling"])
 
         self.schedule = create_schedule_from_config(schedule_cfg, device)
-        self.sampling_timesteps = create_sampling_timesteps_from_config(
-            timesteps_cfg, self.schedule, device
+        self.sampling_timesteps = create_sampling_timesteps_from_config(timesteps_cfg, self.schedule, device)
+        self.sampler = create_sampler_from_config(sampler_cfg, self.schedule, self.sampling_timesteps)
+        logger.info(
+            f"扩散组件配置完成: schedule={diff_cfg['schedule']['type']}, "
+            f"sampler={diff_cfg['sampler']['type']}, "
+            f"steps={diff_cfg['timesteps']['sampling']['steps']}"
         )
-        self.sampler = create_sampler_from_config(
-            sampler_cfg, self.schedule, self.sampling_timesteps
-        )
-        logger.info(f"扩散组件配置完成: schedule={diff_cfg['schedule']['type']}, "
-                     f"sampler={diff_cfg['sampler']['type']}, "
-                     f"steps={diff_cfg['timesteps']['sampling']['steps']}")
 
     # ------------------------------------------------------------------
     # 内部方法 - VAE 编解码
@@ -2501,7 +2534,8 @@ class SeedVR2Engine(RestoreEngine):
         集成 SCST 启发的自动 tile size 推荐和 NaN 检测回退。
         """
         from bin.integrated_app.optimization.vae_tiled_enhance import (
-            get_optimal_tile_size, detect_nan,
+            detect_nan,
+            get_optimal_tile_size,
         )
 
         vae_cfg = self._model_config["vae"]
@@ -2560,7 +2594,7 @@ class SeedVR2Engine(RestoreEngine):
                     )
                 except RuntimeError as e:
                     if "out of memory" in str(e).lower() and not oom_fallback_used:
-                        logger.warning(f"VAE 编码 OOM，尝试更小的 tile size")
+                        logger.warning("VAE 编码 OOM，尝试更小的 tile size")
                         torch.cuda.empty_cache()
                         tile_size = max(tile_size // 2, 256)
                         tile_overlap = max(tile_overlap // 2, 32)
@@ -2610,7 +2644,10 @@ class SeedVR2Engine(RestoreEngine):
         集成 SCST 启发的自动 tile size 推荐、OOM 回退和 NaN 检测。
         """
         from bin.integrated_app.optimization.vae_tiled_enhance import (
-            get_optimal_tile_size, detect_nan, GroupNormAccumulator, TiledVAEHook,
+            GroupNormAccumulator,
+            TiledVAEHook,
+            detect_nan,
+            get_optimal_tile_size,
         )
 
         vae_cfg = self._model_config["vae"]
@@ -2704,7 +2741,7 @@ class SeedVR2Engine(RestoreEngine):
                         )
                     except RuntimeError as e:
                         if "out of memory" in str(e).lower() and not oom_fallback_used:
-                            logger.warning(f"VAE 解码 OOM，尝试更小的 tile size")
+                            logger.warning("VAE 解码 OOM，尝试更小的 tile size")
                             torch.cuda.empty_cache()
                             _force_release_memory()
                             # OOM 回退: 像素空间 tile size 减半，最小 256
@@ -2729,22 +2766,25 @@ class SeedVR2Engine(RestoreEngine):
                     sample = dec_result.sample
 
                     # Gaussian 权重混合增强 (SCST/VEncancer inspired)
-                    if gaussian_blend and getattr(self.vae, '_last_tile_outputs', None):
+                    if gaussian_blend and getattr(self.vae, "_last_tile_outputs", None):
                         try:
                             from bin.integrated_app.optimization.vae_tiled_enhance import blend_tiles_gaussian
+
                             tile_outputs = self.vae._last_tile_outputs
                             tile_positions = self.vae._last_tile_positions
                             if tile_outputs and tile_positions:
                                 output_h, output_w = sample.shape[-2:]
                                 # tile_size 已经是像素空间
-                                actual_tile_size = getattr(self.vae, '_last_tile_size', current_tile_size)
-                                actual_tile_overlap = getattr(self.vae, '_last_tile_overlap', current_tile_overlap)
+                                actual_tile_size = getattr(self.vae, "_last_tile_size", current_tile_size)
+                                actual_tile_overlap = getattr(self.vae, "_last_tile_overlap", current_tile_overlap)
                                 sample = blend_tiles_gaussian(
-                                    tile_outputs, tile_positions,
+                                    tile_outputs,
+                                    tile_positions,
                                     (output_h, output_w),
                                     actual_tile_size,
                                     actual_tile_overlap,
-                                    device=self.device, dtype=sample.dtype,
+                                    device=self.device,
+                                    dtype=sample.dtype,
                                 )
                                 logger.info(f"VAE tiled: Gaussian 混合完成, {len(tile_outputs)} tiles")
                         except Exception as e:
@@ -2774,10 +2814,8 @@ class SeedVR2Engine(RestoreEngine):
         finally:
             # 清理 hook 和累积器
             if tiled_hook is not None:
-                try:
+                with contextlib.suppress(Exception):
                     tiled_hook.uninstall()
-                except Exception:
-                    pass
             if groupnorm_accum is not None:
                 try:
                     groupnorm_accum.apply_accumulated_stats()
@@ -2813,8 +2851,7 @@ class SeedVR2Engine(RestoreEngine):
                 "texts_neg": [dummy],
             }
 
-    def _get_condition(self, latent: torch.Tensor, latent_blur: torch.Tensor,
-                       task: str = "sr") -> torch.Tensor:
+    def _get_condition(self, latent: torch.Tensor, latent_blur: torch.Tensor, task: str = "sr") -> torch.Tensor:
         """构建 DiT 条件输入张量
 
         根据任务类型将低分辨率潜变量与条件标记拼接为模型输入。
@@ -2902,12 +2939,18 @@ class SeedVR2Engine(RestoreEngine):
         timesteps = timesteps * self.schedule.T
         return timesteps
 
-    def _generation_step(self, cond_latents: list[torch.Tensor], text_embeds: dict,
-                         cfg_scale: float = 7.5, cfg_rescale: float = 0.0,
-                         sample_steps: int = 50, seed: int = 42,
-                         input_noise_scale: float = 0.0,
-                         latent_noise_scale: float = 0.0,
-                         restoration_guidance_scale: float = 0.0) -> list[torch.Tensor]:
+    def _generation_step(
+        self,
+        cond_latents: list[torch.Tensor],
+        text_embeds: dict,
+        cfg_scale: float = 7.5,
+        cfg_rescale: float = 0.0,
+        sample_steps: int = 50,
+        seed: int = 42,
+        input_noise_scale: float = 0.0,
+        latent_noise_scale: float = 0.0,
+        restoration_guidance_scale: float = 0.0,
+    ) -> list[torch.Tensor]:
         """DiT 采样步骤
 
         支持两种模式:
@@ -2916,7 +2959,6 @@ class SeedVR2Engine(RestoreEngine):
 
         关键: 采样前必须对 timesteps 应用 timestep_transform (分辨率自适应偏移)
         """
-        from common.diffusion import classifier_free_guidance_dispatcher
         from models.dit_v2 import na
 
         # 更新 CFG 和采样步数，重新配置扩散组件
@@ -2933,7 +2975,7 @@ class SeedVR2Engine(RestoreEngine):
         noises = [torch.randn_like(latent) for latent in cond_latents]
         logger.info(f"噪声形状: {noises[0].size()}, cfg_scale={cfg_scale}, steps={sample_steps}")
 
-        is_distilled = (sample_steps == 1 and cfg_scale == 1.0)
+        is_distilled = sample_steps == 1 and cfg_scale == 1.0
 
         # 噪声增强: 严格对齐 ComfyUI 工作流
         # ComfyUI 中 latent_noise_scale 默认为 0.0 (不加噪声到条件)
@@ -2985,7 +3027,9 @@ class SeedVR2Engine(RestoreEngine):
         first_latent_shape = torch.tensor(noises[0].shape, device=self.device)
         transformed_timesteps = self._timestep_transform(raw_timesteps, first_latent_shape.unsqueeze(0))
         self.sampler.timesteps.timesteps = transformed_timesteps
-        logger.info(f"timestep_transform 已应用, timesteps 范围: [{transformed_timesteps.min():.1f}, {transformed_timesteps.max():.1f}]")
+        logger.info(
+            f"timestep_transform 已应用, timesteps 范围: [{transformed_timesteps.min():.1f}, {transformed_timesteps.max():.1f}]"
+        )
 
         # 采样
         self.dit.eval()
@@ -2995,21 +3039,25 @@ class SeedVR2Engine(RestoreEngine):
         _dynamic_cfg = None
         if restoration_guidance_scale > 0:
             from bin.integrated_app.optimization.diffusion_sampling import (
-                RestorationGuidedSampling, RestorationGuidanceConfig,
-                apply_cfg_rescale as apply_cfg_rescale_fn,
+                RestorationGuidanceConfig,
+                RestorationGuidedSampling,
             )
-            _restoration_sampler = RestorationGuidedSampling(RestorationGuidanceConfig(
-                enabled=True,
-                guidance_scale=restoration_guidance_scale,
-                timestep_decay=True,
-                decay_type="cosine",
-                decay_start_ratio=0.3,
-            ))
+
+            _restoration_sampler = RestorationGuidedSampling(
+                RestorationGuidanceConfig(
+                    enabled=True,
+                    guidance_scale=restoration_guidance_scale,
+                    timestep_decay=True,
+                    decay_type="cosine",
+                    decay_start_ratio=0.3,
+                )
+            )
 
         # 动态 CFG: 从配置读取是否启用
         dynamic_cfg_enabled = self.config.get("inference", {}).get("dynamic_cfg", False)
         if dynamic_cfg_enabled and cfg_scale > 1.0:
             from bin.integrated_app.optimization.diffusion_sampling import DynamicCFG
+
             _dynamic_cfg = DynamicCFG(initial_scale=cfg_scale * 0.5, final_scale=cfg_scale)
 
         try:
@@ -3027,13 +3075,9 @@ class SeedVR2Engine(RestoreEngine):
                         latents_shapes=latents_shapes,
                         batch_size=batch_size,
                         cfg_scale=(
-                            _dynamic_cfg.get_scale(args.i, total_steps) if _dynamic_cfg is not None
-                            else (
-                                cfg_scale
-                                if (args.i + 1) / total_steps
-                                <= diff_cfg["cfg"].get("partial", 1)
-                                else 1.0
-                            )
+                            _dynamic_cfg.get_scale(args.i, total_steps)
+                            if _dynamic_cfg is not None
+                            else (cfg_scale if (args.i + 1) / total_steps <= diff_cfg["cfg"].get("partial", 1) else 1.0)
                         ),
                         cfg_rescale=cfg_rescale,
                         restoration_guidance_scale=restoration_guidance_scale,
@@ -3078,7 +3122,6 @@ class SeedVR2Engine(RestoreEngine):
         当 restoration_guidance_scale == 0 时退化为标准 CFG，无额外开销。
         """
         from common.diffusion import classifier_free_guidance_dispatcher
-        from models.dit_v2 import na
 
         # 正向条件输出
         pos_output = self.dit(
@@ -3109,6 +3152,7 @@ class SeedVR2Engine(RestoreEngine):
         # 应用 cfg_rescale 稳定性增强 (VEnhancer inspired)
         if cfg_rescale > 0:
             from bin.integrated_app.optimization.diffusion_sampling import apply_cfg_rescale as apply_cfg_rescale_fn
+
             cfg_result = apply_cfg_rescale_fn(cfg_result, pos_output, rescale_factor=cfg_rescale)
 
         # Restoration Guidance (Vivid-VR inspired) 带时间步衰减
@@ -3151,17 +3195,19 @@ class SeedVR2Engine(RestoreEngine):
         Returns:
             Compose: torchvision Compose 变换对象
         """
-        return Compose([
-            _NaResize(
-                resolution=(res_h * res_w) ** 0.5,
-                mode="area",
-                downsample_only=False,
-            ),
-            Lambda(lambda x: torch.clamp(x, 0.0, 1.0)),
-            _DivisibleCrop((TILE_ALIGNMENT_FACTOR, TILE_ALIGNMENT_FACTOR)),
-            Normalize(0.5, 0.5),
-            _RearrangeTCHW2CTHW(),
-        ])
+        return Compose(
+            [
+                _NaResize(
+                    resolution=(res_h * res_w) ** 0.5,
+                    mode="area",
+                    downsample_only=False,
+                ),
+                Lambda(lambda x: torch.clamp(x, 0.0, 1.0)),
+                _DivisibleCrop((TILE_ALIGNMENT_FACTOR, TILE_ALIGNMENT_FACTOR)),
+                Normalize(0.5, 0.5),
+                _RearrangeTCHW2CTHW(),
+            ]
+        )
 
     @staticmethod
     def _cut_videos(videos: torch.Tensor, sp_size: int) -> torch.Tensor:

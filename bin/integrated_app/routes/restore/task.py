@@ -12,6 +12,7 @@ API 端点：
 
 所属项目：SeedVR2 (SeedVR2 视频/图像修复工具)
 """
+
 import asyncio
 import json
 import logging
@@ -213,41 +214,51 @@ async def get_result(task_id: str, history_db: HistoryDB = Depends(get_history_d
 
     status = task["status"]
     if status in ("pending", "processing"):
-        return respond_success({
-            "task_id": task_id,
-            "status": status,
-            "progress": task.get("progress", 0),
-        })
+        return respond_success(
+            {
+                "task_id": task_id,
+                "status": status,
+                "progress": task.get("progress", 0),
+            }
+        )
 
     if status == "failed":
-        return respond_success({
-            "task_id": task_id,
-            "status": "failed",
-            "error": task.get("error"),
-        })
+        return respond_success(
+            {
+                "task_id": task_id,
+                "status": "failed",
+                "error": task.get("error"),
+            }
+        )
 
     if status == "cancelled":
-        return respond_success({
-            "task_id": task_id,
-            "status": "cancelled",
-            "error": task.get("error"),
-        })
+        return respond_success(
+            {
+                "task_id": task_id,
+                "status": "cancelled",
+                "error": task.get("error"),
+            }
+        )
 
     output_path = task.get("output_path")
     if not output_path or not await asyncio.to_thread(os.path.exists, output_path):
-        return respond_success({
+        return respond_success(
+            {
+                "task_id": task_id,
+                "status": "completed",
+                "output_path": output_path,
+                "warning": "输出文件不存在",
+            }
+        )
+
+    return respond_success(
+        {
             "task_id": task_id,
             "status": "completed",
             "output_path": output_path,
-            "warning": "输出文件不存在",
-        })
-
-    return respond_success({
-        "task_id": task_id,
-        "status": "completed",
-        "output_path": output_path,
-        "file_size": await asyncio.to_thread(os.path.getsize, output_path),
-    })
+            "file_size": await asyncio.to_thread(os.path.getsize, output_path),
+        }
+    )
 
 
 @router.get("/{task_id}/download")
@@ -295,9 +306,7 @@ async def download_result(
     if not output_path or not await asyncio.to_thread(os.path.exists, output_path):
         raise HTTPException(status_code=404, detail="输出文件不存在")
 
-    allowed_dirs = config.get("runtime", {}).get("security", {}).get(
-        "allowed_base_dirs", ["outputs/", "data/uploads/"]
-    )
+    allowed_dirs = config.get("runtime", {}).get("security", {}).get("allowed_base_dirs", ["outputs/", "data/uploads/"])
     path_guard = build_default_path_guard(os.getcwd(), allowed_dirs)
     if not path_guard.is_safe_path(output_path):
         logger.warning(f"下载路径不在允许范围: {output_path}")

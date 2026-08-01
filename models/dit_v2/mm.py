@@ -21,8 +21,10 @@
 - **get_args/get_kwargs**: 从 MMArg 参数中提取指定分支的值。
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any
+
 import torch
 from torch import nn
 
@@ -35,11 +37,12 @@ class MMArg:
         vid: 视频分支值。
         txt: 文本分支值。
     """
+
     vid: Any
     txt: Any
 
 
-def get_args(key: str, args: List[Any]) -> List[Any]:
+def get_args(key: str, args: list[Any]) -> list[Any]:
     """从位置参数中提取指定分支的值。
 
     Args:
@@ -52,7 +55,7 @@ def get_args(key: str, args: List[Any]) -> List[Any]:
     return [getattr(v, key) if isinstance(v, MMArg) else v for v in args]
 
 
-def get_kwargs(key: str, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+def get_kwargs(key: str, kwargs: dict[str, Any]) -> dict[str, Any]:
     """从关键字参数中提取指定分支的值。
 
     Args:
@@ -93,11 +96,7 @@ class MMModule(nn.Module):
             self.all = module(*get_args("vid", args), **get_kwargs("vid", kwargs))
         else:
             self.vid = module(*get_args("vid", args), **get_kwargs("vid", kwargs))
-            self.txt = (
-                module(*get_args("txt", args), **get_kwargs("txt", kwargs))
-                if not vid_only
-                else None
-            )
+            self.txt = module(*get_args("txt", args), **get_kwargs("txt", kwargs)) if not vid_only else None
 
     def forward(
         self,
@@ -105,7 +104,7 @@ class MMModule(nn.Module):
         txt: torch.FloatTensor,
         *args,
         **kwargs,
-    ) -> Tuple[
+    ) -> tuple[
         torch.FloatTensor,
         torch.FloatTensor,
     ]:

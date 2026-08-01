@@ -25,6 +25,7 @@ SeedVR2 - FastAPI 依赖注入模块
     ...     tasks = await task_queue.list_tasks()
     ...     return {"success": True, "data": tasks}
 """
+
 from typing import Any
 
 from fastapi import Request
