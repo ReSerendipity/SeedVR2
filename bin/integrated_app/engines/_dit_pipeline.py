@@ -230,7 +230,7 @@ class _DitPipelineMixin:
         _restoration_sampler = None
         _dynamic_cfg = None
         if restoration_guidance_scale > 0:
-            from bin.integrated_app.optimization.diffusion_sampling import (
+            from bin.integrated_app.optimization.inference.diffusion_sampling import (
                 RestorationGuidanceConfig,
                 RestorationGuidedSampling,
             )
@@ -248,7 +248,7 @@ class _DitPipelineMixin:
         # 动态 CFG: 从配置读取是否启用
         dynamic_cfg_enabled = self.config.get("inference", {}).get("dynamic_cfg", False)
         if dynamic_cfg_enabled and cfg_scale > 1.0:
-            from bin.integrated_app.optimization.diffusion_sampling import DynamicCFG
+            from bin.integrated_app.optimization.inference.diffusion_sampling import DynamicCFG
 
             _dynamic_cfg = DynamicCFG(initial_scale=cfg_scale * 0.5, final_scale=cfg_scale)
 
@@ -343,7 +343,9 @@ class _DitPipelineMixin:
 
         # 应用 cfg_rescale 稳定性增强 (VEnhancer inspired)
         if cfg_rescale > 0:
-            from bin.integrated_app.optimization.diffusion_sampling import apply_cfg_rescale as apply_cfg_rescale_fn
+            from bin.integrated_app.optimization.inference.diffusion_sampling import (
+                apply_cfg_rescale as apply_cfg_rescale_fn,
+            )
 
             cfg_result = apply_cfg_rescale_fn(cfg_result, pos_output, rescale_factor=cfg_rescale)
 

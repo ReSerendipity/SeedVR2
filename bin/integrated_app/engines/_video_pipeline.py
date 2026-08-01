@@ -32,8 +32,8 @@ from bin.integrated_app.engines._memory_utils import (
     read_video,
 )
 from bin.integrated_app.exceptions import InferenceCancelledError
-from bin.integrated_app.optimization.cache_manager import get_cache_manager
-from bin.integrated_app.optimization.memory_manager import clear_memory
+from bin.integrated_app.optimization.gpu.cache_manager import get_cache_manager
+from bin.integrated_app.optimization.gpu.memory_manager import clear_memory
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ class _VideoPipelineMixin:
         self._reset_cancel_token()
         # VRAM 预检 (DiffBIR inspired)
         try:
-            from bin.integrated_app.optimization.vram_monitor import VRAMPeakMonitor
+            from bin.integrated_app.optimization.gpu.vram_monitor import VRAMPeakMonitor
 
             self._vram_monitor = VRAMPeakMonitor(device=self.device, enabled=True)
         except Exception:
@@ -132,7 +132,7 @@ class _VideoPipelineMixin:
             segment_overlap = kwargs.get("segment_overlap", self.config.get("restore", {}).get("segment_overlap", 0))
             if segment_size > 0 and total_frames > segment_size:
                 try:
-                    from bin.integrated_app.optimization.tile_blend import compute_temporal_segments
+                    from bin.integrated_app.optimization.inference.tile_blend import compute_temporal_segments
 
                     temporal_segments = compute_temporal_segments(
                         total_frames=total_frames,
@@ -311,7 +311,7 @@ class _VideoPipelineMixin:
                     sample = sample[:ori_length]
 
                 # 颜色校正和后处理
-                from bin.integrated_app.optimization.post_processing import (
+                from bin.integrated_app.optimization.inference.post_processing import (
                     apply_sharpening,
                     wavelet_reconstruction,
                 )
@@ -337,7 +337,7 @@ class _VideoPipelineMixin:
                 temporal_propagation_enabled = self.config.get("inference", {}).get("temporal_propagation", True)
                 if temporal_propagation_enabled:
                     try:
-                        from bin.integrated_app.optimization.temporal_processing import FeaturePropagation
+                        from bin.integrated_app.optimization.inference.temporal_processing import FeaturePropagation
 
                         prop_weight = postprocess_cfg.get("temporal_propagation_weight", 0.2)
                         temporal_propagator = FeaturePropagation(propagation_weight=prop_weight)
@@ -386,7 +386,7 @@ class _VideoPipelineMixin:
                 # 长视频分段混合 (RVRT/DiffVSR inspired)
                 if temporal_segments is not None and len(temporal_segments) > 1:
                     try:
-                        from bin.integrated_app.optimization.tile_blend import blend_temporal_segments
+                        from bin.integrated_app.optimization.inference.tile_blend import blend_temporal_segments
 
                         # 将 restored_frames 转换为 tensor
                         frames_tensor = torch.from_numpy(np.array(restored_frames))  # T H W C

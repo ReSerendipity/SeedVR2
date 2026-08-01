@@ -34,7 +34,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from bin.integrated_app.optimization.engine_scheduler import (
+from bin.integrated_app.optimization.engine.engine_scheduler import (
     EngineCapability,
     EngineRegistry,
     Upscaler,

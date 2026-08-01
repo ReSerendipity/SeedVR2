@@ -37,7 +37,7 @@ from typing import Any
 
 import torch
 
-from bin.integrated_app.optimization.cache_manager import (
+from bin.integrated_app.optimization.gpu.cache_manager import (
     TensorCacheManager,
     get_cache_manager,
 )
