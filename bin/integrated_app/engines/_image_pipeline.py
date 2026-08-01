@@ -156,7 +156,7 @@ class _ImagePipelineMixin:
             RestoreResult
         """
 
-        from bin.integrated_app.optimization.post_processing import (
+        from bin.integrated_app.optimization.inference.post_processing import (
             TextRestorationConfig,
             TextRestorationPipeline,
             apply_sharpening,

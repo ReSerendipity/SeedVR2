@@ -75,7 +75,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 import contextlib  # noqa: E402
 
 from bin.integrated_app.engine_interface import RestoreEngine  # noqa: E402
-from bin.integrated_app.optimization.memory_manager import (  # noqa: E402
+from bin.integrated_app.optimization.gpu.memory_manager import (  # noqa: E402
     clear_memory,
 )
 

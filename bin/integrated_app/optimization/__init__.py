@@ -29,8 +29,8 @@ Competitive analysis modules (from repo/ 40 repositories):
 """
 
 # Core modules (always available)
-from .blockswap import apply_block_swap_to_dit, is_blockswap_enabled
-from .memory_manager import clear_memory, get_ram_usage, get_vram_usage
+from .gpu.blockswap import apply_block_swap_to_dit, is_blockswap_enabled
+from .gpu.memory_manager import clear_memory, get_ram_usage, get_vram_usage
 
 __all__ = [
     # Core
@@ -66,19 +66,19 @@ __all__.extend(
 def __getattr__(name):
     """Lazy import for competitive analysis modules"""
     _lazy_modules = {
-        "vram_monitor": "bin.integrated_app.optimization.vram_monitor",
-        "vae_tiled_enhance": "bin.integrated_app.optimization.vae_tiled_enhance",
-        "temporal_processing": "bin.integrated_app.optimization.temporal_processing",
-        "engine_scheduler": "bin.integrated_app.optimization.engine_scheduler",
-        "diffusion_sampling": "bin.integrated_app.optimization.diffusion_sampling",
-        "post_processing": "bin.integrated_app.optimization.post_processing",
-        "dit_optimization": "bin.integrated_app.optimization.dit_optimization",
-        "video_processing_enhance": "bin.integrated_app.optimization.video_processing_enhance",
-        "gpu_compatibility": "bin.integrated_app.optimization.gpu_compatibility",
+        "vram_monitor": "bin.integrated_app.optimization.gpu.vram_monitor",
+        "vae_tiled_enhance": "bin.integrated_app.optimization.inference.vae_tiled_enhance",
+        "temporal_processing": "bin.integrated_app.optimization.inference.temporal_processing",
+        "engine_scheduler": "bin.integrated_app.optimization.engine.engine_scheduler",
+        "diffusion_sampling": "bin.integrated_app.optimization.inference.diffusion_sampling",
+        "post_processing": "bin.integrated_app.optimization.inference.post_processing",
+        "dit_optimization": "bin.integrated_app.optimization.inference.dit_optimization",
+        "video_processing_enhance": "bin.integrated_app.optimization.video.video_processing_enhance",
+        "gpu_compatibility": "bin.integrated_app.optimization.gpu.gpu_compatibility",
         "webui_enhancement": "bin.integrated_app.optimization.webui_enhancement",
-        "vram_toolchain": "bin.integrated_app.optimization.vram_toolchain",
-        "framework_engineering": "bin.integrated_app.optimization.framework_engineering",
-        "specialized_engines": "bin.integrated_app.optimization.specialized_engines",
+        "vram_toolchain": "bin.integrated_app.optimization.gpu.vram_toolchain",
+        "framework_engineering": "bin.integrated_app.optimization.engine.framework_engineering",
+        "specialized_engines": "bin.integrated_app.optimization.engine.specialized_engines",
         "license_compliance": "bin.integrated_app.optimization.license_compliance",
         "roadmap": "bin.integrated_app.optimization.roadmap",
     }

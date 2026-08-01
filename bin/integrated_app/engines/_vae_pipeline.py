@@ -28,7 +28,7 @@ class _VAEPipelineMixin:
         与 ComfyUI/test_e2e.py 一致: 使用 vae.encode(x, tiled=True, tile_size=..., tile_overlap=...)
         集成 SCST 启发的自动 tile size 推荐和 NaN 检测回退。
         """
-        from bin.integrated_app.optimization.vae_tiled_enhance import (
+        from bin.integrated_app.optimization.inference.vae_tiled_enhance import (
             detect_nan,
             get_optimal_tile_size,
         )
@@ -139,7 +139,7 @@ class _VAEPipelineMixin:
         与 ComfyUI/test_e2e.py 一致: 使用 vae.decode(x, tiled=True, tile_size=..., tile_overlap=...)
         集成 SCST 启发的自动 tile size 推荐、OOM 回退和 NaN 检测。
         """
-        from bin.integrated_app.optimization.vae_tiled_enhance import (
+        from bin.integrated_app.optimization.inference.vae_tiled_enhance import (
             GroupNormAccumulator,
             TiledVAEHook,
             detect_nan,
@@ -264,7 +264,7 @@ class _VAEPipelineMixin:
                     # Gaussian 权重混合增强 (SCST/VEncancer inspired)
                     if gaussian_blend and getattr(self.vae, "_last_tile_outputs", None):
                         try:
-                            from bin.integrated_app.optimization.vae_tiled_enhance import blend_tiles_gaussian
+                            from bin.integrated_app.optimization.inference.vae_tiled_enhance import blend_tiles_gaussian
 
                             tile_outputs = self.vae._last_tile_outputs
                             tile_positions = self.vae._last_tile_positions
