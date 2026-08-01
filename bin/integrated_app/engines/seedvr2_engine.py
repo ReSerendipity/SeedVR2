@@ -68,8 +68,8 @@ from bin.integrated_app.engines._memory_utils import (  # noqa: E402
 from bin.integrated_app.engines._vae_pipeline import _VAEPipelineMixin  # noqa: E402
 from bin.integrated_app.engines._video_pipeline import _VideoPipelineMixin  # noqa: E402
 from bin.integrated_app.exceptions import InferenceCancelledError  # noqa: E402
-from bin.integrated_app.optimization.blockswap import apply_block_swap_to_dit, cleanup_blockswap  # noqa: E402
-from bin.integrated_app.optimization.memory_manager import (  # noqa: E402
+from bin.integrated_app.optimization.gpu.blockswap import apply_block_swap_to_dit, cleanup_blockswap  # noqa: E402
+from bin.integrated_app.optimization.gpu.memory_manager import (  # noqa: E402
     clear_rope_lru_caches,
     release_model_memory,
 )
@@ -752,7 +752,7 @@ class SeedVR2Engine(
 
         # VRAM optimization toolchain (CogVideo/FlashVSR inspired)
         try:
-            from bin.integrated_app.optimization.vram_toolchain import FP8Quantizer, XFormersIntegration
+            from bin.integrated_app.optimization.gpu.vram_toolchain import FP8Quantizer, XFormersIntegration
 
             # FP8 quantization
             fp8_enabled = self.config.get("inference", {}).get("fp8_enabled", False)

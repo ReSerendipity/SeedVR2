@@ -309,7 +309,7 @@ def create_app(config: dict | None = None) -> FastAPI:
     register_page_routes(app)
 
     try:
-        from bin.integrated_app.optimization.engine_scheduler import EngineScheduler
+        from bin.integrated_app.optimization.engine.engine_scheduler import EngineScheduler
 
         _engine_scheduler = EngineScheduler()
         logger.info("Engine Scheduler initialized")
@@ -329,7 +329,7 @@ def create_app(config: dict | None = None) -> FastAPI:
             Returns:
                 dict: 统一响应格式，包含所有引擎名称列表和当前可用引擎列表。
             """
-            from bin.integrated_app.optimization.engine_scheduler import EngineRegistry
+            from bin.integrated_app.optimization.engine.engine_scheduler import EngineRegistry
 
             all_engines = EngineRegistry.get_all_registered()
             available_engines = EngineRegistry.get_available_engines()

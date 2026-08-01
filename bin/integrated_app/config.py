@@ -162,7 +162,7 @@ def save_config(config: dict, config_path: str | None = None) -> None:
 
 _config_manager: "YAMLConfigManager | None" = None
 try:
-    from bin.integrated_app.optimization.framework_engineering import YAMLConfigManager
+    from bin.integrated_app.optimization.engine.framework_engineering import YAMLConfigManager
 
     _config_manager = YAMLConfigManager()
 except Exception:
