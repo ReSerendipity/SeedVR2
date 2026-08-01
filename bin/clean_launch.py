@@ -14,10 +14,10 @@ SeedVR2 - 清理缓存启动脚本
     - PyTorch (CUDA) 用于 GPU 推理
     - FastAPI + Uvicorn 作为 Web 服务器
 """
-import sys
-import os
-from pathlib import Path
 
+import os
+import sys
+from pathlib import Path
 
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
@@ -72,14 +72,14 @@ def find_winpython_python() -> str | None:
 
     for item in project_root.iterdir():
         if item.is_dir() and item.name.startswith("WPy64-"):
-            for root, dirs, files in os.walk(str(item)):
+            for root, _dirs, files in os.walk(str(item)):
                 for f in files:
                     if f == "python.exe":
                         return os.path.join(root, f)
 
     for item in project_root.iterdir():
         if item.is_dir() and item.name.startswith("WinPython"):
-            for root, dirs, files in os.walk(str(item)):
+            for root, _dirs, files in os.walk(str(item)):
                 for f in files:
                     if f == "python.exe":
                         return os.path.join(root, f)
@@ -105,13 +105,18 @@ def setup_isolated_env() -> None:
     for var in ["PYTHONHOME", "PYTHONSTARTUP", "PYTHONIOENCODING"]:
         os.environ.pop(var, None)
 
-    sys.path = [p for p in sys.path if not any(
-        exclude in p.lower() for exclude in [
-            "\\appdata\\",
-            "\\program files\\",
-            "\\programdata\\",
-        ]
-    )]
+    sys.path = [
+        p
+        for p in sys.path
+        if not any(
+            exclude in p.lower()
+            for exclude in [
+                "\\appdata\\",
+                "\\program files\\",
+                "\\programdata\\",
+            ]
+        )
+    ]
 
     if project_root not in sys.path:
         sys.path.insert(0, project_root)
@@ -145,6 +150,7 @@ def main() -> int | None:
 
     try:
         import torch
+
         has_cuda = torch.cuda.is_available()
         if has_cuda:
             gpu_name = torch.cuda.get_device_name(0)
@@ -166,13 +172,18 @@ def main() -> int | None:
     else:
         print("[系统] 使用当前 Python 环境运行")
 
-    leaked = [p for p in sys.path if any(
-        exclude in p.lower() for exclude in [
-            "\\appdata\\",
-            "\\program files\\",
-            "\\programdata\\",
-        ]
-    )]
+    leaked = [
+        p
+        for p in sys.path
+        if any(
+            exclude in p.lower()
+            for exclude in [
+                "\\appdata\\",
+                "\\program files\\",
+                "\\programdata\\",
+            ]
+        )
+    ]
     if leaked:
         print(f"[WARN] 检测到系统 Python 路径泄露: {leaked}")
 
@@ -193,12 +204,13 @@ def main() -> int | None:
         return any(name.startswith(p) for p in _SKIP_CLEAN_PREFIXES)
 
     cleaned_count = 0
-    for root, dirs, files in os.walk(project_root):
+    for root, dirs, _files in os.walk(project_root):
         dirs[:] = [d for d in dirs if not _should_skip_dir(d)]
         if "__pycache__" in dirs:
             cache_dir = os.path.join(root, "__pycache__")
             try:
                 import shutil
+
                 shutil.rmtree(cache_dir, ignore_errors=True)
                 cleaned_count += 1
             except Exception:
@@ -207,6 +219,7 @@ def main() -> int | None:
         print(f"[清理] 已清理 {cleaned_count} 个项目源码 __pycache__ 目录")
 
     from bin.integrated_app.app_server import main as app_main
+
     app_main()
 
 

@@ -30,7 +30,6 @@
 """
 
 import torch
-from einops import rearrange
 
 
 def window_partition(x: torch.FloatTensor, window_size, t, h, w):

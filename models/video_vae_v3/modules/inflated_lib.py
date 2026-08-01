@@ -20,7 +20,7 @@
 """
 
 from enum import Enum
-from typing import Optional
+
 import numpy as np
 import torch
 from diffusers.models.normalization import RMSNorm
@@ -104,9 +104,7 @@ def remove_head(tensor: Tensor, times: int = 1) -> Tensor:
     return torch.cat(tensors=(tensor[:, :, :1], tensor[:, :, times + 1 :]), dim=2)
 
 
-def extend_head(
-    tensor: Tensor, times: Optional[int] = 2, memory: Optional[Tensor] = None
-) -> Tensor:
+def extend_head(tensor: Tensor, times: int | None = 2, memory: Tensor | None = None) -> Tensor:
     """在因果卷积前扩展输入的时序头部。
 
     两种模式：

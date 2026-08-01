@@ -34,7 +34,8 @@ AdaLN-Zero 算法:
     gate 初始化为 0，使初始时残差块为恒等映射，稳定深度训练。
 """
 
-from typing import Callable, List, Optional
+from collections.abc import Callable
+
 import torch
 from einops import rearrange
 from torch import nn
@@ -98,8 +99,8 @@ class AdaSingle(nn.Module):
         self,
         dim: int,
         emb_dim: int,
-        layers: List[str],
-        modes: Optional[List[str]] = None,
+        layers: list[str],
+        modes: list[str] | None = None,
     ):
         super().__init__()
         self.dim = dim
@@ -135,7 +136,7 @@ class AdaSingle(nn.Module):
         mode: str,
         cache: Cache = Cache(disable=True),
         branch_tag: str = "",
-        hid_len: Optional[torch.LongTensor] = None,
+        hid_len: torch.LongTensor | None = None,
     ) -> torch.FloatTensor:
         """前向传播，执行自适应调制。
 
@@ -153,17 +154,14 @@ class AdaSingle(nn.Module):
         """
         idx = self.layers.index(layer)
         params = self.linear(self.silu(emb))
-        params = rearrange(
-            params, "b (d l g) -> b d l g",
-            l=len(self.layers), g=self.params_per_layer
-        )[..., idx, :]
+        params = rearrange(params, "b (d l g) -> b d l g", l=len(self.layers), g=self.params_per_layer)[..., idx, :]
         params = expand_dims(params, 1, hid.ndim + 1)
 
         if hid_len is not None:
             params = cache(
                 f"emb_repeat_{idx}_{branch_tag}",
                 lambda: slice_inputs(
-                    torch.cat([e.repeat(l, *([1] * (e.ndim - 1))) for e, l in zip(params, hid_len)]),
+                    torch.cat([e.repeat(l, *([1] * (e.ndim - 1))) for e, l in zip(params, hid_len, strict=False)]),
                     dim=0,
                 ),
             )

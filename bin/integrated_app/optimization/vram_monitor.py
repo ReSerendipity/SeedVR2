@@ -51,6 +51,7 @@ class VRAMSnapshot:
         free_mb: 驱动层面可用显存（MB，通过 mem_get_info 获取）
         total_mb: GPU 总显存（MB）
     """
+
     timestamp: float
     stage: str
     allocated_mb: float
@@ -78,6 +79,7 @@ class VRAMStageStats:
         peak_reserved_mb: 阶段内已保留显存峰值（MB）
         snapshots: 阶段内的所有显存快照列表
     """
+
     stage_name: str
     start_time: float = 0.0
     end_time: float = 0.0
@@ -175,15 +177,15 @@ class VRAMPeakMonitor:
             return None
 
         try:
-            allocated = torch.cuda.memory_allocated(self.device) / (1024 ** 2)
-            reserved = torch.cuda.memory_reserved(self.device) / (1024 ** 2)
-            peak_allocated = torch.cuda.max_memory_allocated(self.device) / (1024 ** 2)
-            peak_reserved = torch.cuda.max_memory_reserved(self.device) / (1024 ** 2)
+            allocated = torch.cuda.memory_allocated(self.device) / (1024**2)
+            reserved = torch.cuda.memory_reserved(self.device) / (1024**2)
+            peak_allocated = torch.cuda.max_memory_allocated(self.device) / (1024**2)
+            peak_reserved = torch.cuda.max_memory_reserved(self.device) / (1024**2)
 
             # mem_get_info 返回 (free, total)，单位字节
             free_mem, total_mem = torch.cuda.mem_get_info(self.device)
-            free_mb = free_mem / (1024 ** 2)
-            total_mb = total_mem / (1024 ** 2)
+            free_mb = free_mem / (1024**2)
+            total_mb = total_mem / (1024**2)
 
             return VRAMSnapshot(
                 timestamp=time.time(),
@@ -230,7 +232,11 @@ class VRAMPeakMonitor:
             stage_stats.start_allocated_mb = snapshot.allocated_mb
 
         self._current_stage = stage_stats
-        logger.debug(f"[VRAM] 阶段开始: {name}, allocated={snapshot.allocated_mb:.1f}MB" if snapshot else f"[VRAM] 阶段开始: {name}")
+        logger.debug(
+            f"[VRAM] 阶段开始: {name}, allocated={snapshot.allocated_mb:.1f}MB"
+            if snapshot
+            else f"[VRAM] 阶段开始: {name}"
+        )
 
         try:
             yield
@@ -253,9 +259,7 @@ class VRAMPeakMonitor:
 
             delta = stage_stats.delta_mb
             logger.debug(
-                f"[VRAM] 阶段结束: {name}, "
-                f"delta={delta:+.1f}MB, "
-                f"duration={stage_stats.duration_ms:.0f}ms"
+                f"[VRAM] 阶段结束: {name}, " f"delta={delta:+.1f}MB, " f"duration={stage_stats.duration_ms:.0f}ms"
             )
 
     def snapshot(self, label: str = "") -> VRAMSnapshot | None:
@@ -313,15 +317,17 @@ class VRAMPeakMonitor:
         """
         stages = []
         for s in self._stages:
-            stages.append({
-                "stage": s.stage_name,
-                "duration_ms": round(s.duration_ms, 1),
-                "start_allocated_mb": round(s.start_allocated_mb, 1),
-                "end_allocated_mb": round(s.end_allocated_mb, 1),
-                "delta_mb": round(s.delta_mb, 1),
-                "peak_allocated_mb": round(s.peak_allocated_mb, 1),
-                "peak_reserved_mb": round(s.peak_reserved_mb, 1),
-            })
+            stages.append(
+                {
+                    "stage": s.stage_name,
+                    "duration_ms": round(s.duration_ms, 1),
+                    "start_allocated_mb": round(s.start_allocated_mb, 1),
+                    "end_allocated_mb": round(s.end_allocated_mb, 1),
+                    "delta_mb": round(s.delta_mb, 1),
+                    "peak_allocated_mb": round(s.peak_allocated_mb, 1),
+                    "peak_reserved_mb": round(s.peak_reserved_mb, 1),
+                }
+            )
 
         total_duration_ms = sum(s.duration_ms for s in self._stages)
 
@@ -340,13 +346,17 @@ class VRAMPeakMonitor:
         日志级别为 INFO。
         """
         report = self.get_report()
-        logger.info(f"[VRAM 报告] 全局峰值: allocated={report['global_peak_allocated_mb']:.1f}MB, "
-                     f"reserved={report['global_peak_reserved_mb']:.1f}MB, "
-                     f"总耗时={report['total_duration_ms']:.0f}ms")
+        logger.info(
+            f"[VRAM 报告] 全局峰值: allocated={report['global_peak_allocated_mb']:.1f}MB, "
+            f"reserved={report['global_peak_reserved_mb']:.1f}MB, "
+            f"总耗时={report['total_duration_ms']:.0f}ms"
+        )
         for s in report["stages"]:
-            logger.info(f"  {s['stage']}: delta={s['delta_mb']:+.1f}MB, "
-                         f"peak={s['peak_allocated_mb']:.1f}MB, "
-                         f"duration={s['duration_ms']:.0f}ms")
+            logger.info(
+                f"  {s['stage']}: delta={s['delta_mb']:+.1f}MB, "
+                f"peak={s['peak_allocated_mb']:.1f}MB, "
+                f"duration={s['duration_ms']:.0f}ms"
+            )
 
     def reset(self):
         """重置所有监控状态，清空阶段数据和全局峰值

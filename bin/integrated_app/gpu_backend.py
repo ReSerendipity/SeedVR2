@@ -12,12 +12,12 @@
     - 启动时自动检测可用 GPU 后端，检测失败时记录警告并进入降级模式
     - 全局单例 `gpu_manager` 供应用各模块统一调用
 """
+
 import logging
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,8 @@ class GPUBackend(Enum):
         CUDA: NVIDIA CUDA 后端（主力计算后端）
         UNAVAILABLE: 未检测到可用 GPU（降级模式，推理不可用）
     """
-    CUDA = "cuda"              # NVIDIA GPUs
+
+    CUDA = "cuda"  # NVIDIA GPUs
     UNAVAILABLE = "unavailable"  # 未检测到可用 GPU（降级模式）
 
 
@@ -53,6 +54,7 @@ class GPUInfo:
         driver_version: NVIDIA 驱动版本号（暂未实现）
         cuda_version: CUDA 运行时版本号
     """
+
     backend: GPUBackend
     name: str
     total_vram_mb: int
@@ -142,6 +144,7 @@ class _CUDAStrategy(_GPUStrategy):
         """
         try:
             import torch
+
             return torch.cuda.is_available()
         except ImportError:
             return False
@@ -206,11 +209,11 @@ class _CUDAStrategy(_GPUStrategy):
         cuda_version = torch.version.cuda or ""
 
         return {
-            'name': name,
-            'total_vram': total_vram,
-            'available_vram_mb': available_vram_mb,
-            'utilization': utilization,
-            'cuda_version': cuda_version,
+            "name": name,
+            "total_vram": total_vram,
+            "available_vram_mb": available_vram_mb,
+            "utilization": utilization,
+            "cuda_version": cuda_version,
         }
 
     def is_available(self) -> bool:
@@ -221,6 +224,7 @@ class _CUDAStrategy(_GPUStrategy):
         """
         try:
             import torch
+
             return torch.cuda.is_available()
         except ImportError:
             return False
@@ -231,6 +235,7 @@ class _CUDAStrategy(_GPUStrategy):
         用于计时或确保内存操作完成的精确同步点。
         """
         import torch
+
         torch.cuda.synchronize()
 
     def get_process_group_backend(self) -> str:
@@ -272,11 +277,13 @@ class GPUBackendManager:
 
     def __init__(self):
         """初始化 GPU 后端管理器并自动检测可用后端"""
-        self._backend: GPUBackend | None = None
+        # _detect_backend() 在构造末尾必定赋值；初始值用 UNAVAILABLE 而非 None，
+        # 保证 backend 始终为非空枚举。
+        self._backend: GPUBackend = GPUBackend.UNAVAILABLE
         self._strategy: _GPUStrategy | None = None
         self._device_name: str = ""
         self._total_vram: int = 0
-        self._gpu_info_cache: Optional[GPUInfo] = None
+        self._gpu_info_cache: GPUInfo | None = None
         self._gpu_info_cache_time: float = 0.0
         self._can_load_cache: dict[int, tuple[float, bool]] = {}
         self._detect_backend()
@@ -301,8 +308,8 @@ class GPUBackendManager:
                     self._strategy = strategy
                     try:
                         info = strategy.get_info()
-                        self._device_name = info.get('name', str(backend_type.value))
-                        self._total_vram = info.get('total_vram', 0)
+                        self._device_name = info.get("name", str(backend_type.value))
+                        self._total_vram = info.get("total_vram", 0)
                     except Exception as e:
                         logger.debug(f"获取 {backend_type.name} 信息失败: {e}")
                         self._device_name = str(backend_type.value)
@@ -319,8 +326,7 @@ class GPUBackendManager:
         self._device_name = "未检测到 NVIDIA GPU"
         self._total_vram = 0
         logger.warning(
-            "未检测到 NVIDIA GPU。应用将以降级模式启动，推理功能不可用。"
-            "SeedVR2 模型仅支持 NVIDIA CUDA GPU 推理。"
+            "未检测到 NVIDIA GPU。应用将以降级模式启动，推理功能不可用。" "SeedVR2 模型仅支持 NVIDIA CUDA GPU 推理。"
         )
 
     @property
@@ -360,8 +366,7 @@ class GPUBackendManager:
         if self._strategy is not None:
             return self._strategy.device_str()
         logger.warning(
-            "GPU 不可用，device_str 返回 'cpu'。"
-            "SeedVR2 模型仅支持 CUDA GPU 推理，CPU 模式下推理功能不可用。"
+            "GPU 不可用，device_str 返回 'cpu'。" "SeedVR2 模型仅支持 CUDA GPU 推理，CPU 模式下推理功能不可用。"
         )
         return "cpu"
 
@@ -375,10 +380,7 @@ class GPUBackendManager:
             GPUInfo: 包含设备名称、显存、利用率、CUDA版本等的数据类实例
         """
         current_time = time.time()
-        if (
-            self._gpu_info_cache is not None
-            and current_time - self._gpu_info_cache_time < _GPU_INFO_CACHE_TTL
-        ):
+        if self._gpu_info_cache is not None and current_time - self._gpu_info_cache_time < _GPU_INFO_CACHE_TTL:
             return self._gpu_info_cache
 
         result: GPUInfo
@@ -387,12 +389,12 @@ class GPUBackendManager:
                 info = self._strategy.get_info()
                 result = GPUInfo(
                     backend=self._backend,
-                    name=info.get('name', self._device_name),
-                    total_vram_mb=info.get('total_vram', self._total_vram) // (1024 * 1024),
-                    available_vram_mb=info.get('available_vram_mb', 0),
-                    utilization_pct=info.get('utilization', 0.0),
+                    name=info.get("name", self._device_name),
+                    total_vram_mb=info.get("total_vram", self._total_vram) // (1024 * 1024),
+                    available_vram_mb=info.get("available_vram_mb", 0),
+                    utilization_pct=info.get("utilization", 0.0),
                     driver_version="",
-                    cuda_version=info.get('cuda_version', ""),
+                    cuda_version=info.get("cuda_version", ""),
                 )
             except ImportError as e:
                 logger.error(f"PyTorch 未安装，无法获取 GPU 信息: {e}")

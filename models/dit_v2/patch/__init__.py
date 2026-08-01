@@ -21,6 +21,7 @@ Patch 层负责将视频的 3D 网格特征转换为 Transformer 所需的一维
 以及将 Transformer 输出的 token 序列还原回 3D 网格特征。
 """
 
+
 def get_na_patch_layers(patch_type="v1"):
     """根据 patch_type 返回 NaPatchIn 和 NaPatchOut 类。
 

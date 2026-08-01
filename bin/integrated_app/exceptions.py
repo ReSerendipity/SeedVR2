@@ -278,6 +278,7 @@ class ModelFileNotFoundError(RestoreError):
 # 但底层 asyncio.to_thread 包装的推理线程无法被 cancel，GPU 资源持续占用
 # 新增此异常 + CancellationToken，让推理线程在阶段切换点主动检查并退出
 
+
 class InferenceCancelledError(RestoreError):
     """推理被取消
 

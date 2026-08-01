@@ -33,14 +33,13 @@
     视频查询都能关注到窗口内视频和全局文本信息。
 """
 
-from typing import Tuple, Union
 import torch
 from einops import rearrange
-from torch.nn import functional as F
 
 from common.cache import Cache
 from common.distributed.ops import gather_heads_scatter_seq, gather_seq_scatter_heads_qkv
 from common.utils import safe_pad_operation
+
 from .. import na
 from ..attention import FlashAttentionVarlen
 from ..blocks.mmdit_window_block import MMWindowAttention, MMWindowTransformerBlock
@@ -87,7 +86,7 @@ class NaSwinAttention(MMWindowAttention):
         qk_rope: bool,
         qk_norm: norm_layer_type,
         qk_norm_eps: float,
-        window: Union[int, Tuple[int, int, int]],
+        window: int | tuple[int, int, int],
         window_method: str,
         shared_qkv: bool,
         **kwargs,
@@ -116,7 +115,7 @@ class NaSwinAttention(MMWindowAttention):
         vid_shape: torch.LongTensor,
         txt_shape: torch.LongTensor,
         cache: Cache,
-    ) -> Tuple[
+    ) -> tuple[
         torch.FloatTensor,
         torch.FloatTensor,
     ]:
@@ -174,9 +173,7 @@ class NaSwinAttention(MMWindowAttention):
         vid_len_win = cache_win("vid_len", lambda: window_shape.prod(-1))
         txt_len_win = cache_win("txt_len", lambda: txt_len.repeat_interleave(window_count))
         all_len_win = cache_win("all_len", lambda: vid_len_win + txt_len_win)
-        concat_win, unconcat_win = cache_win(
-            "mm_pnp", lambda: na.repeat_concat_idx(vid_len_win, txt_len, window_count)
-        )
+        concat_win, unconcat_win = cache_win("mm_pnp", lambda: na.repeat_concat_idx(vid_len_win, txt_len, window_count))
 
         if self.rope:
             vid_q, vid_k = self.rope(vid_q, vid_k, window_shape, cache_win)
@@ -185,12 +182,8 @@ class NaSwinAttention(MMWindowAttention):
             q=concat_win(vid_q, txt_q).bfloat16(),
             k=concat_win(vid_k, txt_k).bfloat16(),
             v=concat_win(vid_v, txt_v).bfloat16(),
-            cu_seqlens_q=cache_win(
-                "vid_seqlens_q", lambda: safe_pad_operation(all_len_win.cumsum(0), (1, 0)).int()
-            ),
-            cu_seqlens_k=cache_win(
-                "vid_seqlens_k", lambda: safe_pad_operation(all_len_win.cumsum(0), (1, 0)).int()
-            ),
+            cu_seqlens_q=cache_win("vid_seqlens_q", lambda: safe_pad_operation(all_len_win.cumsum(0), (1, 0)).int()),
+            cu_seqlens_k=cache_win("vid_seqlens_k", lambda: safe_pad_operation(all_len_win.cumsum(0), (1, 0)).int()),
             max_seqlen_q=cache_win("vid_max_seqlen_q", lambda: all_len_win.max().item()),
             max_seqlen_k=cache_win("vid_max_seqlen_k", lambda: all_len_win.max().item()),
         ).type_as(vid_q)
@@ -294,7 +287,7 @@ class NaMMSRTransformerBlock(MMWindowTransformerBlock):
         txt_shape: torch.LongTensor,
         emb: torch.FloatTensor,
         cache: Cache,
-    ) -> Tuple[
+    ) -> tuple[
         torch.FloatTensor,
         torch.FloatTensor,
         torch.LongTensor,

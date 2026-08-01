@@ -9,14 +9,15 @@
 6. POST /api/ui/preferences/reset — 重置偏好
 7. GET /api/ui/layout — 折叠面板布局
 """
+
 import pytest
 
 from tests.conftest import csrf_post
 
-
 # ---------------------------------------------------------------------------
 # 1. 参数定义与预设
 # ---------------------------------------------------------------------------
+
 
 class TestGetParameters:
     """GET /api/ui/parameters 测试"""
@@ -72,6 +73,7 @@ class TestGetParameters:
 # 2. 推荐预设
 # ---------------------------------------------------------------------------
 
+
 class TestGetRecommendations:
     """GET /api/ui/parameters/recommendations 测试"""
 
@@ -114,6 +116,7 @@ class TestGetRecommendations:
 # ---------------------------------------------------------------------------
 # 3. 参数校验
 # ---------------------------------------------------------------------------
+
 
 class TestValidateParameters:
     """POST /api/ui/parameters/validate 测试"""
@@ -171,6 +174,7 @@ class TestValidateParameters:
 # 4. 用户偏好加载
 # ---------------------------------------------------------------------------
 
+
 class TestLoadPreferences:
     """GET /api/ui/preferences 测试"""
 
@@ -194,6 +198,7 @@ class TestLoadPreferences:
 # ---------------------------------------------------------------------------
 # 5. 用户偏好保存
 # ---------------------------------------------------------------------------
+
 
 class TestSavePreferences:
     """POST /api/ui/preferences 测试"""
@@ -240,6 +245,7 @@ class TestSavePreferences:
 # 6. 用户偏好重置
 # ---------------------------------------------------------------------------
 
+
 class TestResetPreferences:
     """POST /api/ui/preferences/reset 测试"""
 
@@ -264,6 +270,7 @@ class TestResetPreferences:
 # ---------------------------------------------------------------------------
 # 7. 折叠面板布局
 # ---------------------------------------------------------------------------
+
 
 class TestGetLayout:
     """GET /api/ui/layout 测试"""

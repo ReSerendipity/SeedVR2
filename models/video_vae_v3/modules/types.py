@@ -19,7 +19,8 @@
 """
 
 from enum import Enum
-from typing import Dict, Literal, NamedTuple, Optional
+from typing import Literal, NamedTuple
+
 import torch
 
 _receptive_field_t = Literal["half", "full"]
@@ -28,13 +29,13 @@ _receptive_field_t = Literal["half", "full"]
 _inflation_mode_t = Literal["none", "tail", "replicate"]
 """2D->3D 权重膨胀模式：'none' 不膨胀（原生3D权重）；'tail' 将2D权重放在时间核尾部；'replicate' 复制2D权重并平均。"""
 
-_memory_device_t = Optional[Literal["cpu", "same"]]
+_memory_device_t = Literal["cpu", "same"] | None
 """缓存设备类型：'cpu' 将时序记忆卸载到CPU；'same' 保留在GPU；None 表示不使用记忆缓存。"""
 
-_gradient_checkpointing_t = Optional[Literal["half", "full"]]
+_gradient_checkpointing_t = Literal["half", "full"] | None
 """梯度检查点类型（预留）。"""
 
-_selective_checkpointing_t = Optional[Literal["coarse", "fine"]]
+_selective_checkpointing_t = Literal["coarse", "fine"] | None
 """选择性梯度检查点类型：'coarse' 块级检查点；'fine' 模块级检查点；None 禁用。"""
 
 
@@ -126,7 +127,7 @@ class QuantizerOutput(NamedTuple):
 
     latent: torch.Tensor
     extra_loss: torch.Tensor
-    statistics: Dict[str, torch.Tensor]
+    statistics: dict[str, torch.Tensor]
 
 
 class CausalAutoencoderOutput(NamedTuple):
@@ -140,7 +141,7 @@ class CausalAutoencoderOutput(NamedTuple):
 
     sample: torch.Tensor
     latent: torch.Tensor
-    posterior: Optional[DiagonalGaussianDistribution]
+    posterior: DiagonalGaussianDistribution | None
 
 
 class CausalEncoderOutput(NamedTuple):
@@ -152,7 +153,7 @@ class CausalEncoderOutput(NamedTuple):
     """
 
     latent: torch.Tensor
-    posterior: Optional[DiagonalGaussianDistribution]
+    posterior: DiagonalGaussianDistribution | None
 
 
 class CausalDecoderOutput(NamedTuple):

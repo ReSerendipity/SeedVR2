@@ -1,4 +1,5 @@
 """测试 SeedVR2 自定义异常层次结构"""
+
 import pytest
 
 from bin.integrated_app.exceptions import (

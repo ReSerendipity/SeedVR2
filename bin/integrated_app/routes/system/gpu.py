@@ -10,6 +10,7 @@ API 端点：
 所属项目：SeedVR2 (SeedVR2 视频/图像修复工具)
 注意：仅支持 NVIDIA CUDA GPU。
 """
+
 import logging
 
 from fastapi import APIRouter, Depends
@@ -62,21 +63,24 @@ async def gpu_info(gpu_backend: GPUBackendManager = Depends(get_gpu_backend)):
     cuda_version = ""
     try:
         import torch
+
         if torch.cuda.is_available():
             cuda_version = torch.version.cuda or ""
     except Exception:
         pass
 
-    return JSONResponse({
-        "backend": info.backend.value,
-        "device_name": info.name,
-        "vram_total_mb": info.total_vram_mb,
-        "vram_available_mb": info.available_vram_mb,
-        "utilization_pct": round(info.utilization_pct, 2),
-        "cuda_version": cuda_version,
-        "driver_version": info.driver_version,
-        "memory": memory_info,
-    })
+    return JSONResponse(
+        {
+            "backend": info.backend.value,
+            "device_name": info.name,
+            "vram_total_mb": info.total_vram_mb,
+            "vram_available_mb": info.available_vram_mb,
+            "utilization_pct": round(info.utilization_pct, 2),
+            "cuda_version": cuda_version,
+            "driver_version": info.driver_version,
+            "memory": memory_info,
+        }
+    )
 
 
 @router.get("/gpu/system")

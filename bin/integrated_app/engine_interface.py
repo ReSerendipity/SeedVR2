@@ -16,6 +16,7 @@
 - 开闭原则: 新增引擎类型只需继承 RestoreEngine 并实现抽象方法
 - 接口隔离: 按功能拆分方法（加载/卸载、图像/视频/批量推理、状态查询）
 """
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
@@ -39,6 +40,7 @@ class RestoreResult:
         >>> if result.success:
         ...     print(f"输出文件: {result.output_path}")
     """
+
     success: bool
     output_path: str | None = None
     error: str | None = None
@@ -71,8 +73,7 @@ class RestoreEngine(ABC):
     """
 
     @abstractmethod
-    async def load_model(self, model_size: str = "3b", device: str = "auto",
-                         precision: str = None) -> bool:
+    async def load_model(self, model_size: str = "3b", device: str = "auto", precision: str | None = None) -> bool:
         """加载修复模型到内存/GPU
 
         初始化模型结构、加载权重、配置推理组件。

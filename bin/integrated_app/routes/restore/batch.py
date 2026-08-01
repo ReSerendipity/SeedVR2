@@ -11,6 +11,7 @@ API 端点：
 
 所属项目：SeedVR2 (SeedVR2 视频/图像修复工具)
 """
+
 import asyncio
 import contextlib
 import logging
@@ -93,7 +94,7 @@ async def batch_restore_from_folder(
     if not gpu_manager.is_gpu_available:
         raise HTTPException(
             status_code=503,
-            detail="SeedVR2 仅支持 NVIDIA GPU 推理，当前未检测到 NVIDIA GPU。请安装 NVIDIA GPU 并配置 CUDA 驱动。"
+            detail="SeedVR2 仅支持 NVIDIA GPU 推理，当前未检测到 NVIDIA GPU。请安装 NVIDIA GPU 并配置 CUDA 驱动。",
         )
 
     if not model_registry.model_loaded:
@@ -121,6 +122,7 @@ async def batch_restore_from_folder(
 
     dit_model = raw_params.dit_model
     use_model_size = common.model_size_from_dit_model(dit_model)
+    params: ImageRestoreParams | VideoRestoreParams
     if actual_type == "image":
         image_fields = {k: v for k, v in raw_params.model_dump().items() if k in ImageRestoreParams.model_fields}
         params = ImageRestoreParams(**image_fields)
@@ -138,18 +140,21 @@ async def batch_restore_from_folder(
 
     batch_results = [common.create_batch_item(path) for path, _ in media_files]
     await common.create_task_state(batch_id, 0, history_db, task_type="batch")
-    common.get_task_cache().update(batch_id, **{
-        "type": "batch",
-        "media_type": actual_type,
-        "total": len(media_files),
-        "completed": 0,
-        "failed": 0,
-        "current_index": -1,
-        "current_file": "",
-        "results": batch_results,
-        "config": task_config,
-        "use_model_size": use_model_size,
-    })
+    common.get_task_cache().update(
+        batch_id,
+        **{
+            "type": "batch",
+            "media_type": actual_type,
+            "total": len(media_files),
+            "completed": 0,
+            "failed": 0,
+            "current_index": -1,
+            "current_file": "",
+            "results": batch_results,
+            "config": task_config,
+            "use_model_size": use_model_size,
+        },
+    )
     await common.update_task_state(batch_id, history_db, status="processing")
 
     engine = model_registry.get_engine()
@@ -157,16 +162,20 @@ async def batch_restore_from_folder(
     paths_only = [p for p, _ in media_files]
     await task_queue.submit(
         batch_id,
-        lambda: _process_batch_background(batch_id, paths_only, actual_type, task_config, use_model_size, history_db, task_queue, config),
+        lambda: _process_batch_background(
+            batch_id, paths_only, actual_type, task_config, use_model_size, history_db, task_queue, config
+        ),
         on_cancel=on_cancel,
     )
 
-    return respond_success({
-        "batch_id": batch_id,
-        "total": len(media_files),
-        "media_type": actual_type,
-        "status": "processing",
-    })
+    return respond_success(
+        {
+            "batch_id": batch_id,
+            "total": len(media_files),
+            "media_type": actual_type,
+            "status": "processing",
+        }
+    )
 
 
 async def _process_batch_background(
@@ -200,19 +209,22 @@ async def _process_batch_background(
     if task_state is None:
         return
 
-    cached = common.get_cached_or_create(batch_id, template={
-        "task_id": batch_id,
-        "type": "batch",
-        "media_type": media_type,
-        "total": len(media_files),
-        "completed": 0,
-        "failed": 0,
-        "current_index": -1,
-        "current_file": "",
-        "results": [],
-        "config": config,
-        "use_model_size": use_model_size,
-    })
+    cached = common.get_cached_or_create(
+        batch_id,
+        template={
+            "task_id": batch_id,
+            "type": "batch",
+            "media_type": media_type,
+            "total": len(media_files),
+            "completed": 0,
+            "failed": 0,
+            "current_index": -1,
+            "current_file": "",
+            "results": [],
+            "config": config,
+            "use_model_size": use_model_size,
+        },
+    )
 
     results = cached["results"]
     completed = 0
@@ -221,7 +233,8 @@ async def _process_batch_background(
 
     if engine is None:
         await common.update_task_state(
-            batch_id, history_db,
+            batch_id,
+            history_db,
             status="failed",
             error_message="引擎实例不可用",
         )
@@ -238,13 +251,15 @@ async def _process_batch_background(
     for i, media_path in enumerate(media_files):
         if task_queue.is_cancelled(batch_id):
             for remaining in media_files[i:]:
-                records_to_insert.append(HistoryRecord(
-                    task_type=media_type,
-                    input_file=remaining,
-                    model_size=use_model_size,
-                    status="cancelled",
-                    error_message="批量任务被取消",
-                ))
+                records_to_insert.append(
+                    HistoryRecord(
+                        task_type=media_type,
+                        input_file=remaining,
+                        model_size=use_model_size,
+                        status="cancelled",
+                        error_message="批量任务被取消",
+                    )
+                )
             break
 
         if results_to_update is not None and i < len(results_to_update):
@@ -267,16 +282,16 @@ async def _process_batch_background(
                 await asyncio.to_thread(os.makedirs, output_dir, exist_ok=True)
 
                 if media_type == "image":
-                    image_config = ImageInferenceConfig(**{
-                        k: v for k, v in config.items()
-                        if k in ImageInferenceConfig.__dataclass_fields__
-                    })
+                    image_config = ImageInferenceConfig(
+                        **{k: v for k, v in config.items() if k in ImageInferenceConfig.__dataclass_fields__}
+                    )
                     result = await engine.infer_image(
                         image_path=media_path,
                         output_dir=output_dir,
                         config=image_config,
                     )
                 else:
+
                     async def progress_callback(_current_frame: int, _total_frames: int, _progress: float):
                         pass
 
@@ -301,10 +316,10 @@ async def _process_batch_background(
                     last_error = result.error or "未知错误"
                     if attempt < max_retries:
                         task_item["status"] = "retrying"
-                        logger.warning(f"批量处理 {media_type} {i+1}/{len(media_files)} 第{attempt+1}次失败，重试中: {media_path}, {last_error}")
-                        await exponential_backoff_with_jitter(
-                            attempt, base=retry_base, max_delay=retry_max
+                        logger.warning(
+                            f"批量处理 {media_type} {i+1}/{len(media_files)} 第{attempt+1}次失败，重试中: {media_path}, {last_error}"
                         )
+                        await exponential_backoff_with_jitter(attempt, base=retry_base, max_delay=retry_max)
                     else:
                         task_item["status"] = "failed"
                         task_item["error"] = last_error
@@ -319,10 +334,10 @@ async def _process_batch_background(
                 last_error = str(e)
                 if attempt < max_retries:
                     task_item["status"] = "retrying"
-                    logger.warning(f"批量处理 {media_type} {i+1}/{len(media_files)} 第{attempt+1}次异常，重试中: {media_path}, {e}")
-                    await exponential_backoff_with_jitter(
-                        attempt, base=retry_base, max_delay=retry_max
+                    logger.warning(
+                        f"批量处理 {media_type} {i+1}/{len(media_files)} 第{attempt+1}次异常，重试中: {media_path}, {e}"
                     )
+                    await exponential_backoff_with_jitter(attempt, base=retry_base, max_delay=retry_max)
                 else:
                     task_item["status"] = "failed"
                     task_item["error"] = last_error
@@ -330,15 +345,17 @@ async def _process_batch_background(
                     common.get_task_cache().update(batch_id, failed=failed)
                     logger.error(f"批量处理 {media_type} {i+1}/{len(media_files)} 最终失败: {media_path}, {e}")
 
-        records_to_insert.append(HistoryRecord(
-            task_type=media_type,
-            input_file=media_path,
-            model_size=use_model_size,
-            status=task_item["status"],
-            output_file=task_item.get("output_path"),
-            processing_time=task_item.get("processing_time"),
-            error_message=task_item.get("error"),
-        ))
+        records_to_insert.append(
+            HistoryRecord(
+                task_type=media_type,
+                input_file=media_path,
+                model_size=use_model_size,
+                status=task_item["status"],
+                output_file=task_item.get("output_path"),
+                processing_time=task_item.get("processing_time"),
+                error_message=task_item.get("error"),
+            )
+        )
 
         progress = round(((i + 1) / len(media_files)) * 100, 1)
         await common.update_task_state(batch_id, history_db, progress=progress)
@@ -352,8 +369,10 @@ async def _process_batch_background(
 
     final_status = "cancelled" if task_queue.is_cancelled(batch_id) else "completed"
     final_cached = common.get_task_cache().get(batch_id, {})
+    assert final_cached is not None
     await common.update_task_state(
-        batch_id, history_db,
+        batch_id,
+        history_db,
         status=final_status,
         progress=100.0 if final_status == "completed" else final_cached.get("progress", 0),
     )
@@ -403,18 +422,21 @@ async def get_batch_progress(batch_id: str, history_db: HistoryDB = Depends(get_
         raise HTTPException(status_code=404, detail="批量任务不存在")
 
     cached = common.get_task_cache().get(batch_id, {})
-    return respond_success({
-        "batch_id": batch_id,
-        "status": task.get("status", "unknown"),
-        "progress": task.get("progress", 0),
-        "total": cached.get("total", 0),
-        "completed": cached.get("completed", 0),
-        "failed": cached.get("failed", 0),
-        "current_index": cached.get("current_index", -1),
-        "current_file": cached.get("current_file", ""),
-        "results": cached.get("results", []),
-        "media_type": cached.get("media_type", "image"),
-    })
+    assert cached is not None
+    return respond_success(
+        {
+            "batch_id": batch_id,
+            "status": task.get("status", "unknown"),
+            "progress": task.get("progress", 0),
+            "total": cached.get("total", 0),
+            "completed": cached.get("completed", 0),
+            "failed": cached.get("failed", 0),
+            "current_index": cached.get("current_index", -1),
+            "current_file": cached.get("current_file", ""),
+            "results": cached.get("results", []),
+            "media_type": cached.get("media_type", "image"),
+        }
+    )
 
 
 @router.post("/batch/{batch_id}/retry")
@@ -489,13 +511,22 @@ async def retry_failed_batch(
     await task_queue.submit(
         batch_id,
         lambda: _process_batch_background(
-            batch_id, retry_files, media_type, task_config, use_model_size, history_db, task_queue, config,
+            batch_id,
+            retry_files,
+            media_type,
+            task_config,
+            use_model_size,
+            history_db,
+            task_queue,
+            config,
             results_to_update=retry_results,
         ),
         on_cancel=on_cancel,
     )
 
-    return respond_success({
-        "message": f"开始重试 {len(retry_files)} 个失败文件",
-        "retry_count": len(retry_files),
-    })
+    return respond_success(
+        {
+            "message": f"开始重试 {len(retry_files)} 个失败文件",
+            "retry_count": len(retry_files),
+        }
+    )

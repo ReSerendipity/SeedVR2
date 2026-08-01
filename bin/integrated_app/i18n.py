@@ -7,9 +7,11 @@
 翻译回退策略: 指定语言找不到键时，自动回退到默认语言（中文），
 默认语言也找不到时返回键名本身，保证 UI 不会出现空白。
 """
+
 import logging
 import os
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -45,7 +47,7 @@ class I18n:
         _translations: 翻译数据字典，{locale: {key: value}}。
     """
 
-    def __init__(self, locales_dir: str = None, default_locale: str = "zh"):
+    def __init__(self, locales_dir: str | None = None, default_locale: str = "zh"):
         """初始化国际化管理器。
 
         Args:
@@ -85,7 +87,7 @@ class I18n:
             logger.warning(f"语言 {locale} 不可用，使用默认语言 {self.default_locale}")
             self.current_locale = self.default_locale
 
-    def t(self, key: str, locale: str = None, **kwargs) -> str:
+    def t(self, key: str, locale: str | None = None, **kwargs) -> str:
         """翻译文本
 
         Args:
@@ -98,7 +100,7 @@ class I18n:
 
         # 支持嵌套键
         keys = key.split(".")
-        value = translations
+        value: Any = translations
         for k in keys:
             if isinstance(value, dict):
                 value = value.get(k)

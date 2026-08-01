@@ -16,6 +16,7 @@ API 端点：
 
 所属项目：SeedVR2 (SeedVR2 视频/图像修复工具)
 """
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 
@@ -67,13 +68,10 @@ async def get_history(
         包含历史记录和分页信息的字典。
     """
     if search:
-        records, total = await history_db.search_records(
-            query=search, limit=page_size, offset=(page - 1) * page_size
-        )
+        records, total = await history_db.search_records(query=search, limit=page_size, offset=(page - 1) * page_size)
     else:
         records, total = await history_db.get_records(
-            task_type=task_type, status=status,
-            limit=page_size, offset=(page - 1) * page_size
+            task_type=task_type, status=status, limit=page_size, offset=(page - 1) * page_size
         )
 
     return {
@@ -115,13 +113,10 @@ async def get_history_table(
         HTMLResponse 包含渲染后的表格片段。
     """
     if search:
-        records, total = await history_db.search_records(
-            query=search, limit=page_size, offset=(page - 1) * page_size
-        )
+        records, total = await history_db.search_records(query=search, limit=page_size, offset=(page - 1) * page_size)
     else:
         records, total = await history_db.get_records(
-            task_type=task_type, status=status,
-            limit=page_size, offset=(page - 1) * page_size
+            task_type=task_type, status=status, limit=page_size, offset=(page - 1) * page_size
         )
 
     env = get_jinja_env(request)

@@ -34,13 +34,15 @@
     RMSNorm 省去了均值减法，计算量更小，效果与 LayerNorm 相当。
 """
 
-from typing import Callable, Optional
+from collections.abc import Callable
+
 import torch
 from torch import nn
 
 try:
     from apex.normalization import FusedLayerNorm as _ApexFusedLayerNorm
     from apex.normalization import FusedRMSNorm as _ApexFusedRMSNorm
+
     _apex_available = True
 except ImportError:
     _apex_available = False
@@ -76,7 +78,7 @@ class RMSNorm(nn.Module):
         return output
 
 
-def get_norm_layer(norm_type: Optional[str]) -> norm_layer_type:
+def get_norm_layer(norm_type: str | None) -> norm_layer_type:
     """根据类型名称返回归一化层构造函数。
 
     返回的构造函数签名为 ``(dim, eps, elementwise_affine) -> nn.Module``。
@@ -92,30 +94,24 @@ def get_norm_layer(norm_type: Optional[str]) -> norm_layer_type:
         if norm_type is None:
             return nn.Identity()
         if norm_type == "layer":
-            return nn.LayerNorm(
-                normalized_shape=dim, eps=eps, elementwise_affine=elementwise_affine
-            )
+            return nn.LayerNorm(normalized_shape=dim, eps=eps, elementwise_affine=elementwise_affine)
         if norm_type == "rms":
             return RMSNorm(dim=dim, eps=eps, elementwise_affine=elementwise_affine)
         if norm_type == "fusedln":
             if _apex_available:
-                return _ApexFusedLayerNorm(
-                    normalized_shape=dim, eps=eps, elementwise_affine=elementwise_affine
-                )
+                return _ApexFusedLayerNorm(normalized_shape=dim, eps=eps, elementwise_affine=elementwise_affine)
             else:
                 import warnings
-                warnings.warn("apex FusedLayerNorm not available, falling back to LayerNorm")
-                return nn.LayerNorm(
-                    normalized_shape=dim, eps=eps, elementwise_affine=elementwise_affine
-                )
+
+                warnings.warn("apex FusedLayerNorm not available, falling back to LayerNorm", stacklevel=2)
+                return nn.LayerNorm(normalized_shape=dim, eps=eps, elementwise_affine=elementwise_affine)
         if norm_type == "fusedrms":
             if _apex_available:
-                return _ApexFusedRMSNorm(
-                    normalized_shape=dim, eps=eps, elementwise_affine=elementwise_affine
-                )
+                return _ApexFusedRMSNorm(normalized_shape=dim, eps=eps, elementwise_affine=elementwise_affine)
             else:
                 import warnings
-                warnings.warn("apex FusedRMSNorm not available, falling back to RMSNorm")
+
+                warnings.warn("apex FusedRMSNorm not available, falling back to RMSNorm", stacklevel=2)
                 return RMSNorm(dim=dim, eps=eps, elementwise_affine=elementwise_affine)
         raise NotImplementedError(f"{norm_type} is not supported")
 

@@ -15,6 +15,7 @@ API 端点：
 
 所属项目：SeedVR2 (SeedVR2 视频/图像修复工具)
 """
+
 import asyncio
 import logging
 import os
@@ -91,9 +92,7 @@ async def scan_media_folder(
     folder = Path(folder_path)
 
     security_cfg = config.get("runtime", {}).get("security", {})
-    allowed_dirs = security_cfg.get(
-        "allowed_base_dirs", ["outputs/", "data/uploads/"]
-    )
+    allowed_dirs = security_cfg.get("allowed_base_dirs", ["outputs/", "data/uploads/"])
     path_guard = build_default_path_guard(os.getcwd(), allowed_dirs)
     if not path_guard.is_safe_path(folder):
         logger.warning(f"扫描路径被白名单拒绝: {folder}")
@@ -109,24 +108,18 @@ async def scan_media_folder(
 
     max_depth = security_cfg.get("scan_max_depth", _DEFAULT_MAX_SCAN_DEPTH)
     max_files = security_cfg.get("scan_max_files", _DEFAULT_MAX_SCAN_FILES)
-    max_total_size_mb = security_cfg.get(
-        "scan_max_total_size_mb", _DEFAULT_MAX_SCAN_TOTAL_SIZE_MB
-    )
+    max_total_size_mb = security_cfg.get("scan_max_total_size_mb", _DEFAULT_MAX_SCAN_TOTAL_SIZE_MB)
     max_total_size_bytes = max_total_size_mb * 1024 * 1024
 
-    media_files = []
+    media_files: list[dict] = []
     all_exts = common.IMAGE_EXTENSIONS | common.VIDEO_EXTENSIONS
     total_size = 0
     truncated = False
 
-    for root, _dirs, files in await asyncio.to_thread(
-        lambda: list(_limited_walk(folder, max_depth))
-    ):
+    for root, _dirs, files in await asyncio.to_thread(lambda: list(_limited_walk(folder, max_depth))):
         if len(media_files) >= max_files:
             truncated = True
-            logger.warning(
-                f"扫描文件数超过上限 {max_files}，已截断 (folder={folder})"
-            )
+            logger.warning(f"扫描文件数超过上限 {max_files}，已截断 (folder={folder})")
             break
         for fname in sorted(files):
             ext = os.path.splitext(fname)[1].lower()
@@ -140,22 +133,20 @@ async def scan_media_folder(
             total_size += size
             if total_size > max_total_size_bytes:
                 truncated = True
-                logger.warning(
-                    f"扫描累计大小超过 {max_total_size_mb}MB，已截断 (folder={folder})"
-                )
+                logger.warning(f"扫描累计大小超过 {max_total_size_mb}MB，已截断 (folder={folder})")
                 break
-            media_files.append({
-                "path": full_path,
-                "name": fname,
-                "size": size,
-                "relative": os.path.relpath(full_path, folder),
-                "type": "image" if ext in common.IMAGE_EXTENSIONS else "video",
-            })
+            media_files.append(
+                {
+                    "path": full_path,
+                    "name": fname,
+                    "size": size,
+                    "relative": os.path.relpath(full_path, folder),
+                    "type": "image" if ext in common.IMAGE_EXTENSIONS else "video",
+                }
+            )
             if len(media_files) >= max_files:
                 truncated = True
-                logger.warning(
-                    f"扫描文件数超过上限 {max_files}，已截断 (folder={folder})"
-                )
+                logger.warning(f"扫描文件数超过上限 {max_files}，已截断 (folder={folder})")
                 break
         if truncated:
             break
@@ -164,18 +155,20 @@ async def scan_media_folder(
     total = len(media_files)
     sliced = media_files[start_index:] if start_index > 0 else media_files
 
-    return JSONResponse({
-        "total": total,
-        "returned": len(sliced),
-        "start_index": start_index,
-        "files": sliced,
-        "truncated": truncated,
-        "limits": {
-            "max_files": max_files,
-            "max_depth": max_depth,
-            "max_total_size_mb": max_total_size_mb,
-        },
-    })
+    return JSONResponse(
+        {
+            "total": total,
+            "returned": len(sliced),
+            "start_index": start_index,
+            "files": sliced,
+            "truncated": truncated,
+            "limits": {
+                "max_files": max_files,
+                "max_depth": max_depth,
+                "max_total_size_mb": max_total_size_mb,
+            },
+        }
+    )
 
 
 def _limited_walk(root: Path, max_depth: int):
@@ -209,7 +202,7 @@ def _limited_walk(root: Path, max_depth: int):
             if entry.is_dir(follow_symlinks=False):
                 dirs.append(entry.name)
                 if depth < max_depth:
-                    stack.append((entry.path, depth + 1))
+                    stack.append((Path(entry.path), depth + 1))
             elif entry.is_file(follow_symlinks=False):
                 files.append(entry.name)
 

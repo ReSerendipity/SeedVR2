@@ -21,7 +21,8 @@ This module provides helper functions used across the diffusion sampling pipelin
 - Schedule-timesteps compatibility validation
 """
 
-from typing import Callable
+from collections.abc import Callable
+
 import torch
 
 

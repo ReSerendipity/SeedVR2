@@ -38,23 +38,23 @@ MM-RoPE 说明:
       使得文本位置编码变化更慢，适配语言序列的长程依赖特性。
 """
 
-from typing import Optional, Tuple, Union
+from itertools import chain
+
 import torch
 from einops import rearrange
 from torch import nn
-from torch.nn import functional as F
 from torch.nn.modules.utils import _triple
 
 from common.cache import Cache
 from common.distributed.ops import gather_heads_scatter_seq, gather_seq_scatter_heads_qkv
 from common.utils import safe_pad_operation
+
 from ... import na
 from ...attention import FlashAttentionVarlen
 from ...mm import MMArg, MMModule
 from ...normalization import norm_layer_type
 from ...rope import get_na_rope
 from ...window import get_window_op
-from itertools import chain
 
 
 class NaMMAttention(nn.Module):
@@ -96,7 +96,7 @@ class NaMMAttention(nn.Module):
         qk_bias: bool,
         qk_norm: norm_layer_type,
         qk_norm_eps: float,
-        rope_type: Optional[str],
+        rope_type: str | None,
         rope_dim: int,
         shared_weights: bool,
         **kwargs,
@@ -106,9 +106,7 @@ class NaMMAttention(nn.Module):
         inner_dim = heads * head_dim
         qkv_dim = inner_dim * 3
         self.head_dim = head_dim
-        self.proj_qkv = MMModule(
-            nn.Linear, dim, qkv_dim, bias=qk_bias, shared_weights=shared_weights
-        )
+        self.proj_qkv = MMModule(nn.Linear, dim, qkv_dim, bias=qk_bias, shared_weights=shared_weights)
         self.proj_out = MMModule(nn.Linear, inner_dim, dim, shared_weights=shared_weights)
         self.norm_q = MMModule(
             qk_norm,
@@ -135,7 +133,7 @@ class NaMMAttention(nn.Module):
         vid_shape: torch.LongTensor,
         txt_shape: torch.LongTensor,
         cache: Cache,
-    ) -> Tuple[
+    ) -> tuple[
         torch.FloatTensor,
         torch.FloatTensor,
     ]:
@@ -176,9 +174,7 @@ class NaMMAttention(nn.Module):
 
         if self.rope:
             if self.rope.mm:
-                vid_q, vid_k, txt_q, txt_k = self.rope(
-                    vid_q, vid_k, vid_shape, txt_q, txt_k, txt_shape, cache
-                )
+                vid_q, vid_k, txt_q, txt_k = self.rope(vid_q, vid_k, vid_shape, txt_q, txt_k, txt_shape, cache)
             else:
                 vid_q, vid_k = self.rope(vid_q, vid_k, vid_shape, cache)
 
@@ -234,14 +230,14 @@ class NaSwinAttention(NaMMAttention):
     def __init__(
         self,
         *args,
-        window: Union[int, Tuple[int, int, int]],
+        window: int | tuple[int, int, int],
         window_method: str,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.window = _triple(window)
         self.window_method = window_method
-        assert all(map(lambda v: isinstance(v, int) and v >= 0, self.window))
+        assert all(isinstance(v, int) and v >= 0 for v in self.window)
 
         self.window_op = get_window_op(window_method)
 
@@ -252,7 +248,7 @@ class NaSwinAttention(NaMMAttention):
         vid_shape: torch.LongTensor,
         txt_shape: torch.LongTensor,
         cache: Cache,
-    ) -> Tuple[
+    ) -> tuple[
         torch.FloatTensor,
         torch.FloatTensor,
     ]:
@@ -310,23 +306,21 @@ class NaSwinAttention(NaMMAttention):
         vid_len_win = cache_win("vid_len", lambda: window_shape.prod(-1))
         txt_len_win = cache_win("txt_len", lambda: txt_len.repeat_interleave(window_count))
         all_len_win = cache_win("all_len", lambda: vid_len_win + txt_len_win)
-        concat_win, unconcat_win = cache_win(
-            "mm_pnp", lambda: na.repeat_concat_idx(vid_len_win, txt_len, window_count)
-        )
+        concat_win, unconcat_win = cache_win("mm_pnp", lambda: na.repeat_concat_idx(vid_len_win, txt_len, window_count))
 
         if self.rope:
             if self.rope.mm:
                 _, num_h, _ = txt_q.shape
                 txt_q_repeat = rearrange(txt_q, "l h d -> l (h d)")
                 txt_q_repeat = na.unflatten(txt_q_repeat, txt_shape)
-                txt_q_repeat = [[x] * n for x, n in zip(txt_q_repeat, window_count)]
+                txt_q_repeat = [[x] * n for x, n in zip(txt_q_repeat, window_count, strict=False)]
                 txt_q_repeat = list(chain(*txt_q_repeat))
                 txt_q_repeat, txt_shape_repeat = na.flatten(txt_q_repeat)
                 txt_q_repeat = rearrange(txt_q_repeat, "l (h d) -> l h d", h=num_h)
 
                 txt_k_repeat = rearrange(txt_k, "l h d -> l (h d)")
                 txt_k_repeat = na.unflatten(txt_k_repeat, txt_shape)
-                txt_k_repeat = [[x] * n for x, n in zip(txt_k_repeat, window_count)]
+                txt_k_repeat = [[x] * n for x, n in zip(txt_k_repeat, window_count, strict=False)]
                 txt_k_repeat = list(chain(*txt_k_repeat))
                 txt_k_repeat, _ = na.flatten(txt_k_repeat)
                 txt_k_repeat = rearrange(txt_k_repeat, "l (h d) -> l h d", h=num_h)
@@ -336,17 +330,13 @@ class NaSwinAttention(NaMMAttention):
                 )
             else:
                 vid_q, vid_k = self.rope(vid_q, vid_k, window_shape, cache_win)
-            
+
         out = self.attn(
             q=concat_win(vid_q, txt_q).bfloat16(),
             k=concat_win(vid_k, txt_k).bfloat16(),
             v=concat_win(vid_v, txt_v).bfloat16(),
-            cu_seqlens_q=cache_win(
-                "vid_seqlens_q", lambda: safe_pad_operation(all_len_win.cumsum(0), (1, 0)).int()
-            ),
-            cu_seqlens_k=cache_win(
-                "vid_seqlens_k", lambda: safe_pad_operation(all_len_win.cumsum(0), (1, 0)).int()
-            ),
+            cu_seqlens_q=cache_win("vid_seqlens_q", lambda: safe_pad_operation(all_len_win.cumsum(0), (1, 0)).int()),
+            cu_seqlens_k=cache_win("vid_seqlens_k", lambda: safe_pad_operation(all_len_win.cumsum(0), (1, 0)).int()),
             max_seqlen_q=cache_win("vid_max_seqlen_q", lambda: all_len_win.max().item()),
             max_seqlen_k=cache_win("vid_max_seqlen_k", lambda: all_len_win.max().item()),
         ).type_as(vid_q)

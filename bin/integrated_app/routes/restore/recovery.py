@@ -12,7 +12,9 @@
 
 所属项目：SeedVR2 (SeedVR2 视频/图像修复工具)
 """
+
 import logging
+from typing import Any
 
 from bin.integrated_app.config_models import ImageRestoreParams, VideoRestoreParams
 from bin.integrated_app.history_db import HistoryDB
@@ -52,7 +54,7 @@ async def recover_tasks(
 
     record_ids = [t.record_id for t in incomplete]
     records_list = await history_db.get_records_by_ids(record_ids)
-    records_map: dict[int, any] = {r.id: r for r in records_list}
+    records_map: dict[int, Any] = {r.id: r for r in records_list if r.id is not None}
 
     recovered = 0
     for task_record in incomplete:
@@ -64,30 +66,35 @@ async def recover_tasks(
         await history_db.update_record(record.id, status="pending", error_message="")
 
         try:
+            params: ImageRestoreParams | VideoRestoreParams
             if record.task_type == "image":
                 params = ImageRestoreParams.model_validate_json(record.parameters or "{}")
             else:
                 params = VideoRestoreParams.model_validate_json(record.parameters or "{}")
         except Exception:
             logger.warning(f"恢复任务 {task_record.task_id} 时参数解析失败，跳过")
-            await common.update_task_state(task_record.task_id, history_db, status="failed", error_message="参数解析失败")
+            await common.update_task_state(
+                task_record.task_id, history_db, status="failed", error_message="参数解析失败"
+            )
             await history_db.update_record(record.id, status="failed", error_message="参数解析失败")
             continue
 
         use_model_size = record.model_size or model_registry.current_model_size or "3b"
         if record.task_type == "image":
-            await task_queue.submit(
-                task_record.task_id,
-                lambda t=task_record, r=record, p=params: _process_image_task(
+            p_img: ImageRestoreParams = params  # type: ignore[assignment]
+            image_task = (  # type: ignore[misc]  # mypy cannot infer lambda type with complex defaults  # noqa: E731
+                lambda t=task_record, r=record, p=p_img: _process_image_task(
                     t.task_id, r.id, r.input_file, p, history_db, task_queue
-                ),
+                )
             )
+            await task_queue.submit(task_record.task_id, image_task)
         else:
-            await task_queue.submit(
-                task_record.task_id,
-                lambda t=task_record, r=record, p=params, m=use_model_size, c=config: _process_video_task(
+            p_vid: VideoRestoreParams = params  # type: ignore[assignment]
+            video_task = (  # type: ignore[misc]  # mypy cannot infer lambda type with complex defaults  # noqa: E731
+                lambda t=task_record, r=record, p=p_vid, m=use_model_size, c=config: _process_video_task(
                     t.task_id, r.id, r.input_file, m, p, c, history_db, task_queue
-                ),
+                )
             )
+            await task_queue.submit(task_record.task_id, video_task)
         recovered += 1
     return recovered

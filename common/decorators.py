@@ -30,7 +30,8 @@ All distributed-aware decorators gracefully degrade to no-ops in single-GPU mode
 import functools
 import threading
 import time
-from typing import Callable
+from collections.abc import Callable
+
 import torch
 import torch.distributed as dist
 

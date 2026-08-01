@@ -43,7 +43,7 @@ The schedule also defines conversions between different prediction types
 """
 
 from abc import ABC, abstractmethod, abstractproperty
-from typing import Tuple, Union
+
 import torch
 
 from ..types import PredictionType
@@ -64,7 +64,7 @@ class Schedule(ABC):
     """
 
     @abstractproperty
-    def T(self) -> Union[int, float]:
+    def T(self) -> int | float:
         """Maximum timestep (inclusive) of the schedule.
 
         Returns:
@@ -166,7 +166,7 @@ class Schedule(ABC):
 
     def convert_from_pred(
         self, pred: torch.Tensor, pred_type: PredictionType, x_t: torch.Tensor, t: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Convert a model prediction to predicted x_0 and x_T.
 
         Given the model's output in the specified prediction type and the

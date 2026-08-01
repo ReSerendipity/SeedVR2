@@ -29,15 +29,12 @@ C++绑定接口等基础设施能力。
 - Fast-SRGAN: Hydra 配置管理 (P3)
 """
 
-import argparse
 import copy
 import logging
 import os
 import time
-from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from enum import Enum
-from pathlib import Path
+from enum import StrEnum
 from typing import Any
 
 import torch
@@ -49,6 +46,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # 1. YAML 配置驱动 + CLI 覆盖 (BasicSR P2)
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class YAMLConfigOptions:
@@ -68,6 +66,7 @@ class YAMLConfigOptions:
 
     优先级: CLI > override YAML > base YAML > 代码默认值
     """
+
     # 基础配置文件路径
     base_config_path: str = ""
     # 覆盖配置文件路径
@@ -196,7 +195,7 @@ class YAMLConfigManager:
 
     def _load_yaml(self, path: str) -> dict[str, Any]:
         """加载 YAML 文件"""
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         return data if isinstance(data, dict) else {}
 
@@ -225,6 +224,7 @@ class YAMLConfigManager:
         args = self.options.cli_args
         if args is None:
             import sys
+
             args = sys.argv[1:]
 
         i = 0
@@ -292,6 +292,7 @@ class YAMLConfigManager:
 # 2. OmegaConf 配置驱动模型实例化 (DiffBIR P2)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ModelConfig:
     """模型配置描述
@@ -310,6 +311,7 @@ class ModelConfig:
 
     instantiate_from_config(config.model) -> IRModel(inp_size=512, ...)
     """
+
     # 模型类的完整导入路径
     target: str
     # 模型初始化参数
@@ -409,6 +411,7 @@ class ConfigDrivenInstantiator:
 
         try:
             import importlib
+
             module = importlib.import_module(module_path)
             cls = getattr(module, class_name)
         except (ImportError, AttributeError) as e:
@@ -434,8 +437,9 @@ class ConfigDrivenInstantiator:
         params = {}
         if hasattr(instance, "__init__"):
             import inspect
+
             sig = inspect.signature(instance.__init__)
-            for name, param in sig.parameters.items():
+            for name, _param in sig.parameters.items():
                 if name == "self":
                     continue
                 if hasattr(instance, name):
@@ -451,9 +455,11 @@ class ConfigDrivenInstantiator:
 # 3. auto_resume 自动检查点恢复 (BasicSR P2)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class CheckpointInfo:
     """检查点信息"""
+
     path: str
     epoch: int = 0
     step: int = 0
@@ -477,6 +483,7 @@ class AutoResumeConfig:
     3. 加载 model_state_dict + training_state
     4. 继续训练或推理
     """
+
     enabled: bool = True
     # 检查点搜索路径
     search_path: str = ""
@@ -549,6 +556,7 @@ class AutoResumeManager:
 
         # 搜索匹配的文件
         import glob
+
         pattern = os.path.join(search_path, self.config.pattern)
         matches = glob.glob(pattern)
 
@@ -573,10 +581,7 @@ class AutoResumeManager:
         checkpoints.sort(key=sort_key, reverse=True)
         latest = checkpoints[0]
 
-        logger.info(
-            f"找到最新检查点: {os.path.basename(latest.path)} "
-            f"({latest.file_size_mb:.1f}MB)"
-        )
+        logger.info(f"找到最新检查点: {os.path.basename(latest.path)} " f"({latest.file_size_mb:.1f}MB)")
         return latest
 
     def resume(self, model: torch.nn.Module, checkpoint_path: str) -> torch.nn.Module:
@@ -667,6 +672,7 @@ class AutoResumeManager:
             return 0
 
         import glob
+
         pattern = os.path.join(self.config.search_path, self.config.pattern)
         matches = glob.glob(pattern)
 
@@ -675,7 +681,7 @@ class AutoResumeManager:
 
         # 按时间排序
         matches.sort(key=os.path.getmtime, reverse=True)
-        to_delete = matches[self.config.max_keep:]
+        to_delete = matches[self.config.max_keep :]
 
         deleted = 0
         for path in to_delete:
@@ -700,6 +706,7 @@ class AutoResumeManager:
             step = 0
             # 格式: checkpoint_epoch100_step5000.pth
             import re
+
             epoch_match = re.search(r"epoch(\d+)", name)
             step_match = re.search(r"step(\d+)", name)
             if epoch_match:
@@ -722,7 +729,8 @@ class AutoResumeManager:
 # 4. 多 GPU 并行推理 (CogVideo P3)
 # ---------------------------------------------------------------------------
 
-class ParallelStrategy(str, Enum):
+
+class ParallelStrategy(StrEnum):
     """多 GPU 并行策略
 
     参考 CogVideo 的 xDiT xFuser 集成:
@@ -731,6 +739,7 @@ class ParallelStrategy(str, Enum):
     - PIPELINE: 将模型层分配到不同 GPU (流水线并行)
     - DATA: 不同 GPU 处理不同数据 (数据并行)
     """
+
     ULYSSES = "ulysses"
     RING = "ring"
     PIPELINE = "pipeline"
@@ -752,6 +761,7 @@ class MultiGPUConfig:
     - engine = xFuserEngine(engine_args)
     - output = engine.generate(...)
     """
+
     enabled: bool = False
     # 并行策略
     strategy: ParallelStrategy = ParallelStrategy.ULYSSES
@@ -817,13 +827,15 @@ class MultiGPUInference:
 
         for i in range(torch.cuda.device_count()):
             props = torch.cuda.get_device_properties(i)
-            info.append({
-                "id": i,
-                "name": props.name,
-                "total_memory_gb": props.total_memory / (1024**3),
-                "major": props.major,
-                "minor": props.minor,
-            })
+            info.append(
+                {
+                    "id": i,
+                    "name": props.name,
+                    "total_memory_gb": props.total_memory / (1024**3),
+                    "major": props.major,
+                    "minor": props.minor,
+                }
+            )
         return info
 
     def setup(self, model: torch.nn.Module) -> torch.nn.Module:
@@ -851,15 +863,10 @@ class MultiGPUInference:
         gpu_count = self.get_gpu_count()
         required = len(self.config.gpu_ids)
         if gpu_count < required:
-            logger.warning(
-                f"GPU 数量不足: 需要 {required}, 可用 {gpu_count}"
-            )
+            logger.warning(f"GPU 数量不足: 需要 {required}, 可用 {gpu_count}")
             return model
 
-        logger.info(
-            f"多 GPU 并行配置: strategy={self.config.strategy.value}, "
-            f"gpu_ids={self.config.gpu_ids}"
-        )
+        logger.info(f"多 GPU 并行配置: strategy={self.config.strategy.value}, " f"gpu_ids={self.config.gpu_ids}")
 
         # 参考流程 (框架代码)
         if self.config.strategy == ParallelStrategy.ULYSSES:
@@ -900,10 +907,7 @@ class MultiGPUInference:
 
         需要: xdiT 库
         """
-        logger.info(
-            f"Ring 并行: degree={self.config.ring_degree}, "
-            f"将序列分配到 {self.config.ring_degree} 个 GPU"
-        )
+        logger.info(f"Ring 并行: degree={self.config.ring_degree}, " f"将序列分配到 {self.config.ring_degree} 个 GPU")
         logger.warning("Ring 并行为参考框架，实际使用需安装 xdiT 库")
 
     def _setup_pipeline(self, model: torch.nn.Module):
@@ -922,10 +926,7 @@ class MultiGPUInference:
         num_gpus = len(self.config.gpu_ids)
         blocks_per_gpu = num_blocks // num_gpus
 
-        logger.info(
-            f"流水线并行: {num_blocks} blocks 分配到 {num_gpus} 个 GPU, "
-            f"约 {blocks_per_gpu} blocks/GPU"
-        )
+        logger.info(f"流水线并行: {num_blocks} blocks 分配到 {num_gpus} 个 GPU, " f"约 {blocks_per_gpu} blocks/GPU")
         logger.warning("流水线并行为参考框架，实际使用需实现层间通信")
 
     def _setup_data_parallel(self, model: torch.nn.Module):
@@ -948,6 +949,7 @@ class MultiGPUInference:
 # 5. CPU/CUDA Prefetcher (BasicSR P2)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class PrefetcherConfig:
     """数据预取配置
@@ -962,6 +964,7 @@ class PrefetcherConfig:
     - CUDAPrefetcher: 将预取数据提前传输到 GPU
     - 通过迭代器接口与训练/推理循环集成
     """
+
     enabled: bool = False
     # 预取队列大小 (预取几个批次)
     prefetch_count: int = 2
@@ -1123,6 +1126,7 @@ class CPUPrefetcher:
 # 6. 模型自描述属性 (waifu2x P2)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ModelMetadata:
     """模型自描述元数据
@@ -1141,6 +1145,7 @@ class ModelMetadata:
     2. 根据 arch 选择对应的推理路径
     3. 根据 scale/channels 自动配置前后处理
     """
+
     # 模型架构标识
     architecture: str = ""
     # 模型版本
@@ -1206,7 +1211,7 @@ class ModelMetadata:
 
         for key, value in state_dict.items():
             if key.startswith(prefix):
-                attr_name = key[len(prefix):]
+                attr_name = key[len(prefix) :]
                 if hasattr(metadata, attr_name):
                     try:
                         setattr(metadata, attr_name, value)
@@ -1269,9 +1274,7 @@ class ModelSelfDescriptor:
             os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
             torch.save(state_dict, path)
 
-            logger.info(
-                f"模型已保存 (含 {len(extras)} 项自描述属性): {path}"
-            )
+            logger.info(f"模型已保存 (含 {len(extras)} 项自描述属性): {path}")
             return True
 
         except Exception as e:
@@ -1302,10 +1305,7 @@ class ModelSelfDescriptor:
 
             # 从 state_dict 中移除元数据键，避免加载到模型参数
             prefix = ModelMetadata.ATTRIBUTE_PREFIX
-            clean_state_dict = {
-                k: v for k, v in state_dict.items()
-                if not k.startswith(prefix)
-            }
+            clean_state_dict = {k: v for k, v in state_dict.items() if not k.startswith(prefix)}
 
             # 加载模型权重
             missing, unexpected = model.load_state_dict(clean_state_dict, strict=strict)
@@ -1344,6 +1344,7 @@ class ModelSelfDescriptor:
 # 7. pybind11 零拷贝调用 (Anime4KCPP P2)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class PyBindConfig:
     """pybind11 零拷贝配置
@@ -1358,6 +1359,7 @@ class PyBindConfig:
     - 内部使用 py::array_t<float, py::array::c_style | py::array::forcecast>
     - 返回也是 numpy 数组 (零拷贝)
     """
+
     enabled: bool = False
     # C++ 扩展模块名
     module_name: str = "seedvr2_cpp"
@@ -1372,37 +1374,37 @@ class PyBindConfig:
 class PyBindInterface:
     """pybind11 零拷贝调用接口
 
-    参考 Anime4KCPP 的 pybind11 集成模式:
-    通过 pybind11 将 C++ 推理引擎暴露为 Python 接口，
-    支持 NumPy 数组的零拷贝传递。
+     参考 Anime4KCPP 的 pybind11 集成模式:
+     通过 pybind11 将 C++ 推理引擎暴露为 Python 接口，
+     支持 NumPy 数组的零拷贝传递。
 
-    零拷贝原理:
-    1. Python 端传入 numpy.ndarray (连续内存)
-    2. pybind11 直接获取底层指针 (不复制)
-    3. C++ 处理后返回新的 numpy 数组 (也不复制)
+     零拷贝原理:
+     1. Python 端传入 numpy.ndarray (连续内存)
+     2. pybind11 直接获取底层指针 (不复制)
+     3. C++ 处理后返回新的 numpy 数组 (也不复制)
 
-   Anime4KCPP 的典型绑定:
+    Anime4KCPP 的典型绑定:
 
-    C++ 侧:
-        py::array_t<float> process(py::array_t<float, py::array::c_style> input) {
-            auto buf = input.request();
-            float* ptr = static_cast<float*>(buf.ptr);
-            // 直接操作 ptr，零拷贝
-            ...
-            return py::array_t<float>(...);
-        }
+     C++ 侧:
+         py::array_t<float> process(py::array_t<float, py::array::c_style> input) {
+             auto buf = input.request();
+             float* ptr = static_cast<float*>(buf.ptr);
+             // 直接操作 ptr，零拷贝
+             ...
+             return py::array_t<float>(...);
+         }
 
-    Python 侧:
-        import seedvr2_cpp
-        output = seedvr2_cpp.process(input_array)  # 零拷贝
+     Python 侧:
+         import seedvr2_cpp
+         output = seedvr2_cpp.process(input_array)  # 零拷贝
 
-    注意: 此模块为参考框架，实际 C++ 绑定需要编译扩展模块。
+     注意: 此模块为参考框架，实际 C++ 绑定需要编译扩展模块。
 
-    Usage:
-        interface = PyBindInterface(PyBindConfig(enabled=True))
+     Usage:
+         interface = PyBindInterface(PyBindConfig(enabled=True))
 
-        if interface.is_available():
-            result = interface.call("process", input_array)
+         if interface.is_available():
+             result = interface.call("process", input_array)
     """
 
     def __init__(self, config: PyBindConfig | None = None):
@@ -1452,9 +1454,7 @@ class PyBindInterface:
         func = getattr(module, func_name, None)
 
         if func is None:
-            raise AttributeError(
-                f"C++ 扩展 {self.config.module_name} 中无函数 {func_name}"
-            )
+            raise AttributeError(f"C++ 扩展 {self.config.module_name} 中无函数 {func_name}")
 
         return func(*args, **kwargs)
 
@@ -1503,6 +1503,7 @@ class PyBindInterface:
 # 8. Hydra 配置管理 (Fast-SRGAN P3)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class HydraConfig:
     """Hydra 配置管理选项
@@ -1522,6 +1523,7 @@ class HydraConfig:
     - BasicSR: 手写 YAML 解析 + CLI
     - Hydra: 框架级配置管理，支持组合和多运行
     """
+
     # 配置文件目录
     config_path: str = "configs"
     # 主配置文件名 (不含 .yaml)
@@ -1647,6 +1649,7 @@ class HydraStyleConfigManager:
         if value_str.startswith("[") and value_str.endswith("]"):
             try:
                 import ast
+
                 return ast.literal_eval(value_str)
             except (ValueError, SyntaxError):
                 pass
@@ -1695,7 +1698,7 @@ class HydraStyleConfigManager:
         configs = []
         for combo in combinations:
             config = self.load()
-            for key, value in zip(keys, combo):
+            for key, value in zip(keys, combo, strict=False):
                 self._yaml_config._set_nested(config, key, value)
             configs.append(config)
 
@@ -1706,6 +1709,7 @@ class HydraStyleConfigManager:
 # ---------------------------------------------------------------------------
 # 便捷工厂函数
 # ---------------------------------------------------------------------------
+
 
 def create_default_config_manager(
     config_path: str = "config.yaml",
@@ -1719,10 +1723,12 @@ def create_auto_resume_manager(
     pattern: str = "*.pth",
 ) -> AutoResumeManager:
     """创建自动检查点恢复管理器"""
-    return AutoResumeManager(AutoResumeConfig(
-        search_path=search_path,
-        pattern=pattern,
-    ))
+    return AutoResumeManager(
+        AutoResumeConfig(
+            search_path=search_path,
+            pattern=pattern,
+        )
+    )
 
 
 def create_model_descriptor() -> ModelSelfDescriptor:

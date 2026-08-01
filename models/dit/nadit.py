@@ -33,23 +33,11 @@ NaDiT 核心思想:
 """
 
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
-
-from common.cache import Cache
-from common.distributed.parallel_state import (
-    get_context_parallel_group,
-    get_context_parallel_rank,
-    get_context_parallel_world_size,
-)
-from common.distributed.ops import (
-    gather_seq_xla,
-    slice_inputs,
-    sync_cuda,
-)
 from models.common.context_parallel import (
     get_context_parallel_group,
     initialize_context_parallel,
@@ -57,15 +45,13 @@ from models.common.context_parallel import (
 from models.common.fp8 import FP8Linear, apply_fp8_linear_optimization, is_fp8_enabled
 from models.common.moe import build_moe_layer
 
-from .attention import FlashAttentionVarlen
+from common.cache import Cache
+
 from .embedding import TimeEmbedding, emb_add
-from .mlp import get_mlp
-from .mm import MMArg
-from .modulation import AdaSingle, get_ada_layer
+from .modulation import get_ada_layer
 from .na import na_concat, na_split, unpatchify
-from .nablocks import NaBlock, get_na_block
+from .nablocks import get_na_block
 from .normalization import get_norm_layer
-from .patch import PatchifyEmbed
 from .rope import apply_rope
 
 
@@ -110,27 +96,28 @@ class NaDiTConfig:
         na_moe (Optional[dict]): MoE 配置。
         fp8 (bool): 是否启用 FP8。
     """
+
     in_channels: int = 16
-    patch_size: Tuple[int, int, int] = (1, 2, 2)
+    patch_size: tuple[int, int, int] = (1, 2, 2)
     depth: int = 12
     dim: int = 1024
     num_heads: int = 16
     mlp_expand_ratio: int = 4
     mlp_type: str = "normal"
-    norm_type: Optional[str] = "layer"
+    norm_type: str | None = "layer"
     ada_layer: str = "single"
     text_dim: int = 4096
     rope_theta_t: int = 3600
     rope_theta_h: int = 3600
     rope_theta_w: int = 3600
-    rope_dim: Optional[str] = None
+    rope_dim: str | None = None
     max_seqlen_t: int = 4096
     max_seqlen_h: int = 4096
     max_seqlen_w: int = 4096
     block_type: str = "mmsr"
-    window_size: Optional[Tuple[int, int, int]] = None
-    window_step: Optional[int] = None
-    na_moe: Optional[dict] = None
+    window_size: tuple[int, int, int] | None = None
+    window_step: int | None = None
+    na_moe: dict | None = None
     fp8: bool = False
 
 
@@ -140,7 +127,7 @@ class NaPatchifyEmbed(nn.Module):
     使用 3D 卷积作为 patch 投影，支持将不同尺寸的视频样本批处理。
     """
 
-    def __init__(self, in_channels: int, dim: int, patch_size: Tuple[int, int, int] = (1, 2, 2)):
+    def __init__(self, in_channels: int, dim: int, patch_size: tuple[int, int, int] = (1, 2, 2)):
         super().__init__()
         self.patch_size = patch_size
         self.proj = nn.Conv3d(in_channels, dim, kernel_size=patch_size, stride=patch_size)
@@ -217,13 +204,15 @@ class NaRoPE(nn.Module):
         """
         b = window_sizes.shape[0]
         if branch == "txt":
-            txt_lens = x.shape[0] if b == 0 else None
+            x.shape[0] if b == 0 else None
         nw_cu = F.pad((window_sizes[:, 0] * window_sizes[:, 1] * window_sizes[:, 2]).cumsum(0), (1, 0))
         freq_list = []
         for i in range(b):
             nt, nh, nw = window_sizes[i].tolist()
             if cache is not None:
-                freq_list.append(cache(f"freqs_{nt}_{nh}_{nw}", lambda: self.get_freqs_cis(nt, nh, nw)))
+                freq_list.append(
+                    cache(f"freqs_{nt}_{nh}_{nw}", lambda nt=nt, nh=nh, nw=nw: self.get_freqs_cis(nt, nh, nw))
+                )
             else:
                 freq_list.append(self.get_freqs_cis(nt, nh, nw))
         if branch == "txt" and b > 0:
@@ -274,18 +263,18 @@ class NaDiT(nn.Module):
 
         self.blocks = nn.ModuleList()
         for i in range(config.depth):
-            block_cfg = dict(
-                dim=config.dim,
-                num_heads=config.num_heads,
-                mlp_expand_ratio=config.mlp_expand_ratio,
-                mlp_type=config.mlp_type,
-                norm_layer=norm_layer,
-                ada_layer=ada_layer,
-                window_size=config.window_size,
-                window_step=config.window_step,
-                block_id=i,
-                fp8=config.fp8,
-            )
+            block_cfg = {
+                "dim": config.dim,
+                "num_heads": config.num_heads,
+                "mlp_expand_ratio": config.mlp_expand_ratio,
+                "mlp_type": config.mlp_type,
+                "norm_layer": norm_layer,
+                "ada_layer": ada_layer,
+                "window_size": config.window_size,
+                "window_step": config.window_step,
+                "block_id": i,
+                "fp8": config.fp8,
+            }
             if config.na_moe is not None and i in config.na_moe["mlp_layers"]:
                 block_cfg["mlp_layer"] = build_moe_layer(config.na_moe, config.dim, config.mlp_expand_ratio)
             self.blocks.append(get_na_block(config.block_type)(**block_cfg))
@@ -293,7 +282,11 @@ class NaDiT(nn.Module):
         self.norm_out = norm_layer(config.dim, eps=1e-6, elementwise_affine=False)
         self.out_proj = nn.Sequential(
             nn.SiLU(),
-            initialize_linear(config.dim, self.out_channels * config.patch_size[0] * config.patch_size[1] * config.patch_size[2], fp8=config.fp8),
+            initialize_linear(
+                config.dim,
+                self.out_channels * config.patch_size[0] * config.patch_size[1] * config.patch_size[2],
+                fp8=config.fp8,
+            ),
         )
         self.ada_final = ada_layer(config.dim, 6 * config.dim, ["mod_out"])
 

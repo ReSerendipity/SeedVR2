@@ -23,7 +23,8 @@
 """
 
 from functools import partial
-from typing import Literal, Optional
+from typing import Literal
+
 from torch import Tensor
 from torch.nn import Conv3d
 
@@ -36,7 +37,7 @@ from models.video_vae_v3.modules.inflated_lib import (
 )
 
 _inflation_mode_t = Literal["none", "tail", "replicate"]
-_memory_device_t = Optional[Literal["cpu", "same"]]
+_memory_device_t = Literal["cpu", "same"] | None
 
 
 class InflatedCausalConv3d(Conv3d):
@@ -107,16 +108,8 @@ class InflatedCausalConv3d(Conv3d):
             input = extend_head(input, memory=self.memory)
         else:
             input = extend_head(input, times=self.temporal_padding * 2)
-        memory = (
-            input[:, :, mem_size:].detach()
-            if (mem_size != 0 and memory_state != MemoryState.DISABLED)
-            else None
-        )
-        if (
-            memory_state != MemoryState.DISABLED
-            and not self.training
-            and (self.memory_device is not None)
-        ):
+        memory = input[:, :, mem_size:].detach() if (mem_size != 0 and memory_state != MemoryState.DISABLED) else None
+        if memory_state != MemoryState.DISABLED and not self.training and (self.memory_device is not None):
             self.memory = memory
             if self.memory_device == "cpu" and self.memory is not None:
                 self.memory = self.memory.to("cpu")

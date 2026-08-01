@@ -15,6 +15,7 @@ REFACTOR [E4-1]: on_cancel 回调机制
 - 新增 on_cancel 回调，submit 时由调用方注入（通常为 engine.request_cancel），
   在超时或主动取消时调用，让推理线程在阶段切换点主动退出，确保 GPU 资源及时释放
 """
+
 import asyncio
 import contextlib
 import logging
@@ -169,9 +170,7 @@ class TaskQueue:
                 # ROBUSTNESS: worker 因未预期异常退出，尝试重启
                 self._restart_count += 1
                 if self._restart_count > MAX_WORKER_RESTARTS:
-                    logger.critical(
-                        f"任务队列 worker 连续重启 {MAX_WORKER_RESTARTS} 次后仍失败，停止重启: {e}"
-                    )
+                    logger.critical(f"任务队列 worker 连续重启 {MAX_WORKER_RESTARTS} 次后仍失败，停止重启: {e}")
                     break
                 logger.error(
                     f"任务队列 worker 异常退出，第 {self._restart_count} 次重启: {type(e).__name__}: {e}",
@@ -214,15 +213,7 @@ class TaskQueue:
             except TimeoutError:
                 # asyncio.wait_for 超时抛出 TimeoutError（Python 3.11+），内部 Task 已被取消
                 # REFACTOR [E4-1]: 超时后调用 on_cancel，让底层推理线程主动退出
-                logger.error(
-                    f"任务 {task_id} 执行超时（{self._task_timeout}s），已强制取消 (E6)"
-                )
-                self._invoke_cancel_callback(task_id, on_cancel, reason="超时")
-            except asyncio.TimeoutError:
-                # 兼容 Python 3.10- 的别名
-                logger.error(
-                    f"任务 {task_id} 执行超时（{self._task_timeout}s），已强制取消 (E6)"
-                )
+                logger.error(f"任务 {task_id} 执行超时（{self._task_timeout}s），已强制取消 (E6)")
                 self._invoke_cancel_callback(task_id, on_cancel, reason="超时")
             except Exception as e:
                 # E2: 兜底捕获未预期异常，记录后继续处理下一个任务

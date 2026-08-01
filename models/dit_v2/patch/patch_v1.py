@@ -36,7 +36,6 @@ Patch 算法:
     3. 若 t > 1，裁掉开头填充的 (t-1) 帧。
 """
 
-from typing import Tuple, Union
 import torch
 from einops import rearrange
 from torch import nn
@@ -67,7 +66,7 @@ class PatchIn(nn.Module):
     def __init__(
         self,
         in_channels: int,
-        patch_size: Union[int, Tuple[int, int, int]],
+        patch_size: int | tuple[int, int, int],
         dim: int,
     ):
         super().__init__()
@@ -114,7 +113,7 @@ class PatchOut(nn.Module):
     def __init__(
         self,
         out_channels: int,
-        patch_size: Union[int, Tuple[int, int, int]],
+        patch_size: int | tuple[int, int, int],
         dim: int,
     ):
         super().__init__()
@@ -197,7 +196,7 @@ class NaPatchOut(PatchOut):
         vid: torch.FloatTensor,
         vid_shape: torch.LongTensor,
         cache: Cache = Cache(disable=True),
-    ) -> Tuple[
+    ) -> tuple[
         torch.FloatTensor,
         torch.LongTensor,
     ]:
@@ -217,9 +216,7 @@ class NaPatchOut(PatchOut):
 
         t, h, w = self.patch_size
         vid = self.proj(vid)
-        vid = gather_outputs(
-            vid, gather_dim=0, padding_dim=0, unpad_shape=vid_shape, cache=cache.namespace("vid")
-        )
+        vid = gather_outputs(vid, gather_dim=0, padding_dim=0, unpad_shape=vid_shape, cache=cache.namespace("vid"))
         if not (t == h == w == 1):
             vid = na.unflatten(vid, vid_shape)
             for i in range(len(vid)):

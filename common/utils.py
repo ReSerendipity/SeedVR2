@@ -23,11 +23,10 @@ The wrappers automatically detect RuntimeErrors caused by unsupported dtypes,
 temporarily upcast to float32 for the operation, and restore the original dtype.
 """
 
-import torch
 import torch.nn.functional as F
 
 
-def safe_pad_operation(x, padding, mode='constant', value=0.0):
+def safe_pad_operation(x, padding, mode="constant", value=0.0):
     """Safely pad a tensor with automatic dtype fallback for unsupported modes.
 
     Wraps ``torch.nn.functional.pad`` with a fallback mechanism. When using
@@ -52,7 +51,7 @@ def safe_pad_operation(x, padding, mode='constant', value=0.0):
         "not implemented for 'Half'" errors on CUDA with FP16 tensors.
         This function transparently handles that case.
     """
-    problematic_modes = ['replicate', 'reflect', 'circular']
+    problematic_modes = ["replicate", "reflect", "circular"]
 
     if mode in problematic_modes:
         try:
@@ -67,7 +66,9 @@ def safe_pad_operation(x, padding, mode='constant', value=0.0):
         return F.pad(x, padding, mode=mode, value=value)
 
 
-def safe_interpolate_operation(x, size=None, scale_factor=None, mode='nearest', align_corners=None, recompute_scale_factor=None):
+def safe_interpolate_operation(
+    x, size=None, scale_factor=None, mode="nearest", align_corners=None, recompute_scale_factor=None
+):
     """Safely interpolate/upsample a tensor with automatic dtype fallback.
 
     Wraps ``torch.nn.functional.interpolate`` with a fallback mechanism. When
@@ -95,7 +96,7 @@ def safe_interpolate_operation(x, size=None, scale_factor=None, mode='nearest', 
         to half-precision index computation ("not implemented for 'Half'" or
         "compute_indices_weights"). This function handles those transparently.
     """
-    problematic_modes = ['bilinear', 'bicubic', 'trilinear']
+    problematic_modes = ["bilinear", "bicubic", "trilinear"]
 
     if mode in problematic_modes:
         try:
@@ -105,11 +106,10 @@ def safe_interpolate_operation(x, size=None, scale_factor=None, mode='nearest', 
                 scale_factor=scale_factor,
                 mode=mode,
                 align_corners=align_corners,
-                recompute_scale_factor=recompute_scale_factor
+                recompute_scale_factor=recompute_scale_factor,
             )
         except RuntimeError as e:
-            if ("not implemented for 'Half'" in str(e) or
-                "compute_indices_weights" in str(e)):
+            if "not implemented for 'Half'" in str(e) or "compute_indices_weights" in str(e):
                 original_dtype = x.dtype
                 return F.interpolate(
                     x.float(),
@@ -117,7 +117,7 @@ def safe_interpolate_operation(x, size=None, scale_factor=None, mode='nearest', 
                     scale_factor=scale_factor,
                     mode=mode,
                     align_corners=align_corners,
-                    recompute_scale_factor=recompute_scale_factor
+                    recompute_scale_factor=recompute_scale_factor,
                 ).to(original_dtype)
             else:
                 raise e
@@ -128,5 +128,5 @@ def safe_interpolate_operation(x, size=None, scale_factor=None, mode='nearest', 
             scale_factor=scale_factor,
             mode=mode,
             align_corners=align_corners,
-            recompute_scale_factor=recompute_scale_factor
+            recompute_scale_factor=recompute_scale_factor,
         )

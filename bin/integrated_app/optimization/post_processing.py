@@ -34,6 +34,7 @@ Key Features:
 - 统一后处理入口: 可配置的后处理流水线
 """
 
+import contextlib
 import logging
 import os
 from collections.abc import Callable
@@ -48,6 +49,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # 小波重建后处理 (DiffBIR inspired) - P1
 # ---------------------------------------------------------------------------
+
 
 def wavelet_reconstruction(
     restored: np.ndarray,
@@ -90,22 +92,20 @@ def wavelet_reconstruction(
 
     for c in range(3):
         # 小波分解
-        coeffs_res = pywt.wavedec2(result_float[:, :, c], 'haar', level=level)
-        coeffs_ref = pywt.wavedec2(reference_float[:, :, c], 'haar', level=level)
+        coeffs_res = pywt.wavedec2(result_float[:, :, c], "haar", level=level)
+        coeffs_ref = pywt.wavedec2(reference_float[:, :, c], "haar", level=level)
 
         # 融合策略:
         # - 低频 (approximation): 使用 reference 的低频 * low_freq_weight + restored 的低频 * (1 - low_freq_weight)
         # - 高频 (details): 使用 restored 的高频 (保留修复产生的锐利细节)
-        new_coeffs = [
-            low_freq_weight * coeffs_ref[0] + (1 - low_freq_weight) * coeffs_res[0]
-        ]
+        new_coeffs = [low_freq_weight * coeffs_ref[0] + (1 - low_freq_weight) * coeffs_res[0]]
 
         # 所有高频层来自 restored (保留修复细节)
         for i in range(1, len(coeffs_res)):
             new_coeffs.append(coeffs_res[i])
 
         # 小波重构
-        result_out[:, :, c] = pywt.waverec2(new_coeffs, 'haar')
+        result_out[:, :, c] = pywt.waverec2(new_coeffs, "haar")
 
     result_out = np.clip(result_out * 255, 0, 255).astype(np.uint8)
     return result_out
@@ -114,6 +114,7 @@ def wavelet_reconstruction(
 # ---------------------------------------------------------------------------
 # Alpha 通道处理 (waifu2x inspired) - P2
 # ---------------------------------------------------------------------------
+
 
 def process_alpha_channel(
     rgb_image: np.ndarray,
@@ -194,6 +195,7 @@ def merge_alpha_to_image(rgb: np.ndarray, alpha: np.ndarray | None) -> np.ndarra
 # EXIF 元数据复制 (upscayl inspired) - P2
 # ---------------------------------------------------------------------------
 
+
 def copy_exif_metadata(
     source_path: str,
     target_path: str,
@@ -213,7 +215,6 @@ def copy_exif_metadata(
     """
     try:
         from PIL import Image
-        from PIL.ExifTags import TAGS
 
         source_img = Image.open(source_path)
 
@@ -240,6 +241,7 @@ def copy_exif_metadata(
 # ---------------------------------------------------------------------------
 # Fidelity Weight 控制 (CodeFormer inspired) - P2
 # ---------------------------------------------------------------------------
+
 
 def apply_fidelity_weight(
     restored: np.ndarray,
@@ -272,6 +274,7 @@ def apply_fidelity_weight(
 # 多步放大策略 (clarity-upscaler inspired) - P2
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class MultiStepUpscaleConfig:
     """多步放大策略配置
@@ -279,6 +282,7 @@ class MultiStepUpscaleConfig:
     参考 clarity-upscaler 的最多 3 次迭代放大策略:
     通过多次低倍率放大代替单次高倍率放大，避免质量下降。
     """
+
     # 是否启用多步放大
     enabled: bool = True
     # 目标放大倍率
@@ -368,6 +372,7 @@ class MultiStepUpscaler:
 
         # 多步放大
         import tempfile
+
         temp_files = []
 
         current_input = input_path
@@ -383,7 +388,7 @@ class MultiStepUpscaler:
                 temp_output = output_path
 
             # 放大
-            result = upscale_fn(current_input, temp_output, scale=step_scale)
+            upscale_fn(current_input, temp_output, scale=step_scale)
 
             # 颹色校正 (除最后一步外)
             if color_fix_fn and i < len(steps) - 1:
@@ -393,10 +398,8 @@ class MultiStepUpscaler:
 
         # 清理临时文件
         for temp_file in temp_files[:-1]:
-            try:
+            with contextlib.suppress(OSError):
                 os.remove(temp_file)
-            except OSError:
-                pass
 
         return output_path
 
@@ -404,6 +407,7 @@ class MultiStepUpscaler:
 # ---------------------------------------------------------------------------
 # 图像锐化增强 (Real-ESRGAN SRVGGNetCompact inspired) - P1
 # ---------------------------------------------------------------------------
+
 
 def apply_sharpening(
     image: np.ndarray,
@@ -454,6 +458,7 @@ def apply_sharpening(
 # 统一后处理入口
 # ---------------------------------------------------------------------------
 
+
 def apply_post_processing(
     restored: np.ndarray,
     reference: np.ndarray,
@@ -499,6 +504,7 @@ def apply_post_processing(
 # 文本修复流水线 (Vivid-VR inspired) - P2
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class TextRestorationConfig:
     """文本修复流水线配置
@@ -516,6 +522,7 @@ class TextRestorationConfig:
         feather_radius: 羽化合成时的羽化半径 (像素)
         min_text_area: 最小文本区域面积 (像素)，低于此值忽略
     """
+
     enabled: bool = False
     ocr_languages: list[str] | None = None
     ocr_confidence_threshold: float = 0.5
@@ -562,6 +569,7 @@ class TextRestorationPipeline:
 
         try:
             import easyocr
+
             self._ocr_reader = easyocr.Reader(
                 self.config.ocr_languages,
                 gpu=False,  # 默认 CPU 模式，避免 GPU 资源争用
@@ -592,9 +600,7 @@ class TextRestorationPipeline:
 
         if reader is not None:
             # 使用 EasyOCR 检测
-            results = reader.readtext(
-                cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-            )
+            results = reader.readtext(cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
 
             text_regions = []
             for detection in results:
@@ -614,11 +620,13 @@ class TextRestorationPipeline:
                 if area < self.config.min_text_area:
                     continue
 
-                text_regions.append({
-                    "bbox": [x1, y1, x2, y2],
-                    "text": text,
-                    "confidence": confidence,
-                })
+                text_regions.append(
+                    {
+                        "bbox": [x1, y1, x2, y2],
+                        "text": text,
+                        "confidence": confidence,
+                    }
+                )
 
             logger.info(f"文本检测: 找到 {len(text_regions)} 个文本区域")
             return text_regions
@@ -631,7 +639,9 @@ class TextRestorationPipeline:
 
             # 使用连通域分析查找文本候选区域
             contours, _ = cv2.findContours(
-                edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE,
+                edges,
+                cv2.RETR_EXTERNAL,
+                cv2.CHAIN_APPROX_SIMPLE,
             )
 
             text_regions = []
@@ -647,11 +657,13 @@ class TextRestorationPipeline:
                 if aspect_ratio > 10 or aspect_ratio < 0.1:
                     continue
 
-                text_regions.append({
-                    "bbox": [x, y, x + w, y + h],
-                    "text": "",
-                    "confidence": 0.3,
-                })
+                text_regions.append(
+                    {
+                        "bbox": [x, y, x + w, y + h],
+                        "text": "",
+                        "confidence": 0.3,
+                    }
+                )
 
             logger.info(f"简化文本检测: 找到 {len(text_regions)} 个候选区域")
             return text_regions
@@ -720,7 +732,7 @@ class TextRestorationPipeline:
         background = image.copy()
 
         # 仅对背景区域锐化
-        bg_mask = (text_mask == 0)
+        bg_mask = text_mask == 0
         sharpened = apply_sharpening(background, strength=0.1, method="unsharp_mask")
 
         # 掩码合成: 背景区域使用锐化结果，文本区域保持原样
@@ -763,7 +775,8 @@ class TextRestorationPipeline:
             # 对掩码进行高斯模糊实现羽化
             mask_float = (text_mask > 0).astype(np.float32)
             feathered = cv2.GaussianBlur(
-                mask_float, (0, 0),
+                mask_float,
+                (0, 0),
                 sigmaX=self.config.feather_radius,
             )
             # 限制在 [0, 1]
@@ -774,7 +787,7 @@ class TextRestorationPipeline:
 
         elif blend_mode == "alpha":
             # Alpha 合成: 使用掩码值作为 alpha 通道
-            mask_float = (text_mask.astype(np.float32) / 255.0)
+            mask_float = text_mask.astype(np.float32) / 255.0
             alpha = mask_float[:, :, np.newaxis]
             result = (alpha * text_enhanced + (1 - alpha) * background).astype(np.uint8)
 

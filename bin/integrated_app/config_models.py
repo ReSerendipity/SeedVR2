@@ -55,6 +55,7 @@ class ServerConfig(BaseModel):
         auto_open_browser: 启动后是否自动打开浏览器访问应用。
         allowed_origins: CORS 允许的源列表，用于跨域请求控制。
     """
+
     model_config = ConfigDict(extra="ignore")
     host: str = "127.0.0.1"
     port: int = 7870
@@ -99,6 +100,7 @@ class ModelEntryConfig(BaseModel):
         min_vram_fp8_gb: 加载 FP8 版本所需最小显存（GB）。
         num_blocks: Transformer 块数量，用于 BlockSwap 策略。
     """
+
     model_config = ConfigDict(extra="ignore")
     name: str = ""
     config_dir: str = ""
@@ -126,6 +128,7 @@ class ModelConfig(BaseModel):
         device: 模型加载设备，"auto" 自动选择，或指定 "cuda:0"。
         models: 模型名称到 ModelEntryConfig 的映射字典。
     """
+
     model_config = ConfigDict(extra="ignore")
     default_size: str = "3b"
     default_precision: str = "fp16"
@@ -150,6 +153,7 @@ class RestoreConfig(BaseModel):
         seed: 默认随机种子，用于可复现结果。
         sp_size: 时空处理块大小。
     """
+
     model_config = ConfigDict(extra="ignore")
     default_resolution_h: int = 1080
     default_resolution_w: int = 1920
@@ -188,6 +192,7 @@ class GpuConfig(BaseModel):
         memory_strategy: 显存管理策略，"balanced"（平衡）、"aggressive"（激进）等。
         enable_fp16: 是否启用 FP16 混合精度推理以节省显存。
     """
+
     model_config = ConfigDict(extra="ignore")
     backend: str = "auto"
     memory_strategy: str = "balanced"
@@ -203,6 +208,7 @@ class HistoryConfig(BaseModel):
         db_path: SQLite 数据库文件路径，相对于项目根目录。
         max_records: 最大历史记录条数，1-100000 范围内，超出自动清理旧记录。
     """
+
     model_config = ConfigDict(extra="ignore")
     db_path: str = "data/history.db"
     max_records: int = 10000
@@ -235,6 +241,7 @@ class I18nConfig(BaseModel):
         default_locale: 默认语言代码，"zh"（中文）、"en"（英文）、"ja"（日文）、"fr"（法文）。
         available_locales: 可用语言代码列表。
     """
+
     model_config = ConfigDict(extra="ignore")
     default_locale: str = "zh"
     available_locales: list[str] = Field(default_factory=lambda: ["zh", "en", "ja", "fr"])
@@ -251,6 +258,7 @@ class LoggingConfig(BaseModel):
         max_size_mb: 单个日志文件最大大小（MB），超出自动滚动。
         backup_count: 保留的历史日志文件数量。
     """
+
     model_config = ConfigDict(extra="ignore")
     level: str = "INFO"
     file: str = "logs/app.log"
@@ -267,6 +275,7 @@ class CacheConfig(BaseModel):
         ttl: 缓存文件存活时间（秒），默认 86400 秒（1天）。
         max_size_mb: 缓存目录最大大小（MB），超出自动清理最旧文件。
     """
+
     model_config = ConfigDict(extra="ignore")
     ttl: int = 86400
     max_size_mb: int = 500
@@ -303,6 +312,7 @@ class InferenceConfig(BaseModel):
         vae_tile_size: VAE 分块编码/解码的瓦片大小。
         vae_overlap: VAE 瓦片重叠像素数，消除拼接边界。
     """
+
     model_config = ConfigDict(extra="ignore")
     blocks_to_swap: int = 0
     swap_io_components: bool = False
@@ -339,6 +349,7 @@ class RuntimeSseConfig(BaseModel):
         heartbeat_interval_seconds: SSE 心跳发送间隔（秒），5-600 范围，防止代理超时断开。
         poll_interval_seconds: 事件轮询间隔（秒），0.1-10.0 范围，平衡实时性和 CPU 占用。
     """
+
     model_config = ConfigDict(extra="ignore")
     max_duration_seconds: int = Field(300, ge=10, le=86400)
     heartbeat_interval_seconds: int = Field(30, ge=5, le=600)
@@ -355,6 +366,7 @@ class RuntimeBatchConfig(BaseModel):
         retry_base_delay_seconds: 重试基础延迟（秒），0.1-60.0 范围，实际延迟为 base * 2^attempt。
         retry_max_delay_seconds: 重试最大延迟（秒），1.0-600.0 范围，防止指数退避无限增长。
     """
+
     model_config = ConfigDict(extra="ignore")
     max_retries: int = Field(2, ge=0, le=10)
     retry_base_delay_seconds: float = Field(1.0, ge=0.1, le=60.0)
@@ -371,6 +383,7 @@ class RuntimeTaskConfig(BaseModel):
         max_timeout_seconds: 单个任务最大执行时间（秒），60-86400 范围，防止卡死任务阻塞队列。
         queue_maxsize: 任务队列最大容量，1-10000 范围，超出时新任务提交会拒绝。
     """
+
     model_config = ConfigDict(extra="ignore")
     id_length: int = Field(16, ge=8, le=32)
     max_timeout_seconds: int = Field(3600, ge=60, le=86400)
@@ -386,6 +399,7 @@ class RuntimeUploadConfig(BaseModel):
         large_file_threshold_mb: 大文件阈值（MB），1-1024 范围，超过此大小使用分片上传。
         chunk_size_bytes: 分片大小（字节），1KB-1MB 范围。
     """
+
     model_config = ConfigDict(extra="ignore")
     large_file_threshold_mb: int = Field(10, ge=1, le=1024)
     chunk_size_bytes: int = Field(8192, ge=1024, le=1024 * 1024)
@@ -400,10 +414,9 @@ class RuntimeSecurityConfig(BaseModel):
         allowed_base_dirs: 允许文件系统访问的基础目录白名单，path_guard 使用此列表防止目录遍历。
         rate_limit_per_minute: 每分钟请求速率限制，1-10000 范围，防止 API 滥用。
     """
+
     model_config = ConfigDict(extra="ignore")
-    allowed_base_dirs: list[str] = Field(
-        default_factory=lambda: ["outputs/", "data/uploads/"]
-    )
+    allowed_base_dirs: list[str] = Field(default_factory=lambda: ["outputs/", "data/uploads/"])
     rate_limit_per_minute: int = Field(30, ge=1, le=10000)
 
 
@@ -420,6 +433,7 @@ class RuntimeConfig(BaseModel):
         upload: 文件上传配置。
         security: 安全策略配置。
     """
+
     model_config = ConfigDict(extra="ignore")
     sse: RuntimeSseConfig = Field(default_factory=RuntimeSseConfig)
     batch: RuntimeBatchConfig = Field(default_factory=RuntimeBatchConfig)
@@ -466,6 +480,7 @@ class ImageRestoreParams(BaseModel):
         offload_device: 默认卸载设备。
         enable_debug: 是否启用调试输出。
     """
+
     model_config = ConfigDict(extra="ignore")
 
     dit_model: str = "3b_fp16"
@@ -511,6 +526,7 @@ class UnifiedRestoreParams(ImageRestoreParams):
     Attributes:
         task_type: 任务类型，"auto" 自动检测、"video" 视频、"image" 图像。
     """
+
     task_type: str = "auto"
 
 
@@ -523,6 +539,7 @@ class VideoRestoreParams(BaseModel):
     Attributes:
         seed: 随机种子，用于可复现的视频修复结果。
     """
+
     model_config = ConfigDict(extra="ignore")
 
     seed: int = 1373201197
@@ -550,6 +567,7 @@ class AppConfig(BaseModel):
         user_preferences: 用户偏好字典，前端 WebUI 通过 SettingsPersistence 独立管理，
                          此处仅保留字段防止 model_dump() 序列化时丢失。
     """
+
     model_config = ConfigDict(extra="ignore")
     server: ServerConfig = Field(default_factory=ServerConfig)
     model: ModelConfig = Field(default_factory=ModelConfig)

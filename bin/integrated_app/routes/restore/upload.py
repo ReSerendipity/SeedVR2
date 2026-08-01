@@ -10,6 +10,7 @@ API 端点：
 
 所属项目：SeedVR2 (SeedVR2 视频/图像修复工具)
 """
+
 import asyncio
 import logging
 import os
@@ -104,7 +105,7 @@ async def upload_and_restore(
     if not gpu_manager.is_gpu_available:
         raise HTTPException(
             status_code=503,
-            detail="SeedVR2 仅支持 NVIDIA GPU 推理，当前未检测到 NVIDIA GPU。请安装 NVIDIA GPU 并配置 CUDA 驱动。"
+            detail="SeedVR2 仅支持 NVIDIA GPU 推理，当前未检测到 NVIDIA GPU。请安装 NVIDIA GPU 并配置 CUDA 驱动。",
         )
 
     if not model_registry.model_loaded:
@@ -124,7 +125,9 @@ async def upload_and_restore(
                 raise HTTPException(status_code=400, detail=f"不支持的图片格式: {file_ext}")
             contents = await file.read()
             if len(contents) > common.MAX_IMAGE_SIZE:
-                raise HTTPException(status_code=400, detail=f"图片文件大小超过限制（最大 {common.MAX_IMAGE_SIZE // (1024*1024)}MB）")
+                raise HTTPException(
+                    status_code=400, detail=f"图片文件大小超过限制（最大 {common.MAX_IMAGE_SIZE // (1024*1024)}MB）"
+                )
             await file.seek(0)
             _, input_path = await file_cache.save_upload_file(file, sub_dir="image")
         else:
@@ -132,7 +135,9 @@ async def upload_and_restore(
                 raise HTTPException(status_code=400, detail=f"不支持的视频格式: {file_ext}")
             contents = await file.read()
             if len(contents) > common.MAX_VIDEO_SIZE:
-                raise HTTPException(status_code=400, detail=f"视频文件大小超过限制（最大 {common.MAX_VIDEO_SIZE // (1024*1024)}MB）")
+                raise HTTPException(
+                    status_code=400, detail=f"视频文件大小超过限制（最大 {common.MAX_VIDEO_SIZE // (1024*1024)}MB）"
+                )
             await file.seek(0)
             _, input_path = await file_cache.save_upload_file(file, sub_dir="video")
 
@@ -160,6 +165,7 @@ async def upload_and_restore(
 
     dit_model = raw_params.dit_model
     use_model_size = common.model_size_from_dit_model(dit_model)
+    params: ImageRestoreParams | VideoRestoreParams
     if task_type == "image":
         image_fields = {k: v for k, v in raw_params.model_dump().items() if k in ImageRestoreParams.model_fields}
         params = ImageRestoreParams(**image_fields)
@@ -168,7 +174,6 @@ async def upload_and_restore(
         params = VideoRestoreParams(**video_fields)
 
     task_id = uuid.uuid4().hex[: config.get("runtime", {}).get("task", {}).get("id_length", 16)]
-
     record = HistoryRecord(
         task_type=task_type,
         input_file=input_path,
@@ -177,32 +182,36 @@ async def upload_and_restore(
         parameters=params.model_dump_json(),
     )
     record_id = await history_db.add_record(record)
-
     await common.create_task_state(task_id, record_id, history_db, task_type=task_type)
-
     engine = model_registry.get_engine()
     on_cancel = engine.request_cancel if engine else None
 
     if task_type == "image":
+        img_params = params if isinstance(params, ImageRestoreParams) else ImageRestoreParams()
         await task_queue.submit(
             task_id,
-            lambda: _process_image_task(task_id, record_id, input_path, params, history_db, task_queue),
+            lambda: _process_image_task(task_id, record_id, input_path, img_params, history_db, task_queue),
             on_cancel=on_cancel,
         )
     else:
+        vid_params = params if isinstance(params, VideoRestoreParams) else VideoRestoreParams()
         await task_queue.submit(
             task_id,
-            lambda: _process_video_task(task_id, record_id, input_path, use_model_size, params, config, history_db, task_queue),
+            lambda: _process_video_task(
+                task_id, record_id, input_path, use_model_size, vid_params, config, history_db, task_queue
+            ),
             on_cancel=on_cancel,
         )
 
-    return respond_success({
-        "task_id": task_id,
-        "record_id": record_id,
-        "task_type": task_type,
-        "status": "pending",
-        "message": "修复任务已创建并加入队列",
-    })
+    return respond_success(
+        {
+            "task_id": task_id,
+            "record_id": record_id,
+            "task_type": task_type,
+            "status": "pending",
+            "message": "修复任务已创建并加入队列",
+        }
+    )
 
 
 async def _run_task_with_state(
@@ -247,8 +256,10 @@ async def _run_task_with_state(
 
         if result.success:
             await common.update_task_state(
-                task_id, history_db,
-                status="completed", progress=100.0,
+                task_id,
+                history_db,
+                status="completed",
+                progress=100.0,
                 output_path=result.output_path,
             )
             await history_db.update_record(
@@ -293,12 +304,12 @@ async def _process_image_task(
         history_db: 历史数据库实例。
         task_queue: 任务队列实例。
     """
+
     async def _do_infer(engine):
         output_dir = os.path.join(os.getcwd(), "outputs", "image", task_id)
-        image_config = ImageInferenceConfig(**{
-            k: v for k, v in params.model_dump().items()
-            if k in ImageInferenceConfig.__dataclass_fields__
-        })
+        image_config = ImageInferenceConfig(
+            **{k: v for k, v in params.model_dump().items() if k in ImageInferenceConfig.__dataclass_fields__}
+        )
         return await engine.infer_image(
             image_path=input_path,
             output_dir=output_dir,
@@ -332,6 +343,7 @@ async def _process_video_task(
         history_db: 历史数据库实例。
         task_queue: 任务队列实例。
     """
+
     async def _do_infer(engine):
         async def progress_callback(current_frame: int, total_frames: int, progress: float):
             common.get_task_cache().update(

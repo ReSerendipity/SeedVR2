@@ -35,7 +35,6 @@ RoPE 算法:
     使用不同的频率基 (theta_t, theta_h, theta_w) 控制各轴的位置编码尺度。
 """
 
-from typing import Optional, Tuple
 import torch
 from torch import nn
 from yunchang.globals import (
@@ -78,7 +77,7 @@ class rotary_emb(nn.Module):
         max_seqlen_t: int,
         max_seqlen_h: int,
         max_seqlen_w: int,
-        rope_dim: Optional[str] = None,
+        rope_dim: str | None = None,
         theta_t=3600,
         theta_h=3600,
         theta_w=3600,
@@ -120,7 +119,7 @@ class rotary_emb(nn.Module):
         freqs = torch.outer(t, freqs).float()
         return torch.polar(torch.ones_like(freqs), freqs)
 
-    def get_3d_freqs_cis(self, freqs_list: Tuple[torch.Tensor], t: int, h: int, w: int, dtype):
+    def get_3d_freqs_cis(self, freqs_list: tuple[torch.Tensor], t: int, h: int, w: int, dtype):
         """获取 3D 网格位置的旋转频率张量。
 
         通过外积方式将 t、h、w 三个 1D 频率张量组合为 3D 网格频率，
@@ -164,15 +163,11 @@ class rotary_emb(nn.Module):
         if branch == "txt":
             t = h = w = 0
             n = x.shape[1]
-            freqs = self.get_3d_freqs_cis(
-                (self.freqs_t, self.freqs_h, self.freqs_w), n, 1, 1, dtype=x.dtype
-            )
+            freqs = self.get_3d_freqs_cis((self.freqs_t, self.freqs_h, self.freqs_w), n, 1, 1, dtype=x.dtype)
         else:
             freqs = cache(
                 f"freqs_{branch_tag}",
-                lambda: self.get_3d_freqs_cis(
-                    (self.freqs_t, self.freqs_h, self.freqs_w), t, h, w, dtype=x.dtype
-                ),
+                lambda: self.get_3d_freqs_cis((self.freqs_t, self.freqs_h, self.freqs_w), t, h, w, dtype=x.dtype),
             )
 
         if x.shape[1] != freqs.shape[0]:
@@ -184,7 +179,7 @@ class rotary_emb(nn.Module):
         return apply_rope(x, freqs=freqs)
 
 
-def apply_rope(xq: torch.Tensor, xk: Optional[torch.Tensor] = None, freqs=None):
+def apply_rope(xq: torch.Tensor, xk: torch.Tensor | None = None, freqs=None):
     """对查询/键张量应用旋转位置编码。
 
     Args:

@@ -22,6 +22,7 @@
 - 幂等操作: 重复加载相同模型直接返回成功，不重复加载
 - 显存保护: 加载前严格检查显存，避免 OOM 导致系统不稳定
 """
+
 import logging
 import os
 
@@ -111,7 +112,7 @@ class ModelManager:
         pretrained_dir = self.model_config.get("pretrained_dir", "pretrained_models")
         return os.path.join(project_root, pretrained_dir)
 
-    def check_model_exists(self, size: str, precision: str = None) -> bool:
+    def check_model_exists(self, size: str, precision: str | None = None) -> bool:
         """检查指定模型文件是否存在
 
         验证指定大小和精度的模型 checkpoint 文件是否存在于文件系统中。
@@ -161,7 +162,7 @@ class ModelManager:
 
         try:
             if torch.cuda.is_available():
-                total_vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
+                total_vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
             else:
                 total_vram_gb = 0
         except Exception:
@@ -172,11 +173,14 @@ class ModelManager:
         elif total_vram_gb >= min_fp8_gb:
             return "fp8"
         else:
-            logger.warning(f"显存 {total_vram_gb:.1f}GB 不足以运行 {model_size} 模型 (最低需要 {min_fp8_gb}GB)，推荐使用 FP8 精度")
+            logger.warning(
+                f"显存 {total_vram_gb:.1f}GB 不足以运行 {model_size} 模型 (最低需要 {min_fp8_gb}GB)，推荐使用 FP8 精度"
+            )
             return "fp8"
 
-    async def load_model(self, model_size: str | None = None, device: str | None = None,
-                         precision: str | None = None) -> dict:
+    async def load_model(
+        self, model_size: str | None = None, device: str | None = None, precision: str | None = None
+    ) -> dict:
         """加载指定模型到 GPU
 
         完整的模型加载流程，包含参数验证、GPU 检查、文件检查、显存预检、
@@ -209,18 +213,25 @@ class ModelManager:
             precision = self.get_recommended_precision(model_size)
 
         from bin.integrated_app.gpu_backend import gpu_manager
+
         if not gpu_manager.is_gpu_available:
             raise RuntimeError(
                 "SeedVR2 仅支持 NVIDIA GPU 推理，当前未检测到 NVIDIA GPU。"
                 "请安装 NVIDIA GPU 并配置 CUDA 驱动以启用推理功能。"
             )
 
-        if (model_registry.model_loaded
-                and model_registry.current_model_size == model_size
-                and model_registry.current_precision == precision):
+        if (
+            model_registry.model_loaded
+            and model_registry.current_model_size == model_size
+            and model_registry.current_precision == precision
+        ):
             logger.info(f"模型 {model_size}/{precision} 已加载，跳过")
-            return {"status": "ok", "message": f"模型 {model_size}/{precision} 已加载",
-                    "model_size": model_size, "precision": precision}
+            return {
+                "status": "ok",
+                "message": f"模型 {model_size}/{precision} 已加载",
+                "model_size": model_size,
+                "precision": precision,
+            }
 
         model_cfg = self.get_model_info(model_size)
         if not model_cfg:
@@ -305,8 +316,7 @@ class ModelManager:
         logger.info("模型已卸载，显存已释放")
         return {"status": "ok", "message": "模型已卸载"}
 
-    async def switch_model(self, model_size: str, device: str | None = None,
-                           precision: str | None = None) -> dict:
+    async def switch_model(self, model_size: str, device: str | None = None, precision: str | None = None) -> dict:
         """安全切换模型（先卸载旧模型，再加载新模型，失败则回滚）
 
         切换流程:
@@ -332,9 +342,11 @@ class ModelManager:
             - 回滚机制确保切换失败时系统不会处于无模型可用的状态
             - 如果回滚时重新加载之前的模型也失败，会清除引擎状态并记录错误
         """
-        if (model_registry.current_model_size == model_size
-                and model_registry.model_loaded
-                and (precision is None or model_registry.current_precision == precision)):
+        if (
+            model_registry.current_model_size == model_size
+            and model_registry.model_loaded
+            and (precision is None or model_registry.current_precision == precision)
+        ):
             return {"status": "ok", "message": f"模型 {model_size} 已加载", "model_size": model_size}
 
         previous_size = model_registry.current_model_size

@@ -47,6 +47,7 @@ logger = logging.getLogger(__name__)
 # Temporal Texture Guidance (StableVSR inspired) - P0
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class TemporalGuidanceConfig:
     """Temporal Texture Guidance 配置
@@ -54,6 +55,7 @@ class TemporalGuidanceConfig:
     参考 StableVSR 的 restoration_guidance_scale 参数，
     将前帧的 x0_est warp 到当前帧作为 condition。
     """
+
     # 是否启用 Temporal Texture Guidance
     enabled: bool = True
     # guidance scale: 控制前帧信息对当前帧的影响程度
@@ -133,20 +135,14 @@ class TemporalTextureGuidance:
         fusion = self.config.fusion_strategy
 
         # Warp 前帧估计到当前帧
-        warped_previous = self._warp_frame(
-            x0_est_previous, current_latent, flow
-        )
+        warped_previous = self._warp_frame(x0_est_previous, current_latent, flow)
 
         # 遮挡检测: 使用 fbConsistencyCheck
         if flow is not None:
-            occlusion_mask = self._compute_occlusion_mask(
-                warped_previous, flow
-            )
+            occlusion_mask = self._compute_occlusion_mask(warped_previous, flow)
         else:
             # 无光流时使用简单相似度检测遮挡
-            occlusion_mask = self._compute_similarity_mask(
-                warped_previous, condition
-            )
+            occlusion_mask = self._compute_similarity_mask(warped_previous, condition)
 
         # 融合前帧信息
         if fusion == "add":
@@ -226,7 +222,7 @@ class TemporalTextureGuidance:
         grid_y, grid_x = torch.meshgrid(
             torch.arange(h, device=source.device, dtype=source.dtype),
             torch.arange(w, device=source.device, dtype=source.dtype),
-            indexing="ij"
+            indexing="ij",
         )
         grid = torch.stack([grid_x, grid_y], dim=-1)  # (H, W, 2)
 
@@ -302,6 +298,7 @@ class TemporalTextureGuidance:
 # Stream Forward KV Cache (FlashVSR inspired) - P0
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class StreamKVCacheConfig:
     """Stream Forward KV Cache 配置
@@ -310,6 +307,7 @@ class StreamKVCacheConfig:
     在视频修复中缓存 DiT 的 Key/Value 投影，
     减少后续帧的计算量。
     """
+
     # 是否启用 KV Cache
     enabled: bool = True
     # 最大缓存帧数 (超过时清除最旧的)
@@ -402,10 +400,7 @@ class StreamForwardKVCache:
             return None
 
         # 获取当前帧之前的历史帧
-        available = {
-            idx: kv for idx, kv in self._cache.items()
-            if idx < current_frame_idx
-        }
+        available = {idx: kv for idx, kv in self._cache.items() if idx < current_frame_idx}
 
         if not available:
             return None
@@ -462,7 +457,7 @@ class StreamForwardKVCache:
         for kv_data in self._cache.values():
             for tensor in kv_data.values():
                 if isinstance(tensor, torch.Tensor):
-                    total_size_mb += tensor.numel() * tensor.element_size() / (1024 ** 2)
+                    total_size_mb += tensor.numel() * tensor.element_size() / (1024**2)
 
         return {
             "cached_frames": len(self._cache),
@@ -475,6 +470,7 @@ class StreamForwardKVCache:
 # ---------------------------------------------------------------------------
 # 特征传播模块 (Upscale-A-Video inspired) - P1
 # ---------------------------------------------------------------------------
+
 
 class FeaturePropagation:
     """特征传播模块 - 非可学习版光流传播后处理
@@ -560,7 +556,7 @@ class FeaturePropagation:
         grid_y, grid_x = torch.meshgrid(
             torch.arange(h, device=source.device, dtype=torch.float32),
             torch.arange(w, device=source.device, dtype=torch.float32),
-            indexing="ij"
+            indexing="ij",
         )
         grid = torch.stack([grid_x, grid_y], dim=-1).unsqueeze(0)
 
@@ -579,6 +575,7 @@ class FeaturePropagation:
 # ---------------------------------------------------------------------------
 # 光流引导可变形对齐 (BasicVSR++ inspired) - P1
 # ---------------------------------------------------------------------------
+
 
 class DeformableAlignment:
     """光流引导可变形对齐模块
@@ -634,7 +631,7 @@ class DeformableAlignment:
         grid_y, grid_x = torch.meshgrid(
             torch.arange(h, device=frame.device, dtype=torch.float32),
             torch.arange(w, device=frame.device, dtype=torch.float32),
-            indexing="ij"
+            indexing="ij",
         )
         grid = torch.stack([grid_x, grid_y], dim=-1).unsqueeze(0)
         grid = grid + flow.permute(0, 2, 3, 1)
@@ -648,6 +645,7 @@ class DeformableAlignment:
 # ---------------------------------------------------------------------------
 # 截断因果历史模型 (Turtle inspired) - P1
 # ---------------------------------------------------------------------------
+
 
 class TruncatedCausalHistory:
     """截断因果历史模型
@@ -699,6 +697,7 @@ class TruncatedCausalHistory:
 # ---------------------------------------------------------------------------
 # 双向采样策略 (StableVSR inspired) - P2
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class BidirectionalSamplingConfig:
@@ -787,15 +786,21 @@ class BidirectionalSamplingStrategy:
 
         if mode == "alternate":
             return self._apply_alternate(
-                step_idx, current_output,
-                forward_x0_est, backward_x0_est,
-                flow_forward, flow_backward,
+                step_idx,
+                current_output,
+                forward_x0_est,
+                backward_x0_est,
+                flow_forward,
+                flow_backward,
             )
         else:  # bidirectional_fusion
             return self._apply_fusion(
-                step_idx, current_output,
-                forward_x0_est, backward_x0_est,
-                flow_forward, flow_backward,
+                step_idx,
+                current_output,
+                forward_x0_est,
+                backward_x0_est,
+                flow_forward,
+                flow_backward,
             )
 
     def _apply_alternate(
@@ -811,16 +816,12 @@ class BidirectionalSamplingStrategy:
         if step_idx % 2 == 0:
             # 偶数步: 正向引导 (前帧)
             if forward_x0_est is not None:
-                warped = self._warp_if_needed(
-                    forward_x0_est, current_output, flow_forward
-                )
+                warped = self._warp_if_needed(forward_x0_est, current_output, flow_forward)
                 return current_output * (1 - self.config.forward_weight) + warped * self.config.forward_weight
         else:
             # 奇数步: 反向引导 (后帧)
             if backward_x0_est is not None:
-                warped = self._warp_if_needed(
-                    backward_x0_est, current_output, flow_backward
-                )
+                warped = self._warp_if_needed(backward_x0_est, current_output, flow_backward)
                 return current_output * (1 - self.config.backward_weight) + warped * self.config.backward_weight
 
         return current_output
@@ -847,15 +848,11 @@ class BidirectionalSamplingStrategy:
         result = current_output * (1 - fwd_weight - bwd_weight)
 
         if forward_x0_est is not None:
-            warped_fwd = self._warp_if_needed(
-                forward_x0_est, current_output, flow_forward
-            )
+            warped_fwd = self._warp_if_needed(forward_x0_est, current_output, flow_forward)
             result = result + warped_fwd * fwd_weight
 
         if backward_x0_est is not None:
-            warped_bwd = self._warp_if_needed(
-                backward_x0_est, current_output, flow_backward
-            )
+            warped_bwd = self._warp_if_needed(backward_x0_est, current_output, flow_backward)
             result = result + warped_bwd * bwd_weight
 
         return result
@@ -917,6 +914,7 @@ class BidirectionalSamplingStrategy:
 # ---------------------------------------------------------------------------
 # Second-order Grid Propagation (BasicVSR++ inspired) - P2
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class SecondOrderGridPropagationConfig:
@@ -988,10 +986,11 @@ class SecondOrderGridPropagation:
             return current_features
 
         aligned_sum = torch.zeros_like(current_features)
-        weight_sum = torch.zeros(1, 1, current_features.shape[-2], current_features.shape[-1],
-                                 device=current_features.device)
+        weight_sum = torch.zeros(
+            1, 1, current_features.shape[-2], current_features.shape[-1], device=current_features.device
+        )
 
-        for feat, flow in zip(neighbor_features, flows):
+        for feat, flow in zip(neighbor_features, flows, strict=False):
             # grid_sample 对齐相邻帧到当前帧
             aligned = self._grid_sample_align(feat, flow)
 
@@ -1035,10 +1034,11 @@ class SecondOrderGridPropagation:
 
         # 基于一次传播结果进行二次传播
         secondary_aligned = torch.zeros_like(current_features)
-        weight_sum = torch.zeros(1, 1, current_features.shape[-2], current_features.shape[-1],
-                                 device=current_features.device)
+        weight_sum = torch.zeros(
+            1, 1, current_features.shape[-2], current_features.shape[-1], device=current_features.device
+        )
 
-        for feat, flow in zip(extended_neighbor_features, extended_flows):
+        for feat, flow in zip(extended_neighbor_features, extended_flows, strict=False):
             aligned = self._grid_sample_align(feat, flow)
 
             flow_mag = torch.norm(flow, dim=1 if flow.ndim == 4 else 0, keepdim=True)
@@ -1097,6 +1097,7 @@ class SecondOrderGridPropagation:
 # ---------------------------------------------------------------------------
 # ARTG 光流对齐 (Stream-DiffVSR inspired) - P2
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class ARTGAlignmentConfig:
@@ -1226,6 +1227,7 @@ class ARTGAlignment:
 # Temporal Processor Module (Stream-DiffVSR inspired) - P2
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class TemporalProcessorConfig:
     """时序感知解码器配置
@@ -1350,9 +1352,7 @@ class TemporalProcessorModule:
             remainder = target_channels % features.shape[1]
             projected = features.repeat(1, repeat_factor, 1, 1)
             if remainder > 0:
-                projected = torch.cat(
-                    [projected, features[:, :remainder]], dim=1
-                )
+                projected = torch.cat([projected, features[:, :remainder]], dim=1)
         else:
             # 通道过多: 取前 target_channels 个通道
             projected = features[:, :target_channels]
@@ -1374,7 +1374,6 @@ class TemporalProcessorModule:
             注意力融合后的特征 (B, T, C, H, W)
         """
         b, t, c, h, w = stacked_features.shape
-        num_heads = self.config.num_heads
 
         # 将空间维度展平
         flat = stacked_features.reshape(b, t, c, h * w)  # (B, T, C, L)
@@ -1384,9 +1383,7 @@ class TemporalProcessorModule:
 
         # 点积相似度: (B, 1, L) x (B, T, L) -> (B, T, L)
         # 简化为: 对每个时间步计算全局相似度
-        similarity = torch.sum(
-            current * flat, dim=2
-        ) / (c ** 0.5)  # (B, T, L)
+        similarity = torch.sum(current * flat, dim=2) / (c**0.5)  # (B, T, L)
 
         # Softmax 归一化 (在时间维度上)
         attention = F.softmax(similarity, dim=1)  # (B, T, L)
@@ -1402,6 +1399,7 @@ class TemporalProcessorModule:
 # ---------------------------------------------------------------------------
 # 递归-并行混合架构 (RVRT inspired) - P2
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class RecursiveParallelConfig:
@@ -1483,14 +1481,10 @@ class RecursiveParallelHybrid:
 
             if self.config.parallel_within_clip and len(clip_frames) > 1:
                 # clip 内并行处理
-                clip_results = self._process_clip_parallel(
-                    clip_frames, process_fn
-                )
+                clip_results = self._process_clip_parallel(clip_frames, process_fn)
             else:
                 # 串行处理 (clip 大小为 1 或禁用并行)
-                clip_results = self._process_clip_sequential(
-                    clip_frames, process_fn
-                )
+                clip_results = self._process_clip_sequential(clip_frames, process_fn)
 
             results.extend(clip_results)
 

@@ -83,6 +83,7 @@ repo/
 dogfood-output/
 server_test.log
 server_test_err.log
+verify_output.log
 test-report.md
 test_report_v*.md
 

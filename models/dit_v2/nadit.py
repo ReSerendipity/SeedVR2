@@ -12,8 +12,9 @@
 # // See the License for the specific language governing permissions and
 # // limitations under the License.
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import List, Optional, Tuple, Union, Callable
+
 import torch
 from torch import nn
 
@@ -27,9 +28,11 @@ from .nablocks import get_nablock
 from .normalization import get_norm_layer
 from .patch import get_na_patch_layers
 
+
 # Fake func, no checkpointing is required for inference
-def gradient_checkpointing(module: Union[Callable, nn.Module], *args, enabled: bool, **kwargs):
+def gradient_checkpointing(module: Callable | nn.Module, *args, enabled: bool, **kwargs):
     return module(*args, **kwargs)
+
 
 @dataclass
 class NaDiTOutput:
@@ -48,33 +51,33 @@ class NaDiT(nn.Module):
         vid_in_channels: int,
         vid_out_channels: int,
         vid_dim: int,
-        txt_in_dim: Union[int, List[int]],
-        txt_dim: Optional[int],
+        txt_in_dim: int | list[int],
+        txt_dim: int | None,
         emb_dim: int,
         heads: int,
         head_dim: int,
         expand_ratio: int,
-        norm: Optional[str],
+        norm: str | None,
         norm_eps: float,
         ada: str,
         qk_bias: bool,
-        qk_norm: Optional[str],
-        patch_size: Union[int, Tuple[int, int, int]],
+        qk_norm: str | None,
+        patch_size: int | tuple[int, int, int],
         num_layers: int,
-        block_type: Union[str, Tuple[str]],
-        mm_layers: Union[int, Tuple[bool]],
+        block_type: str | tuple[str],
+        mm_layers: int | tuple[bool],
         mlp_type: str = "normal",
         patch_type: str = "v1",
-        rope_type: Optional[str] = "rope3d",
-        rope_dim: Optional[int] = None,
-        window: Optional[Tuple] = None,
-        window_method: Optional[Tuple[str]] = None,
-        msa_type: Optional[Tuple[str]] = None,
-        mca_type: Optional[Tuple[str]] = None,
-        txt_in_norm: Optional[str] = None,
+        rope_type: str | None = "rope3d",
+        rope_dim: int | None = None,
+        window: tuple | None = None,
+        window_method: tuple[str] | None = None,
+        msa_type: tuple[str] | None = None,
+        mca_type: tuple[str] | None = None,
+        txt_in_norm: str | None = None,
         txt_in_norm_scale_factor: int = 0.01,
-        txt_proj_type: Optional[str] = "linear",
-        vid_out_norm: Optional[str] = None,
+        txt_proj_type: str | None = "linear",
+        vid_out_norm: str | None = None,
         **kwargs,
     ):
         ada = get_ada_layer(ada)
@@ -110,11 +113,7 @@ class NaDiT(nn.Module):
                     )
                 )
         else:
-            self.txt_in = (
-                nn.Linear(txt_in_dim, txt_dim)
-                if txt_in_dim and txt_in_dim != txt_dim
-                else nn.Identity()
-            )
+            self.txt_in = nn.Linear(txt_in_dim, txt_dim) if txt_in_dim and txt_in_dim != txt_dim else nn.Identity()
         self.emb_in = TimeEmbedding(
             sinusoidal_dim=256,
             hidden_dim=max(vid_dim, txt_dim),
@@ -145,9 +144,7 @@ class NaDiT(nn.Module):
                     ada=ada,
                     qk_bias=qk_bias,
                     qk_norm=qk_norm,
-                    shared_weights=not (
-                        (i < mm_layers) if isinstance(mm_layers, int) else mm_layers[i]
-                    ),
+                    shared_weights=not ((i < mm_layers) if isinstance(mm_layers, int) else mm_layers[i]),
                     mlp_type=mlp_type,
                     window=window[i],
                     window_method=window_method[i],
@@ -188,10 +185,10 @@ class NaDiT(nn.Module):
     def forward(
         self,
         vid: torch.FloatTensor,  # l c
-        txt: Union[torch.FloatTensor, List[torch.FloatTensor]],  # l c
+        txt: torch.FloatTensor | list[torch.FloatTensor],  # l c
         vid_shape: torch.LongTensor,  # b 3
-        txt_shape: Union[torch.LongTensor, List[torch.LongTensor]],  # b 1
-        timestep: Union[int, float, torch.IntTensor, torch.FloatTensor],  # b
+        txt_shape: torch.LongTensor | list[torch.LongTensor],  # b 1
+        timestep: int | float | torch.IntTensor | torch.FloatTensor,  # b
         disable_cache: bool = False,  # for test
     ):
         cache = Cache(disable=disable_cache)
@@ -199,10 +196,8 @@ class NaDiT(nn.Module):
         # slice vid after patching in when using sequence parallelism
         if isinstance(txt, list):
             assert isinstance(self.txt_in, nn.ModuleList)
-            txt = [
-                na.unflatten(fc(i), s) for fc, i, s in zip(self.txt_in, txt, txt_shape)
-            ]  # B L D
-            txt, txt_shape = na.flatten([torch.cat(t, dim=0) for t in zip(*txt)])
+            txt = [na.unflatten(fc(i), s) for fc, i, s in zip(self.txt_in, txt, txt_shape, strict=False)]  # B L D
+            txt, txt_shape = na.flatten([torch.cat(t, dim=0) for t in zip(*txt, strict=False)])
             txt = slice_inputs(txt, dim=0)
         else:
             txt = slice_inputs(txt, dim=0)
@@ -216,7 +211,7 @@ class NaDiT(nn.Module):
         emb = self.emb_in(timestep, device=vid.device, dtype=vid.dtype)
 
         # Body
-        for i, block in enumerate(self.blocks):
+        for _i, block in enumerate(self.blocks):
             vid, txt, vid_shape, txt_shape = gradient_checkpointing(
                 enabled=(self.gradient_checkpointing and self.training),
                 module=block,

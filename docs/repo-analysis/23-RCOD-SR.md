@@ -8,6 +8,8 @@ RCOD-SR（Real-time Controllable One-Step Diffusion for Image Super-Resolution�
 
 **注意：截至分析日期，该仓库尚未发布代码（计划 2025 年 12 月发布），以下分析完全基于 README 描述和论文信息。**
 
+**状态更新（2026-08-01）：代码仍未发布，停止等待。** 截至本次复查，`zongliang-wu/RCOD` 仓库仍只有 README.md 与 LICENSE 两个文件，最后一次提交停留在 2025-11-15（"Update README.md"），README 仍写着 "Code will be released by Dec. 2025."。仓库 9 个 issue（#1~#9，2025-11 至 2026-07）全部在询问代码/预训练模型发布时间，作者均未回复，无任何新时间表。该承诺已超期 8 个月且作者失联，判定为低优先级仓库，不再持续跟踪。
+
 ### 1.2 模型架构
 
 - **基础框架**: 基于预训练扩散模型（如 Stable Diffusion）的知识蒸馏
@@ -68,4 +70,6 @@ accelerate (分布式训练/推理)
 
 ### 3.3 实施优先级
 
-P1 — 虽然代码未发布，但 One-step Diffusion 对 SeedVR2 的性能优化具有重大战略价值。建议持续跟踪代码发布，发布后立即进行技术评估和原型实验。
+~~P1 — 虽然代码未发布，但 One-step Diffusion 对 SeedVR2 的性能优化具有重大战略价值。建议持续跟踪代码发布，发布后立即进行技术评估和原型实验。~~
+
+**已降级为 P3 / 低优先级（2026-08-01）** — 代码发布超期 8 个月、作者失联且无新时间表，不再主动跟踪。其 one-step 蒸馏与 fidelity-realism 权衡思想可先参照已发布代码的替代方案研究（如 Stream-DiffVSR 的四步蒸馏），仅当 RCOD 代码意外发布后再重新评估。

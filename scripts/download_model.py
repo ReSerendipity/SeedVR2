@@ -13,8 +13,9 @@
     python scripts/download_model.py --size 3b --save-dir pretrained_models
     python scripts/download_model.py --size 7b
 """
-import os
+
 import argparse
+import os
 
 
 def download_model(model_size: str = "3b", save_dir: str = "pretrained_models") -> None:

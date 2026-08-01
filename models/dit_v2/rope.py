@@ -23,12 +23,11 @@ v2 版本的 RoPE 相比 v1 做了关键升级：
 - cos/sin 支持 flatten 到 1D 位置索引，兼容变长序列的 positions 索引计算。
 """
 
-from typing import Optional, Tuple, List
 import torch
 from torch import nn
 
 
-def _build_3d_positions(shape: torch.LongTensor, device: torch.device) -> List[torch.Tensor]:
+def _build_3d_positions(shape: torch.LongTensor, device: torch.device) -> list[torch.Tensor]:
     """根据 (b, 3) 的 vid_shape 生成每个样本的 3D 位置索引列表。"""
     positions_list = []
     for i in range(shape.shape[0]):
@@ -36,7 +35,7 @@ def _build_3d_positions(shape: torch.LongTensor, device: torch.device) -> List[t
         ft = torch.arange(t, device=device)
         fh = torch.arange(h, device=device)
         fw = torch.arange(w, device=device)
-        grid_t, grid_h, grid_w = torch.meshgrid(ft, fh, fw, indexing='ij')
+        grid_t, grid_h, grid_w = torch.meshgrid(ft, fh, fw, indexing="ij")
         pos = torch.stack([grid_t.flatten(), grid_h.flatten(), grid_w.flatten()], dim=-1)
         positions_list.append(pos)
     return positions_list
@@ -44,18 +43,15 @@ def _build_3d_positions(shape: torch.LongTensor, device: torch.device) -> List[t
 
 def get_freqs(
     dim: int,
-    axes_dim: Tuple[int, int, int],
+    axes_dim: tuple[int, int, int],
     theta: float = 10000.0,
-) -> Tuple[torch.FloatTensor]:
+) -> tuple[torch.FloatTensor]:
     """生成三个轴的频率基（内部使用，对 vid/txt 分别配置）。"""
     axes_freqs = []
     for i in range(3):
         ax_dim = axes_dim[i]
         ax_theta = theta
-        freqs = 1.0 / (
-            ax_theta
-            ** (torch.arange(0, ax_dim, 2, dtype=torch.float32) / ax_dim)
-        )
+        freqs = 1.0 / (ax_theta ** (torch.arange(0, ax_dim, 2, dtype=torch.float32) / ax_dim))
         axes_freqs.append(freqs)
     return axes_freqs
 
@@ -65,7 +61,7 @@ def precompute_freqs_cis_3d(
     h: int,
     w: int,
     dim: int,
-    axes_dim: Tuple[int, int, int],
+    axes_dim: tuple[int, int, int],
     theta: float = 10000.0,
     pixel_theta: float = 10000.0,
     language_theta: float = 10000.0,
@@ -147,7 +143,7 @@ def apply_rotary_emb(xq, xk, freqs_cis, text_freqs_cis=None, pixel_shape=None):
     Returns:
         (xq_out, xk_out) 旋转后的实值张量，与输入形状相同。
     """
-    n_pixel = freqs_cis.shape[0]
+    freqs_cis.shape[0]
     if text_freqs_cis is not None:
         freqs_cis = torch.cat([freqs_cis, text_freqs_cis], dim=0)
     xq_ = torch.view_as_complex(xq.float().reshape(*xq.shape[:-1], -1, 2))
@@ -173,11 +169,11 @@ class MMRotaryEmbedding3d(torch.nn.Module):
     def __init__(
         self,
         dim: int = 2048,
-        axes_dim: Tuple[int, int, int] = None,
+        axes_dim: tuple[int, int, int] = None,
         theta: float = 10000.0,
         pixel_theta: float = 10000.0,
         language_theta: float = 10000.0,
-        max_lengths: Tuple[int, int, int, int] = (1024, 128, 128, 4096),
+        max_lengths: tuple[int, int, int, int] = (1024, 128, 128, 4096),
     ):
         super().__init__()
         self.dim = dim
@@ -205,8 +201,14 @@ class MMRotaryEmbedding3d(torch.nn.Module):
     def _register_buffers(self):
         """预计算并注册 vid 3D 频率和 txt 1D 频率为 persistent buffer。"""
         freqs_cis_3d = precompute_freqs_cis_3d(
-            self.max_t, self.max_h, self.max_w,
-            self.dim, self.axes_dim, self.theta, self.pixel_theta, self.language_theta,
+            self.max_t,
+            self.max_h,
+            self.max_w,
+            self.dim,
+            self.axes_dim,
+            self.theta,
+            self.pixel_theta,
+            self.language_theta,
         )
         self.register_buffer("freqs_cis_3d", freqs_cis_3d, persistent=False)
 
@@ -286,7 +288,6 @@ class NaRoPE3d(nn.Module):
 
     def _apply_txt_rope(self, xq, xk, txt_lengths, cache):
         """对文本 Q/K 应用 1D RoPE。"""
-        device = xq.device
         b = txt_lengths.shape[0]
 
         def _get_freqs():
@@ -334,7 +335,7 @@ class NaRoPE3d(nn.Module):
             return vid_q, vid_k
 
 
-def get_na_rope(rope_type: Optional[str] = None, dim: int = 128, **kwargs):
+def get_na_rope(rope_type: str | None = None, dim: int = 128, **kwargs):
     """NaDiT RoPE 工厂函数，根据 rope_type 返回对应的 RoPE 实例。
 
     Args:
@@ -363,7 +364,7 @@ def get_na_rope(rope_type: Optional[str] = None, dim: int = 128, **kwargs):
                     t += 2 if t + 2 <= head_dim - h else 0
                     w = head_dim - t - h
         axes_dim = (t, h, w)
-    is_mm = (rope_type == "mm")
+    is_mm = rope_type == "mm"
     if is_mm:
         kwargs.setdefault("language_theta", 10000.0 * 0.5)
     max_lengths = kwargs.pop("max_lengths", (1024, 128, 128, 4096))
