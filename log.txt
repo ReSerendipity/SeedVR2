@@ -1,0 +1,779 @@
+============================================
+  SeedVR2 Video Restoration Toolbox
+============================================
+
+[OK] Found WinPython 3.12.10
+Using Python: C:\Users\Doro\Seedvr2\WPy64-312101\python\python.exe
+
+[CUDA] GPU: NVIDIA GeForce RTX 5070 Ti Laptop GPU, VRAM: 11.9GB
+[CUDA] PyTorch 2.11.0+cu128 (CUDA 12.8)
+[WinPython] 检测到 WinPython: C:\Users\Doro\Seedvr2\WPy64-312101\python\python.exe
+2026-08-02 11:14:41,487 [INFO] bin.integrated_app.app_server: SeedVR2启动中... http://127.0.0.1:7870
+INFO:     Started server process [19780]
+INFO:     Waiting for application startup.
+2026-08-02 11:14:41,620 [INFO] bin.integrated_app.history_db: 历史数据库已初始化: data/history.db
+2026-08-02 11:14:41,620 [INFO] bin.integrated_app.app_server: 历史数据库已初始化
+2026-08-02 11:14:41,620 [INFO] bin.integrated_app.task_queue: 任务队列 worker 已启动
+2026-08-02 11:14:41,620 [INFO] bin.integrated_app.app_server: 任务队列已启动
+2026-08-02 11:14:41,620 [INFO] bin.integrated_app.app_server: 已注册模型状态 SSE 桥接监听器
+2026-08-02 11:14:41,620 [INFO] bin.integrated_app.app_server: 启动任务自动恢复已关闭 (runtime.task.auto_recover=false)
+2026-08-02 11:14:41,622 [INFO] bin.integrated_app.cache: 缓存自动清理任务已启动，间隔: 3600s
+2026-08-02 11:14:41,622 [INFO] bin.integrated_app.app_server: GPU 后端: cuda, 设备: NVIDIA GeForce RTX 5070 Ti Laptop GPU
+2026-08-02 11:14:41,623 [INFO] bin.integrated_app.model_manager: 正在加载模型: SeedVR2-3B/fp16, 设备: auto
+2026-08-02 11:14:41,624 [INFO] bin.integrated_app.engines.seedvr2_engine: 初始化 SeedVR2-3B/fp16，设备: cuda
+2026-08-02 11:14:41,625 [INFO] bin.integrated_app.engines.seedvr2_engine: 加载文本嵌入: C:\Users\Doro\Seedvr2\pretrained_models\pos_emb.pt, C:\Users\Doro\Seedvr2\pretrained_models\neg_emb.pt
+2026-08-02 11:14:41,889 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=50
+2026-08-02 11:14:41,889 [INFO] bin.integrated_app.engines.seedvr2_engine: SeedVR2-3B/fp16 配置加载完成 (模型延迟加载)
+2026-08-02 11:14:41,889 [INFO] bin.integrated_app.model_manager: 模型加载完成: 3b/fp16
+2026-08-02 11:14:41,889 [INFO] bin.integrated_app.app_server: 模型自动加载完成
+2026-08-02 11:14:41,890 [INFO] bin.integrated_app.app_server: 将在浏览器中打开: http://127.0.0.1:7870
+2026-08-02 11:14:41,890 [INFO] bin.integrated_app.app_server: SeedVR2已启动: http://127.0.0.1:7870
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:7870 (Press CTRL+C to quit)
+INFO:     127.0.0.1:5625 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:5625 - "GET /api/system/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:7697 - "GET /api/sse/events HTTP/1.1" 200 OK
+INFO:     127.0.0.1:11483 - "GET /api/system/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:11483 - "GET /api/system/gpu HTTP/1.1" 200 OK
+INFO:     127.0.0.1:11483 - "GET /api/system/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:11483 - "GET /restore HTTP/1.1" 200 OK
+2026-08-02 11:14:46,402 [INFO] bin.integrated_app.optimization.webui_enhancement: 用户偏好已加载: 17 项设置
+INFO:     127.0.0.1:5625 - "GET /api/ui/preferences HTTP/1.1" 200 OK
+INFO:     127.0.0.1:4351 - "GET /api/ui/parameters HTTP/1.1" 200 OK
+INFO:     127.0.0.1:11483 - "GET /api/system/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:4351 - "GET /api/system/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:4351 - "GET /api/sse/events HTTP/1.1" 200 OK
+INFO:     127.0.0.1:3695 - "POST /api/restore HTTP/1.1" 307 Temporary Redirect
+2026-08-02 11:15:16,173 [INFO] bin.integrated_app.cache: 文件已缓存: data/uploads\video\1785640516_9ce5d005e413.mp4 (5548812 bytes)
+2026-08-02 11:15:16,175 [INFO] bin.integrated_app.task_queue: 任务 f11fae667b3b4189 已提交到队列（on_cancel=已注入）
+INFO:     127.0.0.1:3695 - "POST /api/restore/ HTTP/1.1" 200 OK
+2026-08-02 11:15:16,183 [INFO] bin.integrated_app.optimization.gpu.cache_manager: TensorCacheManager 初始化: trigger=10%, restore=20%, budget=4096MB
+2026-08-02 11:15:16,184 [INFO] bin.integrated_app.engines._memory_utils: [内存视频推理初始] RAM: 30% (22.1GB可用/31.7GB), VRAM: 0.00GB使用/0.00GB保留
+2026-08-02 11:15:16,184 [INFO] bin.integrated_app.engines._video_pipeline: 开始视频修复: data/uploads\video\1785640516_9ce5d005e413.mp4 -> 1920x1080, seed=1373201197
+2026-08-02 11:15:17,601 [INFO] bin.integrated_app.engines._video_pipeline: 视频帧数: 5602, 帧率: 25.0, 源分辨率: 854x480
+2026-08-02 11:15:17,601 [INFO] bin.integrated_app.engines._video_pipeline: 内存保护: 若全量加载约需 25.7GB RAM, 改用分段流式处理以避免 OOM
+2026-08-02 11:15:17,601 [INFO] bin.integrated_app.engines._video_pipeline: 分段流式处理: 每段 5 帧, 重叠 2 帧, 单段估算内存 0.3GB
+2026-08-02 11:15:17,609 [INFO] bin.integrated_app.optimization.inference.tile_blend: Temporal segments: 1867 segments for 5602 frames (segment_size=5, overlap=2, stride=3)
+2026-08-02 11:15:17,610 [INFO] bin.integrated_app.engines._video_pipeline: 长视频分段: 1867 段
+2026-08-02 11:15:28,364 [INFO] bin.integrated_app.engines.seedvr2_engine: VAE tiled 配置: encode_tiled=True, decode_tiled=True, encode_tile_size=1024, decode_tile_size=768, tile_overlap=128
+2026-08-02 11:15:28,364 [INFO] bin.integrated_app.engines._memory_utils: [内存预检] VAE: 文件=0.47GB, 需要>=0.7GB, 可用=21.7GB, 当前使用率=31.5%
+2026-08-02 11:15:28,364 [INFO] bin.integrated_app.engines._memory_utils: [内存VAE构建前] RAM: 32% (21.7GB可用/31.7GB), VRAM: 0.00GB使用/0.00GB保留
+slicing_up_num: 0
+2026-08-02 11:15:28,414 [INFO] bin.integrated_app.engines._memory_utils: [内存VAE meta构建后] RAM: 32% (21.7GB可用/31.7GB), VRAM: 0.00GB使用/0.00GB保留
+2026-08-02 11:15:28,414 [INFO] bin.integrated_app.engines.seedvr2_engine: 加载 VAE safetensors 权重: C:\Users\Doro\Seedvr2\pretrained_models\ema_vae_fp16.safetensors
+2026-08-02 11:15:28,441 [INFO] bin.integrated_app.engines._memory_utils: [内存VAE权重加载后(raw)] RAM: 32% (21.7GB可用/31.7GB), VRAM: 0.00GB使用/0.00GB保留
+2026-08-02 11:15:29,310 [INFO] bin.integrated_app.engines.seedvr2_engine: VAE: 已将 250 个参数转换为 torch.bfloat16
+2026-08-02 11:15:29,310 [INFO] bin.integrated_app.engines._memory_utils: [内存VAE权重dtype转换后] RAM: 33% (21.3GB可用/31.7GB), VRAM: 0.00GB使用/0.00GB保留
+2026-08-02 11:15:29,392 [INFO] bin.integrated_app.engines.seedvr2_engine: VAE 加载信息: missing=0, unexpected=0
+2026-08-02 11:15:29,395 [INFO] bin.integrated_app.engines._memory_utils: [内存VAE权重加载后] RAM: 33% (21.3GB可用/31.7GB), VRAM: 0.00GB使用/0.00GB保留
+2026-08-02 11:15:29,637 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 1/1867: 帧 0-5 (5帧)
+2026-08-02 11:15:29,766 [INFO] bin.integrated_app.engines._memory_utils: [内存段0读取后] RAM: 33% (21.1GB可用/31.7GB), VRAM: 0.00GB使用/0.00GB保留
+2026-08-02 11:15:30,328 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 11:15:40,440 [INFO] bin.integrated_app.engines._video_pipeline: DiT 模型按需加载...
+2026-08-02 11:15:40,440 [INFO] bin.integrated_app.engines._video_pipeline: DiT 加载前释放 VAE 腾出内存...
+2026-08-02 11:15:40,678 [INFO] bin.integrated_app.engines._memory_utils: [内存VAE销毁后] RAM: 40% (19.1GB可用/31.7GB), VRAM: 0.12GB使用/0.19GB保留
+2026-08-02 11:15:40,679 [INFO] bin.integrated_app.engines.seedvr2_engine: VAE 模型 已完全销毁，VRAM+RAM 已释放
+2026-08-02 11:15:40,996 [INFO] bin.integrated_app.engines._memory_utils: [内存预检] DiT: 文件=6.32GB, 需要>=9.5GB, 可用=19.1GB, 当前使用率=39.8%
+2026-08-02 11:15:40,997 [INFO] bin.integrated_app.engines._memory_utils: [内存DiT权重加载前] RAM: 40% (19.1GB可用/31.7GB), VRAM: 0.12GB使用/0.14GB保留
+2026-08-02 11:15:40,998 [INFO] bin.integrated_app.engines.seedvr2_engine: 加载 safetensors 权重: C:\Users\Doro\Seedvr2\pretrained_models\seedvr2_ema_3b_fp16.safetensors
+2026-08-02 11:15:41,077 [INFO] bin.integrated_app.engines._memory_utils: [内存DiT权重加载后(raw)] RAM: 40% (19.1GB可用/31.7GB), VRAM: 0.12GB使用/0.14GB保留
+2026-08-02 11:15:45,578 [INFO] bin.integrated_app.engines.seedvr2_engine: 已将 635 个参数转换为 torch.bfloat16
+2026-08-02 11:15:45,578 [INFO] bin.integrated_app.engines._memory_utils: [内存DiT权重dtype转换后] RAM: 58% (13.2GB可用/31.7GB), VRAM: 0.12GB使用/0.14GB保留
+2026-08-02 11:15:45,579 [INFO] bin.integrated_app.engines.seedvr2_engine: window_method 展开为 32 个元素
+C:\Users\Doro\Seedvr2\models\dit_v2\mm.py:98: UserWarning: apex FusedRMSNorm not available, falling back to RMSNorm
+  self.vid = module(*get_args("vid", args), **get_kwargs("vid", kwargs))
+C:\Users\Doro\Seedvr2\models\dit_v2\mm.py:99: UserWarning: apex FusedRMSNorm not available, falling back to RMSNorm
+  self.txt = module(*get_args("txt", args), **get_kwargs("txt", kwargs)) if not vid_only else None
+C:\Users\Doro\Seedvr2\models\dit_v2\mm.py:96: UserWarning: apex FusedRMSNorm not available, falling back to RMSNorm
+  self.all = module(*get_args("vid", args), **get_kwargs("vid", kwargs))
+C:\Users\Doro\Seedvr2\models\dit_v2\nadit.py:164: UserWarning: apex FusedRMSNorm not available, falling back to RMSNorm
+  self.vid_out_norm = get_norm_layer(vid_out_norm)(
+2026-08-02 11:15:45,766 [INFO] bin.integrated_app.engines.seedvr2_engine: DiT 模型结构诊断: has_blocks=True, num_blocks=32
+2026-08-02 11:15:45,860 [INFO] bin.integrated_app.engines.seedvr2_engine: DiT 加载信息: missing=0, unexpected=0
+2026-08-02 11:15:45,880 [INFO] bin.integrated_app.engines._memory_utils: [内存DiT权重assign后] RAM: 59% (13.1GB可用/31.7GB), VRAM: 0.12GB使用/0.14GB保留
+2026-08-02 11:15:45,889 [INFO] bin.integrated_app.engines.seedvr2_engine: BlockSwap 配置: blocks_to_swap=16, swap_io_components=True, offload_device=cpu, model_blocks=32
+2026-08-02 11:15:45,889 [INFO] bin.integrated_app.engines.seedvr2_engine: 应用 BlockSwap: blocks_to_swap=16, swap_io_components=True, offload_device=cpu
+2026-08-02 11:15:45,889 [INFO] bin.integrated_app.optimization.gpu.blockswap: BlockSwap: 16/32 transformer blocks + I/O components offloaded to cpu
+2026-08-02 11:15:45,889 [INFO] bin.integrated_app.optimization.gpu.blockswap:   vid_in -> cpu (0.65MB, dynamic swapping)
+2026-08-02 11:15:45,889 [INFO] bin.integrated_app.optimization.gpu.blockswap:   txt_in -> cpu (25.00MB, dynamic swapping)
+2026-08-02 11:15:45,891 [INFO] bin.integrated_app.optimization.gpu.blockswap:   emb_in -> cpu (88.79MB, dynamic swapping)
+2026-08-02 11:15:45,891 [INFO] bin.integrated_app.optimization.gpu.blockswap:   vid_out_norm -> cpu (0.00MB, dynamic swapping)
+2026-08-02 11:15:45,891 [INFO] bin.integrated_app.optimization.gpu.blockswap:   vid_out_ada -> cpu (0.01MB, dynamic swapping)
+2026-08-02 11:15:45,891 [INFO] bin.integrated_app.optimization.gpu.blockswap:   vid_out -> cpu (0.31MB, dynamic swapping)
+2026-08-02 11:15:46,356 [INFO] bin.integrated_app.optimization.gpu.blockswap: BlockSwap memory configuration:
+2026-08-02 11:15:46,357 [INFO] bin.integrated_app.optimization.gpu.blockswap:   Transformer blocks: 2420.55MB on cuda, 3933.40MB on cpu
+2026-08-02 11:15:46,357 [INFO] bin.integrated_app.optimization.gpu.blockswap:   I/O components: 114.77MB on cpu (dynamic swapping)
+2026-08-02 11:15:46,357 [INFO] bin.integrated_app.optimization.gpu.blockswap:     vid_in, txt_in, emb_in, vid_out_norm, vid_out_ada, vid_out
+2026-08-02 11:15:46,357 [INFO] bin.integrated_app.optimization.gpu.blockswap:   Total VRAM saved: 4048.17MB (~3.95GB)
+2026-08-02 11:15:46,359 [INFO] bin.integrated_app.optimization.gpu.blockswap: Patched 64 RoPE modules with device handling
+2026-08-02 11:15:46,359 [INFO] bin.integrated_app.optimization.gpu.blockswap: BlockSwap configuration complete
+2026-08-02 11:15:46,359 [INFO] bin.integrated_app.engines.seedvr2_engine: BlockSwap 诊断: model._blockswap_active=True, config={'blocks_swapped': 16, 'swap_io_components': True, 'total_blocks': 32, 'offload_device': device(type='cpu'), 'main_device': device(type='cuda'), 'offload_memory': 3933.4013671875, 'main_memory': 2420.5546875}
+2026-08-02 11:15:46,359 [INFO] bin.integrated_app.engines.seedvr2_engine: BlockSwap 已应用，模型将使用动态块交换
+2026-08-02 11:15:46,360 [INFO] bin.integrated_app.engines._memory_utils: [内存DiT BlockSwap后] RAM: 52% (15.2GB可用/31.7GB), VRAM: 2.52GB使用/2.54GB保留
+2026-08-02 11:15:46,361 [INFO] bin.integrated_app.engines.seedvr2_engine: DiT 参数数量: 3,391,475,776, dtype=torch.bfloat16, blockswap=True
+2026-08-02 11:15:46,361 [INFO] bin.integrated_app.engines._video_pipeline: DiT 加载完成, 恢复 VAE...
+2026-08-02 11:15:46,361 [INFO] bin.integrated_app.engines.seedvr2_engine: VAE tiled 配置: encode_tiled=True, decode_tiled=True, encode_tile_size=1024, decode_tile_size=768, tile_overlap=128
+2026-08-02 11:15:46,363 [INFO] bin.integrated_app.engines._memory_utils: [内存预检] VAE: 文件=0.47GB, 需要>=0.7GB, 可用=15.2GB, 当前使用率=52.1%
+2026-08-02 11:15:46,363 [INFO] bin.integrated_app.engines._memory_utils: [内存VAE构建前] RAM: 52% (15.2GB可用/31.7GB), VRAM: 2.52GB使用/2.54GB保留
+INFO:     127.0.0.1:11175 - "GET /api/system/health HTTP/1.1" 200 OK
+slicing_up_num: 0
+2026-08-02 11:15:46,411 [INFO] bin.integrated_app.engines._memory_utils: [内存VAE meta构建后] RAM: 52% (15.2GB可用/31.7GB), VRAM: 2.52GB使用/2.54GB保留
+2026-08-02 11:15:46,411 [INFO] bin.integrated_app.engines.seedvr2_engine: 加载 VAE safetensors 权重: C:\Users\Doro\Seedvr2\pretrained_models\ema_vae_fp16.safetensors
+2026-08-02 11:15:46,415 [INFO] bin.integrated_app.engines._memory_utils: [内存VAE权重加载后(raw)] RAM: 52% (15.2GB可用/31.7GB), VRAM: 2.52GB使用/2.54GB保留
+2026-08-02 11:15:47,274 [INFO] bin.integrated_app.engines.seedvr2_engine: VAE: 已将 250 个参数转换为 torch.bfloat16
+2026-08-02 11:15:47,275 [INFO] bin.integrated_app.engines._memory_utils: [内存VAE权重dtype转换后] RAM: 54% (14.8GB可用/31.7GB), VRAM: 2.52GB使用/2.54GB保留
+2026-08-02 11:15:47,370 [INFO] bin.integrated_app.engines.seedvr2_engine: VAE 加载信息: missing=0, unexpected=0
+2026-08-02 11:15:47,372 [INFO] bin.integrated_app.engines._memory_utils: [内存VAE权重加载后] RAM: 54% (14.8GB可用/31.7GB), VRAM: 2.52GB使用/2.54GB保留
+2026-08-02 11:15:47,376 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:15:47,459 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:15:47,480 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:05<00:00,  5.42s/it]
+2026-08-02 11:15:53,014 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:15:53,015 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:16:06,710 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:16:08,325 [INFO] bin.integrated_app.engines._memory_utils: [内存段0处理完成] RAM: 54% (14.5GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+C:\Users\Doro\Seedvr2\bin\integrated_app\engines\_video_pipeline.py:503: RuntimeWarning: coroutine '_process_video_task.<locals>._do_infer.<locals>.progress_callback' was never awaited
+  self._progress_callback(
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+2026-08-02 11:16:08,383 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 2/1867: 帧 3-8 (5帧)
+2026-08-02 11:16:08,395 [INFO] bin.integrated_app.engines._memory_utils: [内存段1读取后] RAM: 54% (14.5GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:16:08,511 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+INFO:     127.0.0.1:5013 - "GET /api/system/health HTTP/1.1" 200 OK
+2026-08-02 11:16:54,424 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:16:54,424 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:16:54,426 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.96s/it]
+2026-08-02 11:16:59,475 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:16:59,475 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:17:13,424 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:17:15,048 [INFO] bin.integrated_app.engines._memory_utils: [内存段1处理完成] RAM: 50% (16.0GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:17:15,048 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 3/1867: 帧 6-11 (5帧)
+2026-08-02 11:17:15,059 [INFO] bin.integrated_app.engines._memory_utils: [内存段2读取后] RAM: 50% (16.0GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:17:15,189 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+INFO:     127.0.0.1:3907 - "GET /api/system/health HTTP/1.1" 200 OK
+2026-08-02 11:18:01,261 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:18:01,262 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:18:01,263 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.90s/it]
+2026-08-02 11:18:06,258 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:18:06,259 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+INFO:     127.0.0.1:5358 - "GET /api/system/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:4703 - "GET /api/system/health HTTP/1.1" 200 OK
+2026-08-02 11:20:32,901 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:20:34,695 [INFO] bin.integrated_app.engines._memory_utils: [内存段2处理完成] RAM: 59% (13.1GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:20:34,696 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 4/1867: 帧 9-14 (5帧)
+2026-08-02 11:20:34,706 [INFO] bin.integrated_app.engines._memory_utils: [内存段3读取后] RAM: 59% (13.1GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:20:35,044 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+INFO:     127.0.0.1:11251 - "GET /api/system/health HTTP/1.1" 200 OK
+2026-08-02 11:21:43,838 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:21:43,838 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:21:43,844 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler:   0%|                                                                              | 0/1 [00:00<?, ?it/s]INFO:     127.0.0.1:2556 - "GET /api/system/health HTTP/1.1" 200 OK
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:13<00:00, 13.89s/it]
+2026-08-02 11:21:57,835 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:21:57,835 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:22:11,080 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:22:12,746 [INFO] bin.integrated_app.engines._memory_utils: [内存段3处理完成] RAM: 57% (13.7GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:22:12,746 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 5/1867: 帧 12-17 (5帧)
+2026-08-02 11:22:12,756 [INFO] bin.integrated_app.engines._memory_utils: [内存段4读取后] RAM: 57% (13.7GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:22:12,871 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+INFO:     127.0.0.1:10625 - "GET /api/system/health HTTP/1.1" 200 OK
+2026-08-02 11:23:25,473 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:23:25,474 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:23:25,480 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:13<00:00, 13.44s/it]
+2026-08-02 11:23:39,016 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:23:39,018 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+INFO:     127.0.0.1:8379 - "GET /api/system/health HTTP/1.1" 200 OK
+2026-08-02 11:23:53,741 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:23:55,462 [INFO] bin.integrated_app.engines._memory_utils: [内存段4处理完成] RAM: 52% (15.3GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:23:55,462 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 6/1867: 帧 15-20 (5帧)
+2026-08-02 11:23:55,472 [INFO] bin.integrated_app.engines._memory_utils: [内存段5读取后] RAM: 52% (15.3GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:23:55,603 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 11:24:44,687 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:24:44,687 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:24:44,689 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler:   0%|                                                                              | 0/1 [00:00<?, ?it/s]INFO:     127.0.0.1:6554 - "GET /api/system/health HTTP/1.1" 200 OK
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.95s/it]
+2026-08-02 11:24:49,735 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:24:49,740 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:25:04,913 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:25:06,483 [INFO] bin.integrated_app.engines._memory_utils: [内存段5处理完成] RAM: 51% (15.6GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:25:06,483 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 7/1867: 帧 18-23 (5帧)
+2026-08-02 11:25:06,494 [INFO] bin.integrated_app.engines._memory_utils: [内存段6读取后] RAM: 51% (15.6GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:25:06,634 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 11:25:18,001 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:25:18,002 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:25:18,003 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:13<00:00, 13.85s/it]
+2026-08-02 11:25:31,948 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:25:31,949 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:25:44,985 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+INFO:     127.0.0.1:6712 - "GET /api/system/health HTTP/1.1" 200 OK
+2026-08-02 11:25:46,644 [INFO] bin.integrated_app.engines._memory_utils: [内存段6处理完成] RAM: 58% (13.3GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:25:46,644 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 8/1867: 帧 21-26 (5帧)
+2026-08-02 11:25:46,654 [INFO] bin.integrated_app.engines._memory_utils: [内存段7读取后] RAM: 58% (13.3GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:25:46,787 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 11:26:29,361 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:26:29,361 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:26:29,363 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.80s/it]
+2026-08-02 11:26:34,259 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:26:34,259 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+INFO:     127.0.0.1:8739 - "GET /api/system/health HTTP/1.1" 200 OK
+2026-08-02 11:26:47,292 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:26:48,797 [INFO] bin.integrated_app.engines._memory_utils: [内存段7处理完成] RAM: 52% (15.3GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:26:48,798 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 9/1867: 帧 24-29 (5帧)
+2026-08-02 11:26:48,808 [INFO] bin.integrated_app.engines._memory_utils: [内存段8读取后] RAM: 52% (15.3GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:26:48,916 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 11:27:30,737 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:27:30,738 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:27:30,739 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.97s/it]
+2026-08-02 11:27:35,807 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:27:35,807 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+INFO:     127.0.0.1:3046 - "GET /api/system/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:7219 - "GET /api/system/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:1761 - "GET /api/system/health HTTP/1.1" 200 OK
+2026-08-02 11:30:06,819 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:30:08,452 [INFO] bin.integrated_app.engines._memory_utils: [内存段8处理完成] RAM: 58% (13.3GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:30:08,452 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 10/1867: 帧 27-32 (5帧)
+2026-08-02 11:30:08,462 [INFO] bin.integrated_app.engines._memory_utils: [内存段9读取后] RAM: 58% (13.4GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:30:08,781 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+INFO:     127.0.0.1:13769 - "GET /api/system/health HTTP/1.1" 200 OK
+2026-08-02 11:31:06,137 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:31:06,137 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:31:06,142 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:13<00:00, 13.95s/it]
+2026-08-02 11:31:20,187 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:31:20,187 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:31:33,378 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:31:35,021 [INFO] bin.integrated_app.engines._memory_utils: [内存段9处理完成] RAM: 54% (14.7GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:31:35,021 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 11/1867: 帧 30-35 (5帧)
+2026-08-02 11:31:35,030 [INFO] bin.integrated_app.engines._memory_utils: [内存段10读取后] RAM: 54% (14.7GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:31:35,160 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+INFO:     127.0.0.1:3387 - "GET /api/system/health HTTP/1.1" 200 OK
+2026-08-02 11:32:17,981 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:32:17,981 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:32:17,982 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.88s/it]
+2026-08-02 11:32:22,961 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:32:22,962 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+INFO:     127.0.0.1:2609 - "GET /api/system/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:13176 - "GET /api/system/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:10008 - "GET /api/system/health HTTP/1.1" 200 OK
+2026-08-02 11:34:48,202 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:34:49,770 [INFO] bin.integrated_app.engines._memory_utils: [内存段10处理完成] RAM: 60% (12.7GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:34:49,771 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 12/1867: 帧 33-38 (5帧)
+2026-08-02 11:34:49,781 [INFO] bin.integrated_app.engines._memory_utils: [内存段11读取后] RAM: 60% (12.7GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:34:50,117 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 11:35:35,858 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:35:35,858 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:35:35,864 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler:   0%|                                                                              | 0/1 [00:00<?, ?it/s]INFO:     127.0.0.1:11721 - "GET /api/system/health HTTP/1.1" 200 OK
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:12<00:00, 12.79s/it]
+2026-08-02 11:35:48,750 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:35:48,751 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:36:01,992 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:36:03,544 [INFO] bin.integrated_app.engines._memory_utils: [内存段11处理完成] RAM: 58% (13.3GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:36:03,545 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 13/1867: 帧 36-41 (5帧)
+2026-08-02 11:36:03,554 [INFO] bin.integrated_app.engines._memory_utils: [内存段12读取后] RAM: 58% (13.3GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:36:03,691 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+INFO:     127.0.0.1:8625 - "GET /api/system/health HTTP/1.1" 200 OK
+2026-08-02 11:36:46,986 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:36:46,986 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:36:46,987 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.79s/it]
+2026-08-02 11:36:51,877 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:36:51,877 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+INFO:     127.0.0.1:9577 - "GET /api/system/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:7501 - "GET /api/system/health HTTP/1.1" 200 OK
+2026-08-02 11:38:46,407 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:38:47,894 [INFO] bin.integrated_app.engines._memory_utils: [内存段12处理完成] RAM: 56% (13.8GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:38:47,894 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 14/1867: 帧 39-44 (5帧)
+2026-08-02 11:38:47,904 [INFO] bin.integrated_app.engines._memory_utils: [内存段13读取后] RAM: 56% (13.8GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:38:48,336 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+INFO:     127.0.0.1:3994 - "GET /api/system/health HTTP/1.1" 200 OK
+2026-08-02 11:39:52,218 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:39:52,219 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:39:52,230 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:13<00:00, 13.42s/it]
+2026-08-02 11:40:05,744 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:40:05,745 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:40:18,730 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:40:20,346 [INFO] bin.integrated_app.engines._memory_utils: [内存段13处理完成] RAM: 56% (13.9GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:40:20,346 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 15/1867: 帧 42-47 (5帧)
+2026-08-02 11:40:20,356 [INFO] bin.integrated_app.engines._memory_utils: [内存段14读取后] RAM: 56% (13.9GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:40:20,493 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+INFO:     127.0.0.1:1151 - "GET /api/system/health HTTP/1.1" 200 OK
+2026-08-02 11:41:02,816 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:41:02,816 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:41:02,818 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.81s/it]
+2026-08-02 11:41:07,731 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:41:07,732 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:41:29,890 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:41:31,514 [INFO] bin.integrated_app.engines._memory_utils: [内存段14处理完成] RAM: 56% (13.8GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:41:31,514 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 16/1867: 帧 45-50 (5帧)
+2026-08-02 11:41:31,523 [INFO] bin.integrated_app.engines._memory_utils: [内存段15读取后] RAM: 56% (13.9GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:41:31,820 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 11:41:42,443 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:41:42,443 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:41:42,448 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler:   0%|                                                                              | 0/1 [00:00<?, ?it/s]INFO:     127.0.0.1:6327 - "GET /api/system/health HTTP/1.1" 200 OK
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:12<00:00, 12.50s/it]
+2026-08-02 11:41:55,041 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:41:55,041 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:42:08,155 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:42:09,691 [INFO] bin.integrated_app.engines._memory_utils: [内存段15处理完成] RAM: 53% (14.9GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:42:09,692 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 17/1867: 帧 48-53 (5帧)
+2026-08-02 11:42:09,702 [INFO] bin.integrated_app.engines._memory_utils: [内存段16读取后] RAM: 53% (14.9GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:42:09,836 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+INFO:     127.0.0.1:8831 - "GET /api/system/health HTTP/1.1" 200 OK
+2026-08-02 11:42:50,706 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:42:50,707 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:42:50,709 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:06<00:00,  6.35s/it]
+2026-08-02 11:42:57,159 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:42:57,159 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:43:09,465 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:43:11,055 [INFO] bin.integrated_app.engines._memory_utils: [内存段16处理完成] RAM: 55% (14.2GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:43:11,055 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 18/1867: 帧 51-56 (5帧)
+2026-08-02 11:43:11,066 [INFO] bin.integrated_app.engines._memory_utils: [内存段17读取后] RAM: 55% (14.2GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:43:11,199 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 11:43:49,218 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:43:49,218 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:43:49,220 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.66s/it]
+2026-08-02 11:43:53,976 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:43:53,977 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:44:21,750 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:44:23,267 [INFO] bin.integrated_app.engines._memory_utils: [内存段17处理完成] RAM: 59% (12.9GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:44:23,267 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 19/1867: 帧 54-59 (5帧)
+2026-08-02 11:44:23,280 [INFO] bin.integrated_app.engines._memory_utils: [内存段18读取后] RAM: 60% (12.9GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:44:23,497 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 11:44:32,525 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:44:32,526 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:44:32,534 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:16<00:00, 16.51s/it]
+2026-08-02 11:44:49,191 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:44:49,191 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:45:00,625 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:45:02,211 [INFO] bin.integrated_app.engines._memory_utils: [内存段18处理完成] RAM: 56% (13.9GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:45:02,211 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 20/1867: 帧 57-62 (5帧)
+2026-08-02 11:45:02,225 [INFO] bin.integrated_app.engines._memory_utils: [内存段19读取后] RAM: 56% (13.9GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:45:02,345 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 11:45:35,890 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:45:35,890 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:45:35,893 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:05<00:00,  5.74s/it]
+2026-08-02 11:45:41,748 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:45:41,748 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:45:53,883 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:45:55,395 [INFO] bin.integrated_app.engines._memory_utils: [内存段19处理完成] RAM: 51% (15.7GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:45:55,395 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 21/1867: 帧 60-65 (5帧)
+2026-08-02 11:45:55,408 [INFO] bin.integrated_app.engines._memory_utils: [内存段20读取后] RAM: 51% (15.6GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:45:55,530 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 11:46:33,417 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:46:33,419 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:46:33,421 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.75s/it]
+2026-08-02 11:46:38,274 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:46:38,275 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:46:52,991 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:46:54,479 [INFO] bin.integrated_app.engines._memory_utils: [内存段20处理完成] RAM: 59% (13.0GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:46:54,480 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 22/1867: 帧 63-68 (5帧)
+2026-08-02 11:46:54,492 [INFO] bin.integrated_app.engines._memory_utils: [内存段21读取后] RAM: 59% (13.0GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:46:54,707 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 11:47:02,133 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:47:02,134 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:47:02,139 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:11<00:00, 11.27s/it]
+2026-08-02 11:47:13,504 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:47:13,504 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:47:25,373 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:47:26,903 [INFO] bin.integrated_app.engines._memory_utils: [内存段21处理完成] RAM: 61% (12.4GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:47:26,903 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 23/1867: 帧 66-71 (5帧)
+2026-08-02 11:47:26,916 [INFO] bin.integrated_app.engines._memory_utils: [内存段22读取后] RAM: 61% (12.4GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:47:27,028 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 11:48:04,866 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:48:04,866 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:48:04,867 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.78s/it]
+2026-08-02 11:48:09,764 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:48:09,766 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:48:22,684 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:48:24,528 [INFO] bin.integrated_app.engines._memory_utils: [内存段22处理完成] RAM: 59% (13.1GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:48:24,528 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 24/1867: 帧 69-74 (5帧)
+2026-08-02 11:48:24,538 [INFO] bin.integrated_app.engines._memory_utils: [内存段23读取后] RAM: 59% (13.1GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:48:24,670 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 11:49:07,606 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:49:07,607 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:49:07,610 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.66s/it]
+2026-08-02 11:49:12,367 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:49:12,367 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:49:25,860 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:49:27,504 [INFO] bin.integrated_app.engines._memory_utils: [内存段23处理完成] RAM: 60% (12.7GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:49:27,505 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 25/1867: 帧 72-77 (5帧)
+2026-08-02 11:49:27,515 [INFO] bin.integrated_app.engines._memory_utils: [内存段24读取后] RAM: 60% (12.7GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:49:27,726 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 11:49:39,044 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:49:39,046 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:49:39,053 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:14<00:00, 14.55s/it]
+2026-08-02 11:49:53,723 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:49:53,723 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:50:06,614 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:50:08,293 [INFO] bin.integrated_app.engines._memory_utils: [内存段24处理完成] RAM: 57% (13.6GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:50:08,293 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 26/1867: 帧 75-80 (5帧)
+2026-08-02 11:50:08,303 [INFO] bin.integrated_app.engines._memory_utils: [内存段25读取后] RAM: 57% (13.6GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:50:08,421 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 11:50:54,908 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:50:54,908 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:50:54,910 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.78s/it]
+2026-08-02 11:50:59,785 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:50:59,786 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:51:13,590 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:51:15,246 [INFO] bin.integrated_app.engines._memory_utils: [内存段25处理完成] RAM: 56% (13.8GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:51:15,247 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 27/1867: 帧 78-83 (5帧)
+2026-08-02 11:51:15,262 [INFO] bin.integrated_app.engines._memory_utils: [内存段26读取后] RAM: 56% (13.8GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:51:15,387 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 11:52:00,794 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:52:00,795 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:52:00,798 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.73s/it]
+2026-08-02 11:52:05,628 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:52:05,628 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:52:34,864 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:52:36,332 [INFO] bin.integrated_app.engines._memory_utils: [内存段26处理完成] RAM: 63% (11.8GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:52:36,332 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 28/1867: 帧 81-86 (5帧)
+2026-08-02 11:52:36,341 [INFO] bin.integrated_app.engines._memory_utils: [内存段27读取后] RAM: 63% (11.8GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:52:36,550 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 11:52:46,753 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:52:46,754 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:52:46,763 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:12<00:00, 12.30s/it]
+2026-08-02 11:52:59,192 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:52:59,192 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:53:10,958 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:53:12,487 [INFO] bin.integrated_app.engines._memory_utils: [内存段27处理完成] RAM: 63% (11.7GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:53:12,488 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 29/1867: 帧 84-89 (5帧)
+2026-08-02 11:53:12,498 [INFO] bin.integrated_app.engines._memory_utils: [内存段28读取后] RAM: 63% (11.7GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:53:12,621 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 11:53:50,695 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:53:50,696 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:53:50,698 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.72s/it]
+2026-08-02 11:53:55,515 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:53:55,516 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:54:07,433 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:54:08,883 [INFO] bin.integrated_app.engines._memory_utils: [内存段28处理完成] RAM: 60% (12.7GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:54:08,884 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 30/1867: 帧 87-92 (5帧)
+2026-08-02 11:54:08,893 [INFO] bin.integrated_app.engines._memory_utils: [内存段29读取后] RAM: 60% (12.7GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:54:09,011 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 11:54:46,687 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:54:46,687 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:54:46,689 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.62s/it]
+2026-08-02 11:54:51,416 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:54:51,417 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:55:04,624 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:55:05,991 [INFO] bin.integrated_app.engines._memory_utils: [内存段29处理完成] RAM: 62% (12.2GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:55:05,991 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 31/1867: 帧 90-95 (5帧)
+2026-08-02 11:55:06,001 [INFO] bin.integrated_app.engines._memory_utils: [内存段30读取后] RAM: 62% (12.2GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:55:06,214 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 11:55:12,343 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:55:12,344 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:55:12,348 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:11<00:00, 11.26s/it]
+2026-08-02 11:55:23,699 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:55:23,699 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:55:35,219 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:55:36,811 [INFO] bin.integrated_app.engines._memory_utils: [内存段30处理完成] RAM: 60% (12.6GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:55:36,811 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 32/1867: 帧 93-98 (5帧)
+2026-08-02 11:55:36,820 [INFO] bin.integrated_app.engines._memory_utils: [内存段31读取后] RAM: 60% (12.6GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:55:36,947 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 11:56:09,855 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:56:09,855 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:56:09,856 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.55s/it]
+2026-08-02 11:56:14,498 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:56:14,498 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:56:26,097 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:56:27,526 [INFO] bin.integrated_app.engines._memory_utils: [内存段31处理完成] RAM: 60% (12.6GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:56:27,526 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 33/1867: 帧 96-101 (5帧)
+2026-08-02 11:56:27,537 [INFO] bin.integrated_app.engines._memory_utils: [内存段32读取后] RAM: 60% (12.6GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:56:27,655 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 11:57:02,463 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:57:02,465 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:57:02,466 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.59s/it]
+2026-08-02 11:57:07,155 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:57:07,155 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:57:18,999 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:57:20,441 [INFO] bin.integrated_app.engines._memory_utils: [内存段32处理完成] RAM: 61% (12.5GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:57:20,441 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 34/1867: 帧 99-104 (5帧)
+2026-08-02 11:57:20,452 [INFO] bin.integrated_app.engines._memory_utils: [内存段33读取后] RAM: 60% (12.5GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:57:20,592 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 11:57:27,457 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:57:27,458 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:57:27,464 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:10<00:00, 10.47s/it]
+2026-08-02 11:57:38,029 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:57:38,029 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:57:49,533 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:57:50,962 [INFO] bin.integrated_app.engines._memory_utils: [内存段33处理完成] RAM: 63% (11.8GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:57:50,962 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 35/1867: 帧 102-107 (5帧)
+2026-08-02 11:57:50,973 [INFO] bin.integrated_app.engines._memory_utils: [内存段34读取后] RAM: 63% (11.8GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:57:51,090 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 11:58:27,454 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:58:27,455 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:58:27,457 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.56s/it]
+2026-08-02 11:58:32,111 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:58:32,111 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:58:43,750 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:58:45,217 [INFO] bin.integrated_app.engines._memory_utils: [内存段34处理完成] RAM: 61% (12.4GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:58:45,217 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 36/1867: 帧 105-110 (5帧)
+2026-08-02 11:58:45,234 [INFO] bin.integrated_app.engines._memory_utils: [内存段35读取后] RAM: 61% (12.4GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:58:45,353 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 11:59:21,862 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 11:59:21,862 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 11:59:21,863 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.55s/it]
+2026-08-02 11:59:26,502 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 11:59:26,502 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 11:59:49,644 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 11:59:51,055 [INFO] bin.integrated_app.engines._memory_utils: [内存段35处理完成] RAM: 60% (12.7GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:59:51,055 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 37/1867: 帧 108-113 (5帧)
+2026-08-02 11:59:51,064 [INFO] bin.integrated_app.engines._memory_utils: [内存段36读取后] RAM: 60% (12.7GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 11:59:51,293 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 12:00:00,519 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 12:00:00,519 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 12:00:00,526 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:12<00:00, 12.48s/it]
+2026-08-02 12:00:13,119 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 12:00:13,119 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 12:00:25,202 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 12:00:26,653 [INFO] bin.integrated_app.engines._memory_utils: [内存段36处理完成] RAM: 58% (13.4GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:00:26,653 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 38/1867: 帧 111-116 (5帧)
+2026-08-02 12:00:26,665 [INFO] bin.integrated_app.engines._memory_utils: [内存段37读取后] RAM: 58% (13.4GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:00:26,793 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 12:01:07,327 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 12:01:07,327 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 12:01:07,330 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.57s/it]
+2026-08-02 12:01:11,997 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 12:01:11,997 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 12:01:24,050 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 12:01:25,481 [INFO] bin.integrated_app.engines._memory_utils: [内存段37处理完成] RAM: 57% (13.7GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:01:25,481 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 39/1867: 帧 114-119 (5帧)
+2026-08-02 12:01:25,493 [INFO] bin.integrated_app.engines._memory_utils: [内存段38读取后] RAM: 57% (13.7GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:01:25,616 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 12:02:06,992 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 12:02:06,993 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 12:02:06,996 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.58s/it]
+2026-08-02 12:02:11,675 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 12:02:11,676 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 12:02:25,479 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 12:02:26,859 [INFO] bin.integrated_app.engines._memory_utils: [内存段38处理完成] RAM: 61% (12.3GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:02:26,860 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 40/1867: 帧 117-122 (5帧)
+2026-08-02 12:02:26,871 [INFO] bin.integrated_app.engines._memory_utils: [内存段39读取后] RAM: 61% (12.4GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:02:27,079 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 12:02:33,056 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 12:02:33,056 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 12:02:33,062 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:10<00:00, 10.80s/it]
+2026-08-02 12:02:43,967 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 12:02:43,967 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 12:02:55,545 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 12:02:56,991 [INFO] bin.integrated_app.engines._memory_utils: [内存段39处理完成] RAM: 56% (14.0GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:02:56,991 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 41/1867: 帧 120-125 (5帧)
+2026-08-02 12:02:57,001 [INFO] bin.integrated_app.engines._memory_utils: [内存段40读取后] RAM: 56% (14.0GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:02:57,110 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 12:03:31,796 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 12:03:31,797 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 12:03:31,798 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.40s/it]
+2026-08-02 12:03:36,293 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 12:03:36,293 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 12:03:47,950 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 12:03:49,407 [INFO] bin.integrated_app.engines._memory_utils: [内存段40处理完成] RAM: 52% (15.3GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:03:49,407 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 42/1867: 帧 123-128 (5帧)
+2026-08-02 12:03:49,418 [INFO] bin.integrated_app.engines._memory_utils: [内存段41读取后] RAM: 52% (15.3GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:03:49,545 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 12:04:25,936 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 12:04:25,936 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 12:04:25,938 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.59s/it]
+2026-08-02 12:04:30,625 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 12:04:30,625 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 12:04:43,215 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 12:04:44,591 [INFO] bin.integrated_app.engines._memory_utils: [内存段41处理完成] RAM: 61% (12.4GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:04:44,591 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 43/1867: 帧 126-131 (5帧)
+2026-08-02 12:04:44,601 [INFO] bin.integrated_app.engines._memory_utils: [内存段42读取后] RAM: 61% (12.4GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:04:44,767 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 12:04:50,837 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 12:04:50,837 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 12:04:50,844 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:11<00:00, 11.23s/it]
+2026-08-02 12:05:02,169 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 12:05:02,169 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 12:05:13,786 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 12:05:15,218 [INFO] bin.integrated_app.engines._memory_utils: [内存段42处理完成] RAM: 57% (13.6GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:05:15,219 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 44/1867: 帧 129-134 (5帧)
+2026-08-02 12:05:15,231 [INFO] bin.integrated_app.engines._memory_utils: [内存段43读取后] RAM: 57% (13.6GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:05:15,357 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 12:05:50,139 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 12:05:50,140 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 12:05:50,142 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.65s/it]
+2026-08-02 12:05:54,882 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 12:05:54,882 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 12:06:06,561 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 12:06:07,978 [INFO] bin.integrated_app.engines._memory_utils: [内存段43处理完成] RAM: 52% (15.3GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:06:07,978 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 45/1867: 帧 132-137 (5帧)
+2026-08-02 12:06:07,989 [INFO] bin.integrated_app.engines._memory_utils: [内存段44读取后] RAM: 52% (15.3GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:06:08,110 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 12:06:44,805 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 12:06:44,806 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 12:06:44,807 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.60s/it]
+2026-08-02 12:06:49,503 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 12:06:49,504 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 12:07:02,160 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 12:07:03,564 [INFO] bin.integrated_app.engines._memory_utils: [内存段44处理完成] RAM: 59% (13.0GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:07:03,565 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 46/1867: 帧 135-140 (5帧)
+2026-08-02 12:07:03,574 [INFO] bin.integrated_app.engines._memory_utils: [内存段45读取后] RAM: 59% (13.0GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:07:03,783 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 12:07:09,901 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 12:07:09,902 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 12:07:09,908 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:11<00:00, 11.62s/it]
+2026-08-02 12:07:21,622 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 12:07:21,622 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 12:07:33,715 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 12:07:35,158 [INFO] bin.integrated_app.engines._memory_utils: [内存段45处理完成] RAM: 57% (13.8GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:07:35,159 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 47/1867: 帧 138-143 (5帧)
+2026-08-02 12:07:35,169 [INFO] bin.integrated_app.engines._memory_utils: [内存段46读取后] RAM: 57% (13.8GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:07:35,294 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 12:08:13,279 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 12:08:13,279 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 12:08:13,281 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.54s/it]
+2026-08-02 12:08:17,916 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 12:08:17,916 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 12:08:29,926 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 12:08:31,386 [INFO] bin.integrated_app.engines._memory_utils: [内存段46处理完成] RAM: 52% (15.4GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:08:31,386 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 48/1867: 帧 141-146 (5帧)
+2026-08-02 12:08:31,396 [INFO] bin.integrated_app.engines._memory_utils: [内存段47读取后] RAM: 52% (15.4GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:08:31,523 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 12:09:09,911 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 12:09:09,912 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 12:09:09,914 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.66s/it]
+2026-08-02 12:09:14,670 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 12:09:14,670 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 12:09:26,906 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 12:09:28,270 [INFO] bin.integrated_app.engines._memory_utils: [内存段47处理完成] RAM: 59% (13.0GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:09:28,271 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 49/1867: 帧 144-149 (5帧)
+2026-08-02 12:09:28,281 [INFO] bin.integrated_app.engines._memory_utils: [内存段48读取后] RAM: 59% (13.0GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:09:28,494 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 12:09:34,373 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 12:09:34,374 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 12:09:34,384 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:11<00:00, 11.03s/it]
+2026-08-02 12:09:45,505 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 12:09:45,506 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 12:09:57,575 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 12:09:59,063 [INFO] bin.integrated_app.engines._memory_utils: [内存段48处理完成] RAM: 55% (14.3GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:09:59,063 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 50/1867: 帧 147-152 (5帧)
+2026-08-02 12:09:59,073 [INFO] bin.integrated_app.engines._memory_utils: [内存段49读取后] RAM: 55% (14.3GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:09:59,202 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 12:10:41,220 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 12:10:41,221 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 12:10:41,222 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.49s/it]
+2026-08-02 12:10:45,807 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 12:10:45,809 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 12:10:58,158 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 12:10:59,650 [INFO] bin.integrated_app.engines._memory_utils: [内存段49处理完成] RAM: 53% (15.0GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:10:59,651 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 51/1867: 帧 150-155 (5帧)
+2026-08-02 12:10:59,661 [INFO] bin.integrated_app.engines._memory_utils: [内存段50读取后] RAM: 53% (15.0GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:10:59,764 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 12:11:40,750 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 12:11:40,751 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 12:11:40,752 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.69s/it]
+2026-08-02 12:11:45,542 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 12:11:45,543 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 12:12:11,306 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 12:12:12,728 [INFO] bin.integrated_app.engines._memory_utils: [内存段50处理完成] RAM: 60% (12.6GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:12:12,729 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 52/1867: 帧 153-158 (5帧)
+2026-08-02 12:12:12,739 [INFO] bin.integrated_app.engines._memory_utils: [内存段51读取后] RAM: 60% (12.6GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:12:12,976 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 12:12:23,513 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 12:12:23,513 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 12:12:23,521 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:12<00:00, 12.30s/it]
+2026-08-02 12:12:35,907 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 12:12:35,907 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 12:12:47,354 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 12:12:48,769 [INFO] bin.integrated_app.engines._memory_utils: [内存段51处理完成] RAM: 61% (12.5GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:12:48,769 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 53/1867: 帧 156-161 (5帧)
+2026-08-02 12:12:48,780 [INFO] bin.integrated_app.engines._memory_utils: [内存段52读取后] RAM: 61% (12.5GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:12:48,910 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 12:13:23,426 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 12:13:23,426 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 12:13:23,429 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.56s/it]
+2026-08-02 12:13:28,081 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 12:13:28,081 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 12:13:39,716 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 12:13:41,137 [INFO] bin.integrated_app.engines._memory_utils: [内存段52处理完成] RAM: 51% (15.4GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:13:41,137 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 54/1867: 帧 159-164 (5帧)
+2026-08-02 12:13:41,147 [INFO] bin.integrated_app.engines._memory_utils: [内存段53读取后] RAM: 51% (15.5GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:13:41,249 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 12:14:15,892 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 12:14:15,892 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 12:14:15,894 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.53s/it]
+2026-08-02 12:14:20,516 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 12:14:20,517 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 12:14:33,994 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 12:14:35,380 [INFO] bin.integrated_app.engines._memory_utils: [内存段53处理完成] RAM: 60% (12.5GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:14:35,380 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 55/1867: 帧 162-167 (5帧)
+2026-08-02 12:14:35,392 [INFO] bin.integrated_app.engines._memory_utils: [内存段54读取后] RAM: 60% (12.5GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:14:35,596 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 12:14:41,726 [INFO] bin.integrated_app.engines.seedvr2_engine: 扩散组件配置完成: schedule=lerp, sampler=euler, steps=1
+2026-08-02 12:14:41,726 [INFO] bin.integrated_app.engines._dit_pipeline: 噪声形状: torch.Size([2, 134, 240, 16]), cfg_scale=1.0, steps=1
+2026-08-02 12:14:41,732 [INFO] bin.integrated_app.engines._dit_pipeline: timestep_transform 已应用, timesteps 范围: [1000.0, 1000.0]
+EulerSampler: 100%|██████████████████████████████████████████████████████████████████████| 1/1 [00:10<00:00, 10.62s/it]
+2026-08-02 12:14:52,441 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已安装
+2026-08-02 12:14:52,442 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 解码: tile_size=768, overlap=128, gaussian_blend=True, groupnorm_accum=True
+2026-08-02 12:15:04,034 [INFO] bin.integrated_app.optimization.inference.vae_tiled_enhance: TiledVAEHook 已卸载
+2026-08-02 12:15:05,479 [INFO] bin.integrated_app.engines._memory_utils: [内存段54处理完成] RAM: 56% (13.8GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:15:05,480 [INFO] bin.integrated_app.engines._video_pipeline: 处理段 56/1867: 帧 165-170 (5帧)
+2026-08-02 12:15:05,490 [INFO] bin.integrated_app.engines._memory_utils: [内存段55读取后] RAM: 56% (13.8GB可用/31.7GB), VRAM: 2.46GB使用/3.05GB保留
+2026-08-02 12:15:05,602 [INFO] bin.integrated_app.engines._vae_pipeline: VAE tiled 编码: tile_size=1024, overlap=128
+2026-08-02 12:15:16,169 [INFO] bin.integrated_app.routes.restore.upload: 任务已取消: f11fae667b3b4189
+2026-08-02 12:15:16,169 [ERROR] bin.integrated_app.task_queue: 任务 f11fae667b3b4189 执行超时（3600s），已强制取消 (E6)
+2026-08-02 12:15:16,169 [INFO] bin.integrated_app.engines.seedvr2_engine: 推理取消信号已发送
+2026-08-02 12:15:16,169 [INFO] bin.integrated_app.task_queue: 任务 f11fae667b3b4189 超时，已调用 on_cancel 回调通知底层退出
+2026-08-02 12:15:40,152 [INFO] bin.integrated_app.engines.seedvr2_engine: 推理在阶段 'video:segment-55:dit-sample' 被取消
+2026-08-02 12:15:40,169 [INFO] bin.integrated_app.optimization.gpu.blockswap: Starting BlockSwap cleanup
+2026-08-02 12:15:40,169 [INFO] bin.integrated_app.optimization.gpu.blockswap: Restored 16 block forward methods
+2026-08-02 12:15:40,170 [INFO] bin.integrated_app.optimization.gpu.blockswap: Restored 64 RoPE methods
+2026-08-02 12:15:40,170 [INFO] bin.integrated_app.optimization.gpu.blockswap: Restored 6 I/O components
+2026-08-02 12:15:40,170 [INFO] bin.integrated_app.optimization.gpu.blockswap: Moved 6 IO components to offload device
+2026-08-02 12:15:40,171 [INFO] bin.integrated_app.optimization.gpu.blockswap: Restored original .to() method
+2026-08-02 12:15:40,171 [INFO] bin.integrated_app.optimization.gpu.blockswap: BlockSwap cleanup complete
+2026-08-02 12:15:40,603 [INFO] bin.integrated_app.engines._memory_utils: [内存DiT销毁后] RAM: 51% (15.6GB可用/31.7GB), VRAM: 0.12GB使用/0.16GB保留
+2026-08-02 12:15:40,604 [INFO] bin.integrated_app.engines.seedvr2_engine: DiT 模型 已完全销毁，VRAM+RAM 已释放
+2026-08-02 12:15:40,865 [INFO] bin.integrated_app.engines._memory_utils: [内存VAE销毁后] RAM: 50% (15.9GB可用/31.7GB), VRAM: 0.12GB使用/0.14GB保留
+2026-08-02 12:15:40,865 [INFO] bin.integrated_app.engines.seedvr2_engine: VAE 模型 已完全销毁，VRAM+RAM 已释放
+2026-08-02 12:15:40,865 [WARNING] bin.integrated_app.engines._video_pipeline: 视频推理被取消: 推理在阶段 'video:segment-55:dit-sample' 被取消
+INFO:     127.0.0.1:8106 - "GET /api/system/health HTTP/1.1" 200 OK

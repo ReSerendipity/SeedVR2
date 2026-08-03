@@ -39,6 +39,7 @@ import gc
 import logging
 import os
 import sys
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -89,6 +90,15 @@ logger = logging.getLogger(__name__)
 _MEMORY_THRESHOLD = 0.90
 """内存使用率阈值 (90%)，超过此阈值立即终止模型加载/推理，防止系统卡死"""
 
+_MEMORY_MIN_AVAILABLE_GB = 2.0
+"""绝对可用内存下限 (GB)，低于此值同样终止推理"""
+
+_MEMORY_SAMPLES = 3
+"""多次采样次数: 超阈值后连续采样 N 次取最小值，避免瞬时峰值误判"""
+
+_MEMORY_SAMPLE_INTERVAL = 0.2
+"""多次采样间隔 (秒): 每次采样之间的等待时间"""
+
 DEFAULT_SCALING_FACTOR = 0.9152
 """VAE 潜空间默认缩放因子，来自模型配置默认值，用于归一化/反归一化潜变量"""
 
@@ -112,13 +122,122 @@ MAX_SEED = 2**32 - 1
 """最大随机种子值 (32 位无符号整数最大值)，用于生成合法的随机种子范围"""
 
 
-def _check_memory(threshold: float = _MEMORY_THRESHOLD, force_cleanup: bool = True) -> float:
+def _get_memory_info_native() -> tuple[float, float] | None:
+    """通过 Windows GlobalMemoryStatusEx 获取更准确的内存使用率和可用内存
+
+    psutil 在 Windows 上的 available 不含 Standby List（可回收缓存页），
+    导致 percent 系统性偏高。此函数直接调用 Win32 API 获取 ullAvailPhys，
+    该值包含 Standby List，更接近任务管理器显示的"可用"内存。
+
+    Returns:
+        (usage_percent, available_gb) 元组，非 Windows 平台返回 None
+    """
+    if sys.platform != "win32":
+        return None
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class MEMORYSTATUSEX(ctypes.Structure):
+            _fields_ = [
+                ("dwLength", wintypes.DWORD),
+                ("dwMemoryLoad", wintypes.DWORD),
+                ("ullTotalPhys", ctypes.c_ulonglong),
+                ("ullAvailPhys", ctypes.c_ulonglong),
+                ("ullTotalPageFile", ctypes.c_ulonglong),
+                ("ullAvailPageFile", ctypes.c_ulonglong),
+                ("ullTotalVirtual", ctypes.c_ulonglong),
+                ("ullAvailVirtual", ctypes.c_ulonglong),
+                ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+            ]
+
+        statex = MEMORYSTATUSEX()
+        statex.dwLength = ctypes.sizeof(statex)
+        if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(statex)):
+            total_gb = statex.ullTotalPhys / (1024**3)
+            avail_gb = statex.ullAvailPhys / (1024**3)
+            usage = 1.0 - (avail_gb / total_gb) if total_gb > 0 else 0.0
+            return (usage, avail_gb)
+    except Exception:
+        pass
+    return None
+
+
+def _load_memory_config() -> tuple[float, float]:
+    """从 config.yaml 加载内存检测配置
+
+    Returns:
+        (threshold, min_available_gb) 元组，读取失败返回默认值
+    """
+    try:
+        from bin.integrated_app.config import get_app_config
+
+        cfg = get_app_config()
+        return (cfg.inference.memory_threshold, cfg.inference.memory_min_available_gb)
+    except Exception:
+        return (_MEMORY_THRESHOLD, _MEMORY_MIN_AVAILABLE_GB)
+
+
+def _log_memory_diagnostics() -> None:
+    """记录详细的内存分解信息，用于超阈值时的诊断"""
+    if not _HAS_PSUTIL:
+        return
+    try:
+        mem = psutil.virtual_memory()
+        logger.warning(
+            f"[内存诊断] 系统RAM: 总计={mem.total/1024**3:.1f}GB, "
+            f"可用={mem.available/1024**3:.1f}GB, "
+            f"已用={mem.used/1024**3:.1f}GB, "
+            f"缓存={getattr(mem, 'cached', 0)/1024**3:.1f}GB, "
+            f"使用率={mem.percent:.1f}%"
+        )
+
+        if sys.platform == "win32":
+            native = _get_memory_info_native()
+            if native:
+                native_usage, native_avail = native
+                logger.warning(
+                    f"[内存诊断] Windows原生API: 可用={native_avail:.1f}GB, "
+                    f"使用率={native_usage:.1%} (psutil报告={mem.percent:.1f}%, "
+                    f"差值={abs(mem.percent - native_usage * 100):.1f}%)"
+                )
+
+        process = psutil.Process()
+        rss_gb = process.memory_info().rss / (1024**3)
+        logger.warning(f"[内存诊断] 当前进程RSS: {rss_gb:.2f}GB")
+
+        if torch.cuda.is_available():
+            vram_alloc = torch.cuda.memory_allocated(0) / 1024**3
+            vram_resv = torch.cuda.memory_reserved(0) / 1024**3
+            logger.warning(f"[内存诊断] GPU显存: 已分配={vram_alloc:.2f}GB, 已保留={vram_resv:.2f}GB")
+
+        top_procs = []
+        for proc in psutil.process_iter(["pid", "name", "memory_info"]):
+            try:
+                rss = proc.info["memory_info"].rss / (1024**3)
+                top_procs.append((proc.info["name"], proc.info["pid"], rss))
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+        top_procs.sort(key=lambda x: x[2], reverse=True)
+        for name, pid, rss in top_procs[:5]:
+            logger.warning(f"[内存诊断] Top进程: {name}(PID={pid}) RSS={rss:.2f}GB")
+
+    except Exception as e:
+        logger.debug(f"[内存诊断] 诊断信息获取失败: {e}")
+
+
+def _check_memory(threshold: float | None = None, force_cleanup: bool = True) -> float:
     """检查系统内存使用率，超过阈值立即清理并抛出异常
 
-    严格模式: 内存超过 90% 立即终止模型加载/推理，防止系统卡死。
+    改进策略:
+    1. 可配置阈值: 从 config.yaml 读取，支持运行时调整
+    2. Windows 原生 API: 使用 GlobalMemoryStatusEx 获取更准确的可用内存
+    3. 多次采样: 超阈值后连续采样 3 次取最小值，避免瞬时峰值误判
+    4. 绝对下限: 可用内存 < memory_min_available_gb 时同样终止
+    5. 详细诊断: 超阈值时自动记录内存分解信息
 
     Args:
-        threshold: 内存使用率阈值 (0-1)，默认 90%
+        threshold: 内存使用率阈值 (0-1)，None 则从 config.yaml 读取
         force_cleanup: 是否在超阈值时强制清理所有模型
 
     Returns:
@@ -129,23 +248,77 @@ def _check_memory(threshold: float = _MEMORY_THRESHOLD, force_cleanup: bool = Tr
     """
     if not _HAS_PSUTIL:
         return 0.0
+
+    cfg_threshold, cfg_min_avail = _load_memory_config()
+    if threshold is None:
+        threshold = cfg_threshold
+
     mem = psutil.virtual_memory()
     usage = mem.percent / 100.0
-    if usage > threshold:
+
+    if sys.platform == "win32":
+        native = _get_memory_info_native()
+        if native:
+            native_usage, native_avail = native
+            if native_usage < usage:
+                usage = native_usage
+                logger.debug(
+                    f"[内存] 使用Windows原生API: {usage:.1%} " f"(psutil={mem.percent:.1f}%, 可用={native_avail:.1f}GB)"
+                )
+
+    available_gb = mem.available / (1024**3)
+
+    if usage > threshold or available_gb < cfg_min_avail:
+        reason = (
+            f"使用率 {usage:.1%} > 阈值 {threshold:.0%}"
+            if usage > threshold
+            else f"可用 {available_gb:.1f}GB < 下限 {cfg_min_avail:.1f}GB"
+        )
+        logger.warning(f"[内存] 超过阈值 ({reason})，执行清理后重试...")
+
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
             torch.cuda.ipc_collect()
         gc.collect()
         _force_release_memory()
 
+        best_usage = usage
+        for i in range(_MEMORY_SAMPLES):
+            time.sleep(_MEMORY_SAMPLE_INTERVAL)
+            mem = psutil.virtual_memory()
+            sample_usage = mem.percent / 100.0
+
+            if sys.platform == "win32":
+                native = _get_memory_info_native()
+                if native:
+                    native_usage, _ = native
+                    if native_usage < sample_usage:
+                        sample_usage = native_usage
+
+            if sample_usage < best_usage:
+                best_usage = sample_usage
+            logger.debug(f"[内存] 采样 {i+1}/{_MEMORY_SAMPLES}: " f"使用率={sample_usage:.1%}, 最佳={best_usage:.1%}")
+
         mem = psutil.virtual_memory()
-        usage = mem.percent / 100.0
-        if usage > threshold:
+        available_gb = mem.available / (1024**3)
+
+        if best_usage > threshold and available_gb < cfg_min_avail:
+            _log_memory_diagnostics()
             raise MemoryError(
-                f"内存使用率 {usage:.1%} 超过阈值 {threshold:.0%}，"
-                f"可用: {mem.available/1024**3:.1f}GB / {mem.total/1024**3:.1f}GB。"
+                f"内存使用率 {best_usage:.1%} 超过阈值 {threshold:.0%}，"
+                f"可用: {available_gb:.1f}GB / {mem.total/1024**3:.1f}GB。"
                 f"必须立即终止模型！"
             )
+
+        if available_gb < cfg_min_avail:
+            _log_memory_diagnostics()
+            raise MemoryError(
+                f"可用内存 {available_gb:.1f}GB 低于下限 {cfg_min_avail:.1f}GB，"
+                f"使用率: {best_usage:.1%}。必须立即终止模型！"
+            )
+
+        logger.info(f"[内存] 清理后恢复: 使用率={best_usage:.1%}, 可用={available_gb:.1f}GB")
+
     return usage
 
 
@@ -163,6 +336,7 @@ def _check_memory_before_load(checkpoint_path: str, label: str = "模型") -> No
 
     估算模型大小并检查当前可用内存是否足够。
     如果可用内存不足模型大小的 1.5 倍 (考虑 dtype 转换开销)，抛出异常。
+    使用可配置阈值和 Windows 原生 API 提高准确性。
 
     Args:
         checkpoint_path: 模型文件路径
@@ -173,10 +347,20 @@ def _check_memory_before_load(checkpoint_path: str, label: str = "模型") -> No
     """
     if not _HAS_PSUTIL:
         return
+
+    cfg_threshold, cfg_min_avail = _load_memory_config()
     model_size_gb = _estimate_model_size_gb(checkpoint_path)
     mem = psutil.virtual_memory()
     available_gb = mem.available / (1024**3)
     usage = mem.percent / 100.0
+
+    if sys.platform == "win32":
+        native = _get_memory_info_native()
+        if native:
+            native_usage, native_avail = native
+            if native_usage < usage:
+                usage = native_usage
+                available_gb = native_avail
 
     required_gb = model_size_gb * 1.5
 
@@ -186,11 +370,18 @@ def _check_memory_before_load(checkpoint_path: str, label: str = "模型") -> No
         f"当前使用率={usage:.1%}"
     )
 
-    if usage > _MEMORY_THRESHOLD:
+    if usage > cfg_threshold:
         raise MemoryError(
-            f"内存使用率 {usage:.1%} 已超过阈值 {_MEMORY_THRESHOLD:.0%}，"
+            f"内存使用率 {usage:.1%} 已超过阈值 {cfg_threshold:.0%}，"
             f"无法加载 {label} ({model_size_gb:.2f}GB)。"
             f"可用: {available_gb:.1f}GB"
+        )
+
+    if available_gb < cfg_min_avail:
+        raise MemoryError(
+            f"可用内存 {available_gb:.1f}GB 低于下限 {cfg_min_avail:.1f}GB，"
+            f"无法加载 {label} ({model_size_gb:.2f}GB)。"
+            f"当前使用率: {usage:.1%}"
         )
 
     if available_gb < required_gb:
@@ -202,11 +393,15 @@ def _check_memory_before_load(checkpoint_path: str, label: str = "模型") -> No
 
 
 def _log_memory(tag: str = ""):
-    """记录当前内存状态 (RAM + VRAM)"""
+    """记录当前内存状态 (RAM + VRAM)，Windows 上同时显示原生 API 值"""
     try:
         if _HAS_PSUTIL:
             mem = psutil.virtual_memory()
             ram_info = f"RAM: {mem.percent:.0f}% ({mem.available/1024**3:.1f}GB可用/{mem.total/1024**3:.1f}GB)"
+            if sys.platform == "win32":
+                native = _get_memory_info_native()
+                if native:
+                    ram_info += f" [原生: {native[0]:.0f}%/{native[1]:.1f}GB可用]"
         else:
             ram_info = "RAM: N/A"
         vram_alloc = torch.cuda.memory_allocated(0) / 1024**3 if torch.cuda.is_available() else 0

@@ -28,6 +28,8 @@ inference:
   input_noise_scale: 0.0
   latent_noise_scale: 0.0
   max_resolution: 0
+  memory_min_available_gb: 2.0
+  memory_threshold: 0.9
   offload_device: cpu
   prepend_frames: 0
   resolution: 2048
