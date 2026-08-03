@@ -128,11 +128,16 @@ async def batch_restore_from_folder(
         params = ImageRestoreParams(**image_fields)
         task_config = params.model_dump()
     else:
-        params = VideoRestoreParams(seed=raw_params.seed)
-        restore_cfg = config.get("restore", {})
+        params = VideoRestoreParams(
+            seed=raw_params.seed,
+            resolution=raw_params.resolution,
+            max_resolution=raw_params.max_resolution,
+            cache_model=raw_params.dit_cache_model,
+        )
         task_config = {
-            "resolution_h": restore_cfg.get("default_resolution_h", 1080),
-            "resolution_w": restore_cfg.get("default_resolution_w", 1920),
+            "resolution": params.resolution,
+            "max_resolution": params.max_resolution,
+            "cache_model": params.cache_model,
             "seed": params.seed,
         }
 
@@ -299,8 +304,9 @@ async def _process_batch_background(
                     result = await engine.infer_video(
                         video_path=media_path,
                         output_dir=output_dir,
-                        res_h=config["resolution_h"],
-                        res_w=config["resolution_w"],
+                        resolution=config["resolution"],
+                        max_resolution=config["max_resolution"],
+                        cache_model=config["cache_model"],
                         seed=config["seed"],
                     )
 

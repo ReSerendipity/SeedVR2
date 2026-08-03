@@ -185,18 +185,12 @@ class RestoreConfig(BaseModel):
 class GpuConfig(BaseModel):
     """GPU 后端配置模型。
 
-    定义 GPU 后端选择、内存策略和精度选项。
-
     Attributes:
         backend: GPU 后端类型，"auto" 自动检测，或指定 "cuda"。
-        memory_strategy: 显存管理策略，"balanced"（平衡）、"aggressive"（激进）等。
-        enable_fp16: 是否启用 FP16 混合精度推理以节省显存。
     """
 
     model_config = ConfigDict(extra="ignore")
     backend: str = "auto"
-    memory_strategy: str = "balanced"
-    enable_fp16: bool = True
 
 
 class HistoryConfig(BaseModel):
@@ -337,6 +331,8 @@ class InferenceConfig(BaseModel):
     distilled_mode: bool = False
     vae_tile_size: int = 1024
     vae_overlap: int = 512
+    cache_model: bool = False
+    torch_compile: dict[str, Any] = Field(default_factory=dict)
 
 
 class RuntimeSseConfig(BaseModel):
@@ -382,12 +378,17 @@ class RuntimeTaskConfig(BaseModel):
         id_length: 任务 ID 字符串长度，8-32 字符范围。
         max_timeout_seconds: 单个任务最大执行时间（秒），60-86400 范围，防止卡死任务阻塞队列。
         queue_maxsize: 任务队列最大容量，1-10000 范围，超出时新任务提交会拒绝。
+        auto_recover: 启动时是否自动恢复未完成任务并继续推理，默认关闭。
     """
 
     model_config = ConfigDict(extra="ignore")
     id_length: int = Field(16, ge=8, le=32)
     max_timeout_seconds: int = Field(3600, ge=60, le=86400)
     queue_maxsize: int = Field(100, ge=1, le=10000)
+    auto_recover: bool = Field(
+        False,
+        description="启动时是否自动恢复数据库中未完成的修复任务并重新推理",
+    )
 
 
 class RuntimeUploadConfig(BaseModel):
@@ -533,16 +534,22 @@ class UnifiedRestoreParams(ImageRestoreParams):
 class VideoRestoreParams(BaseModel):
     """视频修复请求参数模型。
 
-    视频输出分辨率统一从 config.yaml restore 节读取，不由前端表单控制，
-    此处仅保留 seed 字段以兼容历史记录反序列化。
+    分辨率语义与图片一致 (SideResize): 短边=resolution, 长边<=max_resolution，
+    0/缺失时回退 config.yaml restore 节 (default_resolution_h/w)。
 
     Attributes:
         seed: 随机种子，用于可复现的视频修复结果。
+        resolution: 短边目标像素，0 表示不指定。
+        max_resolution: 长边像素上限，0 表示不限制。
+        cache_model: 是否缓存 DiT/VAE 模型跨任务复用。
     """
 
     model_config = ConfigDict(extra="ignore")
 
     seed: int = 1373201197
+    resolution: int = 0
+    max_resolution: int = 0
+    cache_model: bool = False
 
 
 class AppConfig(BaseModel):

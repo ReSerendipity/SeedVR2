@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 SeedVR2 - 应用服务器入口模块
 
@@ -151,9 +151,13 @@ async def lifespan(app: FastAPI):
     try:
         from bin.integrated_app.routes.restore import unified as unified_routes
 
-        recovered_count = await unified_routes.recover_tasks(history_db, task_queue, config)
-        if recovered_count:
-            logger.info(f"已从数据库恢复 {recovered_count} 个未完成任务")
+        auto_recover = config.get("runtime", {}).get("task", {}).get("auto_recover", False)
+        if auto_recover:
+            recovered_count = await unified_routes.recover_tasks(history_db, task_queue, config)
+            if recovered_count:
+                logger.info(f"已从数据库恢复 {recovered_count} 个未完成任务")
+        else:
+            logger.info("启动任务自动恢复已关闭 (runtime.task.auto_recover=false)")
     except Exception as e:
         logger.warning(f"恢复未完成任务失败: {e}")
 
@@ -177,7 +181,7 @@ async def lifespan(app: FastAPI):
     port = config.get("server", {}).get("port", 7870)
     if config.get("server", {}).get("auto_open_browser", True):
         url = f"http://{host}:{port}"
-        asyncio.get_event_loop().call_later(1.5, lambda: webbrowser.open(url))
+        asyncio.get_running_loop().call_later(1.5, lambda: webbrowser.open(url))
         logger.info(f"将在浏览器中打开: {url}")
 
     logger.info(f"SeedVR2已启动: http://{host}:{port}")

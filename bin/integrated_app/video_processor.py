@@ -99,7 +99,7 @@ class FFmpegWrapper:
         Returns:
             找到的可执行文件路径，找不到时返回 name 参数本身。
         """
-        project_root = Path(__file__).parent.parent.parent.parent
+        project_root = Path(__file__).parent.parent.parent
         bin_dir = project_root / "bin"
         exe_name = f"{base_name}.exe" if sys.platform == "win32" else base_name
 

@@ -120,9 +120,6 @@ class SettingsUpdateRequest(BaseModel):
         default_model_size: 默认模型尺寸。
         default_precision: 默认精度。
         default_locale: 默认语言。
-        gpu_backend: GPU 后端。
-        memory_strategy: 内存策略。
-        enable_fp16: 是否启用 FP16。
         auto_load: 是否自动加载模型。
         default_resolution_h: 默认输出高度。
         default_resolution_w: 默认输出宽度。
@@ -132,9 +129,6 @@ class SettingsUpdateRequest(BaseModel):
     default_model_size: str | None = None
     default_precision: str | None = None
     default_locale: str | None = None
-    gpu_backend: str | None = None
-    memory_strategy: str | None = None
-    enable_fp16: bool | None = None
     auto_load: bool | None = None
     default_resolution_h: int | None = None
     default_resolution_w: int | None = None
@@ -215,12 +209,6 @@ async def update_settings(
         config.setdefault("model", {})["auto_load"] = settings.auto_load
     if settings.default_locale is not None:
         config.setdefault("i18n", {})["default_locale"] = settings.default_locale
-    if settings.gpu_backend is not None:
-        config.setdefault("gpu", {})["backend"] = settings.gpu_backend
-    if settings.memory_strategy is not None:
-        config.setdefault("gpu", {})["memory_strategy"] = settings.memory_strategy
-    if settings.enable_fp16 is not None:
-        config.setdefault("gpu", {})["enable_fp16"] = settings.enable_fp16
     if settings.default_resolution_h is not None:
         config.setdefault("restore", {})["default_resolution_h"] = settings.default_resolution_h
     if settings.default_resolution_w is not None:

@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """SeedVR2 - 文件缓存与内存缓存管理模块
 
 提供两类缓存实现:
@@ -221,6 +221,8 @@ class FileCache:
     def cleanup_expired(self) -> int:
         """清理过期文件
 
+        使用 os.scandir 递归遍历，比 os.walk 更高效（DirEntry 缓存文件属性）。
+
         Returns:
             清理的文件数量
         """
@@ -230,20 +232,39 @@ class FileCache:
         now = time.time()
         cleaned = 0
 
-        for root, _dirs, files in os.walk(self.cache_dir):
-            for filename in files:
-                file_path = os.path.join(root, filename)
-                try:
-                    mtime = os.path.getmtime(file_path)
-                    if now - mtime > self.ttl:
-                        os.remove(file_path)
-                        cleaned += 1
-                except OSError:
-                    continue
+        cleaned += self._cleanup_expired_in_dir(self.cache_dir, now)
 
         if cleaned > 0:
             logger.info(f"清理了 {cleaned} 个过期缓存文件")
 
+        return cleaned
+
+    def _cleanup_expired_in_dir(self, dir_path: str, now: float) -> int:
+        """递归清理指定目录下的过期文件（内部辅助方法）。
+
+        Args:
+            dir_path: 要扫描的目录路径。
+            now: 当前时间戳，用于判断文件是否过期。
+
+        Returns:
+            清理的文件数量。
+        """
+        cleaned = 0
+        try:
+            with os.scandir(dir_path) as entries:
+                for entry in entries:
+                    if entry.is_dir(follow_symlinks=False):
+                        cleaned += self._cleanup_expired_in_dir(entry.path, now)
+                    elif entry.is_file(follow_symlinks=False):
+                        try:
+                            mtime = entry.stat(follow_symlinks=False).st_mtime
+                            if now - mtime > self.ttl:
+                                os.remove(entry.path)
+                                cleaned += 1
+                        except OSError:
+                            continue
+        except OSError:
+            pass
         return cleaned
 
     def start_cleanup_task(self, interval: int = 3600):
@@ -279,22 +300,38 @@ class FileCache:
         """清空所有缓存文件（保留目录结构）。
 
         递归遍历缓存目录，删除所有文件但保留子目录结构。
+        使用 os.scandir 替代 os.walk 以获得更好的遍历性能。
         用于手动触发全量缓存清理或用户请求清空缓存。
         """
         if not os.path.exists(self.cache_dir):
             return
 
-        for root, _dirs, files in os.walk(self.cache_dir):
-            for filename in files:
-                try:
-                    os.remove(os.path.join(root, filename))
-                except OSError:
-                    continue
-
+        self._clear_all_in_dir(self.cache_dir)
         logger.info("所有缓存文件已清空")
+
+    def _clear_all_in_dir(self, dir_path: str) -> None:
+        """递归删除指定目录下的所有文件（保留目录结构）。
+
+        Args:
+            dir_path: 要清空的目录路径。
+        """
+        try:
+            with os.scandir(dir_path) as entries:
+                for entry in entries:
+                    if entry.is_dir(follow_symlinks=False):
+                        self._clear_all_in_dir(entry.path)
+                    elif entry.is_file(follow_symlinks=False):
+                        try:
+                            os.remove(entry.path)
+                        except OSError:
+                            continue
+        except OSError:
+            pass
 
     def get_cache_stats(self) -> dict:
         """获取缓存统计信息。
+
+        使用 os.scandir 递归遍历，比 os.walk 更高效（DirEntry 缓存 stat 信息）。
 
         Returns:
             包含以下字段的字典:
@@ -309,14 +346,7 @@ class FileCache:
         total_files = 0
         total_size = 0
 
-        for root, _dirs, files in os.walk(self.cache_dir):
-            for filename in files:
-                file_path = os.path.join(root, filename)
-                try:
-                    total_files += 1
-                    total_size += os.path.getsize(file_path)
-                except OSError:
-                    continue
+        total_files, total_size = self._collect_stats_in_dir(self.cache_dir)
 
         return {
             "total_files": total_files,
@@ -324,6 +354,34 @@ class FileCache:
             "cache_dir": self.cache_dir,
             "ttl_seconds": self.ttl,
         }
+
+    def _collect_stats_in_dir(self, dir_path: str) -> tuple[int, int]:
+        """递归收集指定目录下的文件统计信息。
+
+        Args:
+            dir_path: 要扫描的目录路径。
+
+        Returns:
+            (文件总数, 文件总字节数) 元组。
+        """
+        total_files = 0
+        total_size = 0
+        try:
+            with os.scandir(dir_path) as entries:
+                for entry in entries:
+                    if entry.is_dir(follow_symlinks=False):
+                        sub_files, sub_size = self._collect_stats_in_dir(entry.path)
+                        total_files += sub_files
+                        total_size += sub_size
+                    elif entry.is_file(follow_symlinks=False):
+                        try:
+                            total_files += 1
+                            total_size += entry.stat(follow_symlinks=False).st_size
+                        except OSError:
+                            continue
+        except OSError:
+            pass
+        return total_files, total_size
 
 
 class LRUCache:

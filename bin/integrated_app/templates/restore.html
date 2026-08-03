@@ -207,27 +207,16 @@
             <label class="sv-param-label" for="resolution">{{ t('restore.resolution') }}
                 <span class="sv-param-help" data-tooltip="{{ t('restore.tip_resolution') }}"><i class="bi bi-info-circle"></i></span>
             </label>
-            <input type="number" class="sv-param-input" id="resolution" name="resolution" value="2160" min="1">
+            <input type="number" class="sv-param-input" id="resolution" name="resolution" value="960" min="1">
         </div>
         <div class="sv-param-group">
-            <label class="sv-param-label" for="maxResolution">{{ t('restore.max_resolution') }} (0=∞)</label>
-            <input type="number" class="sv-param-input" id="maxResolution" name="max_resolution" value="0" min="0">
-        </div>
-        <div class="sv-param-group">
-            <label class="sv-param-label" for="seed">{{ t('restore.seed') }}
-                <span class="sv-param-help" data-tooltip="{{ t('restore.tip_seed') }}"><i class="bi bi-info-circle"></i></span>
-            </label>
-            <input type="number" class="sv-param-input" id="seed" name="seed" value="1373201197">
-        </div>
-        <div class="sv-param-group">
-            <label class="sv-param-label" for="colorCorrection">{{ t('video.color_correction') }}
-                <span class="sv-param-help" data-tooltip="{{ t('restore.tip_color_correction') }}"><i class="bi bi-info-circle"></i></span>
-            </label>
-            <select class="sv-param-select" id="colorCorrection" name="color_correction">
-                <option value="lab" selected>LAB</option>
-                <option value="none">{{ t('video.none') }}</option>
+            <label class="sv-param-label" for="vaeModel">{{ t('video.vae_model') }}</label>
+            <select class="sv-param-select" id="vaeModel" name="vae_model">
+                <option value="ema_vae_fp16" selected>EMA VAE FP16</option>
+                <option value="ema_vae_fp8">EMA VAE FP8</option>
             </select>
         </div>
+        <input type="hidden" name="seed" value="1373201197">
 
         <button type="button" class="sv-advanced-toggle" id="advToggle" aria-expanded="false" aria-controls="advParams">
             {{ t('video.advanced_settings') }}
@@ -244,13 +233,18 @@
         <div class="sv-advanced-params" id="advParams">
             <div class="sv-adv-section">
                 <div class="sv-adv-section-title">{{ t('video.node_dit') }}</div>
+                <input type="hidden" name="attention_mode" value="sdpa">
                 <div class="sv-param-group">
-                    <label class="sv-param-label" for="attentionMode">{{ t('video.attention_mode') }}</label>
-                    <select class="sv-param-select" id="attentionMode" name="attention_mode">
-                        <option value="sdpa" selected>SDPA</option>
-                        <option value="flash_attn">Flash Attention</option>
-                        <option value="xformers">XFormers</option>
-                        <option value="sage">Sage</option>
+                    <label class="sv-param-label" for="maxResolution">{{ t('restore.max_resolution') }} (0=∞)</label>
+                    <input type="number" class="sv-param-input" id="maxResolution" name="max_resolution" value="0" min="0">
+                </div>
+                <div class="sv-param-group">
+                    <label class="sv-param-label" for="colorCorrection">{{ t('video.color_correction') }}
+                        <span class="sv-param-help" data-tooltip="{{ t('restore.tip_color_correction') }}"><i class="bi bi-info-circle"></i></span>
+                    </label>
+                    <select class="sv-param-select" id="colorCorrection" name="color_correction">
+                        <option value="lab" selected>LAB</option>
+                        <option value="none">{{ t('video.none') }}</option>
                     </select>
                 </div>
                 <div class="sv-param-group">
@@ -259,7 +253,7 @@
                 </div>
                 <div class="sv-param-group">
                     <label class="sv-param-label" for="batchSize">{{ t('video.batch_size') }}</label>
-                    <input type="number" class="sv-param-input" id="batchSize" name="batch_size" value="1" min="1">
+                    <input type="number" class="sv-param-input" id="batchSize" name="batch_size" value="5" min="1" step="4" data-rule-4n1>
                 </div>
                 <div class="sv-adv-locked-group">
                     <div class="sv-adv-locked-header">{{ t('restore.optimized_params') }}</div>
@@ -270,18 +264,12 @@
                             <span>{{ t('video.swap_io_components') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted"></i></span>
                         </label>
                     </div>
+                    <input type="hidden" name="dit_cache_model" value="true">
                 </div>
             </div>
 
             <div class="sv-adv-section">
                 <div class="sv-adv-section-title">{{ t('video.node_vae') }}</div>
-                <div class="sv-param-group">
-                    <label class="sv-param-label" for="vaeModel">{{ t('video.vae_model') }}</label>
-                    <select class="sv-param-select" id="vaeModel" name="vae_model">
-                        <option value="ema_vae_fp16" selected>EMA VAE FP16</option>
-                        <option value="ema_vae_fp8">EMA VAE FP8</option>
-                    </select>
-                </div>
                 <div class="sv-param-group">
                     <label class="sv-param-label" for="encodeTileSize">{{ t('video.encode_tile_size') }}</label>
                     <input type="number" class="sv-param-input" id="encodeTileSize" name="encode_tile_size" value="1024" min="64">
@@ -316,6 +304,9 @@
                             <span>{{ t('video.tile_debug') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted"></i></span>
                         </label>
                     </div>
+                    <div class="sv-param-group">
+                        <input type="hidden" name="vae_cache_model" value="true">
+                    </div>
                 </div>
             </div>
 
@@ -331,20 +322,16 @@
                     </div>
                 </div>
                 <div class="sv-param-group">
-                    <label class="sv-param-label" for="temporalOverlap">{{ t('video.temporal_overlap') }}</label>
-                    <input type="number" class="sv-param-input" id="temporalOverlap" name="temporal_overlap" value="0" min="0">
+                    <input type="hidden" name="temporal_overlap" value="0">
                 </div>
                 <div class="sv-param-group">
-                    <label class="sv-param-label" for="prependFrames">{{ t('video.prepend_frames') }}</label>
-                    <input type="number" class="sv-param-input" id="prependFrames" name="prepend_frames" value="0" min="0">
+                    <input type="hidden" name="prepend_frames" value="0">
                 </div>
                 <div class="sv-param-group">
-                    <label class="sv-param-label" for="inputNoiseScale">{{ t('video.input_noise_scale') }}</label>
-                    <input type="number" class="sv-param-input" id="inputNoiseScale" name="input_noise_scale" value="0.0" min="0" step="0.01">
+                    <input type="hidden" name="input_noise_scale" value="0.0">
                 </div>
                 <div class="sv-param-group">
-                    <label class="sv-param-label" for="latentNoiseScale">{{ t('video.latent_noise_scale') }}</label>
-                    <input type="number" class="sv-param-input" id="latentNoiseScale" name="latent_noise_scale" value="0.0" min="0" step="0.01">
+                    <input type="hidden" name="latent_noise_scale" value="0.0">
                 </div>
                 <div class="sv-param-group">
                     <label class="sv-param-check" data-tooltip="{{ t('restore.tip_debug_mode') }}">
@@ -354,12 +341,10 @@
                 </div>
             </div>
 
-            <input type="hidden" name="dit_device" value="cuda:0">
+<input type="hidden" name="dit_device" value="cuda:0">
             <input type="hidden" name="dit_offload_device" value="cpu">
-            <input type="hidden" name="dit_cache_model" value="true">
-            <input type="hidden" name="vae_device" value="cuda:0">
+<input type="hidden" name="vae_device" value="cuda:0">
             <input type="hidden" name="vae_offload_device" value="cpu">
-            <input type="hidden" name="vae_cache_model" value="true">
             <input type="hidden" name="offload_device" value="cpu">
         </div>
 
@@ -784,12 +769,18 @@ document.addEventListener('DOMContentLoaded', () => {
     function collectParams() {
         const params = new FormData();
 
-        // 常用参数
-        params.append('dit_model', document.getElementById('ditModel').value);
-        params.append('seed', document.getElementById('seed').value);
-        params.append('resolution', document.getElementById('resolution').value);
-        params.append('max_resolution', document.getElementById('maxResolution').value);
-        params.append('color_correction', document.getElementById('colorCorrection').value);
+        // 基础参数（含隐藏字段）
+        document.querySelectorAll('#paramsSidebar input[name], #paramsSidebar select[name]').forEach(input => {
+            if (input.closest('#advParams')) return;
+            if (input.type === 'checkbox') {
+                if (input.disabled) return;
+                if (input.checked) {
+                    params.append(input.name, input.value || 'true');
+                }
+            } else if (input.name) {
+                params.append(input.name, input.value);
+            }
+        });
 
         // 高级参数（含隐藏字段）
         els.advParams.querySelectorAll('input, select').forEach(input => {
@@ -807,8 +798,29 @@ document.addEventListener('DOMContentLoaded', () => {
         return params;
     }
 
+    // 将 batch_size 修正为最近的 4n+1 值（1,5,9,13,...）
+    function normalizeBatchSize() {
+        const batchSizeEl = document.getElementById('batchSize');
+        if (!batchSizeEl) return true;
+        const raw = batchSizeEl.value;
+        const val = parseInt(raw, 10);
+        if (!Number.isFinite(val) || val < 1) {
+            batchSizeEl.value = 1;
+            SeedVR2.toast(I['restore.batch_size_4n1'] || '批量帧数已自动修正为 1', 'warning');
+            return false;
+        }
+        if ((val - 1) % 4 !== 0) {
+            const n = Math.max(0, Math.round((val - 1) / 4));
+            const corrected = 4 * n + 1;
+            batchSizeEl.value = corrected;
+            SeedVR2.toast((I['restore.batch_size_4n1'] || '批量帧数必须满足 4n+1，已自动修正为 {v}').replace('{v}', corrected), 'warning');
+        }
+        return true;
+    }
+
     // 开始单文件修复
     async function startRestore() {
+        normalizeBatchSize();
         const file = els.fileInput.files[0];
         if (!file) {
             SeedVR2.toast(I['restore.please_select_file'] || '请先选择要修复的文件', 'warning');
@@ -850,6 +862,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 开始批量修复
     async function startBatch() {
+        normalizeBatchSize();
         const path = els.folderPath.value.trim();
         if (!path) {
             SeedVR2.toast(I['restore.please_select_folder'] || '请输入或选择文件夹路径', 'warning');
@@ -1002,9 +1015,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 快捷预设
     const PRESETS = {
-        balanced: { blocksToSwap: 32, batchSize: 1, attentionMode: 'sdpa' },
-        performance: { blocksToSwap: 20, batchSize: 2, attentionMode: 'sdpa' },
-        conservative: { blocksToSwap: 36, batchSize: 1, attentionMode: 'sdpa' },
+balanced: { blocksToSwap: 16, batchSize: 5, attentionMode: 'sdpa' },
+        performance: { blocksToSwap: 20, batchSize: 5, attentionMode: 'sdpa' },
+        conservative: { blocksToSwap: 32, batchSize: 5, attentionMode: 'sdpa' },
     };
     document.querySelectorAll('[data-preset]').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -1012,7 +1025,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!preset) return;
             if (document.getElementById('blocksToSwap')) document.getElementById('blocksToSwap').value = preset.blocksToSwap;
             if (document.getElementById('batchSize')) document.getElementById('batchSize').value = preset.batchSize;
-            if (document.getElementById('attentionMode')) document.getElementById('attentionMode').value = preset.attentionMode;
             // 高亮当前预设按钮
             document.querySelectorAll('[data-preset]').forEach(b => b.classList.remove('sv-btn-active'));
             btn.classList.add('sv-btn-active');
@@ -1023,6 +1035,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     els.btnStartRestore.addEventListener('click', startRestore);
     els.btnStartBatch.addEventListener('click', startBatch);
+    if (document.getElementById('batchSize')) {
+        document.getElementById('batchSize').addEventListener('change', normalizeBatchSize);
+    }
     els.btnResetRestore.addEventListener('click', resetRestore);
     els.btnRestoreAgain.addEventListener('click', resetRestore);
     if (els.btnCancelRestore) {
@@ -1086,18 +1101,19 @@ document.addEventListener('DOMContentLoaded', () => {
                             const elMap = {
                                 blocks_to_swap: 'blocksToSwap',
                                 batch_size: 'batchSize',
-                                attention_mode: 'attentionMode',
                                 cfg_scale: 'cfgScale',
                                 denoising_strength: 'denoisingStrength',
                                 steps: 'steps',
-                                seed: 'seed',
                                 resolution: 'resolution',
                             };
                             const elId = elMap[key];
                             if (elId) {
                                 const el = document.getElementById(elId);
                                 if (el) el.value = val;
+                                return;
                             }
+                            const hiddenEl = document.querySelector(`input[name="${key}"]`);
+                            if (hiddenEl) hiddenEl.value = val;
                         });
                         document.querySelectorAll('[data-preset]').forEach(b => b.classList.remove('sv-btn-active'));
                         btn.classList.add('sv-btn-active');
@@ -1121,7 +1137,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (resEl) resEl.value = prefs.default_resolution;
             }
             if (prefs.default_seed && prefs.default_seed !== -1) {
-                const seedEl = document.getElementById('seed');
+                const seedEl = document.querySelector('input[name="seed"]');
                 if (seedEl) seedEl.value = prefs.default_seed;
             }
             if (prefs.blocks_to_swap) {
@@ -1175,3 +1191,4 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 {% endblock %}
+

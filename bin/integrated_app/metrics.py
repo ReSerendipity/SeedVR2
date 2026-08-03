@@ -193,19 +193,11 @@ class MetricsCollector:
             snap.avg_inference_duration = self._total_duration / max(self._total_inferences, 1)
             snap.last_inference_duration = self._last_duration
 
-        # 缓存指标 (best-effort)
+        # 缓存指标 (best-effort) — 使用 os.scandir 递归遍历，比 os.walk 更高效
         try:
             cache_dir = os.environ.get("SEEDVR2_CACHE_DIR", "data/uploads")
             if os.path.exists(cache_dir):
-                total_files = 0
-                total_size = 0
-                for root, _dirs, files in os.walk(cache_dir):
-                    for f in files:
-                        try:
-                            total_files += 1
-                            total_size += os.path.getsize(os.path.join(root, f))
-                        except OSError:
-                            continue
+                total_files, total_size = _scan_dir_stats(cache_dir)
                 snap.cache_total_files = total_files
                 snap.cache_total_size_mb = total_size / (1024 * 1024)
         except Exception:
@@ -222,6 +214,38 @@ class MetricsCollector:
             self._failed_inferences = 0
             self._total_duration = 0.0
             self._last_duration = 0.0
+
+
+def _scan_dir_stats(dir_path: str) -> tuple[int, int]:
+    """递归扫描目录，统计文件数量和总大小。
+
+    使用 os.scandir 替代 os.walk，DirEntry 对象缓存 stat 信息，
+    避免对每个文件额外调用 os.path.getsize 的系统开销。
+
+    Args:
+        dir_path: 要扫描的目录路径。
+
+    Returns:
+        (文件总数, 文件总字节数) 元组。目录访问失败时返回 (0, 0)。
+    """
+    total_files = 0
+    total_size = 0
+    try:
+        with os.scandir(dir_path) as entries:
+            for entry in entries:
+                if entry.is_dir(follow_symlinks=False):
+                    sub_files, sub_size = _scan_dir_stats(entry.path)
+                    total_files += sub_files
+                    total_size += sub_size
+                elif entry.is_file(follow_symlinks=False):
+                    try:
+                        total_files += 1
+                        total_size += entry.stat(follow_symlinks=False).st_size
+                    except OSError:
+                        continue
+    except OSError:
+        pass
+    return total_files, total_size
 
 
 # 全局单例
