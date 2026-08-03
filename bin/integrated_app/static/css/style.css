@@ -7341,3 +7341,327 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
     transform: scale(1.1);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
+
+/* ===== 30. 关于页面 About Page ===== */
+
+/* 容器 */
+.sv-about {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: var(--sv-space-6) var(--sv-space-5);
+}
+
+/* 区块标题（SVG 图标 + 标题文字 + 底部分隔线） */
+.sv-about-section-title {
+    display: flex;
+    align-items: center;
+    gap: var(--sv-space-2);
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--sv-text-primary);
+    margin-top: var(--sv-space-7);
+    margin-bottom: var(--sv-space-4);
+    padding-bottom: var(--sv-space-3);
+    border-bottom: 1px solid var(--sv-border);
+}
+
+.sv-about > .sv-about-section-title:first-of-type {
+    margin-top: 0;
+}
+
+.sv-about-section-title svg {
+    color: var(--sv-primary);
+    flex-shrink: 0;
+}
+
+/* Hero 区：项目简介卡片 */
+.sv-about-hero .sv-card-body {
+    padding: var(--sv-space-5) var(--sv-space-6);
+}
+
+.sv-about-hero-header {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--sv-space-3-5, 14px);
+    margin-bottom: var(--sv-space-4);
+}
+
+.sv-about-hero-icon {
+    width: 48px;
+    height: 48px;
+    background: var(--sv-primary-dim);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--sv-primary);
+    flex-shrink: 0;
+}
+
+.sv-about-hero-name {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--sv-text-primary);
+    margin-bottom: 2px;
+}
+
+.sv-about-hero-subtitle {
+    font-size: 13px;
+    color: var(--sv-text-secondary);
+}
+
+.sv-about-hero-desc {
+    font-size: 14px;
+    color: var(--sv-text-secondary);
+    line-height: 1.7;
+    margin-bottom: var(--sv-space-5);
+}
+
+/* 元数据网格（Author / Version / License） */
+.sv-about-metadata {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: var(--sv-space-5);
+    margin-bottom: var(--sv-space-5);
+    padding: var(--sv-space-4) 0;
+    border-top: 1px solid var(--sv-border-light);
+    border-bottom: 1px solid var(--sv-border-light);
+}
+
+.sv-about-metadata-label {
+    font-size: 11px;
+    color: var(--sv-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+}
+
+.sv-about-metadata-value {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--sv-text-primary);
+}
+
+/* GitHub 按钮 */
+.sv-about-hero-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--sv-space-2);
+    flex-wrap: wrap;
+}
+
+.sv-about-github-btn {
+    gap: 6px;
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+}
+
+/* 特性网格 */
+.sv-about-features {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--sv-space-4);
+}
+
+.sv-about-feature-card {
+    padding: var(--sv-space-5);
+    border: 1px solid var(--sv-border);
+    border-radius: var(--sv-radius);
+    background: var(--sv-surface-1);
+    transition: border-color var(--sv-transition), box-shadow var(--sv-transition);
+}
+
+.sv-about-feature-card:hover {
+    border-color: var(--sv-primary);
+    box-shadow: var(--sv-shadow-glow);
+}
+
+.sv-about-feature-icon {
+    display: flex;
+    align-items: center;
+    gap: var(--sv-space-2);
+    margin-bottom: var(--sv-space-3);
+}
+
+.sv-about-feature-icon i {
+    color: var(--sv-primary);
+    font-size: 1.1rem;
+}
+
+.sv-about-feature-icon span {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--sv-text-primary);
+}
+
+.sv-about-feature-desc {
+    font-size: 0.85rem;
+    color: var(--sv-text-muted);
+    line-height: 1.6;
+}
+
+/* 信息表格（技术栈 / 显存需求） */
+.sv-about-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.9rem;
+}
+
+.sv-about-table thead th {
+    padding: var(--sv-space-3) var(--sv-space-4);
+    font-size: 0.72rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--sv-accent-terracotta);
+    background: transparent;
+    border-bottom: 2px solid var(--sv-border);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.sv-about-table tbody td {
+    padding: var(--sv-space-3-5, 14px) var(--sv-space-4);
+    border-bottom: 1px solid var(--sv-border-light);
+    color: var(--sv-text-secondary);
+    vertical-align: middle;
+}
+
+.sv-about-table tbody tr:hover {
+    background: var(--sv-bg-hover);
+}
+
+.sv-about-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.sv-about-table .sv-about-table-label {
+    font-weight: 500;
+    color: var(--sv-text-primary);
+    white-space: nowrap;
+}
+
+/* 快速开始 */
+.sv-about-setup {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sv-space-3);
+    font-size: 0.9rem;
+    color: var(--sv-text-secondary);
+    line-height: 1.7;
+}
+
+.sv-about-setup-row {
+    display: flex;
+    gap: var(--sv-space-2);
+    padding: var(--sv-space-1) 0;
+}
+
+.sv-about-setup-label {
+    font-weight: 600;
+    color: var(--sv-text-primary);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.sv-about-setup code {
+    font-size: 0.85rem;
+    padding: 0.2em var(--sv-space-2);
+    background: var(--sv-surface-2);
+    border: 1px solid var(--sv-border-light);
+    border-radius: var(--sv-radius-sm);
+    color: var(--sv-accent-terracotta);
+    font-family: var(--sv-font-mono, "SF Mono", "Cascadia Code", monospace);
+}
+
+/* 相关链接 */
+.sv-about-links {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.sv-about-links a {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    color: var(--sv-primary);
+    text-decoration: none;
+    transition: color var(--sv-transition);
+    padding: var(--sv-space-1) 0;
+}
+
+.sv-about-links a:hover {
+    color: var(--sv-primary-hover);
+}
+
+.sv-about-links i {
+    font-size: 16px;
+}
+
+/* FAQ */
+.sv-about-faq-item[open] .sv-about-faq-chevron {
+    transform: rotate(180deg);
+}
+
+.sv-about-faq-item summary::-webkit-details-marker {
+    display: none;
+}
+
+/* ===== 关于页面响应式 ===== */
+@media (max-width: 768px) {
+    .sv-about {
+        padding: var(--sv-space-4) var(--sv-space-3);
+    }
+
+    .sv-about-section-title {
+        margin-top: var(--sv-space-5);
+    }
+
+    .sv-about-hero .sv-card-body {
+        padding: var(--sv-space-4);
+    }
+
+    .sv-about-hero-header {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
+    .sv-about-metadata {
+        grid-template-columns: 1fr;
+        gap: var(--sv-space-3);
+        text-align: center;
+    }
+
+    .sv-about-features {
+        grid-template-columns: 1fr;
+    }
+
+    .sv-about-table thead th,
+    .sv-about-table tbody td {
+        padding: var(--sv-space-2-5) var(--sv-space-3);
+        font-size: 0.82rem;
+    }
+
+    .sv-about-setup-row {
+        flex-direction: column;
+        gap: var(--sv-space-1);
+    }
+}
+
+@media (max-width: 480px) {
+    .sv-about-hero .sv-card-body {
+        padding: var(--sv-space-3);
+    }
+
+    .sv-about-feature-card {
+        padding: var(--sv-space-4);
+    }
+}

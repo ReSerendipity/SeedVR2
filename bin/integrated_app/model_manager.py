@@ -209,7 +209,9 @@ class ModelManager:
             model_size = self.model_config.get("default_size", "3b")
         if device is None:
             device = self.model_config.get("device", "auto")
-        if precision is None or precision == "auto":
+        if precision is None:
+            precision = self.model_config.get("default_precision", "fp16")
+        if precision == "auto":
             precision = self.get_recommended_precision(model_size)
 
         from bin.integrated_app.gpu_backend import gpu_manager

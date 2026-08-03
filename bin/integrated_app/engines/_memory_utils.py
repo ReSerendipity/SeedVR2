@@ -39,7 +39,7 @@ import gc
 import logging
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 # 环境变量: 防止 diffusers/huggingface 尝试联网导致卡住
@@ -504,6 +504,8 @@ class ImageInferenceConfig:
     latent_noise_scale: float = 0.0
     offload_device: str = "cpu"
     enable_debug: bool = False
+    cache_model: bool = False
+    torch_compile: dict = field(default_factory=dict)
 
     @classmethod
     def from_config_dict(cls, config: dict, **overrides) -> "ImageInferenceConfig":
@@ -525,11 +527,12 @@ class ImageInferenceConfig:
 
         defaults = {
             "dit_model": f"{model_cfg.get('default_size', '3b')}_fp16",
-            "blocks_to_swap": model_cfg.get("blocks_to_swap", 32),
-            "swap_io_components": model_cfg.get("swap_io_components", True),
-            "dit_offload_device": model_cfg.get("offload_device", "cpu"),
-            "dit_cache_model": model_cfg.get("cache_model", True),
-            "attention_mode": model_cfg.get("attention_mode", "sdpa"),
+            # BlockSwap 相关参数在 config.yaml 的 inference 段，勿从 model 段读取
+            "blocks_to_swap": infer_cfg.get("blocks_to_swap", 32),
+            "swap_io_components": infer_cfg.get("swap_io_components", True),
+            "dit_offload_device": infer_cfg.get("offload_device", "cpu"),
+            "dit_cache_model": infer_cfg.get("cache_model", True),
+            "attention_mode": infer_cfg.get("attention_mode", "sdpa"),
             "encode_tiled": vae_cfg.get("encode_tiled", True),
             "encode_tile_size": vae_cfg.get("encode_tile_size", 1024),
             "encode_tile_overlap": vae_cfg.get("encode_tile_overlap", 512),
@@ -538,7 +541,7 @@ class ImageInferenceConfig:
             "decode_tile_overlap": vae_cfg.get("decode_tile_overlap", 512),
             "tile_debug": vae_cfg.get("tile_debug", "false"),
             "vae_offload_device": vae_cfg.get("offload_device", "cpu"),
-            "vae_cache_model": vae_cfg.get("cache_model", True),
+            "vae_cache_model": infer_cfg.get("cache_model", vae_cfg.get("cache_model", True)),
             "seed": infer_cfg.get("seed", -1),
             "resolution": infer_cfg.get("resolution", 2160),
             "max_resolution": infer_cfg.get("max_resolution", 0),
@@ -551,6 +554,8 @@ class ImageInferenceConfig:
             "latent_noise_scale": infer_cfg.get("latent_noise_scale", 0.0),
             "offload_device": infer_cfg.get("offload_device", "cpu"),
             "enable_debug": infer_cfg.get("enable_debug", False),
+            "cache_model": infer_cfg.get("cache_model", False),
+            "torch_compile": infer_cfg.get("torch_compile", {}),
         }
         defaults.update(overrides)
         return cls(**defaults)

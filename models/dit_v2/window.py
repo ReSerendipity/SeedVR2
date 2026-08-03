@@ -14,12 +14,17 @@
 
 """720p 自适应窗口划分模块。
 
-v2 相比 v1 新增了 ``make_720Pwindows_bysize``：根据空间尺寸自适应计算窗口大小，
-在 <=720p 时使用全尺寸窗口，>720p 时按比例缩放到 720p 基准，
-并确保窗口大小是 window_shift 的倍数以支持移位窗口。
+提供两种自适应窗口划分方法（对应 config 中 ``window_method`` 的取值）：
+
+- ``720pwin_by_size_bysize`` (make_720Pwindows_bysize)：按窗口数自适应计算窗口大小，
+  将空间分辨率缩放到 720p 基准后均分。
+- ``720pswin_by_size_bysize`` (make_shifted_720Pwindows_bysize)：移位窗口版本，
+  在基础窗口之上按半窗口移位生成窗口以扩大感受野。
 """
 
+import math
 from collections.abc import Callable
+from math import ceil
 
 import torch
 
@@ -28,12 +33,18 @@ def get_window_op(method: str) -> Callable:
     """窗口划分工厂函数，根据 method 返回对应的窗口切片生成函数。
 
     Args:
-        method: "win"（固定窗口大小划分）或 "win_by_size"（自适应720P窗口）。
+        method: "720pwin_by_size_bysize"（按窗口数自适应720P窗口）、
+            "720pswin_by_size_bysize"（移位窗口版本）、
+            "win"（固定窗口大小划分）或 "win_by_size"（自适应720P窗口）。
 
     Returns:
         函数 f(shape, window) -> List[Tuple[slice, slice, slice]]。
     """
-    if method == "win":
+    if method == "720pwin_by_size_bysize":
+        return make_720Pwindows_bysize
+    elif method == "720pswin_by_size_bysize":
+        return make_shifted_720Pwindows_bysize
+    elif method == "win":
 
         def _win_op(shape: tuple[int, int, int], window: tuple[int, int, int]) -> list[tuple[slice, slice, slice]]:
             t, h, w = shape
@@ -152,39 +163,90 @@ def make_shifted_windows(t, h, w, window_size, window_temporal, device):
     return pad_t, pad_h, pad_w, tp, hp, wp
 
 
-def make_720Pwindows_bysize(t, h, w, window_temporal, ref_window_size=24, ref_h=36, ref_w=64, device=None):
-    """720p 自适应窗口划分：根据实际空间分辨率动态调整窗口大小。
+def make_720Pwindows_bysize(
+    size: tuple[int, int, int], num_windows: tuple[int, int, int]
+) -> list[tuple[slice, slice, slice]]:
+    """720p 自适应窗口划分：根据空间尺寸自适应计算窗口大小。
 
     算法：
-        当 h*w <= ref_h*ref_w（即 <=720p）时直接使用全尺寸窗口；
-        否则按 sqrt(h/ref_h), sqrt(w/ref_w) 等比缩放 ref_window_size，
-        且 ws 必须为 4 的倍数以支持 shift=ws//2 的移位窗口。
+        scale = sqrt((45 * 80) / (h * w)) 将空间分辨率缩放到 720p 基准，
+        再按 num_windows (nt, nh, nw) 均分得到窗口大小 (wt, wh, ww)，
+        返回覆盖整个网格的窗口切片列表。
 
     Args:
-        t/h/w: 原始网格尺寸。
-        window_temporal: 时间窗口大小。
-        ref_window_size: 720p 基准窗口大小（默认 24）。
-        ref_h/ref_w: 720p 基准分辨率 (36,64) patch 网格。
-        device: 设备。
+        size: (t, h, w) 原始网格尺寸。
+        num_windows: (nt, nh, nw) 各维窗口数。
 
     Returns:
-        (pad_t, pad_h, pad_w, tp, hp, wp, ws) 元组，ws 为自适应空间窗口大小。
+        窗口切片列表 [(slice_t, slice_h, slice_w), ...]。
     """
-    if h * w <= ref_h * ref_w:
-        ws = max(h, w)
-    else:
-        ws_h = int(ref_window_size * (h / ref_h) ** 0.5)
-        ws_w = int(ref_window_size * (w / ref_w) ** 0.5)
-        ws = max(ws_h, ws_w)
-        ws = max(ws, 4)
-        if ws % 4 != 0:
-            ws = (ws // 4 + 1) * 4
+    t, h, w = size
+    resized_nt, resized_nh, resized_nw = num_windows
+    # 缩放到 720p 基准
+    scale = math.sqrt((45 * 80) / (h * w))
+    resized_h, resized_w = round(h * scale), round(w * scale)
+    wh, ww = ceil(resized_h / resized_nh), ceil(resized_w / resized_nw)  # 窗口大小
+    wt = ceil(min(t, 30) / resized_nt)  # 窗口大小
+    nt, nh, nw = ceil(t / wt), ceil(h / wh), ceil(w / ww)  # 窗口数量
+    return [
+        (
+            slice(it * wt, min((it + 1) * wt, t)),
+            slice(ih * wh, min((ih + 1) * wh, h)),
+            slice(iw * ww, min((iw + 1) * ww, w)),
+        )
+        for iw in range(nw)
+        if min((iw + 1) * ww, w) > iw * ww
+        for ih in range(nh)
+        if min((ih + 1) * wh, h) > ih * wh
+        for it in range(nt)
+        if min((it + 1) * wt, t) > it * wt
+    ]
 
-    window_shift = ws // 2
-    _, pad_t = calc_out_size(lambda x: x, t, window_temporal, window_shift=0)
-    _, pad_h = calc_out_size(lambda x: max(x, 0), h, ws, window_shift)
-    _, pad_w = calc_out_size(lambda x: max(x, 0), w, ws, window_shift)
-    tp = t + pad_t
-    hp = h + pad_h
-    wp = w + pad_w
-    return pad_t, pad_h, pad_w, tp, hp, wp, ws
+
+def make_shifted_720Pwindows_bysize(
+    size: tuple[int, int, int], num_windows: tuple[int, int, int]
+) -> list[tuple[slice, slice, slice]]:
+    """720p 自适应移位窗口划分（Swin 风格）。
+
+    与 make_720Pwindows_bysize 相同的基础窗口计算，但额外以半窗口移位
+    （st/sh/sw）生成重叠的移位窗口，扩大感受野。
+
+    Args:
+        size: (t, h, w) 原始网格尺寸。
+        num_windows: (nt, nh, nw) 各维窗口数。
+
+    Returns:
+        窗口切片列表 [(slice_t, slice_h, slice_w), ...]。
+    """
+    t, h, w = size
+    resized_nt, resized_nh, resized_nw = num_windows
+    # 缩放到 720p 基准
+    scale = math.sqrt((45 * 80) / (h * w))
+    resized_h, resized_w = round(h * scale), round(w * scale)
+    wh, ww = ceil(resized_h / resized_nh), ceil(resized_w / resized_nw)  # 窗口大小
+    wt = ceil(min(t, 30) / resized_nt)  # 窗口大小
+
+    st, sh, sw = (  # 移位大小
+        0.5 if wt < t else 0,
+        0.5 if wh < h else 0,
+        0.5 if ww < w else 0,
+    )
+    nt, nh, nw = ceil((t - st) / wt), ceil((h - sh) / wh), ceil((w - sw) / ww)  # 窗口数量
+    nt, nh, nw = (
+        nt + 1 if st > 0 else 1,
+        nh + 1 if sh > 0 else 1,
+        nw + 1 if sw > 0 else 1,
+    )
+    return [
+        (
+            slice(max(int((it - st) * wt), 0), min(int((it - st + 1) * wt), t)),
+            slice(max(int((ih - sh) * wh), 0), min(int((ih - sh + 1) * wh), h)),
+            slice(max(int((iw - sw) * ww), 0), min(int((iw - sw + 1) * ww), w)),
+        )
+        for iw in range(nw)
+        if min(int((iw - sw + 1) * ww), w) > max(int((iw - sw) * ww), 0)
+        for ih in range(nh)
+        if min(int((ih - sh + 1) * wh), h) > max(int((ih - sh) * wh), 0)
+        for it in range(nt)
+        if min(int((it - st + 1) * wt), t) > max(int((it - st) * wt), 0)
+    ]

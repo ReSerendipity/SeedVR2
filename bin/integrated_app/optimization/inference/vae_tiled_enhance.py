@@ -92,7 +92,7 @@ def get_recommend_decoder_tile_size(device: torch.device | str | None = None) ->
     64 像素 -> 8 latent, 512 -> 64 latent, 768 -> 96 latent, 1024 -> 128 latent,
     1536 -> 192 latent, 2048 -> 256 latent
 
-    ComfyUI HD 工作流默认 decode_tile_size=768 (对应潜空间 96)
+    默认 decode_tile_size=1024 (对应潜空间 128)
 
     Args:
         device: GPU 设备，None 时使用 cuda:0

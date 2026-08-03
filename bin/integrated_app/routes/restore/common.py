@@ -84,7 +84,7 @@ def parse_unified_params(
     blocks_to_swap: int = Form(32),
     swap_io_components: bool = Form(True),
     dit_offload_device: str = Form("cpu"),
-    dit_cache_model: bool = Form(True),
+    dit_cache_model: bool = Form(False),
     attention_mode: str = Form("sdpa"),
     vae_model: str = Form("ema_vae_fp16"),
     vae_device: str = Form("cuda:0"),
@@ -96,14 +96,14 @@ def parse_unified_params(
     decode_tile_overlap: int = Form(512),
     tile_debug: str = Form("false"),
     vae_offload_device: str = Form("cpu"),
-    vae_cache_model: bool = Form(True),
+    vae_cache_model: bool = Form(False),
     seed: int = Form(1373201197),
     resolution: int = Form(2160),
     max_resolution: int = Form(0),
-    batch_size: int = Form(1),
+    batch_size: int = Form(5),
     uniform_batch_size: bool = Form(False),
     color_correction: str = Form("lab"),
-    temporal_overlap: int = Form(0),
+    temporal_overlap: int = Form(2),
     prepend_frames: int = Form(0),
     input_noise_scale: float = Form(0.0),
     latent_noise_scale: float = Form(0.0),
@@ -138,7 +138,7 @@ def parse_unified_params(
         seed: 随机种子，默认 1373201197。
         resolution: 输出分辨率，默认 2160。
         max_resolution: 最大分辨率限制，0 表示不限制，默认 0。
-        batch_size: 批处理大小，默认 1。
+        batch_size: 批处理大小（需满足 4n+1，非法值自动修正），默认 5。
         uniform_batch_size: 是否统一批处理大小，默认 False。
         color_correction: 颜色校正模式，默认 "lab"。
         temporal_overlap: 视频帧时序重叠数，默认 0。
@@ -151,6 +151,10 @@ def parse_unified_params(
     Returns:
         构造完成的 UnifiedRestoreParams 实例。
     """
+    if batch_size < 1:
+        batch_size = 1
+    elif (batch_size - 1) % 4 != 0:
+        batch_size = max(1, 4 * max(0, round((batch_size - 1) / 4)) + 1)
     return UnifiedRestoreParams(
         task_type=task_type,
         dit_model=dit_model,

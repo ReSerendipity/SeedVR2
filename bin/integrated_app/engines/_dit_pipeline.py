@@ -315,28 +315,30 @@ class _DitPipelineMixin:
         """
         from common.diffusion import classifier_free_guidance_dispatcher
 
-        # 正向条件输出
-        pos_output = self.dit(
-            vid=torch.cat([args.x_t, latents_cond], dim=-1),
-            txt=text_pos_embeds,
-            vid_shape=latents_shapes,
-            txt_shape=text_pos_shapes,
-            timestep=args.t.repeat(batch_size),
-        ).vid_sample
-
-        # 负向条件输出
-        neg_output = self.dit(
-            vid=torch.cat([args.x_t, latents_cond], dim=-1),
-            txt=text_neg_embeds,
-            vid_shape=latents_shapes,
-            txt_shape=text_neg_shapes,
-            timestep=args.t.repeat(batch_size),
-        ).vid_sample
-
         # 计算标准 CFG 结果
+        # 对齐 ComfyUI: pos/neg 均以惰性 lambda 传入 dispatcher，
+        # cfg_scale==1.0 时 dispatcher 短路只执行 pos，不执行 neg forward (节省约 2 倍蒸馏推理时间)
+        def _pos_forward():
+            return self.dit(
+                vid=torch.cat([args.x_t, latents_cond], dim=-1),
+                txt=text_pos_embeds,
+                vid_shape=latents_shapes,
+                txt_shape=text_pos_shapes,
+                timestep=args.t.repeat(batch_size),
+            ).vid_sample
+
+        def _neg_forward():
+            return self.dit(
+                vid=torch.cat([args.x_t, latents_cond], dim=-1),
+                txt=text_neg_embeds,
+                vid_shape=latents_shapes,
+                txt_shape=text_neg_shapes,
+                timestep=args.t.repeat(batch_size),
+            ).vid_sample
+
         cfg_result = classifier_free_guidance_dispatcher(
-            pos=lambda: pos_output,
-            neg=lambda: neg_output,
+            pos=_pos_forward,
+            neg=_neg_forward,
             scale=cfg_scale,
             rescale=cfg_rescale,
         )
@@ -347,7 +349,8 @@ class _DitPipelineMixin:
                 apply_cfg_rescale as apply_cfg_rescale_fn,
             )
 
-            cfg_result = apply_cfg_rescale_fn(cfg_result, pos_output, rescale_factor=cfg_rescale)
+            # scale==1.0 时 cfg_result 即 pos 输出，比值恒为 1.0，无副作用
+            cfg_result = apply_cfg_rescale_fn(cfg_result, cfg_result, rescale_factor=cfg_rescale)
 
         # Restoration Guidance (Vivid-VR inspired) 带时间步衰减
         effective_restoration_scale = restoration_guidance_scale
@@ -361,7 +364,10 @@ class _DitPipelineMixin:
         if effective_restoration_scale > 0:
             # 应用 Restoration Guidance: 将 CFG 结果向原始输入方向偏移
             # fidelity_direction = original_condition - current_noisy
-            fidelity_direction = current_noisy - args.x_t
+            # current_noisy 为条件张量 (含 C+1 条件标记通道)，与 x_t 通道数不同，
+            # 需裁掉标记通道后与当前噪声潜变量对齐
+            c = args.x_t.shape[-1]
+            fidelity_direction = current_noisy[..., :c] - args.x_t
             guided_result = cfg_result + effective_restoration_scale * fidelity_direction
             return guided_result
 

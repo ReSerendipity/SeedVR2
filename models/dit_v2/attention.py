@@ -95,6 +95,20 @@ class FlashAttentionVarlen(nn.Module):
         例如 batch_size=2, seq_lens=[3,5] 时 cu_seqlens=[0,3,8]。
     """
 
+    def __init__(self, attention_mode: str = "sdpa", compute_dtype: torch.dtype | None = None):
+        """初始化变长注意力模块。
+
+        Args:
+            attention_mode: 注意力后端，'sdpa' / 'flash_attn_2' / 'flash_attn_3'。
+                非 sdpa 后端需要 flash_attn 库可用。
+            compute_dtype: 注意力计算 dtype。为 None 时使用输入自身 dtype。
+                设置后，输入会在计算前统一转换为该 dtype（对齐 ComfyUI 的
+                compute_dtype 策略，避免在 mmattn 内反复强制转换）。
+        """
+        super().__init__()
+        self.attention_mode = attention_mode
+        self.compute_dtype = compute_dtype
+
     def tflops(self, args, kwargs, output) -> float:
         """估算变长注意力的理论 TFLOPs。
 
@@ -129,7 +143,11 @@ class FlashAttentionVarlen(nn.Module):
         Returns:
             torch.Tensor: 注意力输出，形状 (total_q, num_heads, head_dim)。
         """
-        if _flash_attn_available:
+        if self.compute_dtype is not None and q.dtype != self.compute_dtype:
+            q = q.to(self.compute_dtype)
+            k = k.to(self.compute_dtype)
+            v = v.to(self.compute_dtype)
+        if _flash_attn_available and self.attention_mode in ("flash_attn_2", "flash_attn_3"):
             kwargs["deterministic"] = torch.are_deterministic_algorithms_enabled()
             return flash_attn_varlen_func(
                 q,
@@ -150,34 +168,52 @@ class FlashAttentionVarlen(nn.Module):
                 cu_seqlens_k=cu_seqlens_k,
                 max_seqlen_q=max_seqlen_q,
                 max_seqlen_k=max_seqlen_k,
+                **kwargs,
             )
 
 
-def _sdpa_varlen_fallback(q, k, v, cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k):
+def _sdpa_varlen_fallback(q, k, v, cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k, **kwargs):
     """Flash Attention 不可用时的 SDPA 回退实现，逐段计算注意力后拼接。
+
+    对齐 ComfyUI 的 pytorch_varlen_attention 实现：
+    - 使用 ``torch.tensor_split`` 一次性按累积序列长度拆分 q/k/v，
+      避免逐窗口调用 ``.item()`` 造成的 GPU→CPU 设备同步（graph break）。
+    - 每个序列独立调用 ``F.scaled_dot_product_attention`` 后拼接。
 
     Args:
         q/k/v: 见 FlashAttentionVarlen.forward。
         cu_seqlens_q/cu_seqlens_k: 见 FlashAttentionVarlen.forward。
-        max_seqlen_q/max_seqlen_k: 见 FlashAttentionVarlen.forward。
+        max_seqlen_q/max_seqlen_k: 见 FlashAttentionVarlen.forward（兼容，未使用）。
+        **kwargs: 兼容参数（dropout_p、deterministic 等）。
 
     Returns:
         torch.Tensor: 拼接后的注意力输出。
     """
-    batch_size = len(cu_seqlens_q) - 1
+    if cu_seqlens_q is None:
+        raise ValueError("cu_seqlens_q must be provided for variable-length attention")
+
+    dropout_p = kwargs.get("dropout_p", 0.0)
+    causal = kwargs.get("causal", False)
+
+    # tensor_split 需要 int64 CPU 索引（PyTorch 约束），仅一次设备同步
+    split_q = list(torch.tensor_split(q, cu_seqlens_q[1:-1].long().cpu(), dim=0))
+    split_k = list(torch.tensor_split(k, cu_seqlens_k[1:-1].long().cpu(), dim=0))
+    split_v = list(torch.tensor_split(v, cu_seqlens_k[1:-1].long().cpu(), dim=0))
+
     outputs = []
-    for i in range(batch_size):
-        start_q = cu_seqlens_q[i].item()
-        end_q = cu_seqlens_q[i + 1].item()
-        start_k = cu_seqlens_k[i].item()
-        end_k = cu_seqlens_k[i + 1].item()
-        q_i = q[start_q:end_q].unsqueeze(0)
-        k_i = k[start_k:end_k].unsqueeze(0)
-        v_i = v[start_k:end_k].unsqueeze(0)
-        q_i = q_i.transpose(1, 2)
-        k_i = k_i.transpose(1, 2)
-        v_i = v_i.transpose(1, 2)
-        out_i = F.scaled_dot_product_attention(q_i, k_i, v_i)
-        out_i = out_i.transpose(1, 2).squeeze(0)
+    for q_i, k_i, v_i in zip(split_q, split_k, split_v, strict=False):
+        # 每个序列视为 batch=1 处理: (1, heads, seq, head_dim)
+        q_i = q_i.permute(1, 0, 2).unsqueeze(0)
+        k_i = k_i.permute(1, 0, 2).unsqueeze(0)
+        v_i = v_i.permute(1, 0, 2).unsqueeze(0)
+        out_i = F.scaled_dot_product_attention(
+            q_i,
+            k_i,
+            v_i,
+            dropout_p=dropout_p,
+            is_causal=causal,
+        )
+        out_i = out_i.squeeze(0).permute(1, 0, 2)
         outputs.append(out_i)
+
     return torch.cat(outputs, dim=0)

@@ -199,8 +199,6 @@ def repeat_concat_idx(
     txt_len_win = txt_len.repeat_interleave(window_count)
     c_idx, ua_idx, ub_idx = _build_interleaved_indices(vid_len_win, txt_len_win, device)
 
-    total_vid = vid_len_win.sum().item()
-
     _, ub_unique_idx = [], []
     offset = 0
     unique_b_indices = []
@@ -219,14 +217,23 @@ def repeat_concat_idx(
     ub_unique_idx = torch.cat(unique_b_indices) if unique_b_indices else torch.zeros(0, dtype=torch.long, device=device)
 
     def concat_fn(vid: torch.Tensor, txt: torch.Tensor) -> torch.Tensor:
-        if txt.shape[0] == total_vid:
-            pass
-        else:
-            txt_list = unflatten(txt, torch.stack([txt_len], dim=-1) if txt.ndim == 2 else txt_len.unsqueeze(-1))
-            txt_expanded = list(chain.from_iterable([t] * nw for t, nw in zip(txt_list, window_count, strict=False)))
-            txt, _ = flatten(txt_expanded) if txt_expanded else (txt, None)
-            if txt is None:
-                txt = torch.zeros(0, vid.shape[-1], device=device, dtype=vid.dtype)
+        txt_total = txt_len_win.sum().item()
+        if txt.shape[0] != txt_total:
+            if txt.ndim == 3:
+                h, d = txt.shape[1], txt.shape[2]
+                txt_flat = txt.reshape(-1, h * d)
+                txt_list = unflatten(txt_flat, txt_len.unsqueeze(-1))
+                txt_expanded = list(
+                    chain.from_iterable([t] * nw for t, nw in zip(txt_list, window_count, strict=False))
+                )
+                txt, _ = flatten(txt_expanded)
+                txt = txt.reshape(-1, h, d)
+            else:
+                txt_list = unflatten(txt, txt_len.unsqueeze(-1))
+                txt_expanded = list(
+                    chain.from_iterable([t] * nw for t, nw in zip(txt_list, window_count, strict=False))
+                )
+                txt, _ = flatten(txt_expanded)
         vt = torch.cat([vid, txt], dim=0)
         return vt[c_idx]
 

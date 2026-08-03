@@ -40,7 +40,7 @@ async def recover_tasks(
     Args:
         history_db: 历史记录数据库实例。
         task_queue: 任务队列实例。
-        config: 应用配置字典，视频任务需要分辨率配置，可选。
+        config: 应用配置字典（预留，当前视频分辨率来自记录参数）。
 
     Returns:
         成功恢复并重新入队的任务数量。
@@ -91,8 +91,8 @@ async def recover_tasks(
         else:
             p_vid: VideoRestoreParams = params  # type: ignore[assignment]
             video_task = (  # type: ignore[misc]  # mypy cannot infer lambda type with complex defaults  # noqa: E731
-                lambda t=task_record, r=record, p=p_vid, m=use_model_size, c=config: _process_video_task(
-                    t.task_id, r.id, r.input_file, m, p, c, history_db, task_queue
+                lambda t=task_record, r=record, p=p_vid, m=use_model_size, h=history_db, q=task_queue: _process_video_task(
+                    t.task_id, r.id, r.input_file, m, p, h, q
                 )
             )
             await task_queue.submit(task_record.task_id, video_task)

@@ -69,12 +69,18 @@ class _ImagePipelineMixin:
         self._reset_cancel_token()
         return await asyncio.to_thread(self._infer_image_impl, image_path, output_dir, config)
 
-    def _prepare_image_input(self, image_path: str, resolution: int) -> tuple:
+    def _prepare_image_input(self, image_path: str, resolution: int, max_resolution: int = 0) -> tuple:
         """读取图像并预处理为模型输入
+
+        分辨率语义与 ComfyUI `SideResize` 对齐:
+        - `resolution` 为短边目标像素 (ComfyUI 的 `resolution` 参数)
+        - `max_resolution` 为长边上限 (ComfyUI 的 `max_resolution` 参数, 0 表示不限制)
+        - 输入短边 < resolution 时放大到 resolution; 长边超过 max_resolution 时再回缩
 
         Args:
             image_path: 输入图像路径
-            resolution: 目标分辨率 (长边)
+            resolution: 目标分辨率 (短边像素)
+            max_resolution: 长边像素上限, 0 表示不限制
 
         Returns:
             (cond_latent, input_video, res_h, res_w, scale_factor)
@@ -83,15 +89,16 @@ class _ImagePipelineMixin:
         orig_img = PILImage.open(image_path).convert("RGB")
         orig_w, orig_h = orig_img.size
 
-        # 分辨率计算
+        # 分辨率计算 (对齐 ComfyUI SideResize: 短边=resolution, 长边<=max_resolution)
         scale_factor = 2.0
         if resolution > 0:
-            target_long = resolution
-            current_long = max(orig_h, orig_w)
-            if target_long > current_long:
-                scale_factor = target_long / current_long
-            else:
-                scale_factor = 1.0
+            target_short = resolution
+            current_short = min(orig_h, orig_w)
+            scale_factor = target_short / current_short
+            if max_resolution > 0:
+                target_long = max(orig_h, orig_w) * scale_factor
+                if target_long > max_resolution:
+                    scale_factor = max_resolution / max(orig_h, orig_w)
 
         res_h = int(orig_h * scale_factor)
         res_w = int(orig_w * scale_factor)
@@ -354,7 +361,7 @@ class _ImagePipelineMixin:
 
             # 读取并预处理图像
             cond_latent, input_video, res_h, res_w, scale_factor = self._prepare_image_input(
-                image_path, inf["resolution"]
+                image_path, inf["resolution"], inf["max_resolution"]
             )
             logger.info(
                 f"图像修复: {image_path}, -> {res_w}x{res_h}, "
@@ -397,15 +404,20 @@ class _ImagePipelineMixin:
 
             # REFACTOR [B1-1] [P3-1]: 显式参数化 _load_vae_model，
             # 不再修改 self.config 全局状态
-            self.vae = self._load_vae_model(
-                model_config=self._model_config,
-                checkpoint_path=self._vae_checkpoint_path,
-                device=self.device,
-                vae_tiled_config=vae_tiled_config,
-            )
-            self.vae.to(device=self.device)
-            _log_memory("VAE加载到GPU后")
-            _check_memory()
+            # cache_model=True 时复用上一次任务缓存的 VAE，跳过加载
+            if self.vae is None:
+                self.vae = self._load_vae_model(
+                    model_config=self._model_config,
+                    checkpoint_path=self._vae_checkpoint_path,
+                    device=self.device,
+                    vae_tiled_config=vae_tiled_config,
+                    torch_compile_args=inf.get("torch_compile") or None,
+                )
+                self.vae.to(device=self.device)
+                _log_memory("VAE加载到GPU后")
+                _check_memory()
+            else:
+                logger.info("cache_model=True: 复用已缓存的 VAE 模型")
 
             cond_latents = self._vae_encode([cond_latent])
             del cond_latent
@@ -427,19 +439,25 @@ class _ImagePipelineMixin:
 
             # REFACTOR [B1-1] [P3-1]: 显式参数化 _load_dit_model，
             # 不再修改 self.config 全局状态
-            self.dit = self._load_dit_model(
-                model_size=self._dit_model_size,
-                model_config=self._model_config,
-                checkpoint_path=self._dit_checkpoint_path,
-                precision=self._dit_precision,
-                device=self.device,
-                blocks_to_swap=cfg.blocks_to_swap,
-                swap_io_components=cfg.swap_io_components,
-                offload_device=cfg.dit_offload_device,
-                attention_mode=cfg.attention_mode,
-            )
-            _log_memory("DiT加载后")
-            _check_memory()
+            # cache_model=True 时复用上一次任务缓存的 DiT，跳过加载
+            if self.dit is None:
+                self.dit = self._load_dit_model(
+                    model_size=self._dit_model_size,
+                    model_config=self._model_config,
+                    checkpoint_path=self._dit_checkpoint_path,
+                    precision=self._dit_precision,
+                    device=self.device,
+                    blocks_to_swap=cfg.blocks_to_swap,
+                    swap_io_components=cfg.swap_io_components,
+                    offload_device=cfg.dit_offload_device,
+                    attention_mode=cfg.attention_mode,
+                    torch_compile_args=inf.get("torch_compile") or None,
+                )
+                self.dit.to(device=self.device)
+                _log_memory("DiT加载后")
+                _check_memory()
+            else:
+                logger.info("cache_model=True: 复用已缓存的 DiT 模型")
 
             text_embeds = self._get_text_embeds()
 
@@ -478,15 +496,19 @@ class _ImagePipelineMixin:
             _log_memory("阶段3开始")
 
             # REFACTOR [B1-1] [P3-1]: 显式参数化 _load_vae_model（复用 vae_tiled_config）
-            self.vae = self._load_vae_model(
-                model_config=self._model_config,
-                checkpoint_path=self._vae_checkpoint_path,
-                device=self.device,
-                vae_tiled_config=vae_tiled_config,
-            )
-            self.vae.to(device=self.device)
-            _log_memory("VAE重新加载到GPU后")
-            _check_memory()
+            if self.vae is None:
+                self.vae = self._load_vae_model(
+                    model_config=self._model_config,
+                    checkpoint_path=self._vae_checkpoint_path,
+                    device=self.device,
+                    vae_tiled_config=vae_tiled_config,
+                    torch_compile_args=inf.get("torch_compile") or None,
+                )
+                self.vae.to(device=self.device)
+                _log_memory("VAE重新加载到GPU后")
+                _check_memory()
+            else:
+                logger.info("cache_model=True: 复用已缓存的 VAE 模型")
 
             decoded = self._vae_decode(samples)
 
@@ -494,9 +516,10 @@ class _ImagePipelineMixin:
             del samples
             gc.collect()
 
-            # 销毁 VAE
-            self._destroy_vae()
-            _log_memory("VAE最终销毁后")
+            # cache_model=True 时保留 VAE 供后续任务复用；否则销毁释放显存
+            if not cfg.vae_cache_model:
+                self._destroy_vae()
+                _log_memory("VAE最终销毁后")
 
             # ==================== 阶段4: 后处理 ====================
             # REFACTOR [E4-1]: 阶段切换点检查取消信号
