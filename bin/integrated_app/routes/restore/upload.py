@@ -170,7 +170,12 @@ async def upload_and_restore(
         image_fields = {k: v for k, v in raw_params.model_dump().items() if k in ImageRestoreParams.model_fields}
         params = ImageRestoreParams(**image_fields)
     else:
-        video_fields = {"seed": raw_params.seed}
+        video_fields = {
+            "seed": raw_params.seed,
+            "resolution": raw_params.resolution,
+            "max_resolution": raw_params.max_resolution,
+            "cache_model": raw_params.dit_cache_model,
+        }
         params = VideoRestoreParams(**video_fields)
 
     task_id = uuid.uuid4().hex[: config.get("runtime", {}).get("task", {}).get("id_length", 16)]
@@ -198,7 +203,7 @@ async def upload_and_restore(
         await task_queue.submit(
             task_id,
             lambda: _process_video_task(
-                task_id, record_id, input_path, use_model_size, vid_params, config, history_db, task_queue
+                task_id, record_id, input_path, use_model_size, vid_params, history_db, task_queue
             ),
             on_cancel=on_cancel,
         )
@@ -325,7 +330,6 @@ async def _process_video_task(
     input_path: str,
     model_size: str,
     params: VideoRestoreParams,
-    config: dict,
     history_db: HistoryDB,
     task_queue: TaskQueue,
 ):
@@ -339,7 +343,6 @@ async def _process_video_task(
         input_path: 输入视频路径。
         model_size: 模型尺寸标识。
         params: 视频修复参数。
-        config: 应用配置。
         history_db: 历史数据库实例。
         task_queue: 任务队列实例。
     """
@@ -357,12 +360,12 @@ async def _process_video_task(
         engine.set_progress_callback(progress_callback)
 
         output_dir = os.path.join(os.getcwd(), "outputs", "video", task_id)
-        restore_cfg = config.get("restore", {})
         return await engine.infer_video(
             video_path=input_path,
             output_dir=output_dir,
-            res_h=restore_cfg.get("default_resolution_h", 1080),
-            res_w=restore_cfg.get("default_resolution_w", 1920),
+            resolution=params.resolution,
+            max_resolution=params.max_resolution,
+            cache_model=params.cache_model,
             seed=params.seed,
         )
 

@@ -119,6 +119,8 @@ class NaMMSRTransformerBlock(nn.Module):
             rope_type=rope_type,
             rope_dim=rope_dim,
             shared_weights=shared_weights,
+            attention_mode=kwargs.pop("attention_mode", "sdpa"),
+            compute_dtype=kwargs.pop("compute_dtype", None),
             window=kwargs.pop("window", None),
             window_method=kwargs.pop("window_method", None),
         )

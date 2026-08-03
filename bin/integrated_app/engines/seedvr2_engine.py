@@ -309,7 +309,7 @@ class SeedVR2Engine(
         self,
         model_attr: str,
         *,
-        cleanup_blockswap: bool = False,
+        do_cleanup_blockswap: bool = False,
         cleanup_rope: bool = False,
         label: str = "模型",
         log_tag: str = "模型销毁后",
@@ -322,7 +322,7 @@ class SeedVR2Engine(
 
         Args:
             model_attr: 模型属性名（'dit' 或 'vae'）
-            cleanup_blockswap: 是否清理 BlockSwap 状态（仅 DiT 需要）
+            do_cleanup_blockswap: 是否清理 BlockSwap 状态（仅 DiT 需要）
             cleanup_rope: 是否清理 RoPE LRU 缓存（仅 DiT 需要）
             label: 日志标签
             log_tag: _log_memory 调用时的标签
@@ -331,7 +331,7 @@ class SeedVR2Engine(
         if model is None:
             return
 
-        if cleanup_blockswap and self._blockswap_active:
+        if do_cleanup_blockswap and self._blockswap_active:
             cleanup_blockswap(model)
             self._blockswap_active = False
 
@@ -365,7 +365,7 @@ class SeedVR2Engine(
         """完全销毁 DiT 模型，释放全部 VRAM 和 RAM"""
         if self.dit is None:
             return
-        self._destroy_module("dit", cleanup_blockswap=True, cleanup_rope=True, label="DiT 模型", log_tag="DiT销毁后")
+        self._destroy_module("dit", do_cleanup_blockswap=True, cleanup_rope=True, label="DiT 模型", log_tag="DiT销毁后")
 
     def _destroy_vae(self):
         """完全销毁 VAE 模型，释放 RAM 和 VRAM"""
@@ -460,18 +460,28 @@ class SeedVR2Engine(
                 "temporal_segment_overlap",
                 inf_cfg.get("temporal_segment_overlap", 8),
             ),
-            # BlockSwap configuration
+            # BlockSwap configuration (source: inference 配置段，勿从 model 段读取)
             "blocks_to_swap": kwargs.get(
                 "blocks_to_swap",
-                self.config.get("model", {}).get("blocks_to_swap", 32),
+                inf_cfg.get("blocks_to_swap", 32),
             ),
             "swap_io_components": kwargs.get(
                 "swap_io_components",
-                self.config.get("model", {}).get("swap_io_components", True),
+                inf_cfg.get("swap_io_components", True),
             ),
             "offload_device": kwargs.get(
                 "offload_device",
-                self.config.get("model", {}).get("offload_device", "cpu"),
+                inf_cfg.get("offload_device", "cpu"),
+            ),
+            # 模型跨任务缓存 (官方 cache_model 语义; 12GB 默认关闭)
+            "cache_model": kwargs.get(
+                "cache_model",
+                inf_cfg.get("cache_model", False),
+            ),
+            # torch.compile 配置 (官方 SeedVR2 Torch Compile Settings 节点)
+            "torch_compile": kwargs.get(
+                "torch_compile",
+                inf_cfg.get("torch_compile", {}),
             ),
         }
 
@@ -573,6 +583,7 @@ class SeedVR2Engine(
         swap_io_components: bool | None = None,
         offload_device: str | None = None,
         attention_mode: str | None = None,
+        torch_compile_args: dict | None = None,
     ):
         """构建并加载 DiT 模型 - 严格对齐 ComfyUI 工作流参数
 
@@ -690,6 +701,7 @@ class SeedVR2Engine(
                     rope_dim=dit_config.get("rope_dim", 128),
                     window=dit_config.get("window"),
                     window_method=window_method,
+                    attention_mode=attention_mode or "sdpa",
                 )
             elif model_size == "7b":
                 from models.dit.nadit import NaDiT
@@ -773,13 +785,15 @@ class SeedVR2Engine(
         # 要求调用方先修改 self.config 全局状态（_infer_image_impl 中曾通过 copy.deepcopy + 配置写入实现），
         # 这导致全局配置污染与并发安全问题
         # 改为显式参数优先：调用方直接传入请求级配置；None 时回退到 self.config 保持向后兼容
-        model_cfg = self.config.get("model", {})
+        # 注意: blocks_to_swap/swap_io_components/offload_device 位于 config.yaml 的 inference 段，
+        # 从 model 段读取将永远命中默认值，导致配置不生效
+        inf_cfg = self.config.get("inference", {})
         if blocks_to_swap is None:
-            blocks_to_swap = model_cfg.get("blocks_to_swap", dit_config.get("blocks_to_swap", 0))
+            blocks_to_swap = inf_cfg.get("blocks_to_swap", dit_config.get("blocks_to_swap", 0))
         if swap_io_components is None:
-            swap_io_components = model_cfg.get("swap_io_components", dit_config.get("swap_io_components", False))
+            swap_io_components = inf_cfg.get("swap_io_components", dit_config.get("swap_io_components", False))
         if offload_device is None:
-            offload_device = model_cfg.get("offload_device", dit_config.get("offload_device", "cpu"))
+            offload_device = inf_cfg.get("offload_device", dit_config.get("offload_device", "cpu"))
 
         logger.info(
             f"BlockSwap 配置: blocks_to_swap={blocks_to_swap}, "
@@ -828,6 +842,31 @@ class SeedVR2Engine(
         _check_memory()
         _log_memory("DiT BlockSwap后")
 
+        # ==================== 步骤5: torch.compile (官方 Torch Compile Settings 节点) ====================
+        # 可选加速: DiT 20-40% 提速; 需要 PyTorch 2.0+; 默认关闭 (更耗显存)
+        if torch_compile_args and torch_compile_args.get("enabled", False):
+            try:
+                from bin.integrated_app.optimization.gpu.vram_toolchain import (
+                    CompileConfig,
+                    CompileOptimizer,
+                )
+
+                compile_cfg = CompileConfig(
+                    enabled=True,
+                    mode=torch_compile_args.get("mode", "default"),
+                    backend=torch_compile_args.get("backend", "inductor"),
+                    fullgraph=torch_compile_args.get("fullgraph", False),
+                    dynamic=torch_compile_args.get("dynamic", False),
+                )
+                optimizer = CompileOptimizer(compile_cfg)
+                if optimizer.is_available():
+                    model = optimizer.compile(model)
+                    logger.info(f"DiT torch.compile 已应用: mode={compile_cfg.mode}")
+                else:
+                    logger.warning("torch.compile 不可用 (需要 PyTorch 2.0+)，跳过")
+            except Exception as e:
+                logger.warning(f"DiT torch.compile 应用失败，回退未编译: {e}")
+
         # DiT optimization reference (FlashVSR inspired)
         # LCSA sparse attention would be applied here when model supports it
         # Currently disabled as it requires model architecture changes
@@ -844,6 +883,7 @@ class SeedVR2Engine(
         device: str,
         *,
         vae_tiled_config: dict | None = None,
+        torch_compile_args: dict | None = None,
     ):
         """构建并加载 VAE 模型 - 严格对齐 ComfyUI HD 工作流参数
 
@@ -860,7 +900,7 @@ class SeedVR2Engine(
         5. 不做 model.to(dtype=...) 转换 (权重已在 state_dict 中转换)
 
         ComfyUI HD 工作流参数:
-        - encode_tiled=true, decode_tiled=true, decode_tile_size=768
+        - encode_tiled=true, decode_tiled=true, decode_tile_size=1024
         - offload_device=cpu
         """
         from safetensors.torch import load_file
@@ -885,7 +925,7 @@ class SeedVR2Engine(
                 "encode_tile_size": vae_cfg.get("encode_tile_size", 1024),
                 "encode_tile_overlap": vae_cfg.get("encode_tile_overlap", 128),
                 "decode_tiled": vae_cfg.get("decode_tiled", True),
-                "decode_tile_size": vae_cfg.get("decode_tile_size", 768),
+                "decode_tile_size": vae_cfg.get("decode_tile_size", 1024),
                 "decode_tile_overlap": vae_cfg.get("decode_tile_overlap", 128),
                 "tile_debug": vae_cfg.get("tile_debug", False),
                 "offload_device": vae_cfg.get("offload_device", "cpu"),
@@ -989,6 +1029,30 @@ class SeedVR2Engine(
 
         # 注意: 不做 model.to(dtype=vae_dtype)，权重已在 state_dict 中转换
         # ComfyUI 也不做这一步，model.to(dtype=...) 会创建 dtype 转换副本导致内存翻倍
+
+        # torch.compile (官方 VAE 节点: 15-25% 提速; 默认关闭)
+        if torch_compile_args and torch_compile_args.get("enabled", False):
+            try:
+                from bin.integrated_app.optimization.gpu.vram_toolchain import (
+                    CompileConfig,
+                    CompileOptimizer,
+                )
+
+                compile_cfg = CompileConfig(
+                    enabled=True,
+                    mode=torch_compile_args.get("mode", "default"),
+                    backend=torch_compile_args.get("backend", "inductor"),
+                    fullgraph=torch_compile_args.get("fullgraph", False),
+                    dynamic=torch_compile_args.get("dynamic", False),
+                )
+                optimizer = CompileOptimizer(compile_cfg)
+                if optimizer.is_available():
+                    model = optimizer.compile(model)
+                    logger.info(f"VAE torch.compile 已应用: mode={compile_cfg.mode}")
+                else:
+                    logger.warning("torch.compile 不可用 (需要 PyTorch 2.0+)，跳过")
+            except Exception as e:
+                logger.warning(f"VAE torch.compile 应用失败，回退未编译: {e}")
 
         _check_memory()
         _log_memory("VAE权重加载后")

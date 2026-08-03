@@ -17,10 +17,11 @@ i18n:
   default_locale: zh
 inference:
   attention_mode: sdpa
-  batch_size: 1
+  batch_size: 5
   blocks_to_swap: 32
-  color_correction: wavelet
-  distilled_mode: false
+  cache_model: false
+  color_correction: lab
+  distilled_mode: true
   enable_debug: false
   fp8_enabled: false
   inference_mode: distilled
@@ -30,12 +31,18 @@ inference:
   offload_device: cpu
   prepend_frames: 0
   resolution: 2048
-  restoration_guidance_scale: 1.0
+  restoration_guidance_scale: 0.0
   seed: -1
   swap_io_components: true
   temporal_overlap: 0
-  temporal_segment_overlap: 8
-  temporal_segment_size: 0
+  temporal_segment_overlap: 0
+  temporal_segment_size: 5
+  torch_compile:
+    backend: inductor
+    dynamic: false
+    enabled: false
+    fullgraph: false
+    mode: default
   uniform_batch_size: false
   vae_overlap: 512
   vae_tile_size: 1024
@@ -46,7 +53,7 @@ logging:
   max_size_mb: 50
 model:
   auto_load: true
-  default_precision: auto
+  default_precision: fp16
   default_size: 3b
   device: auto
   models:
@@ -107,8 +114,9 @@ runtime:
     max_duration_seconds: 300
     poll_interval_seconds: 0.5
   task:
+    auto_recover: false
     id_length: 16
-    max_timeout_seconds: 3600
+    max_timeout_seconds: 86400
     queue_maxsize: 100
   upload:
     chunk_size_bytes: 8192

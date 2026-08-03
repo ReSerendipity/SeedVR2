@@ -151,10 +151,10 @@ class _VAEPipelineMixin:
         shift = vae_cfg.get("shifting_factor", 0.0)
         dtype = getattr(torch, vae_cfg.get("dtype", "bfloat16"))
 
-        # tiled VAE 配置 (默认值对齐 ComfyUI HD 工作流: decode_tiled=True, decode_tile_size=768)
+        # tiled VAE 配置 (默认值对齐 ComfyUI 工作流: decode_tiled=True, decode_tile_size=1024)
         tiled_cfg = getattr(self, "_vae_tiled_config", {})
         decode_tiled = tiled_cfg.get("decode_tiled", True)
-        tile_size = tiled_cfg.get("decode_tile_size", 768)
+        tile_size = tiled_cfg.get("decode_tile_size", 1024)
         tile_overlap = tiled_cfg.get("decode_tile_overlap", 128)
         auto_tile_size = tiled_cfg.get("auto_tile_size", True)
         gaussian_blend = tiled_cfg.get("gaussian_blend", True)

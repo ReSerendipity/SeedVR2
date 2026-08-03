@@ -857,16 +857,16 @@ const SeedVR2 = (() => {
 
         // 更新模型加载状态显示
         if (data.status === 'loaded') {
-            statusModel.textContent = t('settings.model_management') + ': ' + (t('status.model_loaded') || '已加载');
+            statusModel.textContent = t('status.model_loaded') || '已加载';
             statusModel.style.color = 'var(--sv-primary)';
         } else if (data.status === 'loading') {
-            statusModel.textContent = t('settings.model_management') + ': ' + (t('status.model_loading') || '加载中...');
+            statusModel.textContent = t('status.model_loading') || '加载中...';
             statusModel.style.color = 'var(--sv-accent-terracotta)';
         } else if (data.status === 'unloading' || data.status === 'unloaded') {
-            statusModel.textContent = t('settings.model_management') + ': ' + (t('status.model_unloaded') || '未加载');
+            statusModel.textContent = t('status.model_unloaded') || '未加载';
             statusModel.style.color = 'var(--sv-text-muted)';
         } else if (data.status === 'error') {
-            statusModel.textContent = t('settings.model_management') + ': ' + (t('status.model_error') || '错误');
+            statusModel.textContent = t('status.model_error') || '错误';
             statusModel.style.color = 'var(--sv-error)';
         }
     }

@@ -1,4 +1,4 @@
-﻿"""GPU 显存检测与 OOM 预防工具模块 - SeedVR2 视频修复项目
+"""GPU 显存检测与 OOM 预防工具模块 - SeedVR2 视频修复项目
 
 本模块提供 GPU 显存查询、模型显存估算、缓存清理和 OOM 保护装饰器等工具函数，
 是显存管理的底层工具集，为上层模块（模型管理器、内存管理器等）提供基础能力。
@@ -25,6 +25,16 @@ import logging
 from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
+
+# 模块级一次性导入 torch，避免每次函数调用都重新导入
+# torch 不可用时优雅降级
+try:
+    import torch
+
+    _HAS_TORCH_CUDA = torch.cuda.is_available()
+except ImportError:
+    torch = None  # type: ignore[assignment]
+    _HAS_TORCH_CUDA = False
 
 # ===========================================================================
 # 显存估算常量 — 消除魔法数字，集中管理
@@ -57,9 +67,7 @@ def get_gpu_memory_info() -> dict:
         查询失败时返回全 0 的默认字典。
     """
     try:
-        import torch
-
-        if torch.cuda.is_available():
+        if _HAS_TORCH_CUDA:
             # mem_get_info 返回 (free, total)，反映驱动层面实际可用显存
             free_memory, total_memory = torch.cuda.mem_get_info(0)
             allocated = torch.cuda.memory_allocated(0)
@@ -142,9 +150,7 @@ def clear_gpu_cache():
     但会增加 torch.cuda.mem_get_info() 报告的可用显存。
     """
     try:
-        import torch
-
-        if torch.cuda.is_available():
+        if _HAS_TORCH_CUDA:
             torch.cuda.empty_cache()
             logger.info("GPU 缓存已清理")
     except Exception as e:

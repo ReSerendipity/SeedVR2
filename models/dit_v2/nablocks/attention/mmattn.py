@@ -99,6 +99,8 @@ class NaMMAttention(nn.Module):
         rope_type: str | None,
         rope_dim: int,
         shared_weights: bool,
+        attention_mode: str = "sdpa",
+        compute_dtype: torch.dtype | None = None,
         **kwargs,
     ):
         super().__init__()
@@ -124,7 +126,7 @@ class NaMMAttention(nn.Module):
         )
 
         self.rope = get_na_rope(rope_type=rope_type, dim=rope_dim)
-        self.attn = FlashAttentionVarlen()
+        self.attn = FlashAttentionVarlen(attention_mode=attention_mode, compute_dtype=compute_dtype)
 
     def forward(
         self,
@@ -185,9 +187,9 @@ class NaMMAttention(nn.Module):
         concat, unconcat = cache("mm_pnp", lambda: na.concat_idx(vid_len, txt_len))
 
         attn = self.attn(
-            q=concat(vid_q, txt_q).bfloat16(),
-            k=concat(vid_k, txt_k).bfloat16(),
-            v=concat(vid_v, txt_v).bfloat16(),
+            q=concat(vid_q, txt_q),
+            k=concat(vid_k, txt_k),
+            v=concat(vid_v, txt_v),
             cu_seqlens_q=cache("mm_seqlens", lambda: safe_pad_operation(all_len.cumsum(0), (1, 0)).int()),
             cu_seqlens_k=cache("mm_seqlens", lambda: safe_pad_operation(all_len.cumsum(0), (1, 0)).int()),
             max_seqlen_q=cache("mm_maxlen", lambda: all_len.max().item()),
@@ -283,8 +285,7 @@ class NaSwinAttention(NaMMAttention):
 
         def make_window(x: torch.Tensor):
             t, h, w, _ = x.shape
-            window_slices = self.window_op((t, h, w), self.window)
-            return [x[st, sh, sw] for (st, sh, sw) in window_slices]
+            return self.window_op((t, h, w), self.window)
 
         window_partition, window_reverse, window_shape, window_count = cache_win(
             "win_transform",
@@ -332,9 +333,9 @@ class NaSwinAttention(NaMMAttention):
                 vid_q, vid_k = self.rope(vid_q, vid_k, window_shape, cache_win)
 
         out = self.attn(
-            q=concat_win(vid_q, txt_q).bfloat16(),
-            k=concat_win(vid_k, txt_k).bfloat16(),
-            v=concat_win(vid_v, txt_v).bfloat16(),
+            q=concat_win(vid_q, txt_q),
+            k=concat_win(vid_k, txt_k),
+            v=concat_win(vid_v, txt_v),
             cu_seqlens_q=cache_win("vid_seqlens_q", lambda: safe_pad_operation(all_len_win.cumsum(0), (1, 0)).int()),
             cu_seqlens_k=cache_win("vid_seqlens_k", lambda: safe_pad_operation(all_len_win.cumsum(0), (1, 0)).int()),
             max_seqlen_q=cache_win("vid_max_seqlen_q", lambda: all_len_win.max().item()),

@@ -158,34 +158,6 @@
         "restore.batch_success": "{{ t('restore.batch_success') }}",
         "restore.batch_failed": "{{ t('restore.batch_failed') }}",
         "restore.batch_current_processing": "{{ t('restore.batch_current_processing') }}",
-        "settings.subtitle": "{{ t('settings.subtitle') }}",
-        "settings.save_success": "{{ t('settings.save_success') }}",
-        "settings.title": "{{ t('settings.title') }}",
-        "settings.path_config": "{{ t('settings.path_config') }}",
-        "settings.model_settings": "{{ t('settings.model_settings') }}",
-        "settings.language_settings": "{{ t('settings.language_settings') }}",
-        "settings.pretrained_dir": "{{ t('settings.pretrained_dir') }}",
-        "settings.output_dir": "{{ t('settings.output_dir') }}",
-        "settings.pretrained_dir_help": "{{ t('settings.pretrained_dir_help') }}",
-        "settings.output_dir_help": "{{ t('settings.output_dir_help') }}",
-        "settings.default_model_size": "{{ t('settings.default_model_size') }}",
-        "settings.default_model_size_help": "{{ t('settings.default_model_size_help') }}",
-        "settings.precision": "{{ t('settings.precision') }}",
-        "settings.precision_help": "{{ t('settings.precision_help') }}",
-        "settings.fp16": "{{ t('settings.fp16') }}",
-        "settings.fp8": "{{ t('settings.fp8') }}",
-        "settings.gpu_backend": "{{ t('settings.gpu_backend') }}",
-        "settings.gpu_backend_help": "{{ t('settings.gpu_backend_help') }}",
-        "settings.backend_auto": "{{ t('settings.backend_auto') }}",
-        "settings.backend_cuda": "{{ t('settings.backend_cuda') }}",
-        "settings.memory_strategy": "{{ t('settings.memory_strategy') }}",
-        "settings.strategy_performance": "{{ t('settings.strategy_performance') }}",
-        "settings.strategy_balanced": "{{ t('settings.strategy_balanced') }}",
-        "settings.strategy_conservative": "{{ t('settings.strategy_conservative') }}",
-        "settings.interface_language": "{{ t('settings.interface_language') }}",
-        "settings.language_help": "{{ t('settings.language_help') }}",
-        "settings.model_management": "{{ t('settings.model_management') }}",
-        "settings.gpu_settings": "{{ t('settings.gpu_settings') }}",
         "home.hero_title": "{{ t('home.hero_title') }}",
         "home.hero_highlight": "{{ t('home.hero_highlight') }}",
         "home.hero_subtitle": "{{ t('home.hero_subtitle') }}",
@@ -236,6 +208,8 @@
         "home.quick.history": "{{ t('home.quick.history') }}",
         "home.quick.history_desc": "{{ t('home.quick.history_desc') }}",
         "restore.please_select_file": "{{ t('restore.please_select_file') }}",
+        "restore.batch_size_required": "{{ t('restore.batch_size_required') }}",
+        "restore.batch_size_4n1": "{{ t('restore.batch_size_4n1') }}",
         "restore.please_select_folder": "{{ t('restore.please_select_folder') }}",
         "restore.please_scan_folder": "{{ t('restore.please_scan_folder') }}",
         "restore.gpu_required": "{{ t('restore.gpu_required') }}",
@@ -272,7 +246,7 @@
     <link rel="stylesheet" href="/static/fonts/fonts.css">
 
     <!-- 自定义样式 -->
-    <link rel="stylesheet" href="/static/css/style.css?v=3.6.3">
+    <link rel="stylesheet" href="/static/css/style.css?v=3.7.0">
 
     {% block head %}{% endblock %}
 </head>
@@ -321,10 +295,10 @@
         </ul>
 
         <div class="sv-navbar-actions">
-            <!-- 设置入口（齿轮图标） -->
+            <!-- 关于入口（信息图标） -->
             <a href="/settings" class="sv-nav-icon-btn {% if active_page == 'settings' %}active{% endif %}"
                title="{{ t('nav.settings') }}" aria-label="{{ t('nav.settings') }}">
-                <i class="bi bi-gear"></i>
+                <i class="bi bi-info-circle"></i>
             </a>
 
             <!-- 主题切换按钮 -->

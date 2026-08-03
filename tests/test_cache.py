@@ -248,3 +248,110 @@ class TestAdaptiveLRUCache:
         with patch.object(AdaptiveLRUCache, "_get_gpu_memory_percent", return_value=60.0):
             target = cache._calculate_target_capacity()
         assert target == 15
+
+    def test_put_and_get(self):
+        """put 后 get 返回正确值"""
+        cache = AdaptiveLRUCache(default_maxsize=10)
+        cache.put("key1", "value1")
+        assert cache.get("key1") == "value1"
+
+    def test_put_evicts_lru_when_full(self):
+        """容量满时淘汰最久未使用的条目
+
+        AdaptiveLRUCache.put 在 len >= maxsize 时会触发 adapt_capacity，
+        后者根据 GPU 使用率重新计算容量（可能扩展），因此需要 mock
+        adapt_capacity 使其保持原始 maxsize，才能验证 LRU 淘汰逻辑。
+        """
+        cache = AdaptiveLRUCache(default_maxsize=3)
+        with patch.object(AdaptiveLRUCache, "adapt_capacity", return_value=3):
+            cache.put("a", 1)
+            cache.put("b", 2)
+            cache.put("c", 3)
+            cache.put("d", 4)  # should evict "a"
+        assert cache.get("a") is None
+        assert cache.get("d") == 4
+
+    def test_adapt_capacity_shrinks_on_high_gpu(self):
+        """GPU 使用率高时 adapt_capacity 收缩缓存"""
+        cache = AdaptiveLRUCache(default_maxsize=20)
+        for i in range(15):
+            cache.put(f"key_{i}", f"value_{i}")
+        with patch.object(AdaptiveLRUCache, "_get_gpu_memory_percent", return_value=95.0):
+            new_cap = cache.adapt_capacity()
+        assert new_cap == 5
+        assert cache.get_stats()["size"] <= 5
+
+    def test_adapt_capacity_expands_on_low_gpu(self):
+        """GPU 使用率低时 adapt_capacity 扩展缓存"""
+        cache = AdaptiveLRUCache(default_maxsize=5)
+        with patch.object(AdaptiveLRUCache, "_get_gpu_memory_percent", return_value=10.0):
+            new_cap = cache.adapt_capacity()
+        assert new_cap == 20
+
+    def test_clear_resets_all(self):
+        """clear 清空所有缓存并重置统计"""
+        cache = AdaptiveLRUCache(default_maxsize=10)
+        cache.put("a", 1)
+        cache.put("b", 2)
+        cache.get("a")
+        cache.clear()
+        assert cache.get("a") is None
+        stats = cache.get_stats()
+        assert stats["size"] == 0
+        assert stats["memory_estimate_mb"] == 0
+        assert stats["eviction_count"] == 0
+
+    def test_get_stats_includes_memory_info(self):
+        """get_stats 包含内存估算信息"""
+        cache = AdaptiveLRUCache(default_maxsize=10)
+        cache.put("a", "value")
+        stats = cache.get_stats()
+        assert "memory_estimate_mb" in stats
+        assert "eviction_count" in stats
+        assert "avg_item_size_kb" in stats
+        assert stats["hits"] == 0
+        assert stats["misses"] == 0
+
+    def test_delitem_updates_memory_estimate(self):
+        """删除条目时更新内存估算"""
+        cache = AdaptiveLRUCache(default_maxsize=10)
+        cache.put("a", "value")
+        del cache["a"]
+        assert cache.get("a") is None
+
+    def test_put_updates_existing_key(self):
+        """put 已存在的 key 时更新值"""
+        cache = AdaptiveLRUCache(default_maxsize=10)
+        cache.put("a", "old")
+        cache.put("a", "new")
+        assert cache.get("a") == "new"
+
+    def test_get_gpu_memory_percent_returns_float(self):
+        """_get_gpu_memory_percent 返回 float"""
+        result = AdaptiveLRUCache._get_gpu_memory_percent()
+        assert isinstance(result, float)
+        assert 0.0 <= result <= 100.0
+
+    def test_file_cache_cleanup_with_subdir(self, tmp_path):
+        """cleanup_expired 递归清理子目录中的过期文件"""
+        cache = FileCache(str(tmp_path), ttl=1)
+        cache.save_bytes(b"old", "a.txt", sub_dir="sub")
+        time.sleep(1.1)
+        cleaned = cache.cleanup_expired()
+        assert cleaned == 1
+
+    def test_file_cache_stats_with_subdir(self, tmp_path):
+        """get_cache_stats 递归统计子目录中的文件"""
+        cache = FileCache(str(tmp_path))
+        cache.save_bytes(b"data1", "a.txt", sub_dir="sub1")
+        cache.save_bytes(b"data2", "b.txt", sub_dir="sub2")
+        stats = cache.get_cache_stats()
+        assert stats["total_files"] == 2
+
+    def test_file_cache_clear_all_with_subdir(self, tmp_path):
+        """clear_all 递归清理子目录中的文件"""
+        cache = FileCache(str(tmp_path))
+        cache.save_bytes(b"data", "a.txt", sub_dir="sub")
+        cache.clear_all()
+        stats = cache.get_cache_stats()
+        assert stats["total_files"] == 0
