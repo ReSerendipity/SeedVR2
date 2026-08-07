@@ -3,8 +3,6 @@ cache:
   ttl: 86400
 gpu:
   backend: auto
-  enable_fp16: true
-  memory_strategy: performance
 history:
   db_path: data/history.db
   max_records: 10000
@@ -29,7 +27,7 @@ inference:
   latent_noise_scale: 0.0
   max_resolution: 0
   memory_min_available_gb: 2.0
-  memory_threshold: 0.9
+  memory_threshold: 0.95
   offload_device: cpu
   prepend_frames: 0
   resolution: 2048
@@ -69,6 +67,11 @@ model:
       neg_emb: neg_emb.pt
       num_blocks: 32
       pos_emb: pos_emb.pt
+      sha256_fp16: ''
+      sha256_fp8: ''
+      sha256_neg_emb: ''
+      sha256_pos_emb: ''
+      sha256_vae: ''
       vae_checkpoint: ema_vae_fp16.safetensors
     7b:
       checkpoint_fp16: seedvr2_ema_7b_fp16.safetensors
@@ -80,6 +83,11 @@ model:
       neg_emb: neg_emb.pt
       num_blocks: 36
       pos_emb: pos_emb.pt
+      sha256_fp16: ''
+      sha256_fp8: ''
+      sha256_neg_emb: ''
+      sha256_pos_emb: ''
+      sha256_vae: ''
       vae_checkpoint: ema_vae_fp16.safetensors
     7b_sharp:
       checkpoint_fp16: seedvr2_ema_7b_sharp_fp16.safetensors
@@ -91,6 +99,11 @@ model:
       neg_emb: neg_emb.pt
       num_blocks: 36
       pos_emb: pos_emb.pt
+      sha256_fp16: ''
+      sha256_fp8: ''
+      sha256_neg_emb: ''
+      sha256_pos_emb: ''
+      sha256_vae: ''
       vae_checkpoint: ema_vae_fp16.safetensors
   pretrained_dir: pretrained_models
 restore:
@@ -101,6 +114,15 @@ restore:
   seed: 42
   sp_size: 1
   temporal_consistency: 0.8
+security:
+  auth:
+    enable: false
+    password: ''
+    realm: SeedVR2
+    username: admin
+  watermark:
+    alpha: 0.5
+    enable: true
 runtime:
   batch:
     max_retries: 2
@@ -137,17 +159,22 @@ user_preferences:
   - condition
   blocks_to_swap: 0
   blockswap_enabled: false
+  default_batch_size: 5
   default_cfg_scale: 3.0
+  default_color_correction: lab
   default_denoising_strength: 0.6
+  default_max_resolution: 0
+  default_model: 3b_fp16
   default_resolution: 2048
   default_sampler: dpmpp_2m_sde
-  default_seed: -1
+  default_seed: '1373201197'
   default_steps: 20
+  default_vae: ema_vae_fp16
   output_format: png
   output_path_template: '{input_dir}/restored/{input_name}{ext}'
   output_quality: 95
   recent_model_path: ''
   slider_comparison_enabled: true
   step_execution_enabled: false
-  vae_tile_size: 512
+  vae_tile_size: 1022
   vae_tiling_enabled: false

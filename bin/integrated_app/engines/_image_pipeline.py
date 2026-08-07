@@ -32,6 +32,60 @@ from bin.integrated_app.exceptions import InferenceCancelledError
 logger = logging.getLogger(__name__)
 
 
+def _normalize_model_tag(model_size: str | None) -> str:
+    """将模型尺寸标识规范化为文件名友好的标签。
+
+    Args:
+        model_size: 引擎内部模型尺寸标识，如 "3b"、"7b_sharp"。
+
+    Returns:
+        规范化标签，如 "3B"、"7B-Sharp"；为空时返回 "Unknown"。
+    """
+    if not model_size:
+        return "Unknown"
+    parts = model_size.split("_")
+    tag = parts[0].upper()
+    if len(parts) >= 2 and parts[1] == "sharp":
+        tag += "-Sharp"
+    return tag
+
+
+def _build_output_name(model_size: str | None, ext: str) -> str:
+    """构造「日期_时分秒_模型」格式的输出文件名。
+
+    Args:
+        model_size: 引擎模型尺寸标识。
+        ext: 文件扩展名（含点号），如 ".png"、".mp4"。
+
+    Returns:
+        如 "20260803_153030_3B.png"。
+    """
+    ts = time.strftime("%Y%m%d_%H%M%S")
+    return f"{ts}_{_normalize_model_tag(model_size)}{ext}"
+
+
+def _resolve_unique_path(output_dir: str, filename: str) -> str:
+    """在 output_dir 下生成不冲突的输出路径，重名时尾部追加 _1/_2 序号。
+
+    Args:
+        output_dir: 输出目录。
+        filename: 期望的文件名。
+
+    Returns:
+        不冲突的完整输出路径。
+    """
+    candidate = os.path.join(output_dir, filename)
+    if not os.path.exists(candidate):
+        return candidate
+    stem, ext = os.path.splitext(filename)
+    idx = 1
+    while True:
+        candidate = os.path.join(output_dir, f"{stem}_{idx}{ext}")
+        if not os.path.exists(candidate):
+            return candidate
+        idx += 1
+
+
 class _ImagePipelineMixin:
     """Mixin: pipeline methods extracted from SeedVR2Engine."""
 
@@ -256,9 +310,21 @@ class _ImagePipelineMixin:
         del input_video, ref_np, original_alpha
         gc.collect()
 
-        # 保存
-        output_name = f"SeedVR2_{Path(image_path).stem}_000001.png"
-        output_path = os.path.join(output_dir, output_name)
+        # 嵌入不可感知数字水印 (归属溯源, DCT 频域)
+        watermark_cfg = self.config.get("security", {}).get("watermark", {})
+        enable_watermark = watermark_cfg.get("enable", True)
+        if enable_watermark:
+            try:
+                from bin.integrated_app.security.watermark import embed_watermark
+
+                result_np = embed_watermark(result_np)
+                logger.debug("数字水印已嵌入输出图像")
+            except Exception as e:
+                logger.debug(f"水印嵌入失败 (不影响输出): {e}")
+
+        # 保存：按「日期_时分秒_模型」命名，便于区分与排序
+        output_name = _build_output_name(self.model_size, ".png")
+        output_path = _resolve_unique_path(output_dir, output_name)
         PILImage.fromarray(result_np).save(output_path)
 
         # 复制 EXIF 元数据 (upscayl inspired)
@@ -396,6 +462,7 @@ class _ImagePipelineMixin:
             # ==================== 阶段1: 加载VAE → 编码 → 销毁VAE ====================
             # REFACTOR [E4-1]: 阶段切换点检查取消信号
             self._check_cancelled("image:stage1-vae-encode")
+            self._report_progress(current_frame=0, total_frames=4, progress=10.0, message="加载 VAE 模型...")
             logger.info("=" * 60)
             logger.info("阶段1: VAE 编码")
             logger.info("=" * 60)
@@ -419,9 +486,12 @@ class _ImagePipelineMixin:
             else:
                 logger.info("cache_model=True: 复用已缓存的 VAE 模型")
 
+            self._report_progress(current_frame=0, total_frames=4, progress=15.0, message="VAE 编码中...")
             cond_latents = self._vae_encode([cond_latent])
             del cond_latent
             gc.collect()
+
+            self._report_progress(current_frame=0, total_frames=4, progress=25.0, message="VAE 编码完成，准备 DiT...")
 
             # 销毁 VAE 释放内存，为 DiT 腾出空间
             self._destroy_vae()
@@ -431,6 +501,7 @@ class _ImagePipelineMixin:
             # ==================== 阶段2: 加载DiT → 采样 → 销毁DiT ====================
             # REFACTOR [E4-1]: 阶段切换点检查取消信号
             self._check_cancelled("image:stage2-dit-sample")
+            self._report_progress(current_frame=1, total_frames=4, progress=28.0, message="加载 DiT 模型...")
             logger.info("=" * 60)
             logger.info("阶段2: DiT 采样")
             logger.info("=" * 60)
@@ -459,6 +530,7 @@ class _ImagePipelineMixin:
             else:
                 logger.info("cache_model=True: 复用已缓存的 DiT 模型")
 
+            self._report_progress(current_frame=1, total_frames=4, progress=35.0, message="DiT 采样中...")
             text_embeds = self._get_text_embeds()
 
             logger.info(f"开始 DiT 采样: cfg={cfg_scale}, steps={sample_steps}, blockswap={self._blockswap_active}")
@@ -489,6 +561,7 @@ class _ImagePipelineMixin:
             # ==================== 阶段3: 加载VAE → 解码 → 销毁VAE ====================
             # REFACTOR [E4-1]: 阶段切换点检查取消信号
             self._check_cancelled("image:stage3-vae-decode")
+            self._report_progress(current_frame=2, total_frames=4, progress=65.0, message="VAE 解码中...")
             logger.info("=" * 60)
             logger.info("阶段3: VAE 解码")
             logger.info("=" * 60)
@@ -524,6 +597,7 @@ class _ImagePipelineMixin:
             # ==================== 阶段4: 后处理 ====================
             # REFACTOR [E4-1]: 阶段切换点检查取消信号
             self._check_cancelled("image:stage4-postprocess")
+            self._report_progress(current_frame=3, total_frames=4, progress=85.0, message="后处理中...")
             logger.info("=" * 60)
             logger.info("阶段4: 后处理")
             logger.info("=" * 60)

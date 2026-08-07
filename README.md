@@ -1,4 +1,4 @@
-﻿# SeedVR2
+# SeedVR2
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue?style=for-the-badge) ![License](https://img.shields.io/badge/license-Apache%202.0-green?style=for-the-badge) ![Python](https://img.shields.io/badge/python-3.12+-yellow?style=for-the-badge&logo=python&logoColor=white) ![GPU](https://img.shields.io/badge/GPU-NVIDIA%20CUDA-76B900?style=for-the-badge&logo=nvidia&logoColor=white) ![Models](https://img.shields.io/badge/model-3B%20%7C%207B%20%7C%207B--Sharp-ff69b4?style=for-the-badge)
 
@@ -135,6 +135,63 @@ SeedVR2/
 
 ---
 
+## 安全与归属声明
+
+### ⚠️ 网络绑定警告
+
+SeedVR2 的 Web UI **默认仅绑定 `127.0.0.1`**（`config.yaml` 中 `server.host`），不对外暴露。
+**严禁将 `server.host` 修改为 `0.0.0.0` 或公网 IP**，本应用不含用户认证与权限隔离机制，
+直接暴露到公网将导致：
+- 任意第三方调用推理 API 占用 GPU 资源
+- 通过上传接口投递恶意文件
+- 下载 outputs/ 与 uploads/ 目录内容
+
+如需局域网共享，请在反向代理（Nginx/Caddy）后增加 Basic Auth，并启用 HTTPS。
+
+### 🔒 模型文件与完整性
+
+- 所有模型权重请从官方可信来源下载（ByteDance-Seed HuggingFace 组织）
+- 切勿加载来源不明的 `.safetensors`、`.pt`、`.bin` 文件
+- pickle 格式的 `.pt`  checkpoint 存在任意代码执行风险（CWE-502），
+  本项目框架层已通过 `weights_only=True` 优先加载，并在必要回退时打印严重安全告警
+
+### ©️ 归属权与版权
+
+- **版权所有**: Copyright 2024-2026 ReSerendipity
+- **开源协议**: [Apache License 2.0](LICENSE)
+- **版权声明位置**:
+  - [LICENSE](LICENSE) 附录版权行
+  - UI 设置页版权区块（通过 `bin/integrated_app/locales/*.yaml` 的 `settings.copyright_notice` 渲染）
+  - 核心 Python 源文件 SPDX 版权头
+
+**根据 Apache 2.0 协议第 4 条，任何再分发或衍生作品必须：**
+1. 保留本项目的版权声明与 LICENSE 文件副本
+2. 标注修改过的文件（声明已变更）
+3. 保留所有 NOTICE 文件中的归属信息（如有）
+4. 不得移除 UI 设置页、启动日志中展示的 "SeedVR2" 品牌名与 "ReSerendipity" 版权归属
+
+### ™️ 商标保护
+
+"SeedVR2" 文字标识及 Logo 是 ReSerendipity 的品牌商标，计划/已申请商标注册。
+未经授权，不得在以下场景中使用 "SeedVR2" 品牌标识：
+- 第三方产品或服务的命名、宣传
+- 应用商店、PyPI、Docker Hub 等平台的仿冒包名
+- 融资材料、项目申报、商业宣传
+
+如发现商标侵权行为，可通过输出图像中嵌入的数字水印（DCT 频域）作为技术举证手段。
+
+### 🔐 完整性验证
+
+本项目提供多层完整性保护：
+- **模型权重 SHA256 校验**: 在 `config.yaml` 中配置 `sha256_*` 字段，加载前自动验证
+- **核心模块启动自检**: `integrity_manifest.json` 记录核心安全模块哈希，启动时自动比对
+- **输出数字水印**: 推理输出图像/视频自动嵌入不可感知 DCT 频域水印，可溯源到 SeedVR2
+- **Release GPG 签名**: GitHub Release 自动生成 SHA256SUMS + GPG 签名，下载后可验证
+- **依赖版本锁定**: `requirements-lock.txt` 固定所有依赖版本，支持 `--require-hashes` 哈希验证
+
+---
+
 ## 许可证
 
 本项目采用 [Apache License 2.0](LICENSE) 开源协议。
+版权所有 Copyright 2024-2026 ReSerendipity。

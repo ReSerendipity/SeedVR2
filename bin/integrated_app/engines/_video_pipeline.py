@@ -19,6 +19,7 @@ from torchvision.transforms import Compose, Lambda, Normalize
 
 from bin.integrated_app.color_fix import apply_color_correction
 from bin.integrated_app.engine_interface import RestoreResult
+from bin.integrated_app.engines._image_pipeline import _build_output_name, _resolve_unique_path
 from bin.integrated_app.engines._memory_utils import (
     MAX_SEED,
     TEMPORAL_ALIGN_MULTIPLE,
@@ -257,10 +258,9 @@ class _VideoPipelineMixin:
                 except Exception as e:
                     logger.debug(f"FeaturePropagation init skipped: {e}")
 
-            # 输出文件名
-            output_filename = os.path.basename(video_path)
-            output_name = os.path.splitext(output_filename)[0] + "_restored.mp4"
-            output_path = os.path.join(output_dir, output_name)
+            # 输出文件名：按「日期_时分秒_模型」命名，便于区分与排序
+            output_name = _build_output_name(self.model_size, ".mp4")
+            output_path = _resolve_unique_path(output_dir, output_name)
 
             # ==================== 分段流式主循环 ====================
             import cv2
@@ -482,6 +482,9 @@ class _VideoPipelineMixin:
                     del sample_np, input_np
 
                     # ---- 写盘 (含段间重叠混合) ----
+                    # 水印配置
+                    watermark_cfg = self.config.get("security", {}).get("watermark", {})
+                    enable_watermark = watermark_cfg.get("enable", True)
                     overlap_n = min(segment_overlap, len(restored_frames))
                     for i, frame in enumerate(restored_frames):
                         if prev_tail_out is not None and i < overlap_n:
@@ -491,6 +494,14 @@ class _VideoPipelineMixin:
                             frame = (
                                 frame.astype(np.float32) * weight + prev.astype(np.float32) * (1.0 - weight)
                             ).astype(np.uint8)
+                        # 嵌入不可感知数字水印 (视频帧)
+                        if enable_watermark:
+                            try:
+                                from bin.integrated_app.security.watermark import embed_watermark
+
+                                frame = embed_watermark(frame)
+                            except Exception:
+                                pass
                         cv2.imwrite(
                             os.path.join(frames_dir, f"frame_{seg_start + i:06d}.png"),
                             cv2.cvtColor(frame, cv2.COLOR_RGB2BGR),
@@ -656,9 +667,10 @@ class _VideoPipelineMixin:
             可用内存大小 (GB)；无 psutil 时保守返回 16.0
         """
         try:
-            import psutil
+            from bin.integrated_app.engines._memory_utils import _get_system_memory
 
-            return psutil.virtual_memory().available / (1024**3)
+            mem = _get_system_memory()
+            return mem.available / (1024**3)
         except Exception:
             return 16.0
 
