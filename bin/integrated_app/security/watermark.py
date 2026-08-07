@@ -22,7 +22,6 @@
     watermarked_np = embed_watermark(image_np)  # 在保存前调用
 """
 
-import hashlib
 import logging
 import time
 
@@ -44,8 +43,14 @@ _BLOCK_SIZE = 8
 # 水印嵌入的中频系数位置 (在 8x8 DCT 块中)
 # 选择中频区域 (4-6 行/列) 作为嵌入位置，平衡不可感知性和鲁棒性
 _EMBED_POSITIONS = [
-    (4, 5), (5, 4), (5, 6), (6, 5),
-    (4, 6), (6, 4), (5, 5), (6, 6),
+    (4, 5),
+    (5, 4),
+    (5, 6),
+    (6, 5),
+    (4, 6),
+    (6, 4),
+    (5, 5),
+    (6, 6),
 ]
 
 
@@ -98,10 +103,10 @@ def _dct_1d(arr: np.ndarray) -> np.ndarray:
 
     使用矩阵乘法实现，避免依赖 scipy。
     """
-    N = arr.shape[-1]
-    n = np.arange(N)
+    size = arr.shape[-1]
+    n = np.arange(size)
     k = n.reshape(-1, 1)
-    dct_matrix = np.cos(np.pi * (2 * n + 1) * k / (2 * N)) * np.sqrt(2.0 / N)
+    dct_matrix = np.cos(np.pi * (2 * n + 1) * k / (2 * size)) * np.sqrt(2.0 / size)
     dct_matrix[0] *= 1.0 / np.sqrt(2)
     return arr @ dct_matrix.T
 
@@ -111,10 +116,10 @@ def _idct_1d(arr: np.ndarray) -> np.ndarray:
 
     使用矩阵乘法实现。
     """
-    N = arr.shape[-1]
-    n = np.arange(N)
+    size = arr.shape[-1]
+    n = np.arange(size)
     k = n.reshape(-1, 1)
-    idct_matrix = np.cos(np.pi * (2 * k + 1) * n / (2 * N)) * np.sqrt(2.0 / N)
+    idct_matrix = np.cos(np.pi * (2 * k + 1) * n / (2 * size)) * np.sqrt(2.0 / size)
     idct_matrix[:, 0] *= 1.0 / np.sqrt(2)
     return arr @ idct_matrix.T
 
@@ -185,7 +190,6 @@ def embed_watermark(
     # 转为 float 处理
     result = image_np.astype(np.float64).copy()
     h, w = result.shape[:2]
-    channels = result.shape[2] if result.ndim == 3 else 1
     if result.ndim == 2:
         result = result[:, :, np.newaxis]
 
@@ -204,7 +208,7 @@ def embed_watermark(
             # 提取 8x8 块
             y0 = bi * _BLOCK_SIZE
             x0 = bj * _BLOCK_SIZE
-            block = channel_data[y0:y0 + _BLOCK_SIZE, x0:x0 + _BLOCK_SIZE].copy()
+            block = channel_data[y0 : y0 + _BLOCK_SIZE, x0 : x0 + _BLOCK_SIZE].copy()
 
             # DCT 变换
             dct_block = _dct_2d_block(block)
@@ -231,7 +235,7 @@ def embed_watermark(
 
             # IDCT 变换回空间域
             watermarked_block = _idct_2d_block(dct_block)
-            channel_data[y0:y0 + _BLOCK_SIZE, x0:x0 + _BLOCK_SIZE] = watermarked_block
+            channel_data[y0 : y0 + _BLOCK_SIZE, x0 : x0 + _BLOCK_SIZE] = watermarked_block
 
             bit_idx += 1
 
@@ -274,7 +278,7 @@ def extract_watermark(
     channel_data = data[:, :, 0]
     h, w = channel_data.shape
 
-    bits = []
+    bits: list[int] = []
     blocks_h = h // _BLOCK_SIZE
     blocks_w = w // _BLOCK_SIZE
     quant_step = 1.0 / alpha
@@ -286,7 +290,7 @@ def extract_watermark(
 
             y0 = bi * _BLOCK_SIZE
             x0 = bj * _BLOCK_SIZE
-            block = channel_data[y0:y0 + _BLOCK_SIZE, x0:x0 + _BLOCK_SIZE]
+            block = channel_data[y0 : y0 + _BLOCK_SIZE, x0 : x0 + _BLOCK_SIZE]
             dct_block = _dct_2d_block(block)
 
             # 从中频位置提取水印位

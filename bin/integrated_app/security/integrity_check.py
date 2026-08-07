@@ -170,16 +170,12 @@ def verify_model_files(
         if emb_name:
             emb_path = pretrained_path / emb_name
             emb_expected = model_cfg.get(f"sha256_{emb_key}", "")
-            results[emb_key] = verify_checkpoint(
-                emb_path, emb_expected, purpose=emb_key, skip_if_empty=True
-            )
+            results[emb_key] = verify_checkpoint(emb_path, emb_expected, purpose=emb_key, skip_if_empty=True)
 
     # Summary
     failed = [k for k, v in results.items() if not v]
     if failed:
-        logger.error(
-            f"[SECURITY] 模型完整性校验失败 ({len(failed)}/{len(results)} 文件): {', '.join(failed)}"
-        )
+        logger.error(f"[SECURITY] 模型完整性校验失败 ({len(failed)}/{len(results)} 文件): {', '.join(failed)}")
     elif any(results.values()):
         logger.info(f"[INTEGRITY] 所有已配置哈希的模型文件校验通过 ({sum(results.values())}/{len(results)})")
 

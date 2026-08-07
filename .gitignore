@@ -28,6 +28,7 @@ htmlcov/
 prof/
 *.prof
 .trae/
+.zcode/
 .uploads/
 tests/node_modules/
 tests/test-results/
@@ -78,6 +79,12 @@ $RECYCLE.BIN/
 
 # Reference repos (development reference only, not part of the project)
 repo/
+
+# ---------------------------------------------------------------------------
+# Local runtime binaries (downloadable; keep out of repo to avoid bloat)
+# ---------------------------------------------------------------------------
+bin/ffmpeg.exe
+bin/ffprobe.exe
 
 # ---------------------------------------------------------------------------
 # Dogfood / smoke test artifacts (regenerated every run)

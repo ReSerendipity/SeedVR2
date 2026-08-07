@@ -58,6 +58,8 @@ ignore = ["E501", "B008", "SIM108"]
 "data/image/**" = ["N802", "N812"]
 # Test module groups imports into commented sections by concern.
 "tests/test_refactor_e4_b2.py" = ["E402"]
+# Smoke-test script must set sys.path before importing project modules.
+"scripts/smoke_test_security.py" = ["E402"]
 
 [tool.black]
 line-length = 120
@@ -92,7 +94,7 @@ module = [
     "torch.*", "torchvision.*", "einops.*", "cv2.*", "PIL.*", "numpy.*",
     "omegaconf.*", "safetensors.*", "aiosqlite.*", "psutil.*", "xformers.*",
     "torchao.*", "pywt.*", "diffusers.*", "transformers.*", "yaml.*",
-    "aiofiles.*",
+    "aiofiles.*", "cryptography.*",
 ]
 ignore_missing_imports = true
 

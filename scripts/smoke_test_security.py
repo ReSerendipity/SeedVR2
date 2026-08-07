@@ -23,7 +23,8 @@ print("Watermark test: PASS")
 mse = np.mean((img.astype(float) - wm.astype(float)) ** 2)
 if mse > 0:
     import math
-    psnr = 10 * math.log10(255.0 ** 2 / mse)
+
+    psnr = 10 * math.log10(255.0**2 / mse)
     print(f"PSNR: {psnr:.1f} dB (should be > 35 dB for imperceptibility)")
 else:
     print("PSNR: infinite (identical images)")
@@ -32,13 +33,17 @@ else:
 from bin.integrated_app.security.integrity_selfcheck import run_startup_selfcheck
 
 result = run_startup_selfcheck()
-print(f"Self-check: {result['passed']}/{result['total']} passed, {result['failed']} failed, {result['skipped']} skipped")
+print(
+    f"Self-check: {result['passed']}/{result['total']} passed, {result['failed']} failed, {result['skipped']} skipped"
+)
 
 # 测试完整性校验
-from bin.integrated_app.security.integrity_check import compute_sha256, verify_checkpoint
+import os
 
 # 创建临时文件测试
-import tempfile, os
+import tempfile
+
+from bin.integrated_app.security.integrity_check import compute_sha256, verify_checkpoint
 
 with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as f:
     f.write(b"test data for sha256")
@@ -55,10 +60,12 @@ os.unlink(tmpfile)
 from bin.integrated_app.middleware.basic_auth import should_enable_auth
 
 print(f"Auth disabled by default: {not should_enable_auth({})}")
-print(f"Auth enabled when configured: {should_enable_auth({'security': {'auth': {'enable': True, 'username': 'admin', 'password': 'secret'}}})}")
+print(
+    f"Auth enabled when configured: {should_enable_auth({'security': {'auth': {'enable': True, 'username': 'admin', 'password': 'secret'}}})}"
+)
 
 # 测试权重加密模块
-from bin.integrated_app.security.weight_encryption import get_machine_fingerprint, generate_license
+from bin.integrated_app.security.weight_encryption import generate_license, get_machine_fingerprint
 
 fingerprint = get_machine_fingerprint()
 print(f"Machine fingerprint: {fingerprint[:16]}...")

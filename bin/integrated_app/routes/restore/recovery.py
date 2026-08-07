@@ -149,7 +149,7 @@ async def cleanup_stale_tasks(
                         await history_db.update_record(
                             task_record.record_id,
                             status="failed",
-                            error_message=f"任务卡死，已自动清理",
+                            error_message="任务卡死，已自动清理",
                         )
                     cleaned += 1
             except (ValueError, TypeError) as e:

@@ -129,6 +129,7 @@ class SystemMemory:
     在 Windows 上优先使用 GlobalMemoryStatusEx API（包含 Standby List），
     在其他平台使用 psutil。
     """
+
     total: int
     """总物理内存 (bytes)"""
     available: int
@@ -158,17 +159,12 @@ def _get_system_memory() -> SystemMemory:
                 total=int(total_gb * 1024**3),
                 available=int(native_avail_gb * 1024**3),
                 used=int((total_gb - native_avail_gb) * 1024**3),
-                percent=native_usage * 100.0
+                percent=native_usage * 100.0,
             )
 
     # 非 Windows 或 API 失败时 fallback 到 psutil
     mem = psutil.virtual_memory()
-    return SystemMemory(
-        total=mem.total,
-        available=mem.available,
-        used=mem.used,
-        percent=mem.percent
-    )
+    return SystemMemory(total=mem.total, available=mem.available, used=mem.used, percent=mem.percent)
 
 
 def _get_memory_info_native() -> tuple[float, float] | None:

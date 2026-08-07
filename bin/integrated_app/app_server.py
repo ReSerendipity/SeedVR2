@@ -27,7 +27,7 @@ import logging
 import os
 import sys
 import webbrowser
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
@@ -146,8 +146,7 @@ async def lifespan(app: FastAPI):
                 "=" * 60 + "\n"
                 "[SECURITY] ⚠️  启动时核心模块完整性自检失败！\n"
                 f"    失败文件: {', '.join(selfcheck['failed_files'])}\n"
-                "    请检查代码是否被篡改或重新生成清单。\n"
-                + "=" * 60
+                "    请检查代码是否被篡改或重新生成清单。\n" + "=" * 60
             )
     except Exception as e:
         logger.debug(f"核心模块完整性自检跳过: {e}")
@@ -229,13 +228,11 @@ async def lifespan(app: FastAPI):
     file_cache.stop_cleanup_task()
 
     # 停止定期清理卡死任务的后台任务
-    stale_cleanup = getattr(app.state, 'stale_cleanup_task', None)
+    stale_cleanup = getattr(app.state, "stale_cleanup_task", None)
     if stale_cleanup:
         stale_cleanup.cancel()
-        try:
+        with suppress(asyncio.CancelledError):
             await stale_cleanup
-        except asyncio.CancelledError:
-            pass
 
     task_queue = app.state.task_queue
     try:
