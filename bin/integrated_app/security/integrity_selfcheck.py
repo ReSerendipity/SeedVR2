@@ -30,7 +30,6 @@
 import hashlib
 import json
 import logging
-import os
 from pathlib import Path
 from typing import NamedTuple
 
@@ -56,6 +55,7 @@ _MANIFEST_FILENAME = "integrity_manifest.json"
 
 class SelfCheckResult(NamedTuple):
     """自检结果。"""
+
     total: int
     passed: int
     failed: int
@@ -174,8 +174,7 @@ def run_startup_selfcheck() -> dict:
             f"    通过: {passed}/{total}, 失败: {failed}, 跳过: {skipped}\n"
             f"    失败文件: {', '.join(failed_files)}\n"
             "    请检查上述文件是否被篡改，或运行 "
-            "`python scripts/generate_integrity_manifest.py` 更新清单。\n"
-            + "=" * 60
+            "`python scripts/generate_integrity_manifest.py` 更新清单。\n" + "=" * 60
         )
     elif passed > 0:
         logger.info(f"[SELF-CHECK] 核心模块完整性自检通过: {passed}/{total} ✓")

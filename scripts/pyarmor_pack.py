@@ -97,8 +97,12 @@ def obfuscate(targets: list[str], output_dir: str = "dist/obfuscated") -> None:
         logger.info(f"正在混淆: {target}")
         result = subprocess.run(
             [
-                sys.executable, "-m", "pyarmor", "gen",
-                "--output", str(output_path),
+                sys.executable,
+                "-m",
+                "pyarmor",
+                "gen",
+                "--output",
+                str(output_path),
                 str(target_path),
             ],
             capture_output=True,

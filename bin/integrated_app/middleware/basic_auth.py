@@ -21,11 +21,9 @@
 """
 
 import base64
-import hashlib
 import hmac
 import logging
 import os
-import secrets
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -86,7 +84,9 @@ class BasicAuthMiddleware(BaseHTTPMiddleware):
                 return await call_next(request)
 
         # 验证失败，返回 401
-        logger.warning(f"未授权访问: {request.method} {request.url.path} from {request.client.host if request.client else 'unknown'}")
+        logger.warning(
+            f"未授权访问: {request.method} {request.url.path} from {request.client.host if request.client else 'unknown'}"
+        )
         return Response(
             content="401 Unauthorized\n\nSeedVR2 requires authentication.",
             status_code=401,

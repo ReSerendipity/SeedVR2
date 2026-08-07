@@ -39,7 +39,7 @@ _VID_MAGICS: list[tuple[bytes, frozenset[str]]] = [
     (b"\x1aE\xdf\xa3", frozenset({".mkv", ".webm"})),  # Matroska/WebM
     (b"OggS", frozenset({".ogg"})),
     (b"FLV", frozenset({".flv"})),
-    (b"\x30\x26\xB2\x75\x8E\x66\xCF\x11", frozenset({".wmv", ".avi"})),  # ASF/WMV
+    (b"\x30\x26\xb2\x75\x8e\x66\xcf\x11", frozenset({".wmv", ".avi"})),  # ASF/WMV
 ]
 
 # 允许的图片/视频扩展名集合（与 common.py 保持一致）
@@ -125,9 +125,10 @@ def validate_upload_magic(
                 if ext in valid_exts:
                     return True, "image", None
 
-        return False, "image", (
-            f"文件扩展名 {ext} 与实际文件内容不匹配（魔数校验失败）。"
-            f"该文件可能已被伪装或损坏。"
+        return (
+            False,
+            "image",
+            (f"文件扩展名 {ext} 与实际文件内容不匹配（魔数校验失败）。" f"该文件可能已被伪装或损坏。"),
         )
 
     # --- 视频魔数校验 ---
@@ -138,9 +139,10 @@ def validate_upload_magic(
             if ext in (".mp4", ".mov"):
                 return True, "video", None
             # ftyp 检测到但扩展名不匹配
-            return False, "video", (
-                f"文件扩展名 {ext} 与实际文件内容不匹配"
-                f"（检测到 {ftyp_ext} 格式）。该文件可能已被伪装。"
+            return (
+                False,
+                "video",
+                (f"文件扩展名 {ext} 与实际文件内容不匹配" f"（检测到 {ftyp_ext} 格式）。该文件可能已被伪装。"),
             )
 
         for magic, valid_exts in _VID_MAGICS:
@@ -151,16 +153,17 @@ def validate_upload_magic(
                         return True, "video", None
                     continue
                 # ASF/WMV 魔数
-                if magic == b"\x30\x26\xB2\x75\x8E\x66\xCF\x11":
+                if magic == b"\x30\x26\xb2\x75\x8e\x66\xcf\x11":
                     if ext in (".wmv",):
                         return True, "video", None
                     continue
                 if ext in valid_exts:
                     return True, "video", None
 
-        return False, "video", (
-            f"文件扩展名 {ext} 与实际文件内容不匹配（魔数校验失败）。"
-            f"该文件可能已被伪装或损坏。"
+        return (
+            False,
+            "video",
+            (f"文件扩展名 {ext} 与实际文件内容不匹配（魔数校验失败）。" f"该文件可能已被伪装或损坏。"),
         )
 
     return False, None, f"无法识别的文件类型: {ext}"

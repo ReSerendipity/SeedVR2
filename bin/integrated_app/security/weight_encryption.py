@@ -39,6 +39,7 @@ import os
 import platform
 import socket
 import uuid
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -67,30 +68,22 @@ def get_machine_fingerprint() -> str:
     components = []
 
     # MAC 地址
-    try:
+    with suppress(Exception):
         mac = uuid.getnode()
         components.append(f"mac:{mac:012x}")
-    except Exception:
-        pass
 
     # 主机名
-    try:
+    with suppress(Exception):
         components.append(f"host:{socket.gethostname()}")
-    except Exception:
-        pass
 
     # CPU 信息
-    try:
+    with suppress(Exception):
         components.append(f"cpu:{platform.processor()}")
         components.append(f"machine:{platform.machine()}")
-    except Exception:
-        pass
 
     # 平台
-    try:
+    with suppress(Exception):
         components.append(f"sys:{platform.system()}")
-    except Exception:
-        pass
 
     fingerprint = "|".join(components)
     return hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()
@@ -99,6 +92,7 @@ def get_machine_fingerprint() -> str:
 @dataclass
 class LicenseInfo:
     """许可证信息。"""
+
     user: str
     machine_fingerprint: str
     issued_at: str
@@ -121,9 +115,7 @@ def generate_license(user: str) -> LicenseInfo:
     # 许可证密钥 = SHA256(user + machine_fingerprint + secret_salt)
     # secret_salt 应为项目特定的秘密值，这里用固定值作为示例
     secret_salt = "SeedVR2_ReSerendipity_License_2024"
-    license_key = hashlib.sha256(
-        f"{user}|{fingerprint}|{secret_salt}".encode("utf-8")
-    ).hexdigest()
+    license_key = hashlib.sha256(f"{user}|{fingerprint}|{secret_salt}".encode()).hexdigest()
 
     return LicenseInfo(
         user=user,
@@ -163,9 +155,7 @@ def encrypt_file(input_path: str | os.PathLike, output_path: str | os.PathLike, 
     try:
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     except ImportError:
-        raise ImportError(
-            "AES-GCM 加密需要 cryptography 库: pip install cryptography"
-        )
+        raise ImportError("AES-GCM 加密需要 cryptography 库: pip install cryptography") from None
 
     if len(key) != _KEY_SIZE:
         raise ValueError(f"密钥长度必须为 {_KEY_SIZE} 字节, 当前: {len(key)}")
@@ -210,9 +200,7 @@ def decrypt_to_memory(encrypted_path: str | os.PathLike, key: bytes) -> bytes:
     try:
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     except ImportError:
-        raise ImportError(
-            "AES-GCM 解密需要 cryptography 库: pip install cryptography"
-        )
+        raise ImportError("AES-GCM 解密需要 cryptography 库: pip install cryptography") from None
 
     if len(key) != _KEY_SIZE:
         raise ValueError(f"密钥长度必须为 {_KEY_SIZE} 字节, 当前: {len(key)}")
@@ -226,7 +214,7 @@ def decrypt_to_memory(encrypted_path: str | os.PathLike, key: bytes) -> bytes:
 
         version = f.read(1)
         if version != _VERSION:
-            raise ValueError(f"不支持的加密文件版本: {version}")
+            raise ValueError(f"不支持的加密文件版本: 0x{version.hex()} (期望 0x{_VERSION.hex()})")
 
         nonce = f.read(_NONCE_SIZE)
         ciphertext_with_tag = f.read()

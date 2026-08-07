@@ -163,8 +163,9 @@ class SeedVR2Engine(
         """
         self._progress_callback = callback
 
-    def _report_progress(self, current_frame: int = 0, total_frames: int = 0,
-                         progress: float = 0.0, message: str = "") -> None:
+    def _report_progress(
+        self, current_frame: int = 0, total_frames: int = 0, progress: float = 0.0, message: str = ""
+    ) -> None:
         """安全地调用进度回调，报告推理中间阶段进度（同步）。
 
         重要：此方法在推理工作线程中同步调用，回调函数 **必须是同步函数**。

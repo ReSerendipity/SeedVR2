@@ -64,7 +64,7 @@ extensions = [
             module_name = target.replace("/", ".").replace(".py", "")
             setup_content += f'    Extension("{module_name}", ["{target}"]),\n'
 
-    setup_content += ''']
+    setup_content += """]
 
 setup(
     name="seedvr2_compiled",
@@ -79,7 +79,7 @@ setup(
         },
     ),
 )
-'''
+"""
 
     setup_path = project_root / "setup_cython.py"
     with open(setup_path, "w", encoding="utf-8") as f:
