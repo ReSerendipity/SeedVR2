@@ -86,6 +86,8 @@
 - 优先复用现有上下文，不要重复读取同一文件
 - 涉及项目约定、历史决策、用户偏好时先查 memory
 - 用户说"记住"时，区分用户级记忆与项目级记忆分别存放
+- 用户级记忆：存储在 `.opencode/memory/` 目录
+- 项目级记忆：存储在 `AGENTS.md` 或项目文档中
 
 ---
 
@@ -93,7 +95,7 @@
 
 ### 4.1 禁止行为
 
-- 不得编造事实或把猜测当成结论
+- 不得将猜测或未经验证的信息作为结论呈现
 - 不得在需求模糊时跳过澄清
 - 不得在需要确认时用普通消息提问后直接结束
 - 不得让用户手动执行后不验证就结束
@@ -126,10 +128,9 @@
 
 ### 5.2 命名规范
 
-- JavaScript / TypeScript：变量与函数用 `camelCase`，类名用 `PascalCase`
 - Python：变量、函数、文件名用 `snake_case`
+- JavaScript / TypeScript：变量与函数用 `camelCase`，类名用 `PascalCase`
 - 常量：使用全大写加下划线
-- 文件名避免空格与特殊字符
 
 ### 5.3 脚本编码
 
@@ -156,7 +157,9 @@
 
 - 应用必须脱离 ComfyUI 独立运行
 - **SeedVR2 模型仅支持 NVIDIA CUDA GPU 推理，不支持 CPU 推理**
-- 模型加载前做内存预检，可用内存至少为模型大小的 1.5 倍；内存超过 95% 时必须立即终止相关推理（硬编码阈值，见 `_memory_utils.py:_MEMORY_THRESHOLD`）；同时需满足 `memory_min_available_gb` 绝对下限（默认 2.0GB，建议按设备总内存的 5% 设置，如 32GB 设备设为 1.6GB）
+- 模型加载前做内存预检，可用内存至少为模型大小的 1.5 倍
+- 内存超过 95% 时必须立即终止相关推理（硬编码阈值，见 `_memory_utils.py:_MEMORY_THRESHOLD`）
+- 同时需满足 `memory_min_available_gb` 绝对下限（默认 2.0GB，建议按设备总内存的 5% 设置，如 32GB 设备设为 1.6GB）
 - I/O 组件不应被卸载到 CPU RAM
 - 批处理脚本保持 ASCII 英文
 - 文件夹扫描必须经 `bin/integrated_app/security/path_guard.py` 白名单校验，禁止任意目录遍历
