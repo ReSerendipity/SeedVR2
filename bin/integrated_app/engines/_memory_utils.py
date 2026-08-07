@@ -27,7 +27,7 @@
 4. 后处理: 颜色校正、小波重建、锐化、EXIF复制 (无模型)
 
 内存安全机制:
-- 严格内存监控: RAM 使用率超过 90% 立即终止推理
+- 严格内存监控: RAM 使用率超过 95% 立即终止推理
 - 加载前预检: 确认可用内存至少为模型大小的 1.5 倍
 - 分阶段销毁: DiT/VAE 用完立即完全销毁，释放 VRAM+RAM
 - BlockSwap: transformer 块动态在 GPU/CPU 间交换，降低峰值显存
@@ -84,11 +84,11 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# 内存监控 (严格模式: 超 90% 立即终止模型)
+# 内存监控 (严格模式: 超 95% 立即终止模型)
 # ---------------------------------------------------------------------------
 
-_MEMORY_THRESHOLD = 0.90
-"""内存使用率阈值 (90%)，超过此阈值立即终止模型加载/推理，防止系统卡死"""
+_MEMORY_THRESHOLD = 0.95
+"""内存使用率阈值 (95%)，超过此阈值立即终止模型加载/推理，防止系统卡死"""
 
 _MEMORY_MIN_AVAILABLE_GB = 2.0
 """绝对可用内存下限 (GB)，低于此值同样终止推理"""
@@ -120,6 +120,55 @@ DTYPE_CONVERSION_GC_INTERVAL = 50
 
 MAX_SEED = 2**32 - 1
 """最大随机种子值 (32 位无符号整数最大值)，用于生成合法的随机种子范围"""
+
+
+@dataclass
+class SystemMemory:
+    """系统内存信息数据类，统一 psutil 和 Windows 原生 API 的返回格式
+
+    在 Windows 上优先使用 GlobalMemoryStatusEx API（包含 Standby List），
+    在其他平台使用 psutil。
+    """
+    total: int
+    """总物理内存 (bytes)"""
+    available: int
+    """可用内存 (bytes)，包含 Standby List"""
+    used: int
+    """已用内存 (bytes)"""
+    percent: float
+    """使用率 (0-100)"""
+
+
+def _get_system_memory() -> SystemMemory:
+    """获取系统内存信息，Windows 上优先使用原生 API
+
+    解决 psutil 在 Windows 上 available 不含 Standby List 导致 percent 偏高的问题。
+    GlobalMemoryStatusEx 的 ullAvailPhys 包含 Standby List，更接近任务管理器显示值。
+
+    Returns:
+        SystemMemory: 统一格式的内存信息
+    """
+    if sys.platform == "win32":
+        native = _get_memory_info_native()
+        if native:
+            native_usage, native_avail_gb = native
+            # 通过可用内存反推 total（避免再次调用 API）
+            total_gb = native_avail_gb / (1.0 - native_usage) if native_usage < 1.0 else native_avail_gb
+            return SystemMemory(
+                total=int(total_gb * 1024**3),
+                available=int(native_avail_gb * 1024**3),
+                used=int((total_gb - native_avail_gb) * 1024**3),
+                percent=native_usage * 100.0
+            )
+
+    # 非 Windows 或 API 失败时 fallback 到 psutil
+    mem = psutil.virtual_memory()
+    return SystemMemory(
+        total=mem.total,
+        available=mem.available,
+        used=mem.used,
+        percent=mem.percent
+    )
 
 
 def _get_memory_info_native() -> tuple[float, float] | None:
@@ -183,24 +232,13 @@ def _log_memory_diagnostics() -> None:
     if not _HAS_PSUTIL:
         return
     try:
-        mem = psutil.virtual_memory()
+        mem = _get_system_memory()
         logger.warning(
             f"[内存诊断] 系统RAM: 总计={mem.total/1024**3:.1f}GB, "
             f"可用={mem.available/1024**3:.1f}GB, "
             f"已用={mem.used/1024**3:.1f}GB, "
-            f"缓存={getattr(mem, 'cached', 0)/1024**3:.1f}GB, "
             f"使用率={mem.percent:.1f}%"
         )
-
-        if sys.platform == "win32":
-            native = _get_memory_info_native()
-            if native:
-                native_usage, native_avail = native
-                logger.warning(
-                    f"[内存诊断] Windows原生API: 可用={native_avail:.1f}GB, "
-                    f"使用率={native_usage:.1%} (psutil报告={mem.percent:.1f}%, "
-                    f"差值={abs(mem.percent - native_usage * 100):.1f}%)"
-                )
 
         process = psutil.Process()
         rss_gb = process.memory_info().rss / (1024**3)
@@ -253,19 +291,8 @@ def _check_memory(threshold: float | None = None, force_cleanup: bool = True) ->
     if threshold is None:
         threshold = cfg_threshold
 
-    mem = psutil.virtual_memory()
+    mem = _get_system_memory()
     usage = mem.percent / 100.0
-
-    if sys.platform == "win32":
-        native = _get_memory_info_native()
-        if native:
-            native_usage, native_avail = native
-            if native_usage < usage:
-                usage = native_usage
-                logger.debug(
-                    f"[内存] 使用Windows原生API: {usage:.1%} " f"(psutil={mem.percent:.1f}%, 可用={native_avail:.1f}GB)"
-                )
-
     available_gb = mem.available / (1024**3)
 
     if usage > threshold or available_gb < cfg_min_avail:
@@ -285,36 +312,22 @@ def _check_memory(threshold: float | None = None, force_cleanup: bool = True) ->
         best_usage = usage
         for i in range(_MEMORY_SAMPLES):
             time.sleep(_MEMORY_SAMPLE_INTERVAL)
-            mem = psutil.virtual_memory()
-            sample_usage = mem.percent / 100.0
-
-            if sys.platform == "win32":
-                native = _get_memory_info_native()
-                if native:
-                    native_usage, _ = native
-                    if native_usage < sample_usage:
-                        sample_usage = native_usage
+            sample_mem = _get_system_memory()
+            sample_usage = sample_mem.percent / 100.0
 
             if sample_usage < best_usage:
                 best_usage = sample_usage
             logger.debug(f"[内存] 采样 {i+1}/{_MEMORY_SAMPLES}: " f"使用率={sample_usage:.1%}, 最佳={best_usage:.1%}")
 
-        mem = psutil.virtual_memory()
-        available_gb = mem.available / (1024**3)
+        final_mem = _get_system_memory()
+        available_gb = final_mem.available / (1024**3)
 
-        if best_usage > threshold and available_gb < cfg_min_avail:
+        if best_usage > threshold or available_gb < cfg_min_avail:
             _log_memory_diagnostics()
             raise MemoryError(
                 f"内存使用率 {best_usage:.1%} 超过阈值 {threshold:.0%}，"
-                f"可用: {available_gb:.1f}GB / {mem.total/1024**3:.1f}GB。"
+                f"可用: {available_gb:.1f}GB / {final_mem.total/1024**3:.1f}GB。"
                 f"必须立即终止模型！"
-            )
-
-        if available_gb < cfg_min_avail:
-            _log_memory_diagnostics()
-            raise MemoryError(
-                f"可用内存 {available_gb:.1f}GB 低于下限 {cfg_min_avail:.1f}GB，"
-                f"使用率: {best_usage:.1%}。必须立即终止模型！"
             )
 
         logger.info(f"[内存] 清理后恢复: 使用率={best_usage:.1%}, 可用={available_gb:.1f}GB")
@@ -336,7 +349,7 @@ def _check_memory_before_load(checkpoint_path: str, label: str = "模型") -> No
 
     估算模型大小并检查当前可用内存是否足够。
     如果可用内存不足模型大小的 1.5 倍 (考虑 dtype 转换开销)，抛出异常。
-    使用可配置阈值和 Windows 原生 API 提高准确性。
+    使用可配置阈值和统一内存获取函数提高准确性。
 
     Args:
         checkpoint_path: 模型文件路径
@@ -350,17 +363,9 @@ def _check_memory_before_load(checkpoint_path: str, label: str = "模型") -> No
 
     cfg_threshold, cfg_min_avail = _load_memory_config()
     model_size_gb = _estimate_model_size_gb(checkpoint_path)
-    mem = psutil.virtual_memory()
+    mem = _get_system_memory()
     available_gb = mem.available / (1024**3)
     usage = mem.percent / 100.0
-
-    if sys.platform == "win32":
-        native = _get_memory_info_native()
-        if native:
-            native_usage, native_avail = native
-            if native_usage < usage:
-                usage = native_usage
-                available_gb = native_avail
 
     required_gb = model_size_gb * 1.5
 
@@ -393,15 +398,11 @@ def _check_memory_before_load(checkpoint_path: str, label: str = "模型") -> No
 
 
 def _log_memory(tag: str = ""):
-    """记录当前内存状态 (RAM + VRAM)，Windows 上同时显示原生 API 值"""
+    """记录当前内存状态 (RAM + VRAM)"""
     try:
         if _HAS_PSUTIL:
-            mem = psutil.virtual_memory()
+            mem = _get_system_memory()
             ram_info = f"RAM: {mem.percent:.0f}% ({mem.available/1024**3:.1f}GB可用/{mem.total/1024**3:.1f}GB)"
-            if sys.platform == "win32":
-                native = _get_memory_info_native()
-                if native:
-                    ram_info += f" [原生: {native[0]:.0f}%/{native[1]:.1f}GB可用]"
         else:
             ram_info = "RAM: N/A"
         vram_alloc = torch.cuda.memory_allocated(0) / 1024**3 if torch.cuda.is_available() else 0
@@ -774,7 +775,7 @@ class SeedVR2Engine(RestoreEngine):
     - BlockSwap 动态块交换: 在 GPU/CPU 间动态交换 transformer 块，降低显存需求
     - Tiled VAE: 支持分块编解码处理高分辨率输入，自动 tile size 和 OOM 回退
     - 蒸馏/标准双模式: 蒸馏模式(1步, cfg=1.0)快速推理，标准模式(50步, cfg=7.5)高质量
-    - 内存安全: 90% 阈值监控、加载前预检、推理取消机制
+    - 内存安全: 95% 阈值监控、加载前预检、推理取消机制
     - 后处理增强: LAB颜色校正、小波重建、锐化、文本修复、EXIF复制
 
     推理模式:

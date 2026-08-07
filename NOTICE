@@ -1,0 +1,24 @@
+SeedVR2 - AI-powered video & image super-resolution toolkit
+Copyright 2024-2026 ReSerendipity
+
+This product includes software developed at
+ReSerendipity (https://github.com/ReSerendipity/SeedVR2).
+
+------------------------------------------------------------
+Third-party attributions (required by upstream licenses):
+
+1. NaDiT (Native Resolution Diffusion Transformer)
+   Copyright (c) 2025 Bytedance Ltd. and/or its affiliates
+   Licensed under Apache License 2.0
+   Files: models/dit/*
+
+2. Stable Diffusion 3 Video VAE (Causal Video AutoencoderKL)
+   Copyright (c) 2023 HuggingFace Team
+   Copyright (c) 2025 ByteDance Ltd. and/or its affiliates
+   Licensed under Apache License 2.0
+   Files: models/video_vae_v3/*
+
+3. waifu2x concepts (model self-descriptor attributes)
+   Reference: https://github.com/nagadomi/waifu2x
+   Licensed under MIT License
+   See: repo/waifu2x/NOTICE

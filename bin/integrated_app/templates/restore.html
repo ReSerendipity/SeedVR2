@@ -29,6 +29,9 @@
             <!-- 图片预览 -->
             <div class="sv-preview-container" id="imagePreviewContainer" style="display:none;">
                 <img id="imagePreview" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:var(--sv-radius);" alt="{{ t('restore.before') }}">
+                <button type="button" class="sv-preview-clear-btn" id="btnClearImage" title="{{ t('restore.clear_image') or '清除图片' }}">
+                    <i class="bi bi-x-lg"></i>
+                </button>
             </div>
 
             <!-- 进度 -->
@@ -735,7 +738,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span class="sv-fileinfo-size">${SeedVR2.formatFileSize(file.size)}</span>
                     <span class="sv-fileinfo-duration" id="fileDuration"></span>
                 </div>
-                <button type="button" class="sv-btn sv-btn-ghost sv-btn-xs" id="btnChangeFile">
+                <button type="button" class="sv-btn sv-btn-outline sv-btn-xs" id="btnChangeFile">
                     <i class="bi bi-arrow-repeat"></i> ${I['restore.change_file'] || '更换文件'}
                 </button>
             `;
@@ -808,6 +811,41 @@ document.addEventListener('DOMContentLoaded', () => {
             updateStartButton();
         },
     });
+
+    // 清除图片按钮
+    const btnClearImage = document.getElementById('btnClearImage');
+    if (btnClearImage) {
+        btnClearImage.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // 清空文件input
+            els.fileInput.value = '';
+            // 触发onFileCleared回调
+            if (previewObjectUrl) {
+                URL.revokeObjectURL(previewObjectUrl);
+                previewObjectUrl = null;
+            }
+            els.fileInfo.style.display = 'none';
+            els.fileInfo.innerHTML = '';
+            els.imagePreview.style.display = 'none';
+            els.imagePreview.src = '';
+            if (els.imagePreviewContainer) els.imagePreviewContainer.style.display = 'none';
+            // 重置结果区域（对比滑块/视频播放器）
+            const resultCard = document.getElementById('resultCard');
+            const compareCard = document.getElementById('compareCard');
+            const resultVideo = document.getElementById('resultVideo');
+            if (resultCard) resultCard.style.display = 'none';
+            if (compareCard) compareCard.style.display = 'none';
+            if (resultVideo) { resultVideo.style.display = 'none'; resultVideo.src = ''; }
+            // 清除 sessionStorage 中的结果缓存
+            try { sessionStorage.removeItem('sv_restore_result'); } catch(e) {}
+            // 显示上传区域
+            const wg = document.getElementById('workflowGuide');
+            if (wg) wg.style.display = '';
+            // 清除持久化会话
+            try { localStorage.removeItem('sv_restore_session'); } catch(e) {}
+            updateStartButton();
+        });
+    }
 
     // 文件夹浏览
     if (els.btnBrowseFolder) {

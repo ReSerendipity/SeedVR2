@@ -17,11 +17,14 @@ API 端点：
 所属项目：SeedVR2 (SeedVR2 视频/图像修复工具)
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
+import os
 
-from bin.integrated_app.dependencies import get_history_db, get_jinja_env, get_task_queue
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import FileResponse, HTMLResponse
+
+from bin.integrated_app.dependencies import get_config, get_history_db, get_jinja_env, get_task_queue
 from bin.integrated_app.history_db import HistoryDB
+from bin.integrated_app.security.path_guard import build_default_path_guard
 from bin.integrated_app.task_queue import TaskQueue
 
 router = APIRouter(prefix="/history", tags=["history"])
@@ -145,6 +148,68 @@ async def get_statistics(history_db: HistoryDB = Depends(get_history_db)):
     return await history_db.get_statistics()
 
 
+@router.get("/{record_id}/download")
+async def download_history_file(
+    record_id: int,
+    history_db: HistoryDB = Depends(get_history_db),
+    config: dict = Depends(get_config),
+):
+    """下载历史记录关联的输出文件。
+
+    API 端点：GET /api/system/history/{record_id}/download
+
+    路径参数：
+    - record_id: 历史记录 ID
+
+    返回：文件流响应，自动设置 Content-Type。
+
+    错误响应：
+    - 404: 记录不存在或输出文件不存在
+    - 403: 路径不在允许范围内
+
+    Args:
+        record_id: 历史记录 ID。
+        history_db: 历史数据库实例。
+        config: 应用配置。
+
+    Returns:
+        FileResponse 文件下载响应。
+    """
+    record = await history_db.get_record(record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="记录不存在")
+
+    output_path = record.output_file
+    if not output_path or not os.path.exists(output_path):
+        raise HTTPException(status_code=404, detail="输出文件不存在")
+
+    allowed_dirs = config.get("runtime", {}).get("security", {}).get("allowed_base_dirs", ["outputs/", "data/uploads/"])
+    path_guard = build_default_path_guard(os.getcwd(), allowed_dirs)
+    if not path_guard.is_safe_path(output_path):
+        raise HTTPException(status_code=403, detail="不允许下载该路径")
+
+    filename = os.path.basename(output_path)
+    ext = os.path.splitext(filename)[1].lower()
+
+    if record.task_type == "video" or ext in {".mp4", ".avi", ".mov", ".mkv", ".webm", ".flv", ".wmv"}:
+        media_type = "video/mp4"
+    else:
+        media_types = {
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".bmp": "image/bmp",
+            ".webp": "image/webp",
+        }
+        media_type = media_types.get(ext, "image/png")
+
+    return FileResponse(
+        path=output_path,
+        filename=filename,
+        media_type=media_type,
+    )
+
+
 @router.delete("/{record_id}")
 async def delete_history_record(record_id: int, history_db: HistoryDB = Depends(get_history_db)):
     """删除单条历史记录。
@@ -225,6 +290,7 @@ async def cancel_history_record(
 @router.delete("")
 async def clear_history(
     before_date: str | None = None,
+    status: str | None = None,
     history_db: HistoryDB = Depends(get_history_db),
 ):
     """批量清除历史记录。
@@ -232,20 +298,22 @@ async def clear_history(
     API 端点：DELETE /api/system/history
 
     查询参数：
-    - before_date (optional): 清除此日期之前的记录，格式由数据库层解析；
-      不提供则清除所有记录。
+    - before_date (optional): 清除此日期之前的记录。
+    - status (optional): 仅清除指定状态的记录（如 "failed"、"cancelled"）；
+      不提供则清除所有状态（保留已完成记录应传 status=failed 或 status=cancelled）。
 
     返回格式（JSON）：
     {
-        "deleted_count": int  // 被删除的记录数
+        "deleted_count": int
     }
 
     Args:
         before_date: 截止日期，可选。
-        history_db: 历史数据库实例（通过依赖注入）。
+        status: 按状态过滤，可选。
+        history_db: 历史数据库实例。
 
     Returns:
         包含删除数量的字典。
     """
-    count = await history_db.clear_records(before_date)
+    count = await history_db.clear_records(before_date, status=status)
     return {"deleted_count": count}

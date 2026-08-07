@@ -1,125 +1,230 @@
 # SeedVR2 依赖哈希锁文件 (CWE-912 供应链投毒防御)
 #
-# 版本锁定: 所有依赖版本已固定，防止 PyPI 账号泄露时的恶意更新投毒
-# 哈希验证: 运行 `python scripts/generate_lock.py` (需联网) 生成 --hash=sha256 哈希
-#
-# 安装方式:
-#   1. 仅版本锁定 (默认):  pip install -r requirements-lock.txt
-#   2. 强制哈希验证:        pip install --require-hashes -r requirements-lock.txt
-#      (需先运行 generate_lock.py 生成哈希值)
-#
-# 重新生成:
-#   python scripts/generate_lock.py
+# 用途: pip install --require-hashes -r requirements-lock.txt
+# 重新生成: python scripts/generate_lock.py
 #
 # 注意:
 #   - torch/torchvision/torraudio 使用 CUDA 预编译包 (+cu128)
-#   - 切换 CUDA 版本时需重新生成版本和哈希
-#   - 哈希生成需要联网下载 wheel 文件，首次运行较慢
-#
+#   - 切换 CUDA 版本时需重新生成哈希
+#   - 无哈希的条目标记为 # NO HASH, 需联网下载后重新生成
 
-# Core
-fastapi==0.137.0
-uvicorn==0.49.0
-pydantic==2.13.4
-pydantic_core==2.46.4
-pyyaml==6.0.3
-
-# Template & Frontend
-jinja2==3.1.6
+# NO HASH (run generate_lock.py with network): ImageIO==2.37.3
+ImageIO==2.37.3
+# NO HASH (run generate_lock.py with network): Jinja2==3.1.6
+Jinja2==3.1.6
+# NO HASH (run generate_lock.py with network): MarkupSafe==3.0.3
 MarkupSafe==3.0.3
-python-multipart==0.0.32
-
-# Deep Learning
-torch==2.11.0+cu128
-torchvision==0.26.0+cu128
-torchaudio==2.11.0+cu128
-
-# Model & Inference
-transformers==5.12.0
-safetensors==0.8.0
-huggingface_hub==1.19.0
-einops==0.8.2
-omegaconf==2.3.1
-diffusers==0.38.0
-mediapy==1.2.6
-tokenizers==0.22.2
-
-# Video Processing
-opencv-python==4.13.0.92
-imageio==2.37.3
-imageio-ffmpeg==0.6.0
-pillow==12.2.0
-
-# Database
-aiosqlite==0.22.1
-
-# Utilities
-aiofiles==25.1.0
-psutil==7.2.2
-rich==15.0.0
-pywavelets==1.9.0
-numpy==2.4.4
-
-# Transitive Dependencies
-annotated-types==0.7.0
-anyio==4.13.0
-antlr4-python3-runtime==4.9.3
-certifi==2026.5.20
-charset-normalizer==3.4.7
-click==8.4.1
-colorama==0.4.6
-contourpy==1.3.3
-cycler==0.12.1
-decorator==5.3.1
-executing==2.2.1
-filelock==3.29.0
-fonttools==4.63.0
-fsspec==2026.4.0
-h11==0.16.0
-hf-xet==1.5.1
-httpcore==1.0.9
-httptools==0.8.0
-httpx==0.28.1
-idna==3.18
-importlib_metadata==9.0.0
-ipython==9.14.1
-ipython_pygments_lexers==1.1.1
-jedi==0.20.0
-kiwisolver==1.5.0
-markdown-it-py==4.2.0
-matplotlib==3.11.0
-matplotlib-inline==0.2.2
-mdurl==0.1.2
-mpmath==1.3.0
-networkx==3.6.1
-packaging==25.0
-parso==0.8.7
-prompt_toolkit==3.0.52
-pure_eval==0.2.3
+# NO HASH (run generate_lock.py with network): PyWavelets==1.9.0
+PyWavelets==1.9.0
+# NO HASH (run generate_lock.py with network): PyYAML==6.0.3
+PyYAML==6.0.3
+# NO HASH (run generate_lock.py with network): Pygments==2.20.0
 Pygments==2.20.0
+# NO HASH (run generate_lock.py with network): aiofiles==25.1.0
+aiofiles==25.1.0
+# NO HASH (run generate_lock.py with network): aiosqlite==0.22.1
+aiosqlite==0.22.1
+# NO HASH (run generate_lock.py with network): annotated-doc==0.0.4
+annotated-doc==0.0.4
+# NO HASH (run generate_lock.py with network): annotated-types==0.7.0
+annotated-types==0.7.0
+# NO HASH (run generate_lock.py with network): antlr4-python3-runtime==4.9.3
+antlr4-python3-runtime==4.9.3
+# NO HASH (run generate_lock.py with network): anyio==4.13.0
+anyio==4.13.0
+# NO HASH (run generate_lock.py with network): ast_serialize==0.5.0
+ast_serialize==0.5.0
+# NO HASH (run generate_lock.py with network): asttokens==3.0.1
+asttokens==3.0.1
+# NO HASH (run generate_lock.py with network): black==26.5.1
+black==26.5.1
+# NO HASH (run generate_lock.py with network): build==1.2.2.post1
+build==1.2.2.post1
+# NO HASH (run generate_lock.py with network): certifi==2026.5.20
+certifi==2026.5.20
+# NO HASH (run generate_lock.py with network): charset-normalizer==3.4.7
+charset-normalizer==3.4.7
+# NO HASH (run generate_lock.py with network): click==8.4.1
+click==8.4.1
+# NO HASH (run generate_lock.py with network): colorama==0.4.6
+colorama==0.4.6
+# NO HASH (run generate_lock.py with network): contourpy==1.3.3
+contourpy==1.3.3
+# NO HASH (run generate_lock.py with network): coverage==7.15.2
+coverage==7.15.2
+# NO HASH (run generate_lock.py with network): cycler==0.12.1
+cycler==0.12.1
+# NO HASH (run generate_lock.py with network): decorator==5.3.1
+decorator==5.3.1
+# NO HASH (run generate_lock.py with network): diffusers==0.38.0
+diffusers==0.38.0
+# NO HASH (run generate_lock.py with network): einops==0.8.2
+einops==0.8.2
+# NO HASH (run generate_lock.py with network): executing==2.2.1
+executing==2.2.1
+# NO HASH (run generate_lock.py with network): fastapi==0.137.0
+fastapi==0.137.0
+# NO HASH (run generate_lock.py with network): filelock==3.29.0
+filelock==3.29.0
+# NO HASH (run generate_lock.py with network): fonttools==4.63.0
+fonttools==4.63.0
+# NO HASH (run generate_lock.py with network): fsspec==2026.4.0
+fsspec==2026.4.0
+# NO HASH (run generate_lock.py with network): h11==0.16.0
+h11==0.16.0
+# NO HASH (run generate_lock.py with network): hf-xet==1.5.1
+hf-xet==1.5.1
+# NO HASH (run generate_lock.py with network): httpcore==1.0.9
+httpcore==1.0.9
+# NO HASH (run generate_lock.py with network): httptools==0.8.0
+httptools==0.8.0
+# NO HASH (run generate_lock.py with network): httpx==0.28.1
+httpx==0.28.1
+# NO HASH (run generate_lock.py with network): huggingface_hub==1.19.0
+huggingface_hub==1.19.0
+# NO HASH (run generate_lock.py with network): idna==3.18
+idna==3.18
+# NO HASH (run generate_lock.py with network): imageio-ffmpeg==0.6.0
+imageio-ffmpeg==0.6.0
+# NO HASH (run generate_lock.py with network): importlib_metadata==9.0.0
+importlib_metadata==9.0.0
+# NO HASH (run generate_lock.py with network): iniconfig==2.3.0
+iniconfig==2.3.0
+# NO HASH (run generate_lock.py with network): ipython==9.14.1
+ipython==9.14.1
+# NO HASH (run generate_lock.py with network): ipython_pygments_lexers==1.1.1
+ipython_pygments_lexers==1.1.1
+# NO HASH (run generate_lock.py with network): jedi==0.20.0
+jedi==0.20.0
+# NO HASH (run generate_lock.py with network): kiwisolver==1.5.0
+kiwisolver==1.5.0
+# NO HASH (run generate_lock.py with network): librt==0.11.0
+librt==0.11.0
+# NO HASH (run generate_lock.py with network): markdown-it-py==4.2.0
+markdown-it-py==4.2.0
+# NO HASH (run generate_lock.py with network): matplotlib-inline==0.2.2
+matplotlib-inline==0.2.2
+# NO HASH (run generate_lock.py with network): matplotlib==3.11.0
+matplotlib==3.11.0
+# NO HASH (run generate_lock.py with network): mdurl==0.1.2
+mdurl==0.1.2
+# NO HASH (run generate_lock.py with network): mediapy==1.2.6
+mediapy==1.2.6
+# NO HASH (run generate_lock.py with network): mpmath==1.3.0
+mpmath==1.3.0
+# NO HASH (run generate_lock.py with network): mypy==2.1.0
+mypy==2.1.0
+# NO HASH (run generate_lock.py with network): mypy_extensions==1.1.0
+mypy_extensions==1.1.0
+# NO HASH (run generate_lock.py with network): networkx==3.6.1
+networkx==3.6.1
+# NO HASH (run generate_lock.py with network): numpy==2.4.4
+numpy==2.4.4
+# NO HASH (run generate_lock.py with network): omegaconf==2.3.1
+omegaconf==2.3.1
+# NO HASH (run generate_lock.py with network): opencv-python==4.13.0.92
+opencv-python==4.13.0.92
+# NO HASH (run generate_lock.py with network): packaging==25.0
+packaging==25.0
+# NO HASH (run generate_lock.py with network): parso==0.8.7
+parso==0.8.7
+# NO HASH (run generate_lock.py with network): pathspec==1.1.1
+pathspec==1.1.1
+# NO HASH (run generate_lock.py with network): pillow==12.2.0
+pillow==12.2.0
+# NO HASH (run generate_lock.py with network): platformdirs==4.10.0
+platformdirs==4.10.0
+# NO HASH (run generate_lock.py with network): pluggy==1.6.0
+pluggy==1.6.0
+# NO HASH (run generate_lock.py with network): prompt_toolkit==3.0.52
+prompt_toolkit==3.0.52
+# NO HASH (run generate_lock.py with network): psutil==7.2.2
+psutil==7.2.2
+# NO HASH (run generate_lock.py with network): pure_eval==0.2.3
+pure_eval==0.2.3
+# NO HASH (run generate_lock.py with network): pydantic==2.13.4
+pydantic==2.13.4
+# NO HASH (run generate_lock.py with network): pydantic_core==2.46.4
+pydantic_core==2.46.4
+# NO HASH (run generate_lock.py with network): pyparsing==3.3.2
 pyparsing==3.3.2
+# NO HASH (run generate_lock.py with network): pyproject_hooks==1.2.0
 pyproject_hooks==1.2.0
+# NO HASH (run generate_lock.py with network): pytest-asyncio==1.4.0
+pytest-asyncio==1.4.0
+# NO HASH (run generate_lock.py with network): pytest-cov==7.1.0
+pytest-cov==7.1.0
+# NO HASH (run generate_lock.py with network): pytest==9.1.0
+pytest==9.1.0
+# NO HASH (run generate_lock.py with network): python-dateutil==2.9.0.post0
 python-dateutil==2.9.0.post0
+# NO HASH (run generate_lock.py with network): python-dotenv==1.2.2
 python-dotenv==1.2.2
+# NO HASH (run generate_lock.py with network): python-multipart==0.0.32
+python-multipart==0.0.32
+# NO HASH (run generate_lock.py with network): pytokens==0.4.1
+pytokens==0.4.1
+# NO HASH (run generate_lock.py with network): regex==2026.5.9
 regex==2026.5.9
+# NO HASH (run generate_lock.py with network): requests==2.34.2
 requests==2.34.2
+# NO HASH (run generate_lock.py with network): rich==15.0.0
+rich==15.0.0
+# NO HASH (run generate_lock.py with network): rotary-embedding-torch==0.9.1
+rotary-embedding-torch==0.9.1
+# NO HASH (run generate_lock.py with network): ruff==0.15.17
+ruff==0.15.17
+# NO HASH (run generate_lock.py with network): safetensors==0.8.0
+safetensors==0.8.0
+# NO HASH (run generate_lock.py with network): setuptools==79.0.1
 setuptools==79.0.1
+# NO HASH (run generate_lock.py with network): shellingham==1.5.4
 shellingham==1.5.4
+# NO HASH (run generate_lock.py with network): six==1.17.0
 six==1.17.0
+# NO HASH (run generate_lock.py with network): sqlite_bro==0.13.1
 sqlite_bro==0.13.1
+# NO HASH (run generate_lock.py with network): stack-data==0.6.3
 stack-data==0.6.3
+# NO HASH (run generate_lock.py with network): starlette==1.3.1
 starlette==1.3.1
+# NO HASH (run generate_lock.py with network): sv-ttk==2.6.0
 sv-ttk==2.6.0
+# NO HASH (run generate_lock.py with network): sympy==1.14.0
 sympy==1.14.0
+# NO HASH (run generate_lock.py with network): tokenizers==0.22.2
+tokenizers==0.22.2
+# NO HASH (run generate_lock.py with network): torch==2.11.0+cu128
+torch==2.11.0+cu128
+# NO HASH (run generate_lock.py with network): torchaudio==2.11.0+cu128
+torchaudio==2.11.0+cu128
+# NO HASH (run generate_lock.py with network): torchvision==0.26.0+cu128
+torchvision==0.26.0+cu128
+# NO HASH (run generate_lock.py with network): tqdm==4.68.2
 tqdm==4.68.2
+# NO HASH (run generate_lock.py with network): traitlets==5.15.1
 traitlets==5.15.1
+# NO HASH (run generate_lock.py with network): transformers==5.12.0
+transformers==5.12.0
+# NO HASH (run generate_lock.py with network): typer==0.25.1
 typer==0.25.1
+# NO HASH (run generate_lock.py with network): typing-inspection==0.4.2
 typing-inspection==0.4.2
+# NO HASH (run generate_lock.py with network): typing_extensions==4.15.0
 typing_extensions==4.15.0
+# NO HASH (run generate_lock.py with network): urllib3==2.7.0
 urllib3==2.7.0
+# NO HASH (run generate_lock.py with network): uvicorn==0.49.0
+uvicorn==0.49.0
+# NO HASH (run generate_lock.py with network): watchfiles==1.2.0
 watchfiles==1.2.0
+# NO HASH (run generate_lock.py with network): wcwidth==0.8.1
 wcwidth==0.8.1
+# NO HASH (run generate_lock.py with network): websockets==16.0
 websockets==16.0
+# NO HASH (run generate_lock.py with network): wheel==0.45.1
 wheel==0.45.1
+# NO HASH (run generate_lock.py with network): winpython==16.5.20250614
 winpython==16.5.20250614
+# NO HASH (run generate_lock.py with network): zipp==4.1.0
 zipp==4.1.0

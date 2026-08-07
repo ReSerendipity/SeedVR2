@@ -21,6 +21,7 @@
 - Web server uses native jinja2.Environment for template rendering instead of Starlette's Jinja2Templates
 - Model loading must include memory pre-check: available memory >= 1.5 times model size
 - Memory monitoring must include pre-load check and post-inference release
+- Memory threshold: 95% hard limit (`_MEMORY_THRESHOLD`), plus `memory_min_available_gb` absolute floor (default 2.0GB, recommended 5% of device total RAM, e.g. 1.6GB for 32GB device)
 
 ## Lessons Learned
 - Starlette 1.0.0 has compatibility issues with Jinja2 3.1.6 template caching mechanism

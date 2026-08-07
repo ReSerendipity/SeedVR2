@@ -915,6 +915,13 @@ class UserPreferences:
     # 最近使用的模型路径
     recent_model_path: str = ""
 
+    # 前端持久化字段（从修复页参数面板保存）
+    default_model: str = "3b_fp16"
+    default_vae: str = "ema_vae_fp16"
+    default_color_correction: str = "lab"
+    default_batch_size: int = 5
+    default_max_resolution: int = 0
+
     def to_dict(self) -> dict[str, Any]:
         """转换为字典 (用于序列化)"""
         return {
@@ -935,6 +942,11 @@ class UserPreferences:
             "vae_tiling_enabled": self.vae_tiling_enabled,
             "vae_tile_size": self.vae_tile_size,
             "recent_model_path": self.recent_model_path,
+            "default_model": self.default_model,
+            "default_vae": self.default_vae,
+            "default_color_correction": self.default_color_correction,
+            "default_batch_size": self.default_batch_size,
+            "default_max_resolution": self.default_max_resolution,
         }
 
     @classmethod

@@ -37,6 +37,7 @@ from bin.integrated_app.gpu_backend import gpu_manager
 from bin.integrated_app.history_db import HistoryDB, HistoryRecord
 from bin.integrated_app.model_registry import model_registry
 from bin.integrated_app.routes.restore import common
+from bin.integrated_app.security.magic_check import validate_upload_magic
 from bin.integrated_app.task_queue import TaskQueue
 from bin.integrated_app.utils.response import respond_success
 
@@ -128,6 +129,10 @@ async def upload_and_restore(
                 raise HTTPException(
                     status_code=400, detail=f"图片文件大小超过限制（最大 {common.MAX_IMAGE_SIZE // (1024*1024)}MB）"
                 )
+            # 魔数校验：防止伪装扩展名上传恶意文件 (T4-2)
+            magic_ok, _, magic_err = validate_upload_magic(contents, file_ext)
+            if not magic_ok:
+                raise HTTPException(status_code=400, detail=magic_err)
             await file.seek(0)
             _, input_path = await file_cache.save_upload_file(file, sub_dir="image")
         else:
@@ -138,6 +143,10 @@ async def upload_and_restore(
                 raise HTTPException(
                     status_code=400, detail=f"视频文件大小超过限制（最大 {common.MAX_VIDEO_SIZE // (1024*1024)}MB）"
                 )
+            # 魔数校验：防止伪装扩展名上传恶意文件 (T4-2)
+            magic_ok, _, magic_err = validate_upload_magic(contents, file_ext)
+            if not magic_ok:
+                raise HTTPException(status_code=400, detail=magic_err)
             await file.seek(0)
             _, input_path = await file_cache.save_upload_file(file, sub_dir="video")
 
@@ -310,8 +319,23 @@ async def _process_image_task(
         task_queue: 任务队列实例。
     """
 
+    # 重要：进度回调必须为同步函数。
+    # infer_image 在 asyncio.to_thread 中同步执行，回调被同步调用；
+    # 若此处注册 async 函数，其函数体不会被执行（仅产生未 await 的 coroutine），
+    # 导致进度永远停留在 0%。
+    def _progress_callback(current_frame: int, total_frames: int, progress: float, **kwargs):
+        # 仅更新内存缓存（同步），DB 持久化由 _run_task_with_state 在终态时统一写
+        common.get_task_cache().update(
+            task_id,
+            current_frame=current_frame,
+            total_frames=total_frames,
+            progress=round(progress, 1),
+            message=kwargs.get("message", ""),
+        )
+
     async def _do_infer(engine):
-        output_dir = os.path.join(os.getcwd(), "outputs", "image", task_id)
+        engine.set_progress_callback(_progress_callback)
+        output_dir = os.path.join(os.getcwd(), "outputs", "image")
         image_config = ImageInferenceConfig(
             **{k: v for k, v in params.model_dump().items() if k in ImageInferenceConfig.__dataclass_fields__}
         )
@@ -348,18 +372,21 @@ async def _process_video_task(
     """
 
     async def _do_infer(engine):
-        async def progress_callback(current_frame: int, total_frames: int, progress: float):
+        # 重要：进度回调必须为同步函数。
+        # infer_video 在 asyncio.to_thread 中同步执行，回调被同步调用；
+        # 若此处注册 async 函数，其函数体不会被执行（仅产生未 await 的 coroutine），
+        # 导致进度永远停留在 0%。
+        def progress_callback(current_frame: int, total_frames: int, progress: float, **kwargs):
             common.get_task_cache().update(
                 task_id,
                 current_frame=current_frame,
                 total_frames=total_frames,
                 progress=round(progress, 1),
             )
-            await common.update_task_state(task_id, history_db, progress=round(progress, 1))
 
         engine.set_progress_callback(progress_callback)
 
-        output_dir = os.path.join(os.getcwd(), "outputs", "video", task_id)
+        output_dir = os.path.join(os.getcwd(), "outputs", "video")
         return await engine.infer_video(
             video_path=input_path,
             output_dir=output_dir,

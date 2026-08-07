@@ -157,7 +157,9 @@ def get_ram_usage() -> tuple[float, float, float, float]:
         process_memory = process.memory_info()
         process_gb = process_memory.rss / (1024**3)
 
-        sys_memory = psutil.virtual_memory()
+        from bin.integrated_app.engines._memory_utils import _get_system_memory
+
+        sys_memory = _get_system_memory()
         total_gb = sys_memory.total / (1024**3)
         available_gb = sys_memory.available / (1024**3)
 
@@ -207,7 +209,9 @@ def clear_memory(deep: bool = False, force: bool = True) -> None:
                 should_clear = True
 
         if not should_clear:
-            mem = psutil.virtual_memory()
+            from bin.integrated_app.engines._memory_utils import _get_system_memory
+
+            mem = _get_system_memory()
             if mem.available < mem.total * 0.05:
                 should_clear = True
 

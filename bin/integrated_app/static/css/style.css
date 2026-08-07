@@ -111,10 +111,13 @@
     --sv-hero-gradient: var(--sv-text-primary);
     --sv-hero-gradient-subtle: rgba(201, 138, 114, 0.05);
 
-    /* 对比滑块 */
-    --sv-compare-slider-bg: #eae6e1;
-    --sv-compare-label-bg: rgba(0, 0, 0, 0.6);
-    --sv-compare-label-color: #ffffff;
+    /* 对比滑块（毛玻璃 + 苔绿点缀） */
+    --sv-compare-line: rgba(234, 230, 225, 0.55);
+    --sv-compare-line-active: rgba(148, 184, 143, 0.85);
+    --sv-compare-glass-bg: rgba(30, 28, 25, 0.55);
+    --sv-compare-glass-border: rgba(234, 230, 225, 0.16);
+    --sv-compare-label-bg: rgba(30, 28, 25, 0.58);
+    --sv-compare-label-color: #ece7dd;
 
     /* 代码/类型文字 */
     --sv-code-color: var(--sv-text-muted);
@@ -239,8 +242,11 @@
     --sv-hero-gradient: var(--sv-text-primary);
     --sv-hero-gradient-subtle: rgba(181, 113, 90, 0.05);
 
-    --sv-compare-slider-bg: #2c2420;
-    --sv-compare-label-bg: rgba(255, 255, 255, 0.85);
+    --sv-compare-line: rgba(44, 36, 32, 0.45);
+    --sv-compare-line-active: rgba(94, 125, 90, 0.85);
+    --sv-compare-glass-bg: rgba(250, 247, 242, 0.62);
+    --sv-compare-glass-border: rgba(44, 36, 32, 0.14);
+    --sv-compare-label-bg: rgba(250, 247, 242, 0.72);
     --sv-compare-label-color: #2c2420;
 
     --sv-code-color: var(--sv-text-muted);
@@ -1737,12 +1743,34 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
     height: auto;
     max-height: calc(100vh - 260px);
     padding: var(--sv-space-4);
+    position: relative;
 }
 .sv-preview-container img {
     max-width: 100%;
     max-height: calc(100vh - 300px);
     object-fit: contain;
     border-radius: var(--sv-radius);
+}
+.sv-preview-clear-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: background 0.2s;
+    z-index: 10;
+}
+.sv-preview-clear-btn:hover {
+    background: rgba(220, 53, 69, 0.9);
 }
 
 /* 进度/结果叠加层 */
@@ -2076,55 +2104,108 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
     object-fit: cover;
 }
 
+/* 分割线：纤细柔和，带纵向渐变与苔绿柔光 */
 .sv-compare-slider {
     position: absolute;
     top: 0;
     bottom: 0;
     left: 0;
-    width: 3px;
-    background: var(--sv-compare-slider-bg);
+    width: 2px;
+    margin-left: -1px;
+    background: linear-gradient(180deg, transparent 0%, var(--sv-compare-line) 18%, var(--sv-compare-line) 82%, transparent 100%);
     cursor: ew-resize;
     z-index: 10;
-    box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 0 10px var(--sv-primary-glow);
     will-change: transform;
 }
 
+/* 毛玻璃圆形拖动手柄 */
 .sv-compare-slider::before {
     content: '';
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 36px;
-    height: 36px;
-    background: var(--sv-compare-slider-bg);
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    background: var(--sv-compare-glass-bg);
+    border: 1px solid var(--sv-compare-glass-border);
+    backdrop-filter: blur(12px) saturate(1.25);
+    -webkit-backdrop-filter: blur(12px) saturate(1.25);
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    transition: transform var(--sv-transition-fast), box-shadow var(--sv-transition-fast), border-color var(--sv-transition-fast);
 }
 
+/* 悬停：轻放大 + 苔绿柔光晕 */
+.sv-compare-slider:hover::before {
+    transform: translate(-50%, -50%) scale(1.07);
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.3), 0 0 22px var(--sv-primary-glow-strong), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* 拖拽中：苔绿描边 + 光环 */
+.sv-compare-slider.is-dragging {
+    background: linear-gradient(180deg, transparent 0%, var(--sv-compare-line-active) 18%, var(--sv-compare-line-active) 82%, transparent 100%);
+}
+
+.sv-compare-slider.is-dragging::before {
+    border-color: var(--sv-compare-line-active);
+    box-shadow: 0 0 0 3px var(--sv-primary-glow-strong), 0 0 26px var(--sv-primary-glow-strong), 0 6px 22px rgba(0, 0, 0, 0.3);
+}
+
+.sv-compare-slider.is-dragging i.bi,
+.sv-compare-slider.is-dragging i.bi-arrows {
+    color: var(--sv-primary);
+}
+
+/* 手柄图标 */
+.sv-compare-slider i.bi,
 .sv-compare-slider i.bi-arrows {
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    color: var(--sv-bg-base);
+    color: color-mix(in srgb, var(--sv-text-primary) 88%, var(--sv-primary) 12%);
     font-size: 1rem;
     font-weight: 700;
     z-index: 1;
     pointer-events: none;
+    transition: color var(--sv-transition-fast);
 }
 
 .sv-compare-label {
     position: absolute;
     top: 12px;
-    padding: var(--sv-space-1) var(--sv-space-2-5);
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 12px;
     background: var(--sv-compare-label-bg);
     color: var(--sv-compare-label-color);
+    border: 1px solid var(--sv-compare-glass-border);
+    backdrop-filter: blur(9px);
+    -webkit-backdrop-filter: blur(9px);
     font-size: 0.72rem;
     font-weight: 600;
-    border-radius: var(--sv-radius-sm);
+    letter-spacing: 0.04em;
+    border-radius: 999px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
     z-index: 5;
     pointer-events: none;
+}
+
+.sv-compare-label::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--sv-text-muted);
+    flex: none;
+}
+
+.sv-compare-label.after::before,
+.sv-compare-label-after::before {
+    background: var(--sv-primary);
 }
 
 .sv-compare-label.before {
@@ -2142,17 +2223,6 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
 .sv-compare-label-after {
     right: 12px;
     left: auto;
-}
-.sv-compare-slider i.bi {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    color: var(--sv-bg-base);
-    font-size: 0.9rem;
-    font-weight: 700;
-    z-index: 1;
-    pointer-events: none;
 }
 
 /* 参数面板分组标题 */
@@ -7401,36 +7471,17 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
     transform: translateX(20px);
 }
 
-/* ===== 29. 对比滑块优化 ===== */
-.sv-compare-slider {
-    width: 40px;
-    height: 40px;
-    background: var(--sv-compare-slider-bg);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--sv-text-inverse);
-    font-size: 1rem;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-    cursor: ew-resize;
-    transition: transform var(--sv-transition), box-shadow var(--sv-transition);
-}
+/* ===== 29. 对比模块增强（毛玻璃工具栏 + 视口 + 垂直模式） ===== */
 
-.sv-compare-slider:hover {
-    transform: scale(1.1);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-}
-
-/* ===== 29.1 对比模块增强 ===== */
-
-/* 工具栏 */
+/* 工具栏（毛玻璃） */
 .sv-compare-toolbar {
     display: flex;
     align-items: center;
     gap: 4px;
-    padding: 6px 10px;
-    background: var(--sv-surface-2);
+    padding: 8px 12px;
+    background: color-mix(in srgb, var(--sv-surface-1) 62%, transparent);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
     border-bottom: 1px solid var(--sv-border);
     border-radius: var(--sv-radius) var(--sv-radius) 0 0;
     z-index: 20;
@@ -7442,20 +7493,21 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
     justify-content: center;
     width: 32px;
     height: 32px;
-    border: none;
+    border: 1px solid transparent;
     border-radius: var(--sv-radius-sm);
     background: transparent;
     color: var(--sv-text-secondary);
     cursor: pointer;
-    transition: background var(--sv-transition-fast), color var(--sv-transition-fast);
+    transition: background var(--sv-transition-fast), color var(--sv-transition-fast), border-color var(--sv-transition-fast);
 }
 .sv-compare-tool-btn:hover {
     background: var(--sv-bg-hover);
     color: var(--sv-text-primary);
 }
 .sv-compare-tool-btn.active {
-    background: var(--sv-primary);
-    color: var(--sv-text-inverse);
+    background: var(--sv-primary-dim);
+    color: var(--sv-primary);
+    border-color: var(--sv-primary-glow-strong);
 }
 .sv-compare-separator {
     width: 1px;
@@ -7466,6 +7518,7 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
 .sv-compare-zoom-label {
     font-size: 0.75rem;
     font-weight: 600;
+    font-variant-numeric: tabular-nums;
     color: var(--sv-text-secondary);
     min-width: 40px;
     text-align: center;
@@ -7485,6 +7538,13 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
 }
 .sv-compare-viewport:active {
     cursor: grabbing;
+}
+.sv-compare-viewport:focus-visible {
+    outline: 2px solid var(--sv-primary);
+    outline-offset: -2px;
+}
+.sv-compare-viewport:focus-visible .sv-compare-slider::before {
+    box-shadow: 0 0 0 3px var(--sv-primary-glow-strong), 0 0 26px var(--sv-primary-glow-strong), 0 6px 22px rgba(0, 0, 0, 0.3);
 }
 .sv-compare-viewport .sv-compare-container {
     transition: transform 0.15s ease-out;
@@ -7509,22 +7569,19 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
     clip-path: inset(0 0 50% 0);
 }
 .sv-compare-container.vertical .sv-compare-slider {
-    top: 50%;
+    top: 0;
+    bottom: auto;
     left: 0;
     right: 0;
-    bottom: auto;
-    width: 100%;
-    height: 3px;
+    width: auto;
+    height: 2px;
+    margin-top: -1px;
+    margin-left: 0;
     cursor: ns-resize;
-    transform: translateY(-50%);
+    background: linear-gradient(90deg, transparent 0%, var(--sv-compare-line) 18%, var(--sv-compare-line) 82%, transparent 100%);
 }
-.sv-compare-container.vertical .sv-compare-slider::before {
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-}
-.sv-compare-container.vertical .sv-compare-slider i.bi {
-    transform: translate(-50%, -50%) rotate(90deg);
+.sv-compare-container.vertical .sv-compare-slider.is-dragging {
+    background: linear-gradient(90deg, transparent 0%, var(--sv-compare-line-active) 18%, var(--sv-compare-line-active) 82%, transparent 100%);
 }
 .sv-compare-container.vertical .sv-compare-label-before {
     top: 12px;

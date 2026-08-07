@@ -1,4 +1,6 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2024-2026 ReSerendipity
+# SPDX-License-Identifier: Apache-2.0
 """SeedVR2 - CSRF 保护中间件。
 
 基于 Double Submit Cookie 模式实现跨站请求伪造防护。
@@ -20,6 +22,8 @@
     - 静态方法处理路径匹配与协议检测，便于单元测试
 """
 
+import hashlib
+import hmac
 import logging
 import re
 import secrets
@@ -90,6 +94,48 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         forwarded_proto = request.headers.get("x-forwarded-proto", "").lower()
         return "https" in forwarded_proto
 
+    @staticmethod
+    def _generate_signed_token() -> str:
+        """生成 HMAC 签名的 CSRF token。
+
+        token 格式: nonce.hmac_signature
+        - nonce: 32 字节随机数的 hex 表示
+        - hmac_signature: HMAC-SHA256(secret_key, nonce) 的 hex 表示
+
+        绑定服务端密钥，攻击者无法伪造合法 token。
+        密钥持久化到 data/.seedvr2_secret，重启后仍可验证。
+
+        Returns:
+            HMAC 签名的 CSRF token 字符串。
+        """
+        from bin.integrated_app.security.secret_key import get_secret_key
+
+        secret = get_secret_key()
+        nonce = secrets.token_hex(32)
+        signature = hmac.new(secret, nonce.encode(), hashlib.sha256).hexdigest()
+        return f"{nonce}.{signature}"
+
+    @staticmethod
+    def _verify_signed_token(token: str) -> bool:
+        """验证 HMAC 签名的 CSRF token 是否合法。
+
+        使用常量时间比较防止时序攻击。
+
+        Args:
+            token: 待验证的 token 字符串。
+
+        Returns:
+            bool: token 签名合法时返回 True。
+        """
+        from bin.integrated_app.security.secret_key import get_secret_key
+
+        if not token or "." not in token:
+            return False
+        nonce, signature = token.rsplit(".", 1)
+        secret = get_secret_key()
+        expected = hmac.new(secret, nonce.encode(), hashlib.sha256).hexdigest()
+        return hmac.compare_digest(signature, expected)
+
     async def dispatch(self, request: Request, call_next) -> Response:
         """中间件核心处理逻辑，按请求类型分别处理。
 
@@ -108,7 +154,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         if request.method in self.SAFE_METHODS:
             response: Response = await call_next(request)
             if self.CSRF_COOKIE_NAME not in request.cookies:
-                token = secrets.token_hex(32)
+                token = self._generate_signed_token()
                 response.set_cookie(
                     self.CSRF_COOKIE_NAME,
                     token,
@@ -125,7 +171,13 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         cookie_token = request.cookies.get(self.CSRF_COOKIE_NAME)
         header_token = request.headers.get(self.CSRF_HEADER_NAME)
 
-        if cookie_token and header_token and secrets.compare_digest(cookie_token, header_token):
+        # 先验证 cookie 中的 token 签名合法（服务端签名）
+        if (
+            cookie_token
+            and header_token
+            and self._verify_signed_token(cookie_token)
+            and secrets.compare_digest(cookie_token, header_token)
+        ):
             return await call_next(request)
 
         logger.warning(f"CSRF 验证失败: {request.method} {request.url.path}")
