@@ -2,12 +2,16 @@
 """UI 参数面板与用户偏好 API 路由模块。
 
 暴露 webui_enhancement 模块的后端框架组件，为前端提供：
-- 参数定义查询
+- 参数定义与预设组合查询
+- 基于当前参数值的智能推荐
+- 参数合法性校验
 - 用户偏好设置的持久化（加载/保存/重置）
 - 折叠面板布局分组信息
 
 API 端点：
-- GET /api/ui/parameters: 获取所有参数定义
+- GET /api/ui/parameters: 获取所有参数定义和预设组合
+- GET /api/ui/parameters/recommendations: 根据当前参数获取推荐预设
+- POST /api/ui/parameters/validate: 验证参数值合法性
 - GET /api/ui/preferences: 加载用户偏好
 - POST /api/ui/preferences: 保存用户偏好
 - POST /api/ui/preferences/reset: 重置用户偏好为默认值
@@ -62,7 +66,7 @@ def _get_layout_manager():
 
 @router.get("/parameters")
 async def get_parameters():
-    """获取所有参数定义。
+    """获取所有参数定义和预设组合。
 
     API 端点：GET /api/ui/parameters
 
@@ -86,12 +90,21 @@ async def get_parameters():
                     "group": str,
                     "advanced": bool
                 }
+            ],
+            "presets": [
+                {
+                    "name": str,
+                    "description": str,
+                    "values": dict,
+                    "recommended_ranges": dict,
+                    "use_case": str
+                }
             ]
         }
     }
 
     Returns:
-        包含参数定义的字典。
+        包含参数定义和预设列表的字典。
     """
     optimizer = _get_optimizer()
 
@@ -113,7 +126,105 @@ async def get_parameters():
             }
         )
 
-    return {"success": True, "data": {"parameters": params}}
+    presets = []
+    for preset in optimizer.get_presets():
+        presets.append(
+            {
+                "name": preset.name,
+                "description": preset.description,
+                "values": preset.preset_values,
+                "recommended_ranges": {k: {"min": v[0], "max": v[1]} for k, v in preset.recommended_ranges.items()},
+                "use_case": preset.use_case,
+            }
+        )
+
+    return {"success": True, "data": {"parameters": params, "presets": presets}}
+
+
+@router.get("/parameters/recommendations")
+async def get_recommendations(cfg_scale: float = 3.0, denoising_strength: float = 0.6, steps: int = 20):
+    """根据当前参数值获取推荐预设，按匹配度排序。
+
+    API 端点：GET /api/ui/parameters/recommendations
+
+    查询参数：
+    - cfg_scale (optional): CFG Scale，默认 3.0
+    - denoising_strength (optional): 去噪强度，默认 0.6
+    - steps (optional): 采样步数，默认 20
+
+    返回格式（JSON）：
+    {
+        "success": true,
+        "data": {
+            "recommendations": [
+                {
+                    "name": str,
+                    "description": str,
+                    "values": dict,
+                    "match_score": float,
+                    "use_case": str
+                }
+            ]
+        }
+    }
+
+    Args:
+        cfg_scale: CFG 引导系数。
+        denoising_strength: 去噪强度。
+        steps: 推理步数。
+
+    Returns:
+        按匹配度排序的推荐预设列表。
+    """
+    optimizer = _get_optimizer()
+    recommendations = optimizer.get_recommendations(
+        cfg_scale=cfg_scale,
+        denoising_strength=denoising_strength,
+        steps=steps,
+    )
+
+    result = []
+    for rec in recommendations:
+        preset = rec["preset"]
+        result.append(
+            {
+                "name": preset.name,
+                "description": preset.description,
+                "values": preset.preset_values,
+                "match_score": rec["match_score"],
+                "use_case": rec["use_case"],
+            }
+        )
+
+    return {"success": True, "data": {"recommendations": result}}
+
+
+@router.post("/parameters/validate")
+async def validate_parameters(values: dict):
+    """验证参数值是否在合法范围内。
+
+    API 端点：POST /api/ui/parameters/validate
+
+    请求体（JSON）：参数字典，如 {"cfg_scale": 3.0, "denoising_strength": 0.6, ...}
+
+    返回格式（JSON）：
+    {
+        "success": true,
+        "data": {
+            "errors": dict,    // 字段名 -> 错误信息，空字典表示全部合法
+            "valid": bool      // 是否全部合法
+        }
+    }
+
+    Args:
+        values: 待验证的参数字典。
+
+    Returns:
+        验证结果，包含错误字典和 valid 标志。
+    """
+    optimizer = _get_optimizer()
+    errors = optimizer.validate_values(values)
+    return {"success": True, "data": {"errors": errors, "valid": len(errors) == 0}}
 
 
 @router.get("/preferences")
