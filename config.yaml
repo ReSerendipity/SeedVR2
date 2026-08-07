@@ -67,11 +67,11 @@ model:
       neg_emb: neg_emb.pt
       num_blocks: 32
       pos_emb: pos_emb.pt
-      sha256_fp16: ''
-      sha256_fp8: ''
-      sha256_neg_emb: ''
-      sha256_pos_emb: ''
-      sha256_vae: ''
+      sha256_fp16: 2fd0e03a3dad24e07086750360727ca437de4ecd456f769856e960ae93e2b304
+      sha256_fp8: 3bf1e43ebedd570e7e7a0b1b60d6a02e105978f505c8128a241cde99a8240cff
+      sha256_neg_emb: 6a43e5800ef2354f1c156d27535834da055cbec8248298b8923492bba2076581
+      sha256_pos_emb: fa07a14844314772266b66c3b95deb0027696d8fe7065721263db5176f45d799
+      sha256_vae: 20678548f420d98d26f11442d3528f8b8c94e57ee046ef93dbb7633da8612ca1
       vae_checkpoint: ema_vae_fp16.safetensors
     7b:
       checkpoint_fp16: seedvr2_ema_7b_fp16.safetensors
@@ -83,11 +83,11 @@ model:
       neg_emb: neg_emb.pt
       num_blocks: 36
       pos_emb: pos_emb.pt
-      sha256_fp16: ''
-      sha256_fp8: ''
-      sha256_neg_emb: ''
-      sha256_pos_emb: ''
-      sha256_vae: ''
+      sha256_fp16: 7b8241aa957606ab6cfb66edabc96d43234f9819c5392b44d2492d9f0b0bbe4a
+      sha256_fp8: 1fdbf3877b7d1eb266038d3a165a977f17dbb4daa4a0f0d334d5461476963037
+      sha256_neg_emb: 6a43e5800ef2354f1c156d27535834da055cbec8248298b8923492bba2076581
+      sha256_pos_emb: fa07a14844314772266b66c3b95deb0027696d8fe7065721263db5176f45d799
+      sha256_vae: 20678548f420d98d26f11442d3528f8b8c94e57ee046ef93dbb7633da8612ca1
       vae_checkpoint: ema_vae_fp16.safetensors
     7b_sharp:
       checkpoint_fp16: seedvr2_ema_7b_sharp_fp16.safetensors
@@ -99,11 +99,11 @@ model:
       neg_emb: neg_emb.pt
       num_blocks: 36
       pos_emb: pos_emb.pt
-      sha256_fp16: ''
-      sha256_fp8: ''
-      sha256_neg_emb: ''
-      sha256_pos_emb: ''
-      sha256_vae: ''
+      sha256_fp16: 20a93e01ff24beaeebc5de4e4e5be924359606c356c9c51509fba245bd2d77dd
+      sha256_fp8: 4261d18fd9c331f4c8f14b475c9148bd8c3f1512240ace55fe31a179e0a960b0
+      sha256_neg_emb: 6a43e5800ef2354f1c156d27535834da055cbec8248298b8923492bba2076581
+      sha256_pos_emb: fa07a14844314772266b66c3b95deb0027696d8fe7065721263db5176f45d799
+      sha256_vae: 20678548f420d98d26f11442d3528f8b8c94e57ee046ef93dbb7633da8612ca1
       vae_checkpoint: ema_vae_fp16.safetensors
   pretrained_dir: pretrained_models
 restore:
@@ -114,15 +114,6 @@ restore:
   seed: 42
   sp_size: 1
   temporal_consistency: 0.8
-security:
-  auth:
-    enable: false
-    password: ''
-    realm: SeedVR2
-    username: admin
-  watermark:
-    alpha: 0.5
-    enable: true
 runtime:
   batch:
     max_retries: 2
@@ -145,6 +136,15 @@ runtime:
   upload:
     chunk_size_bytes: 8192
     large_file_threshold_mb: 10
+security:
+  auth:
+    enable: false
+    password: ''
+    realm: SeedVR2
+    username: admin
+  watermark:
+    alpha: 0.5
+    enable: true
 server:
   allowed_origins:
   - http://127.0.0.1:7870
@@ -167,7 +167,7 @@ user_preferences:
   default_model: 3b_fp16
   default_resolution: 2048
   default_sampler: dpmpp_2m_sde
-  default_seed: '1373201197'
+  default_seed: -1
   default_steps: 20
   default_vae: ema_vae_fp16
   output_format: png
@@ -176,5 +176,5 @@ user_preferences:
   recent_model_path: ''
   slider_comparison_enabled: true
   step_execution_enabled: false
-  vae_tile_size: 1022
+  vae_tile_size: 512
   vae_tiling_enabled: false

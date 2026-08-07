@@ -104,6 +104,7 @@ async def get_progress(
                 "current_frame": task.get("current_frame", 0),
                 "total_frames": task.get("total_frames", 0),
                 "task_type": task.get("task_type", "image"),
+                "message": task.get("message", ""),
             }
             yield f"data: {json.dumps(data)}\n\n"
 

@@ -164,9 +164,9 @@ class MetricsCollector:
         # 系统指标
         snap.uptime_seconds = time.time() - _START_TIME
         try:
-            import psutil
+            from bin.integrated_app.engines._memory_utils import _get_system_memory
 
-            mem = psutil.virtual_memory()
+            mem = _get_system_memory()
             snap.ram_usage_pct = mem.percent
             snap.ram_available_gb = mem.available / (1024**3)
         except Exception:

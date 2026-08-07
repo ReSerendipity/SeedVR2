@@ -1,4 +1,4 @@
-﻿"""框架 / 工程化模块
+"""框架 / 工程化模块
 
 所属项目: SeedVR2 (SeedVR2 视频/图像修复应用)
 核心技术栈: Python, PyTorch, PyYAML, 配置管理, 多GPU推理, 数据预取, pybind11
@@ -41,6 +41,60 @@ import torch
 import yaml
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# 安全模型加载辅助函数 - 防御 pickle 反序列化 RCE
+# ---------------------------------------------------------------------------
+
+
+def _safe_torch_load(
+    path: str,
+    map_location: str = "cpu",
+    *,
+    allow_pickle_fallback: bool = False,
+    purpose: str = "model",
+) -> Any:
+    """安全的 torch.load 包装器，优先使用 weights_only=True 防御 pickle RCE。
+
+    安全策略:
+        1. 首选 weights_only=True (只允许 Tensor/基本类型容器，无任意 Python 对象反序列化)
+        2. 若加载失败且 allow_pickle_fallback=True，回退到 weights_only=False 并记录
+           严重安全警告 - 仅当加载包含非 Tensor 元数据的遗留 checkpoint 时才需要回退
+        3. 回退前记录告警日志，提醒用户模型文件来源不受信时存在 RCE 风险
+
+    Args:
+        path: 模型/checkpoint 文件路径
+        map_location: 设备映射，默认 "cpu"
+        allow_pickle_fallback: 是否允许在 weights_only 失败后回退到 pickle 模式
+        purpose: 用于告警消息的描述性标签 ("checkpoint" / "metadata" / etc.)
+
+    Returns:
+        加载后的 state_dict / checkpoint 对象
+
+    Security Note:
+        CWE-502: pickle 反序列化可能导致任意代码执行。weights_only=True 强制
+        torch 使用受限 unpickler，仅允许 Tensor、基本数值类型、字符串、list/dict/tuple
+        等安全容器。仅当确定模型文件来源 100% 可信时才启用 pickle 回退。
+    """
+    # Step 1: 安全模式优先
+    try:
+        return torch.load(path, map_location=map_location, weights_only=True)
+    except Exception as safe_err:
+        if not allow_pickle_fallback:
+            logger.error(
+                f"[SECURITY] {purpose} 安全加载(weights_only=True)失败: {safe_err}. "
+                f"拒绝回退到 pickle 模式。请将模型转换为 safetensors 格式或使用可信来源的 weights_only 兼容格式。"
+            )
+            raise
+
+    # Step 2: 仅显式允许时才回退，记录严重安全告警
+    logger.warning(
+        f"[SECURITY CRITICAL] {purpose} 正在使用 pickle 模式 (weights_only=False) 加载: {path}\n"
+        f"    这可能导致任意代码执行 (CWE-502)。请确保该文件来源 100% 可信。\n"
+        f"    建议: 迁移到 safetensors 格式以彻底消除 pickle 风险。"
+    )
+    return torch.load(path, map_location=map_location, weights_only=False)
 
 
 # ---------------------------------------------------------------------------
@@ -606,7 +660,12 @@ class AutoResumeManager:
         logger.info(f"从检查点恢复: {checkpoint_path}")
 
         try:
-            checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+            checkpoint = _safe_torch_load(
+                checkpoint_path,
+                map_location="cpu",
+                allow_pickle_fallback=True,
+                purpose="checkpoint-resume",
+            )
 
             # 提取 state_dict
             if isinstance(checkpoint, dict):
@@ -1298,7 +1357,12 @@ class ModelSelfDescriptor:
             (模型, 元数据) 元组
         """
         try:
-            state_dict = torch.load(path, map_location="cpu", weights_only=False)
+            state_dict = _safe_torch_load(
+                path,
+                map_location="cpu",
+                allow_pickle_fallback=True,
+                purpose="model-self-descriptor-metadata",
+            )
 
             # 提取元数据
             metadata = ModelMetadata.from_state_dict(state_dict)
@@ -1333,7 +1397,12 @@ class ModelSelfDescriptor:
             ModelMetadata 或 None
         """
         try:
-            state_dict = torch.load(path, map_location="cpu", weights_only=False)
+            state_dict = _safe_torch_load(
+                path,
+                map_location="cpu",
+                allow_pickle_fallback=True,
+                purpose="metadata-inspection",
+            )
             return ModelMetadata.from_state_dict(state_dict)
         except Exception as e:
             logger.error(f"元数据检查失败: {e}")

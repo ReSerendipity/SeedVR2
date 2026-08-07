@@ -975,6 +975,8 @@ const SeedVR2 = (() => {
      * @private
      */
     let currentRestoreEventSource = null;
+    /** @var {boolean} _restoreSessionCleared - 标记会话已被清除，防止 beforeunload 重新保存 */
+    let _restoreSessionCleared = false;
 
     /**
      * @function startRestoreProgressSSE
@@ -983,11 +985,96 @@ const SeedVR2 = (() => {
      * @param {string} taskType - 任务类型：'video' 或 'image'
      * @returns {void}
      */
+
+    /**
+     * @function saveRestoreSession
+     * @description Save current restore page state snapshot to localStorage, called on page unload
+     * and periodically during progress—so switching pages and coming back restores everything.
+     * @param {Object} overrides - Fields to override in the saved snapshot
+     * @returns {void}
+     */
+        // === saveRestoreSession (fire-and-forget) ===
+        function saveRestoreSession(overrides) {
+            try {
+                // 会话已被 restoreRestoreSession 清除，不再重新保存
+                if (_restoreSessionCleared && !overrides.taskId) return;
+                overrides = overrides || {};
+                var existing = {};
+                try { existing = JSON.parse(localStorage.getItem('sv_restore_session') || '{}'); } catch(e) {}
+                var snap = { savedAt: Date.now() };
+                // Carry forward known safe keys
+                var keys = ['taskId','taskType','status','beforeSrc','fileName','fileSize',
+                            'progress','progress_stage','taskStatus',
+                            'batchId','batchTotal','batchCompleted','batchFailed'];
+                for (var i = 0; i < keys.length; i++) {
+                    if (existing[keys[i]] !== undefined) snap[keys[i]] = existing[keys[i]];
+                }
+                // Merge overrides
+                var ovKeys = Object.keys(overrides);
+                for (var j = 0; j < ovKeys.length; j++) {
+                    snap[ovKeys[j]] = overrides[ovKeys[j]];
+                }
+                // Safely capture file info from DOM
+                try {
+                    var fi = document.getElementById('restoreFileInfo');
+                    if (fi && fi.style && fi.style.display !== 'none' && !snap.fileName) {
+                        var n = fi.querySelector('.sv-fileinfo-name');
+                        var s = fi.querySelector('.sv-fileinfo-size');
+                        if (n) snap.fileName = n.textContent || '';
+                        if (s) snap.fileSize = s.textContent || '';
+                    }
+                } catch(e) {}
+                try {
+                    var bc = document.getElementById('batchProgressCard');
+                    if (bc && bc.style && bc.style.display !== 'none') {
+                        snap.batchId = snap.batchId || existing.batchId;
+                    }
+                } catch(e) {}
+                if (snap.fileName || snap.taskId || snap.batchId) {
+                    localStorage.setItem('sv_restore_session', JSON.stringify(snap));
+                }
+            } catch(e) { /* Never let saveRestoreSession break the caller */ }
+        }
+    
+        /**
+         * @function restoreRestoreSession
+     * @description On page load, check for a saved restore session and restore UI state.
+     * Handles: completed (show result), processing (re-connect SSE), pending, failed.
+     * @returns {Promise<void>}
+     */
+    async function restoreRestoreSession() {
+        try {
+            var saved = localStorage.getItem('sv_restore_session');
+            if (!saved) return;
+            var snap = JSON.parse(saved);
+            // 所有含有 taskId 的会话一律清除——用户回到修复页面应看到干净的上传界面
+            // 原因：服务器重启后旧任务已不活跃，SSE 也无法重连，恢复这些会话会导致空白
+            if (snap.taskId) {
+                localStorage.removeItem('sv_restore_session');
+                _restoreSessionCleared = true;
+                return;
+            }
+            // 无 taskId 的 uploaded 状态也清除
+            localStorage.removeItem('sv_restore_session');
+            _restoreSessionCleared = true;
+        } catch(e) { /* ignore - best effort restore */ }
+    }
+
+    /** @var {number} _restoreSseRetryCount SSE重连计数 */
+    let _restoreSseRetryCount = 0;
+    /** @var {number} _restoreSseMaxRetries SSE最大重连次数 */
+    const _restoreSseMaxRetries = 20;
+
     function startRestoreProgressSSE(taskId, taskType) {
         // 关闭之前的连接
         if (currentRestoreEventSource) {
             currentRestoreEventSource.close();
             currentRestoreEventSource = null;
+        }
+
+        // 设置当前任务ID供取消按钮使用
+        if (typeof window !== 'undefined' && window.currentTaskId !== undefined) {
+            window.currentTaskId = taskId;
         }
 
         const progressBar = document.getElementById('progressBar');
@@ -1009,9 +1096,95 @@ const SeedVR2 = (() => {
         const _I = window.__I18N__ || {};
         const typeLabel = taskType === 'video' ? (_I['history.video'] || t('history.video')) : (_I['history.image'] || t('history.image'));
 
+        // 标记任务是否已终结（completed/failed/cancelled），避免重连已结束的任务
+        let taskFinished = false;
+        // 进度卡死检测：记录进度为0%的持续时间
+        let zeroProgressStart = Date.now();
+        const ZERO_STUCK_THRESHOLD_MS = 60000; // 进度为0%超过60秒视为卡死
+        // 非零进度卡死检测：进度值长时间不变化也视为卡死
+        let lastProgressValue = 0;
+        let lastProgressChangeTime = Date.now();
+        const PROGRESS_STUCK_THRESHOLD_MS = 300000; // 进度不变超过5分钟视为卡死
+
         es.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
+
+                // SSE error event: task doesn't exist or other server error
+                if (data.error) {
+                    console.warn('SSE error:', data.error);
+                    taskFinished = true;
+                    es.close();
+                    currentRestoreEventSource = null;
+                    _restoreSseRetryCount = 0;
+                    if (typeof window !== 'undefined') window.currentTaskId = null;
+                    // 清除会话并隐藏进度卡片
+                    try { localStorage.removeItem('sv_restore_session'); } catch(e) {}
+                    const pc = document.getElementById('progressCard');
+                    if (pc) pc.style.display = 'none';
+                    toast(data.error || '任务不存在', 'warning');
+                    return;
+                }
+
+                // SSE 超时事件：服务端在 max_duration 后发送，任务可能仍在运行
+                if (data.status === 'timeout') {
+                    es.close();
+                    currentRestoreEventSource = null;
+                    if (!taskFinished) {
+                        _restoreSseRetryCount++;
+                        if (_restoreSseRetryCount <= _restoreSseMaxRetries) {
+                            console.debug('SSE timeout, auto-reconnecting (' + _restoreSseRetryCount + '/' + _restoreSseMaxRetries + ')');
+                            // 指数退避重连：2s, 4s, 8s... 最大 15s
+                            const retryDelay = Math.min(2000 * Math.pow(2, _restoreSseRetryCount - 1), 15000);
+                            setTimeout(() => {
+                                // 仅在进度卡未关闭时重连（用户可能已手动取消或离开页面）
+                                const pc = document.getElementById('progressCard');
+                                if (pc && pc.style.display !== 'none') {
+                                    startRestoreProgressSSE(taskId, taskType);
+                                }
+                            }, retryDelay);
+                        } else {
+                            toast(_I['system.connection_failed'] || t('system.connection_failed'), 'warning', 8000);
+                        }
+                    }
+                    return;
+                }
+
+                // 重置重连计数（收到有效数据说明连接正常）
+                _restoreSseRetryCount = 0;
+
+                // 进度卡死检测：如果进度为0%超过阈值，视为任务卡死
+                if (data.progress > 0) {
+                    zeroProgressStart = Date.now(); // 有进度则重置计时
+                    // 检测进度值是否发生变化
+                    if (data.progress !== lastProgressValue) {
+                        lastProgressValue = data.progress;
+                        lastProgressChangeTime = Date.now();
+                    } else if (data.status === 'processing' && (Date.now() - lastProgressChangeTime) > PROGRESS_STUCK_THRESHOLD_MS) {
+                        // 进度值长时间不变（非零），也视为卡死
+                        console.warn('Task appears stuck: progress unchanged at ' + data.progress + '% for ' + PROGRESS_STUCK_THRESHOLD_MS / 1000 + 's');
+                        taskFinished = true;
+                        es.close();
+                        currentRestoreEventSource = null;
+                        if (typeof window !== 'undefined') window.currentTaskId = null;
+                        try { localStorage.removeItem('sv_restore_session'); } catch(e) {}
+                        const pc = document.getElementById('progressCard');
+                        if (pc) pc.style.display = 'none';
+                        toast(_I['restore.task_stuck'] || '任务似乎已卡死，请重新开始', 'warning');
+                        return;
+                    }
+                } else if (data.status === 'processing' && (Date.now() - zeroProgressStart) > ZERO_STUCK_THRESHOLD_MS) {
+                    console.warn('Task appears stuck: 0% progress for ' + STUCK_THRESHOLD_MS / 1000 + 's');
+                    taskFinished = true;
+                    es.close();
+                    currentRestoreEventSource = null;
+                    if (typeof window !== 'undefined') window.currentTaskId = null;
+                    try { localStorage.removeItem('sv_restore_session'); } catch(e) {}
+                    const pc = document.getElementById('progressCard');
+                    if (pc) pc.style.display = 'none';
+                    toast(_I['restore.task_stuck'] || '任务似乎已卡死，请重新开始', 'warning');
+                    return;
+                }
 
                 // 更新进度条（使用transform:scaleX提升性能，避免重排）
                 if (progressBar) {
@@ -1028,6 +1201,8 @@ const SeedVR2 = (() => {
                 if (progressFrames) {
                     if (taskType === 'video' && data.total_frames) {
                         progressFrames.textContent = `${data.current_frame} / ${data.total_frames} 帧`;
+                    } else if (taskType === 'image' && data.message) {
+                        progressFrames.textContent = data.message;
                     } else {
                         progressFrames.textContent = '';
                     }
@@ -1070,6 +1245,12 @@ const SeedVR2 = (() => {
                     }
                 }
 
+                // 图片任务：显示阶段信息（来自服务端的 message 字段）
+                if (progressDetail && taskType === 'image' && data.message) {
+                    progressDetail.style.display = '';
+                    if (progressStage) progressStage.textContent = data.message;
+                }
+
                 // 更新状态文本
                 if (progressText) {
                     const statusTexts = {
@@ -1079,13 +1260,28 @@ const SeedVR2 = (() => {
                     progressText.textContent = statusTexts[data.status] || (_I['restore.processing'] || t('restore.processing'));
                 }
 
-                // 任务完成处理
+                // 每次收到进度数据时更新持久化快照
+                try {
+                    const ps = JSON.parse(localStorage.getItem('sv_restore_session') || '{}');
+                    ps.progress = data.progress;
+                    ps.progress_stage = data.stage || ps.progress_stage;
+                    ps.progress_fps = data.fps || ps.progress_fps;
+                    ps.progress_text = data.message || ps.progress_text;
+                    ps.eta = data.eta || ps.eta;
+                    if (data.status) ps.taskStatus = data.status;
+                    localStorage.setItem('sv_restore_session', JSON.stringify(ps));
+                } catch (e) {}
+
                 if (data.status === 'completed') {
+                    taskFinished = true;
                     es.close();
                     currentRestoreEventSource = null;
+                    _restoreSseRetryCount = 0;
+                    if (typeof window !== 'undefined') window.currentTaskId = null;
                     if (progressText) progressText.textContent = _I['restore.completed'] || t('restore.completed');
                     if (progressEta) progressEta.textContent = '';
                     if (progressDetail) progressDetail.style.display = 'none';
+                    if (progressFrames) progressFrames.textContent = '';
                     if (taskStatus) {
                         taskStatus.textContent = _I['status.completed'] || t('status.completed');
                         taskStatus.className = 'sv-badge sv-badge-completed';
@@ -1098,8 +1294,11 @@ const SeedVR2 = (() => {
 
                 // 任务失败处理
                 if (data.status === 'failed') {
+                    taskFinished = true;
                     es.close();
                     currentRestoreEventSource = null;
+                    _restoreSseRetryCount = 0;
+                    if (typeof window !== 'undefined') window.currentTaskId = null;
                     if (progressText) progressText.textContent = _I['restore.failed'] || t('restore.failed');
                     if (progressDetail) progressDetail.style.display = 'none';
                     if (taskStatus) {
@@ -1107,6 +1306,21 @@ const SeedVR2 = (() => {
                         taskStatus.className = 'sv-badge sv-badge-failed';
                     }
                     toast(`${typeLabel}: ${_I['restore.failed'] || t('restore.failed')}`, 'error');
+                }
+
+                // 任务取消处理
+                if (data.status === 'cancelled') {
+                    taskFinished = true;
+                    es.close();
+                    currentRestoreEventSource = null;
+                    _restoreSseRetryCount = 0;
+                    if (typeof window !== 'undefined') window.currentTaskId = null;
+                    if (progressText) progressText.textContent = (window.__I18N__ && window.__I18N__['restore.cancel_task']) || 'Cancelled';
+                    if (progressDetail) progressDetail.style.display = 'none';
+                    if (taskStatus) {
+                        taskStatus.textContent = (window.__I18N__ && window.__I18N__['status.cancelled']) || 'Cancelled';
+                        taskStatus.className = 'sv-badge sv-badge-failed';
+                    }
                 }
             } catch (err) {
                 console.error('SSE data parse error:', err);
@@ -1116,7 +1330,34 @@ const SeedVR2 = (() => {
         es.onerror = () => {
             es.close();
             currentRestoreEventSource = null;
-            toast(_I['system.connection_failed'] || t('system.connection_failed'), 'warning');
+            // 连接断开时自动重连（只要任务未终结）
+            if (!taskFinished) {
+                _restoreSseRetryCount++;
+                // 连续失败3次以上，可能是任务不存在，清除会话
+                if (_restoreSseRetryCount > 3) {
+                    console.warn('SSE connection failed ' + _restoreSseRetryCount + ' times, task may not exist');
+                    taskFinished = true;
+                    _restoreSseRetryCount = 0;
+                    if (typeof window !== 'undefined') window.currentTaskId = null;
+                    try { localStorage.removeItem('sv_restore_session'); } catch(e) {}
+                    const pc = document.getElementById('progressCard');
+                    if (pc) pc.style.display = 'none';
+                    toast(_I['restore.task_not_found'] || '任务已不存在或已过期', 'warning');
+                    return;
+                }
+                if (_restoreSseRetryCount <= _restoreSseMaxRetries) {
+                    console.debug('SSE connection lost, auto-reconnecting (' + _restoreSseRetryCount + '/' + _restoreSseMaxRetries + ')');
+                    const retryDelay = Math.min(2000 * Math.pow(2, _restoreSseRetryCount - 1), 15000);
+                    setTimeout(() => {
+                        const pc = document.getElementById('progressCard');
+                        if (pc && pc.style.display !== 'none') {
+                            startRestoreProgressSSE(taskId, taskType);
+                        }
+                    }, retryDelay);
+                } else {
+                    toast(_I['system.connection_failed'] || t('system.connection_failed'), 'warning', 8000);
+                }
+            }
         };
     }
 
@@ -1137,6 +1378,14 @@ const SeedVR2 = (() => {
         if (progressCard) progressCard.style.display = 'none';
         if (resultCard) resultCard.style.display = 'block';
         if (btnDownload) btnDownload.href = `/api/restore/${taskId}/download`;
+
+        // 持久化结果状态到 sessionStorage，切页返回时可恢复
+        const beforeSrc = document.getElementById('imagePreview')?.src || '';
+        try {
+            sessionStorage.setItem('sv_restore_result', JSON.stringify({
+                taskId, taskType, beforeSrc
+            }));
+        } catch (e) { /* ignore quota errors */ }
 
         if (taskType === 'video') {
             // 视频任务显示视频播放器
@@ -1173,95 +1422,287 @@ const SeedVR2 = (() => {
     // ===== 前后对比滑块 =====
     /**
      * @function initCompareSlider
-     * @description 初始化图片前后对比滑块，支持鼠标拖拽和触摸操作，通过clip-path实现前后对比效果
+     * @description 初始化图片前后对比滑块，支持水平/垂直模式、缩放、键盘操作
      * @param {string} containerId - 对比容器元素ID
      * @param {string} sliderId - 滑块元素ID
      * @param {string} afterId - 修复后图片容器元素ID
-     * @returns {void}
+     * @returns {object} CompareSlider 实例
      */
     function initCompareSlider(containerId, sliderId, afterId) {
-        const container = document.getElementById(containerId);
-        const slider = document.getElementById(sliderId);
-        const afterEl = document.getElementById(afterId);
+        return new CompareSlider(containerId, sliderId, afterId);
+    }
 
-        if (!container || !slider || !afterEl) return;
+    /**
+     * @class CompareSlider
+     * @description 前后对比滑块控制器，支持水平/垂直模式、鼠标滚轮缩放、
+     *              触摸 pinch-to-zoom、键盘方向键、双击重置、50% 吸附
+     */
+    class CompareSlider {
+        constructor(containerId, sliderId, afterId) {
+            this.container = document.getElementById(containerId);
+            this.slider = document.getElementById(sliderId);
+            this.afterEl = document.getElementById(afterId);
+            if (!this.container || !this.slider || !this.afterEl) return;
 
-        let isDragging = false;
-        let dragAbortController = null;
+            this.viewport = this.container.parentElement;
+            this.mode = 'horizontal'; // 'horizontal' | 'vertical'
+            this.position = 0.5;      // 0-1 归一化位置
+            this.zoom = 1;
+            this.minZoom = 0.5;
+            this.maxZoom = 5;
+            this.isDragging = false;
+            this.dragAbort = null;
+            this.snapThreshold = 0.03; // 50% 吸附阈值
+            this.rafId = null;
 
-        /**
-         * @function updatePosition
-         * @description 根据鼠标/触摸X坐标更新滑块位置和图片裁剪区域
-         * @param {number} x - 客户端X坐标
-         * @returns {void}
-         */
-        function updatePosition(x) {
-            const rect = container.getBoundingClientRect();
-            let pos = (x - rect.left) / rect.width;
-            pos = Math.max(0, Math.min(1, pos));
-
-            slider.style.transform = `translateX(${pos * rect.width}px)`;
-            // 使用clip-path裁剪右侧图片，实现前后对比效果
-            afterEl.style.clipPath = `inset(0 0 0 ${pos * 100}%)`;
+            this._initState();
+            this._bindDrag();
+            this._bindZoom();
+            this._bindKeyboard();
+            this._bindDoubleClick();
+            this._bindToolbar();
+            this._bindImageLoad();
         }
 
-        // 初始位置设置为50%
-        updatePosition(container.getBoundingClientRect().left + container.getBoundingClientRect().width / 2);
+        _initState() {
+            this.container.classList.remove('vertical');
+            this.afterEl.style.clipPath = 'inset(0 0 0 50%)';
+            this._updateSliderUI(0.5);
+        }
 
-        /**
-         * @function startDrag
-         * @description 开始拖拽操作，绑定鼠标和触摸事件监听
-         * @returns {void}
-         */
-        function startDrag() {
-            isDragging = true;
-            slider.style.willChange = 'transform';
-            // 终止之前的拖拽监听器，防止内存泄漏
-            if (dragAbortController) {
-                dragAbortController.abort();
+        // ── 滑块位置 ──
+
+        _updateSliderUI(pos) {
+            this.position = Math.max(0, Math.min(1, pos));
+            if (this.mode === 'horizontal') {
+                const w = this.container.getBoundingClientRect().width;
+                this.slider.style.transform = `translateX(${this.position * w}px)`;
+                this.afterEl.style.clipPath = `inset(0 0 0 ${this.position * 100}%)`;
+            } else {
+                const h = this.container.getBoundingClientRect().height;
+                this.slider.style.transform = `translateY(${this.position * h}px)`;
+                this.afterEl.style.clipPath = `inset(0 0 ${this.position * 100}% 0)`;
             }
-            dragAbortController = new AbortController();
-            const signal = dragAbortController.signal;
-
-            document.addEventListener('mousemove', (e) => {
-                if (isDragging) {
-                    e.preventDefault();
-                    updatePosition(e.clientX);
-                }
-            }, { signal });
-
-            document.addEventListener('mouseup', () => {
-                isDragging = false;
-                slider.style.willChange = '';
-                dragAbortController.abort();
-                dragAbortController = null;
-            }, { signal });
-
-            // 触摸设备支持
-            document.addEventListener('touchmove', (e) => {
-                if (isDragging) {
-                    updatePosition(e.touches[0].clientX);
-                }
-            }, { signal });
-
-            document.addEventListener('touchend', () => {
-                isDragging = false;
-                slider.style.willChange = '';
-                dragAbortController.abort();
-                dragAbortController = null;
-            }, { signal });
         }
 
-        container.addEventListener('mousedown', (e) => {
-            startDrag();
-            updatePosition(e.clientX);
-        });
+        _setPositionFromEvent(clientX, clientY) {
+            const rect = this.container.getBoundingClientRect();
+            let pos;
+            if (this.mode === 'horizontal') {
+                pos = (clientX - rect.left) / rect.width;
+            } else {
+                pos = (clientY - rect.top) / rect.height;
+            }
+            // 50% 吸附
+            if (Math.abs(pos - 0.5) < this.snapThreshold) pos = 0.5;
+            this._updateSliderUI(pos);
+        }
 
-        // 触摸设备支持
-        container.addEventListener('touchstart', (e) => {
-            startDrag();
-            updatePosition(e.touches[0].clientX);
-        });
+        // ── 拖拽 ──
+
+        _bindDrag() {
+            const onStart = (clientX, clientY) => {
+                this.isDragging = true;
+                this.container.classList.add('no-transition');
+                this.slider.classList.remove('snapping');
+                this.slider.classList.add('is-dragging');
+                if (this.dragAbort) this.dragAbort.abort();
+                this.dragAbort = new AbortController();
+                const sig = this.dragAbort.signal;
+
+                const onMove = (e) => {
+                    if (!this.isDragging) return;
+                    e.preventDefault();
+                    const cx = e.touches ? e.touches[0].clientX : e.clientX;
+                    const cy = e.touches ? e.touches[0].clientY : e.clientY;
+                    if (!this.rafId) {
+                        this.rafId = requestAnimationFrame(() => {
+                            this._setPositionFromEvent(cx, cy);
+                            this.rafId = null;
+                        });
+                    }
+                };
+
+                const onEnd = () => {
+                    this.isDragging = false;
+                    this.container.classList.remove('no-transition');
+                    this.slider.classList.remove('is-dragging');
+                    if (this.dragAbort) { this.dragAbort.abort(); this.dragAbort = null; }
+                    if (this.rafId) { cancelAnimationFrame(this.rafId); this.rafId = null; }
+                };
+
+                document.addEventListener('mousemove', onMove, { signal: sig });
+                document.addEventListener('mouseup', onEnd, { signal: sig });
+                document.addEventListener('touchmove', onMove, { signal: sig, passive: false });
+                document.addEventListener('touchend', onEnd, { signal: sig });
+
+                this._setPositionFromEvent(clientX, clientY);
+            };
+
+            this.container.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                onStart(e.clientX, e.clientY);
+            });
+            this.container.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    onStart(e.touches[0].clientX, e.touches[0].clientY);
+                }
+            }, { passive: true });
+        }
+
+        // ── 缩放 ──
+
+        _applyZoom(newZoom, cx, cy) {
+            const oldZoom = this.zoom;
+            this.zoom = Math.max(this.minZoom, Math.min(this.maxZoom, newZoom));
+            this.container.style.transform = `scale(${this.zoom})`;
+            const label = document.getElementById('compareZoomLabel');
+            if (label) label.textContent = Math.round(this.zoom * 100) + '%';
+        }
+
+        _bindZoom() {
+            // 鼠标滚轮缩放
+            this.viewport.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? -0.1 : 0.1;
+                this._applyZoom(this.zoom + delta);
+            }, { passive: false });
+
+            // 触摸 pinch-to-zoom
+            let lastTouchDist = 0;
+            this.viewport.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 2) {
+                    const dx = e.touches[0].clientX - e.touches[1].clientX;
+                    const dy = e.touches[0].clientY - e.touches[1].clientY;
+                    lastTouchDist = Math.sqrt(dx * dx + dy * dy);
+                }
+            }, { passive: true });
+            this.viewport.addEventListener('touchmove', (e) => {
+                if (e.touches.length === 2) {
+                    e.preventDefault();
+                    const dx = e.touches[0].clientX - e.touches[1].clientX;
+                    const dy = e.touches[0].clientY - e.touches[1].clientY;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (lastTouchDist > 0) {
+                        const scale = dist / lastTouchDist;
+                        this._applyZoom(this.zoom * scale);
+                    }
+                    lastTouchDist = dist;
+                }
+            }, { passive: false });
+            this.viewport.addEventListener('touchend', () => { lastTouchDist = 0; }, { passive: true });
+        }
+
+        // ── 键盘 ──
+
+        _bindKeyboard() {
+            this.viewport.addEventListener('keydown', (e) => {
+                const step = 0.02;
+                switch (e.key) {
+                    case 'ArrowLeft':
+                    case 'ArrowUp':
+                        e.preventDefault();
+                        this._updateSliderUI(this.position - step);
+                        break;
+                    case 'ArrowRight':
+                    case 'ArrowDown':
+                        e.preventDefault();
+                        this._updateSliderUI(this.position + step);
+                        break;
+                    case 'Home':
+                        e.preventDefault();
+                        this._updateSliderUI(0);
+                        break;
+                    case 'End':
+                        e.preventDefault();
+                        this._updateSliderUI(1);
+                        break;
+                    case '0':
+                        e.preventDefault();
+                        this._resetToCenter();
+                        break;
+                }
+            });
+        }
+
+        // ── 双击重置 ──
+
+        _bindDoubleClick() {
+            this.viewport.addEventListener('dblclick', () => {
+                this._resetToCenter();
+            });
+        }
+
+        _resetToCenter() {
+            this.zoom = 1;
+            this.container.style.transition = 'transform 0.3s ease-out';
+            this.container.style.transform = 'scale(1)';
+            this.slider.classList.add('snapping');
+            this.slider.style.transition = 'transform 0.3s ease-out';
+            this._updateSliderUI(0.5);
+            const label = document.getElementById('compareZoomLabel');
+            if (label) label.textContent = '100%';
+            setTimeout(() => {
+                this.container.style.transition = '';
+                this.slider.style.transition = '';
+                this.slider.classList.remove('snapping');
+            }, 320);
+        }
+
+        // ── 工具栏 ──
+
+        _bindToolbar() {
+            const btnH = document.getElementById('btnCompareHorizontal');
+            const btnV = document.getElementById('btnCompareVertical');
+            const btnZoomIn = document.getElementById('btnCompareZoomIn');
+            const btnZoomOut = document.getElementById('btnCompareZoomOut');
+            const btnFit = document.getElementById('btnCompareFit');
+            const btnReset = document.getElementById('btnCompareReset');
+
+            if (btnH) btnH.addEventListener('click', () => this.setMode('horizontal'));
+            if (btnV) btnV.addEventListener('click', () => this.setMode('vertical'));
+            if (btnZoomIn) btnZoomIn.addEventListener('click', () => this._applyZoom(this.zoom + 0.25));
+            if (btnZoomOut) btnZoomOut.addEventListener('click', () => this._applyZoom(this.zoom - 0.25));
+            if (btnFit) btnFit.addEventListener('click', () => this._resetToCenter());
+            if (btnReset) btnReset.addEventListener('click', () => this._resetToCenter());
+        }
+
+        setMode(mode) {
+            this.mode = mode;
+            const btnH = document.getElementById('btnCompareHorizontal');
+            const btnV = document.getElementById('btnCompareVertical');
+            if (btnH) btnH.classList.toggle('active', mode === 'horizontal');
+            if (btnV) btnV.classList.toggle('active', mode === 'vertical');
+
+            if (mode === 'vertical') {
+                this.container.classList.add('vertical');
+                const icon = this.slider.querySelector('i');
+                if (icon) { icon.className = 'bi bi-arrows-expand-vertical'; }
+            } else {
+                this.container.classList.remove('vertical');
+                const icon = this.slider.querySelector('i');
+                if (icon) { icon.className = 'bi bi-arrows-expand-horizontal'; }
+            }
+            this._updateSliderUI(this.position);
+        }
+
+        // ── 图片加载状态 ──
+
+        _bindImageLoad() {
+            const beforeImg = document.getElementById('compareBefore');
+            const afterImg = document.getElementById('compareAfterImg');
+            [beforeImg, afterImg].forEach((img) => {
+                if (!img) return;
+                img.addEventListener('load', () => {
+                    this.container.style.minHeight = '';
+                });
+            });
+        }
+
+        destroy() {
+            if (this.dragAbort) this.dragAbort.abort();
+            if (this.rafId) cancelAnimationFrame(this.rafId);
+        }
     }
 
     // ===== 设置页面 =====
@@ -1400,6 +1841,63 @@ const SeedVR2 = (() => {
         });
     }
 
+    /**
+     * @function clearHistoryWithOptions
+     * @description Show a clear history dialog with a checkbox option for completed records.
+     * @returns {Promise<{includeCompleted: boolean, cancelled: boolean}>}
+     */
+    async function clearHistoryWithOptions() {
+        const I = window.__I18N__ || {};
+        return new Promise((resolve) => {
+            const overlay = document.createElement('div');
+            overlay.className = 'sv-modal-overlay';
+            overlay.id = 'clearHistoryModal';
+            overlay.style.display = 'flex';
+            overlay.innerHTML = (
+                '<div class="sv-modal" style="max-width:420px;">' +
+                '<div class="sv-modal-header">' +
+                '<h3>' + (I["history.clear"] || 'Clear History') + '</h3>' +
+                '<button class="sv-btn sv-btn-icon sv-btn-outline" aria-label="Close" data-modal-close="clearHistoryModal">' +
+                '<i class="bi bi-x"></i></button>' +
+                '</div>' +
+                '<div class="sv-modal-body">' +
+                '<p style="margin-bottom:14px;">' + (I["history.clear_confirm"] || 'This will clear failed, pending, and processing records.') + '</p>' +
+                '<label class="sv-param-check" style="display:flex;align-items:center;gap:8px;cursor:pointer;">' +
+                '<input type="checkbox" id="cbIncludeCompleted" style="width:18px;height:18px;accent-color:var(--sv-primary);">' +
+                '<span style="font-size:0.85rem;">' + (I["history.clear_include_completed"] || 'Also clear completed records') + '</span>' +
+                '</label>' +
+                '</div>' +
+                '<div class="sv-modal-footer">' +
+                '<button class="sv-btn sv-btn-secondary" data-modal-close="clearHistoryModal">' + (I["common.cancel"] || 'Cancel') + '</button>' +
+                '<button class="sv-btn sv-btn-danger" id="btnDoClearHistory">' + (I["common.confirm"] || 'Confirm') + '</button>' +
+                '</div>' +
+                '</div>'
+            );
+            document.body.appendChild(overlay);
+            overlay.classList.add('show');
+
+            const close = () => {
+                overlay.classList.remove('show');
+                overlay.remove();
+                resolve({ includeCompleted: false, cancelled: true });
+            };
+
+            overlay.querySelectorAll('[data-modal-close="clearHistoryModal"]').forEach(function(b) {
+                b.addEventListener('click', close);
+            });
+            overlay.addEventListener('click', function(e) {
+                if (e.target === overlay) close();
+            });
+
+            document.getElementById('btnDoClearHistory').addEventListener('click', function() {
+                var includeCompleted = document.getElementById('cbIncludeCompleted').checked;
+                overlay.classList.remove('show');
+                overlay.remove();
+                resolve({ includeCompleted: includeCompleted, cancelled: false });
+            });
+        });
+    }
+
     // ===== 重置修复页面 =====
     /**
      * @function resetRestore
@@ -1455,6 +1953,9 @@ const SeedVR2 = (() => {
             currentRestoreEventSource.close();
             currentRestoreEventSource = null;
         }
+
+        // 清除持久化的修复会话
+        try { localStorage.removeItem('sv_restore_session'); } catch(e) {}
     }
 
     // ===== 工具函数 =====
@@ -1926,6 +2427,28 @@ const SeedVR2 = (() => {
             clearInterval(_statusTimeInterval);
         });
 
+
+        // ===== 修复页面持久化会话 =====
+        // 页面卸载/切页前保存当前修复状态
+        window.addEventListener('pagehide', function() {
+            saveRestoreSession();
+        });
+        window.addEventListener('beforeunload', function() {
+            saveRestoreSession();
+        });
+        // 页面切回时恢复会话
+        document.addEventListener('DOMContentLoaded', function() {
+            if (document.getElementById('restoreUploadZone') ||
+                document.getElementById('previewArea')) {
+                setTimeout(function() { restoreRestoreSession(); }, 50);
+            }
+        });
+        // 每5秒自动保存进度快照（仅处理中时有效）
+        setInterval(function() {
+            var pc = document.getElementById('progressCard');
+            if (pc && pc.style.display !== 'none') saveRestoreSession();
+        }, 5000);
+
         // 表单验证
         initFormValidation();
 
@@ -2329,45 +2852,6 @@ const SeedVR2 = (() => {
         }
     }
 
-    // ===== 参数预设 API =====
-    /**
-     * @function loadParameterPresets
-     * @description 从服务器加载参数预设配置
-     * @returns {Promise<Object|null>} 参数预设数据对象，加载失败返回null
-     */
-    async function loadParameterPresets() {
-        try {
-            const data = await api.get('/api/ui/parameters');
-            if (data.success && data.data) {
-                return data.data;
-            }
-        } catch (e) {
-            console.debug('加载参数预设失败:', e);
-        }
-        return null;
-    }
-
-    /**
-     * @function getParameterRecommendations
-     * @description 根据当前参数获取推荐参数配置
-     * @param {number} cfgScale - CFG Scale参数值
-     * @param {number} denoisingStrength - 去噪强度参数值
-     * @param {number} steps - 采样步数参数值
-     * @returns {Promise<Object[]>} 推荐参数数组
-     */
-    async function getParameterRecommendations(cfgScale, denoisingStrength, steps) {
-        try {
-            const url = `/api/ui/parameters/recommendations?cfg_scale=${cfgScale}&denoising_strength=${denoisingStrength}&steps=${steps}`;
-            const data = await api.get(url);
-            if (data.success && data.data) {
-                return data.data.recommendations;
-            }
-        } catch (e) {
-            console.debug('获取参数推荐失败:', e);
-        }
-        return [];
-    }
-
     // ===== 卡片显示/隐藏动画 =====
     /**
      * @function showCard
@@ -2471,6 +2955,8 @@ const SeedVR2 = (() => {
         loadSettings,
         /** @type {Function} 删除历史记录 */
         deleteHistoryRecord,
+        /** @type {Function} 带选项清除历史记录 */
+        clearHistoryWithOptions,
         /** @type {Function} 切换语言（别名） */
         cycleLocale: switchLocale,
         /** @type {Function} 切换语言 */
@@ -2507,11 +2993,12 @@ const SeedVR2 = (() => {
         loadUserPreferences,
         /** @type {Function} 保存用户偏好 */
         saveUserPreferences,
-        /** @type {Function} 加载参数预设 */
-        loadParameterPresets,
-        /** @type {Function} 获取参数推荐 */
-        getParameterRecommendations,
         /** @type {Function} 设置按钮加载状态 */
         setButtonLoading,
+        /** @type {Function} 保存修复会话到 localStorage */
+        saveRestoreSession,
+        /** @type {Function} 从 localStorage 恢复修复会话 */
+        restoreRestoreSession,
     };
 })();
+

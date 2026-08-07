@@ -224,9 +224,9 @@ def get_system_memory_info() -> dict:
         psutil 不可用时返回全 0 默认字典。
     """
     try:
-        import psutil
+        from bin.integrated_app.engines._memory_utils import _get_system_memory
 
-        mem = psutil.virtual_memory()
+        mem = _get_system_memory()
         return {
             "total_mb": mem.total // (1024 * 1024),
             "available_mb": mem.available // (1024 * 1024),

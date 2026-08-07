@@ -1,4 +1,6 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2024-2026 ReSerendipity
+# SPDX-License-Identifier: Apache-2.0
 """SeedVR2 - 模型管理器模块
 
 本模块实现模型生命周期管理，负责 SeedVR2 模型的加载、卸载、切换和显存预检，

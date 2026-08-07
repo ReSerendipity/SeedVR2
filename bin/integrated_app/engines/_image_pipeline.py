@@ -51,17 +51,21 @@ def _normalize_model_tag(model_size: str | None) -> str:
 
 
 def _build_output_name(model_size: str | None, ext: str) -> str:
-    """构造「日期_时分秒_模型」格式的输出文件名。
+    """构造「日期_时分秒_模型_随机后缀」格式的输出文件名。
+
+    追加 uuid4 随机后缀防止输出路径可预测（纵深防御，T4-3）。
 
     Args:
         model_size: 引擎模型尺寸标识。
         ext: 文件扩展名（含点号），如 ".png"、".mp4"。
 
     Returns:
-        如 "20260803_153030_3B.png"。
+        如 "20260803_153030_3B_a1b2c3d4.png"。
     """
+    from uuid import uuid4
+
     ts = time.strftime("%Y%m%d_%H%M%S")
-    return f"{ts}_{_normalize_model_tag(model_size)}{ext}"
+    return f"{ts}_{_normalize_model_tag(model_size)}_{uuid4().hex[:8]}{ext}"
 
 
 def _resolve_unique_path(output_dir: str, filename: str) -> str:

@@ -335,7 +335,7 @@ class InferenceConfig(BaseModel):
     vae_overlap: int = 512
     cache_model: bool = False
     torch_compile: dict[str, Any] = Field(default_factory=dict)
-    memory_threshold: float = Field(0.90, ge=0.5, le=0.99)
+    memory_threshold: float = Field(0.95, ge=0.5, le=0.99)
     """内存使用率阈值 (0.5-0.99)，超过此值终止推理，防止系统卡死"""
     memory_min_available_gb: float = Field(2.0, ge=0.5, le=64.0)
     """绝对可用内存下限 (GB)，低于此值同样终止推理"""

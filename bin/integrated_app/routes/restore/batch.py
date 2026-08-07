@@ -283,7 +283,7 @@ async def _process_batch_background(
         for attempt in range(max_retries + 1):
             task_item["retry_count"] = attempt
             try:
-                output_dir = os.path.join(os.getcwd(), "outputs", output_subdir, batch_id)
+                output_dir = os.path.join(os.getcwd(), "outputs", output_subdir)
                 await asyncio.to_thread(os.makedirs, output_dir, exist_ok=True)
 
                 if media_type == "image":
@@ -296,9 +296,14 @@ async def _process_batch_background(
                         config=image_config,
                     )
                 else:
-
-                    async def progress_callback(_current_frame: int, _total_frames: int, _progress: float):
-                        pass
+                    # 批量任务的进度回调（同步函数 - 推理在工作线程同步执行）
+                    # 注意：使用默认参数捕获 i，避免闭包延迟绑定问题
+                    def progress_callback(current_frame: int, total_frames: int, progress: float, _i=i, **kwargs):
+                        common.get_task_cache().update(
+                            batch_id,
+                            current_index=_i,
+                            current_progress=round(progress, 1),
+                        )
 
                     engine.set_progress_callback(progress_callback)
                     result = await engine.infer_video(

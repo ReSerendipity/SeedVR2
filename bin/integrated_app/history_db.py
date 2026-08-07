@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: Copyright (c) 2024-2026 ReSerendipity
+# SPDX-License-Identifier: Apache-2.0
 """SQLite 历史记录与任务状态持久化模块
 
 使用 aiosqlite 提供异步 SQLite 数据库访问，管理两类数据:
@@ -440,11 +442,24 @@ class HistoryDB:
         await self._execute_write("DELETE FROM history WHERE id = ?", (record_id,))
         return True
 
-    async def clear_records(self, before_date: str | None = None) -> int:
-        """清除记录"""
+    async def clear_records(self, before_date: str | None = None, status: str | None = None) -> int:
+        """清除记录。
+
+        Args:
+            before_date: 仅清除此日期之前的记录，为 None 则不限日期。
+            status: 仅清除指定状态的记录，为 None 则清除所有状态。
+                    支持 "failed"、"cancelled"、"pending"、"processing" 等。
+        """
+        conditions = []
+        params: list = []
         if before_date:
-            return await self._execute_write("DELETE FROM history WHERE created_at < ?", (before_date,))
-        return await self._execute_write("DELETE FROM history")
+            conditions.append("created_at < ?")
+            params.append(before_date)
+        if status:
+            conditions.append("status = ?")
+            params.append(status)
+        where = " WHERE " + " AND ".join(conditions) if conditions else ""
+        return await self._execute_write(f"DELETE FROM history{where}", params)
 
     # ==================== 任务状态持久化 ====================
 

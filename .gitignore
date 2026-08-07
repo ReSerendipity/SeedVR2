@@ -119,6 +119,7 @@ tests/test-assets/images/sample.png
 .env.*
 !.env.example
 secrets/
+data/.seedvr2_secret
 
 # ---------------------------------------------------------------------------
 # Server runtime

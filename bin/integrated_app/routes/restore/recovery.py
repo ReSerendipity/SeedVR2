@@ -9,11 +9,13 @@
 - 批量获取关联的历史记录
 - 根据任务类型（图像/视频）重新提交到任务队列
 - 处理参数解析失败等异常情况
+- 清理卡死的 processing 任务（超过阈值未完成）
 
 所属项目：SeedVR2 (SeedVR2 视频/图像修复工具)
 """
 
 import logging
+from datetime import datetime, timedelta
 from typing import Any
 
 from bin.integrated_app.config_models import ImageRestoreParams, VideoRestoreParams
@@ -24,6 +26,9 @@ from bin.integrated_app.routes.restore.upload import _process_image_task, _proce
 from bin.integrated_app.task_queue import TaskQueue
 
 logger = logging.getLogger(__name__)
+
+# 卡死任务清理阈值：processing 状态超过此时间视为卡死（默认 30 分钟）
+STALE_TASK_THRESHOLD_MINUTES = 30
 
 
 async def recover_tasks(
@@ -98,3 +103,62 @@ async def recover_tasks(
             await task_queue.submit(task_record.task_id, video_task)
         recovered += 1
     return recovered
+
+
+async def cleanup_stale_tasks(
+    history_db: HistoryDB,
+    threshold_minutes: int = STALE_TASK_THRESHOLD_MINUTES,
+) -> int:
+    """清理卡死的 processing 任务。
+
+    检查数据库中所有 processing 状态的任务，如果更新时间超过阈值，
+    则标记为 failed 并清除任务状态缓存。这防止了卡死任务永久占用资源。
+
+    Args:
+        history_db: 历史记录数据库实例。
+        threshold_minutes: 卡死阈值（分钟），默认 30 分钟。
+
+    Returns:
+        清理的任务数量。
+    """
+    try:
+        processing_tasks = await history_db.get_tasks_by_status("processing")
+        if not processing_tasks:
+            return 0
+
+        cutoff_time = datetime.now() - timedelta(minutes=threshold_minutes)
+        cleaned = 0
+
+        for task_record in processing_tasks:
+            try:
+                updated_at = datetime.fromisoformat(task_record.updated_at)
+                if updated_at < cutoff_time:
+                    logger.warning(
+                        f"清理卡死任务 {task_record.task_id}，"
+                        f"最后更新: {task_record.updated_at}，超过 {threshold_minutes} 分钟"
+                    )
+                    # 标记为 failed
+                    await common.update_task_state(
+                        task_record.task_id,
+                        history_db,
+                        status="failed",
+                        error_message=f"任务卡死，已自动清理（超过 {threshold_minutes} 分钟未完成）",
+                    )
+                    # 同时更新历史记录
+                    if task_record.record_id:
+                        await history_db.update_record(
+                            task_record.record_id,
+                            status="failed",
+                            error_message=f"任务卡死，已自动清理",
+                        )
+                    cleaned += 1
+            except (ValueError, TypeError) as e:
+                logger.warning(f"解析任务 {task_record.task_id} 更新时间失败: {e}")
+                continue
+
+        if cleaned:
+            logger.info(f"已清理 {cleaned} 个卡死的 processing 任务")
+        return cleaned
+    except Exception as e:
+        logger.error(f"清理卡死任务时出错: {e}")
+        return 0

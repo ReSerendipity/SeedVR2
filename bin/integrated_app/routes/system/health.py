@@ -113,7 +113,9 @@ async def health_check(
         import psutil
 
         cpu_count = psutil.cpu_count()
-        mem = psutil.virtual_memory()
+        from bin.integrated_app.engines._memory_utils import _get_system_memory
+
+        mem = _get_system_memory()
         memory_total_gb = round(mem.total / (1024**3), 2)
         memory_available_gb = round(mem.available / (1024**3), 2)
         memory_pct = mem.percent

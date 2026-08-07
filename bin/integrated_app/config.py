@@ -1,4 +1,6 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2024-2026 ReSerendipity
+# SPDX-License-Identifier: Apache-2.0
 """
 SeedVR2 - 配置加载模块
 

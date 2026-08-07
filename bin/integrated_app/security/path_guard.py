@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: Copyright (c) 2024-2026 ReSerendipity
+# SPDX-License-Identifier: Apache-2.0
 """路径安全守卫 - 白名单机制防止路径遍历攻击。
 
 SECURITY CRITICAL: 这是应用文件系统访问安全的核心防线，任何绕过都可能导致

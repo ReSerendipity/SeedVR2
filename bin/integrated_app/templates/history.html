@@ -221,9 +221,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const safeInputFile = SeedVR2.escapeHtml(r.input_file || '');
                 const safeModelSize = r.model_size ? SeedVR2.escapeHtml(r.model_size.toUpperCase()) : '--';
                 const safeTaskType = SeedVR2.escapeHtml(r.task_type);
-                const previewHtml = r.task_type === 'video' 
-                    ? `<div class="sv-thumb-preview"><i class="bi bi-camera-video"></i></div>`
-                    : `<div class="sv-thumb-preview"><i class="bi bi-image"></i></div>`;
+                const previewHtml = (r.task_type === 'image' && r.status === 'completed' && r.output_file)
+                    ? `<div class="sv-thumb-preview"><img src="/api/system/history/${safeId}/download" alt="${fileName}" loading="lazy"></div>`
+                    : (r.task_type === 'video'
+                        ? `<div class="sv-thumb-preview"><i class="bi bi-camera-video"></i></div>`
+                        : `<div class="sv-thumb-preview"><i class="bi bi-image"></i></div>`);
 
                 const cancelButton = (r.status === 'pending' || r.status === 'processing')
                     ? `<button class="sv-btn sv-btn-sm sv-btn-outline btn-cancel-record"
@@ -293,9 +295,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         </button>`
                         : '';
 
+                    const thumbHtml = (r.task_type === 'image' && r.status === 'completed' && r.output_file)
+                        ? `<div class="sv-history-card-thumb"><img src="/api/system/history/${safeId}/download" alt="${fileName}" loading="lazy"></div>`
+                        : `<div class="sv-history-card-thumb"><i class="bi ${typeIcon}"></i></div>`;
+
                     return `
                         <div class="sv-history-card" data-record-id="${safeId}" data-output="${safeOutput}">
-                            <div class="sv-history-card-thumb"><i class="bi ${typeIcon}"></i></div>
+                            ${thumbHtml}
                             <div class="sv-history-card-body">
                                 <div class="sv-history-card-name" title="${safeInputFile}">${fileName}</div>
                                 <div class="sv-history-card-meta">
@@ -414,16 +420,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    document.getElementById('btnClearHistory').addEventListener('click', () => {
-        SeedVR2.confirm(I["history.title"], I["history.clear_confirm"], async () => {
-            try {
-                await SeedVR2.api.delete('/api/system/history');
-                SeedVR2.toast(I["history.cleared"], 'success');
-                loadHistory(1);
-            } catch (err) {
-                SeedVR2.toast(I["history.clear_failed"] + ': ' + err.message, 'error');
+    document.getElementById('btnClearHistory').addEventListener('click', async () => {
+        try {
+            const result = await SeedVR2.clearHistoryWithOptions();
+            if (!result || result.cancelled) return;
+            // 收集要清除的状态
+            const statuses = ['failed', 'cancelled', 'pending', 'processing'];
+            if (result.includeCompleted) {
+                statuses.push('completed');
             }
-        });
+            let totalDeleted = 0;
+            for (const s of statuses) {
+                const res = await SeedVR2.api.delete(`/api/system/history?status=${s}`);
+                totalDeleted += (res && res.deleted_count) || 0;
+            }
+            SeedVR2.toast(
+                (I["history.cleared"] || '已清空') + ` ${totalDeleted} ` + (I["history.records"] || '条记录'),
+                'success'
+            );
+            loadHistory(1);
+        } catch (err) {
+            SeedVR2.toast((I["history.clear_failed"] || '清空失败') + ': ' + err.message, 'error');
+        }
     });
 
     // 初始加载

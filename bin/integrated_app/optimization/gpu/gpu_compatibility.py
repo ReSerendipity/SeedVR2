@@ -839,9 +839,10 @@ class MultiDeviceManager:
                 free_mem, _ = torch.cuda.mem_get_info(device_str)
                 return free_mem >= min_memory_mb * 1024 * 1024
             elif device_str == "cpu" or device_str == "mps":
-                import psutil
+                from bin.integrated_app.engines._memory_utils import _get_system_memory
 
-                available = psutil.virtual_memory().available
+                mem = _get_system_memory()
+                available = mem.available
                 return available >= min_memory_mb * 1024 * 1024
         except Exception:
             return False

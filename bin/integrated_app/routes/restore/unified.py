@@ -25,7 +25,7 @@ import logging
 from fastapi import APIRouter
 
 from bin.integrated_app.routes.restore.batch import router as batch_router
-from bin.integrated_app.routes.restore.recovery import recover_tasks
+from bin.integrated_app.routes.restore.recovery import cleanup_stale_tasks, recover_tasks
 from bin.integrated_app.routes.restore.scan import router as scan_router
 from bin.integrated_app.routes.restore.task import router as task_router
 from bin.integrated_app.routes.restore.upload import router as upload_router
@@ -40,4 +40,4 @@ router.include_router(upload_router)
 router.include_router(task_router)
 
 
-__all__ = ["router", "recover_tasks"]
+__all__ = ["router", "recover_tasks", "cleanup_stale_tasks"]

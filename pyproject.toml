@@ -2,6 +2,35 @@
 name = "seedvr2"
 version = "1.0.0"
 description = "SeedVR2 - AI-powered video & image super-resolution toolkit"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "ReSerendipity"},
+]
+maintainers = [
+    {name = "ReSerendipity Team"},
+]
+keywords = [
+    "video-super-resolution",
+    "image-super-resolution",
+    "diffusion-models",
+    "dit",
+    "video-restoration",
+    "ai-upscaler",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: GPU :: NVIDIA CUDA",
+    "Environment :: Web Environment",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Multimedia :: Video",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 # Runtime is the bundled WinPython 3.12 (see docs/CONSTRAINTS.md). Keep ruff /
 # black / mypy target versions aligned with this value to avoid tool drift.
 requires-python = ">=3.12"

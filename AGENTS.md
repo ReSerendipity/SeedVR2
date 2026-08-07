@@ -16,6 +16,7 @@
 4. **遇到权限不足时，先尝试提权或其他可行自动化方案，再考虑转为手动步骤。**
 5. **禁止编造信息；不确定时必须明确说明不确定性。**
 6. **所有面对用户的说明默认使用中文。**
+7. **发现 AGENTS.md 与项目实际情况不匹配时，必须立即更新 AGENTS.md。**
 
 ---
 
@@ -155,21 +156,24 @@
 
 - 应用必须脱离 ComfyUI 独立运行
 - **SeedVR2 模型仅支持 NVIDIA CUDA GPU 推理，不支持 CPU 推理**
-- 模型加载前做内存预检，可用内存至少为模型大小的 1.5 倍；内存超过 90% 时必须立即终止相关推理
+- 模型加载前做内存预检，可用内存至少为模型大小的 1.5 倍；内存超过 95% 时必须立即终止相关推理（硬编码阈值，见 `_memory_utils.py:_MEMORY_THRESHOLD`）；同时需满足 `memory_min_available_gb` 绝对下限（默认 2.0GB，建议按设备总内存的 5% 设置，如 32GB 设备设为 1.6GB）
 - I/O 组件不应被卸载到 CPU RAM
 - 批处理脚本保持 ASCII 英文
-- 文件夹扫描必须经 `security/path_guard.py` 白名单校验，禁止任意目录遍历
+- 文件夹扫描必须经 `bin/integrated_app/security/path_guard.py` 白名单校验，禁止任意目录遍历
 - 所有 API 响应统一收敛为 `{success, data, error}` 结构
+- 默认分辨率以 `config.yaml` 为准（当前 `restore.default_resolution_h=1080`, `default_resolution_w=1920`, `resolution=2048`）；不要在文档或代码中硬编码固定值
 
 ### 6.3 实现陷阱（代码不可直接推断）
 
 - GPU 后端仅支持 NVIDIA CUDA，启动时自动检测，未检测到则报错退出
+- 模型架构细节（代码不可直接推断）：3B 模型使用 `models.dit_v2.nadit` 架构（`num_layers=32`, `vid_dim=2560`, `mlp_type=swiglu`）；7B 模型使用 `models.dit.nadit` 架构（`num_layers=36`, `vid_dim=3072`, `mlp_type=normal`）；`window_method` 列表需自动扩展至与 `num_layers` 等长
 - 默认语言配置以 `config.yaml` 为准，修改前先核对运行时代码
 - 历史记录、设置、页面结构等信息必须以当前代码为准，不要照抄旧文档
-- i18n 当前支持中/英/日/法四语言，新增文案需同步更新 `locales/` 下对应翻译
+- i18n 当前支持中/英/日/法四语言，新增文案需同步更新 `bin/integrated_app/locales/` 下对应翻译
 - 模型状态通过 `model_registry` 监听器桥接到 SSE 事件总线，模块间解耦，不要直接 import event_bus
 - 测试场景中应避免真实模型自动加载，优先使用 mock 或现有测试夹具
 - 引擎自检：`run_verify.bat` 运行 `verify_engine.py`（配置/GPU/引擎导入三项，不加载模型）；一键质量门禁运行 `run_checks.bat`（ruff/black/mypy/pytest）
+- **静态文件缓存陷阱**：自定义 StaticFiles 子类（如 `VersionedStaticFiles` / `CachedStaticFiles`）常为 CSS/JS 设置 `immutable` + 长期 `max-age`（1年/7天等），导致修改 CSS/JS 后刷新页面仍显示旧版。修改此类文件后务必：(1) 检查 `Cache-Control` 头是否含 `immutable`；(2) 检查 `base.html` 中 `?v=` 版本号是否需要递增；(3) 最稳妥方案是将 CSS/JS 的 Cache-Control 改为 `no-cache, must-revalidate`，使每次刷新都向服务器验证
 
 ---
 

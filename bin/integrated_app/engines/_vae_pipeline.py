@@ -57,11 +57,16 @@ class _VAEPipelineMixin:
                         recommended_ts, recommended_overlap = get_optimal_tile_size(
                             h, w, is_decoder=False, device=self.device
                         )
-                        # 如果配置的 tile_size 太大，使用推荐值
-                        if tile_size <= 0 or tile_size > recommended_ts * 1.5:
+                        # 如果配置的 tile_size 太大，或 overlap 配置不合理（>=50% tile_size），使用推荐值
+                        bad_overlap = tile_size > 0 and tile_overlap >= tile_size // 2
+                        if tile_size <= 0 or tile_size > recommended_ts * 1.5 or bad_overlap:
+                            logger.info(
+                                f"VAE 编码自动 tile size: 原配置({tile_size}/{tile_overlap}) "
+                                f"-> 推荐({recommended_ts}/{recommended_overlap})"
+                                f"{' (overlap 过大)' if bad_overlap else ''}"
+                            )
                             tile_size = recommended_ts
                             tile_overlap = recommended_overlap
-                            logger.info(f"VAE 编码自动 tile size: {tile_size}, overlap: {tile_overlap}")
             except Exception as e:
                 logger.debug(f"自动 tile size 推荐失败: {e}")
 
@@ -210,15 +215,16 @@ class _VAEPipelineMixin:
                             recommended_ts, recommended_overlap = get_optimal_tile_size(
                                 h_pixel, w_pixel, is_decoder=True, device=self.device
                             )
-                            # 如果配置的 tile_size 太大，使用推荐值（像素空间）
-                            if current_tile_size <= 0 or current_tile_size > recommended_ts * 1.5:
+                            # 如果配置的 tile_size 太大，或 overlap 配置不合理（>=50% tile_size），使用推荐值
+                            bad_overlap = current_tile_size > 0 and current_tile_overlap >= current_tile_size // 2
+                            if current_tile_size <= 0 or current_tile_size > recommended_ts * 1.5 or bad_overlap:
+                                logger.info(
+                                    f"VAE 解码自动 tile size (像素): 原配置({current_tile_size}/{current_tile_overlap})"
+                                    f" -> 推荐({recommended_ts}/{recommended_overlap})"
+                                    f"{' (overlap 过大)' if bad_overlap else ''}"
+                                )
                                 current_tile_size = recommended_ts
                                 current_tile_overlap = recommended_overlap
-                                logger.info(
-                                    f"VAE 解码自动 tile size (像素): {current_tile_size}, "
-                                    f"overlap: {current_tile_overlap} "
-                                    f"(潜空间: ~{current_tile_size//8}, ~{current_tile_overlap//8})"
-                                )
                     except Exception as e:
                         logger.debug(f"自动 tile size 推荐失败: {e}")
 
