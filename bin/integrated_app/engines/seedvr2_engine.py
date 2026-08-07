@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: Copyright (c) 2024-2026 ReSerendipity
+# SPDX-License-Identifier: Apache-2.0
 """SeedVR2 - SeedVR2 视频/图像修复推理引擎核心实现
 
 本模块是 SeedVR2 推理引擎的主入口，定义了 SeedVR2Engine 类的核心骨架
@@ -154,12 +156,49 @@ class SeedVR2Engine(
     def set_progress_callback(self, callback: Callable):
         """设置进度回调函数
 
-        用于推理过程中向外部报告进度（当前未在核心推理中调用，保留接口）。
+        用于推理过程中向外部报告进度。
 
         Args:
-            callback: 回调函数，接收进度参数
+            callback: 回调函数，接收进度参数 (current_frame, total_frames, progress)
         """
         self._progress_callback = callback
+
+    def _report_progress(self, current_frame: int = 0, total_frames: int = 0,
+                         progress: float = 0.0, message: str = "") -> None:
+        """安全地调用进度回调，报告推理中间阶段进度（同步）。
+
+        重要：此方法在推理工作线程中同步调用，回调函数 **必须是同步函数**。
+        若注册 async 回调，其函数体不会被执行（仅产生未 await 的 coroutine），
+        会导致进度永远停留在 0%。
+
+        图像推理无逐帧进度，通过阶段标记（VAE编码/DiT采样/VAE解码/后处理）
+        提供粗粒度进度反馈；视频推理通过逐帧 progress 实时上报。
+
+        Args:
+            current_frame: 当前阶段/帧序号。
+            total_frames: 总阶段/帧数。
+            progress: 0-100 的进度百分比。
+            message: 阶段描述文本（透传到前端 SSE 的 message 字段）。
+        """
+        if self._progress_callback is None:
+            return
+        try:
+            try:
+                self._progress_callback(
+                    current_frame=current_frame,
+                    total_frames=total_frames,
+                    progress=progress,
+                    message=message,
+                )
+            except TypeError:
+                # 兼容不接受 message 的旧签名回调
+                self._progress_callback(
+                    current_frame=current_frame,
+                    total_frames=total_frames,
+                    progress=progress,
+                )
+        except Exception as e:
+            logger.debug(f"Progress callback 调用失败: {e}")
 
     # REFACTOR [E4-1]: 推理取消机制
     # task_queue 超时或用户主动取消时调用 request_cancel()，
@@ -257,6 +296,18 @@ class SeedVR2Engine(
                 raise FileNotFoundError(f"模型配置文件未找到: {config_path}")
             with open(config_path) as f:
                 self._model_config = json.load(f)
+
+            # SHA256 完整性校验 (CWE-353 防御) — 在加载前验证权重文件哈希
+            from bin.integrated_app.security.integrity_check import verify_model_files
+
+            pretrained_full_dir = PROJECT_ROOT / pretrained_dir
+            integrity_results = verify_model_files(pretrained_full_dir, model_cfg, precision)
+            failed_checks = [k for k, v in integrity_results.items() if not v]
+            if failed_checks:
+                raise RuntimeError(
+                    f"模型权重完整性校验失败 (CWE-353): {', '.join(failed_checks)}. "
+                    f"文件可能已被篡改或投毒，拒绝加载。"
+                )
 
             # 记录 DiT 路径 (延迟加载)
             checkpoint_key = f"checkpoint_{precision}"

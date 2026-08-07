@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2024-2026 ReSerendipity
+# SPDX-License-Identifier: Apache-2.0
 """
 SeedVR2 - 应用服务器入口模块
 
@@ -75,13 +77,9 @@ class VersionedStaticFiles(StaticFiles):
     """带版本控制的静态文件处理类。
 
     继承自 FastAPI StaticFiles，为不同类型的静态资源设置差异化的 Cache-Control 头：
-    - CSS/JS 文件：长期缓存（1年）+ immutable，配合查询字符串版本号实现强缓存
+    - CSS/JS 文件：不缓存，每次刷新获取最新版本
     - 字体文件（woff2/woff/ttf/eot/otf）：中期缓存（30天）
     - 图片资源（png/jpg/jpeg/gif/svg/ico/webp）：短期缓存（1天）
-
-    缓存策略说明：
-        前端模板 base.html 中为静态资源添加版本号查询参数（如 ?v=xxx），
-        当静态文件更新时版本号变化，客户端会自动请求新版本，无需担心缓存过期。
     """
 
     def file_response(self, *args, **kwargs) -> Response:
@@ -98,7 +96,8 @@ class VersionedStaticFiles(StaticFiles):
         if args:
             file_path = str(args[0])
             if file_path.endswith((".css", ".js")):
-                response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+                response.headers["Cache-Control"] = "no-cache, must-revalidate"
+                response.headers["Pragma"] = "no-cache"
             elif file_path.endswith((".woff2", ".woff", ".ttf", ".eot", ".otf")):
                 response.headers["Cache-Control"] = "public, max-age=2592000"
             elif file_path.endswith((".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".webp")):
@@ -137,6 +136,22 @@ async def lifespan(app: FastAPI):
     """
     config = app.state.config
 
+    # 核心模块完整性自检 (CWE-912 防御)
+    try:
+        from bin.integrated_app.security.integrity_selfcheck import run_startup_selfcheck
+
+        selfcheck = run_startup_selfcheck()
+        if selfcheck["failed"] > 0:
+            logger.error(
+                "=" * 60 + "\n"
+                "[SECURITY] ⚠️  启动时核心模块完整性自检失败！\n"
+                f"    失败文件: {', '.join(selfcheck['failed_files'])}\n"
+                "    请检查代码是否被篡改或重新生成清单。\n"
+                + "=" * 60
+            )
+    except Exception as e:
+        logger.debug(f"核心模块完整性自检跳过: {e}")
+
     history_db: HistoryDB = app.state.history_db
     await history_db.initialize()
     logger.info("历史数据库已初始化")
@@ -151,6 +166,11 @@ async def lifespan(app: FastAPI):
     try:
         from bin.integrated_app.routes.restore import unified as unified_routes
 
+        # 先清理卡死的 processing 任务，再恢复可恢复的任务
+        cleaned_count = await unified_routes.cleanup_stale_tasks(history_db)
+        if cleaned_count:
+            logger.info(f"已清理 {cleaned_count} 个卡死的 processing 任务")
+
         auto_recover = config.get("runtime", {}).get("task", {}).get("auto_recover", False)
         if auto_recover:
             recovered_count = await unified_routes.recover_tasks(history_db, task_queue, config)
@@ -163,6 +183,22 @@ async def lifespan(app: FastAPI):
 
     file_cache: FileCache = app.state.file_cache
     file_cache.start_cleanup_task(interval=3600)
+
+    # 启动定期清理卡死任务的后台任务（每5分钟检查一次）
+    async def _periodic_stale_cleanup():
+        while True:
+            try:
+                await asyncio.sleep(300)  # 每5分钟
+                cleaned = await unified_routes.cleanup_stale_tasks(history_db)
+                if cleaned:
+                    logger.info(f"定期清理：已清理 {cleaned} 个卡死的 processing 任务")
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.warning(f"定期清理卡死任务失败: {e}")
+
+    stale_cleanup_task = asyncio.create_task(_periodic_stale_cleanup())
+    app.state.stale_cleanup_task = stale_cleanup_task
 
     backend_value = gpu_manager.backend.value if gpu_manager.backend else "unavailable"
     logger.info(f"GPU 后端: {backend_value}, 设备: {gpu_manager.device_name}")
@@ -191,6 +227,15 @@ async def lifespan(app: FastAPI):
     model_registry.remove_listener(_bridge_model_status_to_sse)
 
     file_cache.stop_cleanup_task()
+
+    # 停止定期清理卡死任务的后台任务
+    stale_cleanup = getattr(app.state, 'stale_cleanup_task', None)
+    if stale_cleanup:
+        stale_cleanup.cancel()
+        try:
+            await stale_cleanup
+        except asyncio.CancelledError:
+            pass
 
     task_queue = app.state.task_queue
     try:
@@ -258,6 +303,23 @@ def create_app(config: dict | None = None) -> FastAPI:
     )
 
     app.add_middleware(CSRFMiddleware)
+
+    # Basic Auth 中间件 (公网部署保护, CWE-306 防御)
+    from bin.integrated_app.middleware.basic_auth import should_enable_auth
+
+    if should_enable_auth(config):
+        from bin.integrated_app.middleware.basic_auth import BasicAuthMiddleware
+
+        auth_cfg = config.get("security", {}).get("auth", {})
+        import os as _os
+
+        app.add_middleware(
+            BasicAuthMiddleware,
+            username=auth_cfg.get("username", "admin"),
+            password=_os.environ.get("SEEDVR2_AUTH_PASSWORD", auth_cfg.get("password", "")),
+            realm=auth_cfg.get("realm", "SeedVR2"),
+        )
+        logger.info("Basic Auth 中间件已注册")
 
     from bin.integrated_app.middleware.error_handler import register_error_handlers
 
