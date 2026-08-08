@@ -220,10 +220,14 @@ test.describe('Server-Sent Events', () => {
     });
 
     // The badge should indicate the model is loaded (or at least exist)
-    // In a mocked environment, we verify the SSE event was processed
-    // If no badge element exists, the SSE mock was still delivered successfully
-    const sseDelivered = modelStatusText.length > 0 || true; // Mock was set up and page loaded
-    expect(sseDelivered).toBe(true);
+    // In a mocked environment, we verify the SSE event was processed.
+    // If no badge element exists, the SSE mock was still delivered successfully —
+    // we verify the page loaded without crashing (no error toast visible).
+    expect(modelStatusText.length).toBeGreaterThanOrEqual(0); // Ensure evaluate returned a string
+    const hasErrorToast = await page.evaluate(() => {
+      return !!document.querySelector('.sv-toast--error, .toast-error');
+    });
+    expect(hasErrorToast).toBe(false);
   });
 
   // ----------------------------------------------------------
@@ -260,10 +264,14 @@ test.describe('Server-Sent Events', () => {
       return errorElements.length > 0;
     });
 
-    // The test passes if either an error notification appeared or
-    // the app has an error indicator in the DOM.
-    // If neither is present, the app may silently retry, which is also acceptable.
-    expect(hasErrorIndicator || errorNotification || true).toBeTruthy();
+    // The test verifies the app handles SSE connection failure gracefully.
+    // Either an error notification appeared or the app has an error indicator in the DOM.
+    // If neither is present, the app may silently retry — but this test ensures the
+    // page did not crash: the body must still exist and be non-empty.
+    const bodyHasContent = await page.evaluate(() => {
+      return (document.body?.textContent?.trim().length ?? 0) > 0;
+    });
+    expect(bodyHasContent).toBe(true);
   });
 
   // ----------------------------------------------------------
@@ -432,11 +440,32 @@ test.describe('Server-Sent Events', () => {
       return body.includes('reconnect') || body.includes('重连') || body.includes('connecting');
     });
 
-    // If the app doesn't show a reconnection hint, it may silently retry,
-    // which is also acceptable behavior. Don't fail the test for this.
-    if (!hasReconnectHint) {
-      console.log('SSE reconnection hint not found - app may silently retry');
+    // The test verifies the app handles SSE disconnection gracefully.
+    // If a reconnection hint is shown, verify it is visible.
+    // If the app silently retries instead, verify the page did not crash.
+    if (hasReconnectHint) {
+      // Verify at least one reconnection hint element is visible
+      const hintVisible = await page.evaluate(() => {
+        const selectors = [
+          '.sv-sse-reconnect-hint',
+          '[data-sse-status="reconnecting"]',
+          '.sv-toast--warning',
+          '.toast-warning',
+          '.notification.warning',
+        ];
+        for (const sel of selectors) {
+          const el = document.querySelector(sel);
+          if (el && el.textContent) return true;
+        }
+        return false;
+      });
+      expect(hintVisible).toBe(true);
+    } else {
+      // App silently retries — verify the page is still functional (no crash)
+      const bodyHasContent = await page.evaluate(() => {
+        return (document.body?.textContent?.trim().length ?? 0) > 0;
+      });
+      expect(bodyHasContent).toBe(true);
     }
-    expect(hasReconnectHint || true).toBe(true);
   });
 });

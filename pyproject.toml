@@ -155,5 +155,11 @@ omit = [
 ]
 
 [tool.coverage.report]
-fail_under = 60
+fail_under = 65
 show_missing = true
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.coverage.html]
+directory = "htmlcov"

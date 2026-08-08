@@ -75,6 +75,9 @@ def test_app(tmp_path):
     mock_manager = AsyncMock()
     mock_manager.unload_model = AsyncMock(return_value={"status": "ok"})
     mock_manager.load_model = AsyncMock(return_value={"status": "ok"})
+    # get_status 是同步方法，必须用 MagicMock 否则返回协程导致 JSON 序列化失败
+    from unittest.mock import MagicMock
+    mock_manager.get_status = MagicMock(return_value={"loaded": False, "model_name": None})
     app.state.model_manager = mock_manager
 
     with TestClient(app) as client:
