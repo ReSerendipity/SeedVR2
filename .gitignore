@@ -154,3 +154,32 @@ docs/repo-analysis/
 docs/seedvr2-design-analysis.md
 docs/seedvr2-ui-audit-report.md
 docs/similar-repos-analysis.md
+
+# ---------------------------------------------------------------------------
+# Dev-only content (not needed to clone-and-run the app)
+# ---------------------------------------------------------------------------
+AGENTS.md
+GITIGNORE_UPDATE.md
+docs/CONSTRAINTS.md
+docs/OPTIMIZATION_GUIDE.md
+docs/PROJECT_CONTEXT.md
+docs/winpython-migration-plan.md
+docs/workflows/
+docs/prototypes/
+docs/screenshots/current/dark/08-settings-paths-tab.png
+docs/screenshots/current/dark/09-settings-model-tab.png
+docs/screenshots/current/dark/10-settings-language-tab.png
+docs/screenshots/current/dark/11-locale-dropdown-open.png
+docs/screenshots/current/light/06-history-full.png
+docs/screenshots/current/light/07-system-status-full.png
+docs/screenshots/current/light/08-settings-paths-tab.png
+docs/screenshots/current/light/10-settings-language-tab.png
+history_scan.sh
+remove_tracked_sample_seedvr2.sh
+verify_engine.py
+run_checks.bat
+run_verify.bat
+scripts/explore_repos.ps1
+scripts/generate_markdown.ps1
+scripts/parse_repos.ps1
+scripts/simple_summary.ps1
