@@ -1,0 +1,71 @@
+name: CI - E2E Playwright
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'bin/integrated_app/**'
+      - 'tests/specs/**'
+      - 'tests/pages/**'
+      - 'tests/fixtures/**'
+      - 'tests/utils/**'
+      - 'tests/playwright.config.ts'
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: tests/package-lock.json
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Playwright dependencies
+        run: |
+          cd tests
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Start app server in background
+        run: |
+          python bin/integrated_app/app_server.py &
+        env:
+          PYTHONUNBUFFERED: '1'
+
+      - name: Wait for server ready
+        run: |
+          curl --retry 30 --retry-delay 2 --retry-connrefused \
+            http://127.0.0.1:7870/api/system/health
+
+      - name: Run Playwright tests (chromium-desktop only for CI speed)
+        run: cd tests && npx playwright test --project=chromium-desktop
+
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: tests/playwright-report/
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: tests/test-results/

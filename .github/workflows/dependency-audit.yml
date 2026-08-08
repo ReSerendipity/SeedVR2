@@ -39,5 +39,5 @@ jobs:
       - name: Run safety check
         run: |
           if [ -f requirements.txt ]; then
-            safety check -r requirements.txt --json || true
+            safety check -r requirements.txt --json
           fi
