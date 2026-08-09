@@ -40,7 +40,7 @@ def load_yaml_keys(file_path: Path) -> dict:
         print("错误: 需要安装 PyYAML: pip install pyyaml", file=sys.stderr)
         sys.exit(2)
 
-    with open(file_path, "r", encoding="utf-8") as f:
+    with open(file_path, encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
 
     flat = {}
@@ -89,17 +89,13 @@ def check_empty_values(flat: dict, locale: str) -> list:
     """
     empties = []
     for key, value in flat.items():
-        if value is None:
-            empties.append(key)
-        elif isinstance(value, str) and value.strip() == "":
+        if value is None or isinstance(value, str) and value.strip() == "":
             empties.append(key)
     return empties
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="SeedVR2 翻译键一致性检查"
-    )
+    parser = argparse.ArgumentParser(description="SeedVR2 翻译键一致性检查")
     parser.add_argument(
         "--base",
         default="zh",

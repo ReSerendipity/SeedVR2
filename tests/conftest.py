@@ -12,8 +12,9 @@ sys.path.insert(0, PROJECT_ROOT)
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
+import bin.integrated_app.routes.system.settings as settings_module  # noqa: E402
 from bin.integrated_app.app_server import create_app  # noqa: E402
-from bin.integrated_app.config import load_config  # noqa: E402
+from bin.integrated_app.config import load_config, save_config  # noqa: E402
 
 if TYPE_CHECKING:
     from starlette.responses import Response
@@ -57,17 +58,25 @@ def csrf_post(client: TestClient, url: str, **kwargs) -> "Response":
 
 
 @pytest.fixture
-def test_app(tmp_path):
+def test_app(tmp_path, monkeypatch):
     """创建用于测试的 FastAPI 应用与 TestClient
 
     - 使用临时数据库路径，避免污染生产数据
     - 关闭模型自动加载，避免真实推理依赖
     - Mock model_manager 的重依赖方法
+    - 将配置持久化重定向到临时目录，避免测试写回污染工作区 config.yaml
     """
     config = load_config()
     config.setdefault("history", {})["db_path"] = str(tmp_path / "history.db")
     config.setdefault("model", {})["auto_load"] = False
     config.setdefault("server", {})["auto_open_browser"] = False
+
+    test_config_path = str(tmp_path / "config.yaml")
+    monkeypatch.setattr(
+        settings_module,
+        "save_config",
+        lambda cfg, config_path=None: save_config(cfg, config_path=test_config_path),
+    )
 
     app = create_app(config)
 
@@ -77,6 +86,7 @@ def test_app(tmp_path):
     mock_manager.load_model = AsyncMock(return_value={"status": "ok"})
     # get_status 是同步方法，必须用 MagicMock 否则返回协程导致 JSON 序列化失败
     from unittest.mock import MagicMock
+
     mock_manager.get_status = MagicMock(return_value={"loaded": False, "model_name": None})
     app.state.model_manager = mock_manager
 
