@@ -52,12 +52,10 @@
                 <thead>
                     <tr>
                         <th>{{ t('history.id') }}</th>
-                        <th>{{ t('history.preview') if t('history.preview') else '预览' }}</th>
                         <th>{{ t('history.type') }}</th>
                         <th>{{ t('history.input_file') }}</th>
                         <th>{{ t('history.model') }}</th>
                         <th>{{ t('history.status') }}</th>
-                        <th>{{ t('history.processing_time') }}</th>
                         <th>{{ t('history.created_at') }}</th>
                         <th>{{ t('history.actions') }}</th>
                     </tr>
@@ -178,7 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (records.length === 0) {
                 tbody.innerHTML = `
                     <tr class="empty-row">
-                        <td colspan="8">
+                        <td colspan="7">
                             <div class="sv-empty-state sv-empty-illustrated">
                                 <div class="empty-icon"><i class="bi bi-film"></i></div>
                                 <div class="empty-title">${I["history.no_records"]}</div>
@@ -221,11 +219,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const safeInputFile = SeedVR2.escapeHtml(r.input_file || '');
                 const safeModelSize = r.model_size ? SeedVR2.escapeHtml(r.model_size.toUpperCase()) : '--';
                 const safeTaskType = SeedVR2.escapeHtml(r.task_type);
-                const previewHtml = (r.task_type === 'image' && r.status === 'completed' && r.output_file)
-                    ? `<div class="sv-thumb-preview"><img src="/api/system/history/${safeId}/download" alt="${fileName}" loading="lazy"></div>`
-                    : (r.task_type === 'video'
-                        ? `<div class="sv-thumb-preview"><i class="bi bi-camera-video"></i></div>`
-                        : `<div class="sv-thumb-preview"><i class="bi bi-image"></i></div>`);
 
                 const cancelButton = (r.status === 'pending' || r.status === 'processing')
                     ? `<button class="sv-btn sv-btn-sm sv-btn-outline btn-cancel-record"
@@ -242,12 +235,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 return `
                     <tr data-record-id="${safeId}" data-output="${safeOutput}" class="sv-history-row">
                         <td>${safeId}</td>
-                        <td>${previewHtml}</td>
                         <td><i class="bi ${typeIcon} sv-mr-1"></i>${safeTaskType === 'video' ? I["history.video"] : I["history.image"]}</td>
                         <td title="${safeInputFile}">${fileName}</td>
                         <td>${safeModelSize}</td>
                         <td><span class="sv-badge ${s.badge}">${s.text}</span></td>
-                        <td>${procTime}</td>
                         <td>${SeedVR2.formatTimestamp(r.created_at)}</td>
                         <td>
                             <div class="sv-flex sv-gap-1">
