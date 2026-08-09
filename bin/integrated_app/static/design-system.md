@@ -1,176 +1,92 @@
 # SeedVR2 Design System
 
-## CSS Custom Properties (Tokens)
+> 本文档与实际实现（`bin/integrated_app/static/css/style.css`）保持一致，最后核对：2026-08-08。
+> 主题机制：`<html data-theme="dark|light">`（默认 dark），`localStorage('sv-theme')` 持久化。
+> 设计规范：Warm Print 暖暮（深色）/ 暖纸（浅色），苔绿主色 + 陶土/金/珊瑚辅助。
 
-### Color Tokens
+## 1. Color Tokens
 
-#### Primary & Accent
-
-| Token | Dark | Light | Usage |
-|-------|------|-------|-------|
-| `--sv-primary` | `#9b8ec4` | `#7c6fad` | Primary actions, links, focus rings |
-| `--sv-primary-hover` | `#b0a4d4` | `#8d80be` | Primary button hover state |
-| `--sv-primary-active` | `#8a7db5` | `#6d60a0` | Primary button active/pressed state |
-| `--sv-primary-dim` | `rgba(155,142,196,0.18)` | `rgba(124,111,173,0.12)` | Backgrounds, badges, subtle highlights |
-| `--sv-primary-glow` | `rgba(155,142,196,0.35)` | `rgba(124,111,173,0.2)` | Glow effects, brand icon shadow |
-| `--sv-accent-purple` | `#b8a9d4` | `#6b5e9c` | Secondary accent, hero gradient (薰衣草统一) |
-| `--sv-accent-purple-dim` | `rgba(184,169,212,0.18)` | `rgba(107,94,156,0.12)` | Purple accent backgrounds |
-| `--sv-accent-pink` | `#c4a9d4` | `#8a6fad` | Tertiary accent, hero gradient (薰衣草统一) |
-| `--sv-accent-pink-dim` | `rgba(196,169,212,0.18)` | `rgba(138,111,173,0.12)` | Pink accent backgrounds |
-
-#### Semantic Colors
+### 1.1 Primary（苔绿主色）
 
 | Token | Dark | Light | Usage |
 |-------|------|-------|-------|
-| `--sv-success` | `#34d399` | `#15803d` | Success states, completed badges |
-| `--sv-success-dim` | `rgba(52,211,153,0.18)` | `rgba(21,128,61,0.12)` | Success backgrounds |
-| `--sv-success-hover` | `#6ee7b7` | `#16a34a` | Success interactive hover |
-| `--sv-warning` | `#fbbf24` | `#b45309` | Warning states, caution indicators |
-| `--sv-warning-dim` | `rgba(251,191,36,0.18)` | `rgba(180,83,9,0.12)` | Warning backgrounds |
-| `--sv-warning-hover` | `#fcd34d` | `#d97706` | Warning interactive hover |
-| `--sv-danger` | `#f87171` | `#dc2626` | Error states, delete actions |
-| `--sv-danger-dim` | `rgba(248,113,113,0.18)` | `rgba(220,38,38,0.12)` | Danger backgrounds |
-| `--sv-danger-hover` | `#fca5a5` | `#ef4444` | Danger interactive hover |
-| `--sv-info` | `#60a5fa` | `#1d4ed8` | Informational states, links |
-| `--sv-info-dim` | `rgba(96,165,250,0.18)` | `rgba(29,78,216,0.12)` | Info backgrounds |
-| `--sv-info-hover` | `#93c5fd` | `#2563eb` | Info interactive hover |
+| `--sv-primary` | `#94b88f` | `#5e7d5a` | 主按钮、导航激活、链接、focus ring |
+| `--sv-primary-hover` | `#a8c9a3` | `#506c4d` | 主按钮 hover |
+| `--sv-primary-active` | `#b8d4b3` | `#435a40` | 主按钮 active |
+| `--sv-primary-300` | `#a5c29f` | `#9fbb9a` | 浅绿底/选中底（soft） |
+| `--sv-primary-600` | `#7aa375` | `#506c4d` | 深绿强调 |
+| `--sv-primary-700` | `#5e7d5a` | `#435a40` | 文字绿、可点击文字（对比达标） |
+| `--sv-primary-900` | `#334030` | `#2b3828` | 最深绿 |
+| `--sv-primary-dim` | `rgba(148,184,143,.18)` | `rgba(94,125,90,.08)` | 徽标/标签底色 |
+| `--sv-primary-glow` | `rgba(148,184,143,.32)` | `rgba(94,125,90,.15)` | 辉光/选中 |
 
-#### Background Tokens
+> 品牌收敛规则：全站只使用 `--sv-primary` 家族，禁止在模板/JS 中写死其它绿色（历史遗留 `#4ade80`/`#a3c9a8`/`#6b8e6d` 已废弃）。
 
-| Token | Dark | Light | Usage |
-|-------|------|-------|-------|
-| `--sv-bg-base` | `#0f1117` | `#f8fafc` | Page background |
-| `--sv-bg-surface` | `#161822` | `#ffffff` | Card surfaces |
-| `--sv-bg-elevated` | `#1e2030` | `#f1f5f9` | Elevated elements, dropdowns |
-| `--sv-bg-overlay` | `#252840` | `#e2e8f0` | Overlays, disabled tracks |
-| `--sv-bg-hover` | `#2a2d45` | `#e2e8f0` | Hover backgrounds |
-
-#### Border Tokens
+### 1.2 Semantic（语义色）
 
 | Token | Dark | Light | Usage |
 |-------|------|-------|-------|
-| `--sv-border` | `rgba(255,255,255,0.06)` | `rgba(0,0,0,0.08)` | Default borders |
-| `--sv-border-hover` | `rgba(255,255,255,0.12)` | `rgba(0,0,0,0.15)` | Hover borders |
-| `--sv-border-focus` | `var(--sv-primary)` | `var(--sv-primary)` | Focus ring color |
+| `--sv-success` | `#94b88f` | `#4f7049` | 已完成、在线 |
+| `--sv-warning` | `#c9a55a` | `#a6823a` | 内存偏高、处理中、警示 |
+| `--sv-danger` | `#c96a5a` | `#b85a4a` | 失败、删除 |
+| `--sv-info` | `#6e90ac` | `#52707c` | 信息提示 |
+| `--sv-success/warning/danger/info-soft` | 各色 10-12% alpha | 同 | 徽标底色 |
 
-#### Text Tokens
+> 语义状态必须「圆点 + 文字」双通道表达，不得只靠颜色。
+
+### 1.3 Accent（品牌辅助色，Warm Print）
 
 | Token | Dark | Light | Usage |
 |-------|------|-------|-------|
-| `--sv-text-primary` | `#e2e8f0` | `#1e293b` | Headings, body text |
-| `--sv-text-secondary` | `#94a3b8` | `#475569` | Secondary descriptions |
-| `--sv-text-muted` | `#94a3b8` | `#546478` | Hints, placeholders, metadata |
-| `--sv-text-inverse` | `#0f1117` | `#ffffff` | Text on primary-colored backgrounds |
+| `--sv-accent-moss` | `#82a87e` | `#5e7d5a` | 次要强调 |
+| `--sv-accent-terracotta` | `#c48870` | `#905040` | 陶土 |
+| `--sv-accent-coral` | `#c99580` | `#a06050` | 珊瑚 |
+| `--sv-accent-gold` | `#c9a878` | `#967a4d` | 金（hero kicker 可用） |
 
-#### Shadow Tokens
+### 1.4 Neutrals（中性色）
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| `--sv-shadow-sm` | Dark: `0 1px 3px rgba(0,0,0,0.3)` / Light: `0 1px 3px rgba(0,0,0,0.08)` | Subtle elevation |
-| `--sv-shadow` | Dark: `0 4px 12px rgba(0,0,0,0.4)` / Light: `0 4px 12px rgba(0,0,0,0.1)` | Cards, dropdowns |
-| `--sv-shadow-lg` | Dark: `0 8px 30px rgba(0,0,0,0.5)` / Light: `0 8px 30px rgba(0,0,0,0.12)` | Modals, toasts |
-| `--sv-shadow-glow` | `0 0 20px var(--sv-primary-glow)` | Brand icon, focused elements |
+| Token | Dark | Light | Usage |
+|-------|------|-------|-------|
+| `--sv-bg-base` | `#1e1c19` | `#faf7f2` | 页面底（暖灰/暖纸，非纯黑纯白） |
+| `--sv-bg-surface` / `--sv-surface-1` | `#272421` | `#ffffff` | 卡片面 |
+| `--sv-surface-2` | `#302d29` | `#f0ebe3` | 嵌入控件面 |
+| `--sv-border` | `rgba(234,230,225,.18)` | `rgba(44,36,32,.14)` | 默认描边 |
+| `--sv-border-hover` | `rgba(234,230,225,.26)` | `rgba(44,36,32,.22)` | hover 描边 |
+| `--sv-border-focus` | `var(--sv-primary)` | 同 | focus ring |
+| `--sv-text-primary` | `#e8e4de` | `#2c2420` | 正文 |
+| `--sv-text-secondary` | `#c8c1b9` | `#4a3f38` | 次要 |
+| `--sv-text-muted` | `#9e958c` | `#7a6f66` | 弱化 |
+| `--sv-text-placeholder` | `#756d66` | `#9a918a` | 占位 |
 
-### Spacing Tokens (4px base)
+## 2. Shape / Type / Space Tokens
 
-| Token | Value |
-|-------|-------|
-| `--sv-space-1` | `4px` |
-| `--sv-space-1-5` | `6px` |
-| `--sv-space-2` | `8px` |
-| `--sv-space-2-5` | `10px` |
-| `--sv-space-3` | `12px` |
-| `--sv-space-4` | `16px` |
-| `--sv-space-5` | `20px` |
-| `--sv-space-6` | `24px` |
-| `--sv-space-7` | `32px` |
-| `--sv-space-8` | `40px` |
-| `--sv-space-9` | `48px` |
+| Token | 值 | 说明 |
+|-------|-----|------|
+| `--sv-radius-sm` | `6px` | 控件、徽标、输入框 |
+| `--sv-radius` | `8px` | 卡片 |
+| `--sv-radius-lg` / `--sv-radius-xl` | `12px` / `16px` | 大容器/弹层 |
+| `--sv-space-1..9` | `4/6/8/10/12/16/20/24/32/40/48px` | 8px 基数间距尺 |
+| `--sv-font-display` | `Instrument Serif, Georgia, ...` | hero 衬线标题 |
+| `--sv-font-body` | `DM Sans, ...` | 正文/UI |
+| `--sv-font-mono` | `SF Mono, Cascadia Code, ...` | 代码/数值 |
 
-### Radius Tokens
+## 3. Component Conventions
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| `--sv-radius-sm` | `6px` | Small elements, badges, inputs |
-| `--sv-radius` | `10px` | Cards, buttons, form controls |
-| `--sv-radius-lg` | `14px` | Large cards, modals |
-| `--sv-radius-xl` | `20px` | Hero elements, feature sections |
+- 主按钮 `.sv-btn-primary`：`--sv-primary` 底 + `--sv-btn-primary-text`（dark `#1a1917` / light `#ffffff`）。
+- 徽标 `.sv-badge-*`：语义色 soft 底 + 主色文字 + 圆点（`--sv-success/warning/danger`）。
+- 卡片 `.sv-card`：`--sv-bg-surface` + `--sv-border` + `--sv-radius`，阴影用 `--sv-shadow-*`（暗色轻、浅色稍重）。
+- 导航激活项：`--sv-primary` 文字/描边；毛玻璃用 `--sv-glass-*`。
+- 对比滑块/预览：`--sv-compare-*` 系列（毛玻璃 + 苔绿点缀线）。
+- 强调克制：每屏主色可见 ≤2 处（导航激活 + 主 CTA 或一处数据强调），其余用中性色。
+- 新增颜色必须先在 token 段定义并双主题同步，禁止页面内直接写 hex（除 `#fff`/`#000` 极端兜底）。
 
-### Typography
+## 4. A11y Notes
 
-- **Font Family:** `"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", sans-serif`
-- **Line Height:** `1.6`
-- **Hero Title:** `2.25rem`, weight `800`, letter-spacing `-0.03em`
-- **Page Title:** `1.2rem` (via `.sv-text-lg`)
-- **Body:** `0.85rem` (via `.sv-text-sm`)
-- **Small:** `0.75rem` (via `.sv-text-xs`)
+- 正文文字对底色 ≥4.5:1；大号文字 ≥3:1；组件与相邻面 ≥3:1（Warm Print 色板已按此校准）。
+- 深色主题使用暖灰 `#1e1c19` 而非纯黑；浅色使用 `#faf7f2` 而非纯白。
+- 交互元素必须有 `:focus-visible` 可见焦点态（`--sv-border-focus`）。
 
-### Animation & Transition Tokens
+## 5. i18n & 静态资源
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| `--sv-easing-standard` | `cubic-bezier(0.4, 0, 0.2, 1)` | Standard transitions |
-| `--sv-easing-decelerate` | `cubic-bezier(0, 0, 0.2, 1)` | Enter animations |
-| `--sv-easing-accelerate` | `cubic-bezier(0.4, 0, 1, 1)` | Exit animations |
-| `--sv-easing-bounce` | `cubic-bezier(0.34, 1.56, 0.64, 1)` | Bounce effects |
-| `--sv-transition` | `0.2s var(--sv-easing-standard)` | Default transition |
-| `--sv-transition-slow` | `0.35s var(--sv-easing-standard)` | Slow transitions (theme switch) |
-
-### Layout Tokens
-
-| Token | Value | Usage |
-|-------|-------|-------|
-| `--sv-navbar-height` | `56px` | Top navigation bar height |
-| `--sv-statusbar-height` | `32px` | Bottom status bar height |
-
-## Responsive Breakpoints
-
-| Breakpoint | Value | Key Changes |
-|------------|-------|-------------|
-| Mobile (XS) | `max-width: 576px` | Single column grids, stacked layouts |
-| Tablet | `max-width: 768px` | Hidden desktop nav, mobile card views |
-| Desktop (MD) | `max-width: 992px` | Single column restore layout, 2-col quick cards |
-| Large | `min-width: 1600px` | Wider restore params, 4-col status grid |
-
-## Component Guidelines
-
-### Cards (`.sv-card`)
-- Use `--sv-bg-surface` background with `--sv-border` border
-- Apply `--sv-radius-lg` border radius
-- Header uses `font-weight: 600` with icon prefix
-- Hover state: `border-color: var(--sv-border-hover)`
-
-### Buttons (`.sv-btn`)
-- Variants: `sv-btn-primary`, `sv-btn-secondary`, `sv-btn-outline`, `sv-btn-danger`
-- Sizes: default, `sv-btn-sm`, `sv-btn-icon`
-- Use `--sv-transition` for hover/active states
-- Icon buttons: 32px square with centered icon
-
-### Badges (`.sv-badge`)
-- Variants: `sv-badge-pending`, `sv-badge-processing`, `sv-badge-completed`, `sv-badge-failed`, `sv-badge-secondary`
-- Small inline status indicators with semantic colors
-
-### Forms (`.sv-form-control`)
-- Use `--sv-bg-elevated` background
-- Border: `1px solid var(--sv-border)`
-- Focus: `border-color: var(--sv-border-focus)` with glow
-- Validation error: red border + `.sv-form-error` message
-
-### Toast Notifications (`.sv-toast`)
-- Fixed position, bottom-right
-- Max 3 visible at once
-- Auto-dismiss after 4 seconds
-- Types: success, error, warning, info
-
-### Progress Bars (`.sv-progress`)
-- Track: `--sv-bg-overlay` background, `6px` height
-- Fill: primary color with transition animation
-- Animated variant: striped animation for in-progress
-
-## Accessibility
-
-- **Skip Link:** `.sv-skip-link` for keyboard navigation
-- **Focus Visible:** All interactive elements have visible focus rings
-- **ARIA:** Roles, labels, and states on interactive components
-- **Reduced Motion:** `@media (prefers-reduced-motion: reduce)` disables animations
-- **Color Contrast:** Text tokens meet WCAG AA contrast requirements
+- 界面文案经 `t('key')`（模板）与 `window.__I18N__`（JS）获取；新增文案同步 `locales/{zh,zh-TW,en,ja,fr}.yaml` + `base.html` 注入块。
+- CSS/JS 经 `VersionedStaticFiles` 以 `no-cache, must-revalidate` 提供，改动无需清缓存；`?v=` 版本号在 `base.html` 集中维护。
