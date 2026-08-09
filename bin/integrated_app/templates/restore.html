@@ -11,8 +11,34 @@
 <div class="sv-restore-workspace sv-anim-rise sv-anim-d2">
     <!-- ===== 画布区（Canvas · v3.1） ===== -->
     <main class="sv-restore-main">
+        <!-- 工作台顶部工具条：模式切换 + 批量路径行（布局稳定，不随模式替换主区） -->
+        <div class="sv-workbench-toolbar" id="workbenchToolbar">
+            <div class="sv-mode-tabs" role="tablist">
+                <button class="sv-mode-tab active" data-mode="single" type="button" role="tab" aria-selected="true">
+                    <i class="bi bi-file-earmark"></i> {{ t('restore.single_mode') }}
+                </button>
+                <button class="sv-mode-tab" data-mode="batch" type="button" role="tab" aria-selected="false">
+                    <i class="bi bi-folder2-open"></i> {{ t('restore.batch_mode') }}
+                </button>
+            </div>
+            <div class="sv-batch-toolbar" id="batchToolbar" style="display:none;">
+                <input type="text" class="sv-batch-input" id="folderPath" name="folder_path"
+                       placeholder="{{ t('restore.folder_path_placeholder') }}" aria-label="{{ t('restore.folder_path') }}">
+                <button type="button" class="sv-btn sv-btn-outline sv-btn-sm" id="btnBrowseFolder"
+                        data-tooltip="{{ t('restore.browse') }}" aria-label="{{ t('restore.browse') }}">
+                    <i class="bi bi-folder2-open"></i>
+                </button>
+                <button type="button" class="sv-btn sv-btn-secondary sv-btn-sm" id="btnScanFolder">
+                    <i class="bi bi-search"></i> {{ t('restore.scan') }}
+                </button>
+                <button type="button" class="sv-btn sv-btn-primary sv-btn-sm" id="btnStartBatch">
+                    <i class="bi bi-collection"></i> {{ t('restore.batch_from_folder') }}
+                </button>
+            </div>
+        </div>
+
         <!-- 单文件模式：对比/预览区 -->
-        <div class="sv-compare-area" id="previewArea" data-mode-pane="single">
+        <div class="sv-compare-area sv-mode-tab-pane active" id="previewArea" data-mode-pane="single">
             <!-- 空状态占位：包含上传拖拽区 -->
             <div class="sv-compare-placeholder" id="workflowGuide" data-auto-hide="true">
                 <div class="sv-dropzone" id="restoreUploadZone" style="max-width:340px;">
@@ -122,25 +148,11 @@
             </div>
         </div>
 
-        <!-- 批量模式 -->
-        <div class="sv-batch-section" data-mode-pane="batch" style="display:none;padding:20px;overflow-y:auto;width:100%;">
+        <!-- 批量模式：结果列表 + 批量进度（路径行已内嵌顶部工具条） -->
+        <div class="sv-batch-section sv-mode-tab-pane" data-mode-pane="batch">
             <div class="sv-batch-header">
                 <span class="sv-batch-title">{{ t('restore.batch_title') }}</span>
                 <span class="sv-badge sv-badge-info">{{ t('restore.folder_mode') }}</span>
-            </div>
-            <div class="sv-batch-input-row">
-                <input type="text" class="sv-batch-input" id="folderPath" name="folder_path"
-                       placeholder="{{ t('restore.folder_path_placeholder') }}" aria-label="{{ t('restore.folder_path') }}">
-                <button type="button" class="sv-btn sv-btn-outline sv-btn-sm" id="btnBrowseFolder"
-                        data-tooltip="{{ t('restore.browse') }}" aria-label="{{ t('restore.browse') }}">
-                    <i class="bi bi-folder2-open"></i>
-                </button>
-                <button type="button" class="sv-btn sv-btn-secondary sv-btn-sm" id="btnScanFolder">
-                    <i class="bi bi-search"></i> {{ t('restore.scan') }}
-                </button>
-                <button type="button" class="sv-btn sv-btn-primary sv-btn-sm" id="btnStartBatch">
-                    <i class="bi bi-collection"></i> {{ t('restore.batch_from_folder') }}
-                </button>
             </div>
             <div id="folderScanResults" class="sv-mt-2"></div>
 
@@ -174,15 +186,11 @@
 
         <!-- ===== 右侧参数边栏 ===== -->
     <aside class="sv-param-sidebar" id="paramsSidebar">
-        <div class="sv-param-sidebar-title">{{ t('restore.param_config') }}</div>
-
-        <!-- 模式切换（移入侧栏） -->
-        <div class="sv-mode-tabs" role="tablist">
-            <button class="sv-mode-tab active" data-mode="single" type="button" role="tab" aria-selected="true">
-                <i class="bi bi-file-earmark"></i> {{ t('restore.single_mode') }}
-            </button>
-            <button class="sv-mode-tab" data-mode="batch" type="button" role="tab" aria-selected="false">
-                <i class="bi bi-folder2-open"></i> {{ t('restore.batch_mode') }}
+        <div class="sv-param-sidebar-row">
+            <div class="sv-param-sidebar-title">{{ t('restore.param_config') }}</div>
+            <button type="button" class="sv-param-collapse-btn" id="btnToggleParams"
+                    aria-label="{{ t('restore.collapse_params') }}" title="{{ t('restore.collapse_params') }}">
+                <i class="bi bi-chevron-double-left" id="paramCollapseIcon"></i>
             </button>
         </div>
 
@@ -1369,22 +1377,41 @@ document.addEventListener('DOMContentLoaded', () => {
         el.addEventListener('change', autoSaveParams);
     });
 
-    // 模式切换标签（单文件/批量）+ URL hash 同步（Canvas v3.1 简化版）
+    // 模式切换标签（单文件/批量）+ URL hash 同步（重构：顶部工具条 + sv-mode-tab-pane）
     function switchMode(mode) {
-        // 切换侧栏 mode-tab 的 active 状态
+        // 切换 mode-tab 的 active 状态
         document.querySelectorAll('.sv-mode-tab').forEach(function(tab) {
             tab.classList.toggle('active', tab.dataset.mode === mode);
             tab.setAttribute('aria-selected', tab.dataset.mode === mode ? 'true' : 'false');
         });
 
-        // 显示/隐藏对应的上传区域（data-mode-pane）
-        var singlePane = document.querySelector('[data-mode-pane="single"]');
-        var batchPane = document.querySelector('[data-mode-pane="batch"]');
-        if (singlePane) singlePane.style.display = mode === 'single' ? '' : 'none';
-        if (batchPane) batchPane.style.display = mode === 'batch' ? '' : 'none';
+        // 显示/隐藏对应的模式面板（sv-mode-tab-pane.active）
+        document.querySelectorAll('[data-mode-pane]').forEach(function(pane) {
+            pane.classList.toggle('active', pane.dataset.modePane === mode);
+        });
+
+        // 批量路径行工具条（内嵌主区顶部）
+        var batchToolbar = document.getElementById('batchToolbar');
+        if (batchToolbar) batchToolbar.style.display = mode === 'batch' ? 'flex' : 'none';
 
         // 更新 URL hash
         history.replaceState(null, '', '#' + mode);
+    }
+
+    // 参数面板折叠（桌面端）
+    var btnToggleParams = document.getElementById('btnToggleParams');
+    var paramsSidebarEl = document.getElementById('paramsSidebar');
+    if (btnToggleParams && paramsSidebarEl) {
+        btnToggleParams.addEventListener('click', function () {
+            var collapsed = paramsSidebarEl.classList.toggle('collapsed');
+            var label = collapsed
+                ? (I['restore.expand_params'] || 'Expand params')
+                : (I['restore.collapse_params'] || 'Collapse params');
+            btnToggleParams.setAttribute('aria-label', label);
+            btnToggleParams.setAttribute('title', label);
+            var icon = document.getElementById('paramCollapseIcon');
+            if (icon) icon.className = collapsed ? 'bi bi-chevron-double-right' : 'bi bi-chevron-double-left';
+        });
     }
 
     document.querySelectorAll('.sv-mode-tab').forEach(tab => {

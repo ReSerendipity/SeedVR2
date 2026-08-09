@@ -5373,6 +5373,105 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
     border-bottom: 1px solid var(--sv-border);
 }
 
+/* ===== 工作台顶部工具条（模式切换 + 批量路径行） ===== */
+.sv-workbench-toolbar {
+    position: absolute;
+    top: 12px;
+    left: 0;
+    right: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--sv-space-2);
+    padding: 0 20px;
+    pointer-events: none;
+}
+.sv-workbench-toolbar > * {
+    pointer-events: auto;
+}
+.sv-workbench-toolbar .sv-mode-tabs {
+    min-width: 320px;
+    width: auto;
+    margin-bottom: 0;
+}
+.sv-batch-toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--sv-space-2);
+    width: min(760px, 100%);
+    background: var(--sv-glass-bg);
+    border: 1px solid var(--sv-glass-border);
+    border-radius: var(--sv-radius);
+    padding: var(--sv-space-2);
+    box-shadow: var(--sv-shadow-sm);
+    backdrop-filter: blur(var(--sv-glass-blur));
+}
+.sv-batch-toolbar .sv-batch-input {
+    flex: 1;
+    min-width: 220px;
+}
+
+/* 批量面板（模式面板化后的布局补充） */
+.sv-batch-section.sv-mode-tab-pane {
+    padding: 20px;
+    width: 100%;
+}
+.sv-batch-section.sv-mode-tab-pane.active {
+    max-height: none;
+    overflow-y: auto;
+}
+
+/* ===== 参数面板折叠（桌面端） ===== */
+.sv-param-sidebar-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sv-space-2);
+}
+.sv-param-sidebar-row .sv-param-sidebar-title {
+    flex: 1;
+    margin-bottom: 0;
+    border-bottom: none;
+    padding-bottom: 0;
+}
+.sv-param-collapse-btn {
+    width: 28px;
+    height: 28px;
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--sv-border);
+    border-radius: var(--sv-radius-sm);
+    background: transparent;
+    color: var(--sv-text-muted);
+    cursor: pointer;
+    transition: all var(--sv-transition);
+}
+.sv-param-collapse-btn:hover {
+    color: var(--sv-primary);
+    border-color: var(--sv-primary);
+}
+.sv-param-sidebar {
+    transition: width 0.28s var(--sv-easing-standard), padding 0.28s var(--sv-easing-standard);
+}
+.sv-param-sidebar.collapsed {
+    width: 46px;
+    padding: 14px 8px;
+    align-items: center;
+}
+.sv-param-sidebar.collapsed > *:not(.sv-param-sidebar-row) {
+    display: none;
+}
+.sv-param-sidebar.collapsed .sv-param-sidebar-row {
+    flex-direction: column;
+    gap: var(--sv-space-2);
+}
+.sv-param-sidebar.collapsed .sv-param-sidebar-title {
+    display: none;
+}
+
 .sv-param-group {
     margin-bottom: 14px;
 }
@@ -5959,12 +6058,12 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
 
 .sv-history-cards {
     display: none;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    grid-template-columns: repeat(4, 1fr);
     gap: var(--sv-space-3);
 }
 @media (max-width: 1200px) {
     .sv-history-cards {
-        grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+        grid-template-columns: repeat(3, 1fr);
     }
     .sv-history-card-thumb {
         height: 110px;
@@ -5972,7 +6071,7 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
 }
 @media (max-width: 768px) {
     .sv-history-cards {
-        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        grid-template-columns: repeat(2, 1fr);
     }
     .sv-history-card-thumb {
         height: 100px;
