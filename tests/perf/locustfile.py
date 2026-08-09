@@ -27,10 +27,6 @@
 所属项目：SeedVR2
 """
 
-import json
-import os
-import sys
-import time
 from datetime import datetime
 
 from locust import HttpUser, between, events, task
@@ -160,14 +156,10 @@ def check_thresholds(environment, **kwargs):
     failures = []
 
     if p95_response_time is not None and p95_response_time > P95_THRESHOLD_MS:
-        failures.append(
-            f"P95 响应时间 {p95_response_time}ms 超过阈值 {P95_THRESHOLD_MS}ms"
-        )
+        failures.append(f"P95 响应时间 {p95_response_time}ms 超过阈值 {P95_THRESHOLD_MS}ms")
 
     if error_rate > ERROR_RATE_THRESHOLD:
-        failures.append(
-            f"错误率 {error_rate:.4%} 超过阈值 {ERROR_RATE_THRESHOLD:.0%}"
-        )
+        failures.append(f"错误率 {error_rate:.4%} 超过阈值 {ERROR_RATE_THRESHOLD:.0%}")
 
     if failures:
         print("❌ 性能测试未通过:")
