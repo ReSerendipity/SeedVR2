@@ -79,7 +79,7 @@ def get_gpu_memory_info() -> dict:
                 "allocated_mb": allocated // (1024 * 1024),
                 "reserved_mb": reserved // (1024 * 1024),
                 "available_mb": free_memory // (1024 * 1024),
-                "utilization_pct": (used / total_memory) * 100 if total_memory > 0 else 0,
+                "utilization_pct": float((used / total_memory) * 100) if total_memory > 0 else 0.0,
             }
     except Exception as e:
         logger.error(f"获取 GPU 显存信息失败: {e}")
@@ -89,7 +89,7 @@ def get_gpu_memory_info() -> dict:
         "allocated_mb": 0,
         "reserved_mb": 0,
         "available_mb": 0,
-        "utilization_pct": 0,
+        "utilization_pct": 0.0,
     }
 
 
