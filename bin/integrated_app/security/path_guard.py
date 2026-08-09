@@ -81,6 +81,13 @@ class PathGuard:
         self._allowed: list[Path] = []
         for d in allowed_base_dirs:
             try:
+                # Reject paths containing null bytes or other control characters
+                # that Path.resolve() may accept on some platforms (e.g. Windows)
+                # but the filesystem will reject. This prevents silent inclusion
+                # of malformed paths in the allow-list.
+                path_str = str(d)
+                if "\x00" in path_str or any(ord(c) < 32 for c in path_str):
+                    continue
                 self._allowed.append(Path(d).resolve())
             except (OSError, ValueError):
                 continue

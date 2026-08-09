@@ -216,14 +216,10 @@ class ModelManager:
         if precision == "auto":
             precision = self.get_recommended_precision(model_size)
 
-        from bin.integrated_app.gpu_backend import gpu_manager
-
-        if not gpu_manager.is_gpu_available:
-            raise RuntimeError(
-                "SeedVR2 仅支持 NVIDIA GPU 推理，当前未检测到 NVIDIA GPU。"
-                "请安装 NVIDIA GPU 并配置 CUDA 驱动以启用推理功能。"
-            )
-
+        # Check if the same model is already loaded BEFORE the GPU check.
+        # This allows returning the "already loaded" short-circuit even in
+        # CPU-only / no-GPU environments (e.g. CI, unit tests), avoiding a
+        # spurious RuntimeError when the model is already in memory.
         if (
             model_registry.model_loaded
             and model_registry.current_model_size == model_size
@@ -236,6 +232,14 @@ class ModelManager:
                 "model_size": model_size,
                 "precision": precision,
             }
+
+        from bin.integrated_app.gpu_backend import gpu_manager
+
+        if not gpu_manager.is_gpu_available:
+            raise RuntimeError(
+                "SeedVR2 仅支持 NVIDIA GPU 推理，当前未检测到 NVIDIA GPU。"
+                "请安装 NVIDIA GPU 并配置 CUDA 驱动以启用推理功能。"
+            )
 
         model_cfg = self.get_model_info(model_size)
         if not model_cfg:
