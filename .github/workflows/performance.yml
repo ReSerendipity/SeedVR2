@@ -1,0 +1,52 @@
+name: Performance Regression
+
+on:
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    - cron: '0 2 * * *'  # 每天凌晨 2 点
+
+jobs:
+  perf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt locust
+
+      - name: Start app server in background
+        run: |
+          python bin/integrated_app/app_server.py &
+        env:
+          PYTHONUNBUFFERED: '1'
+
+      - name: Wait for server ready
+        run: |
+          curl --retry 30 --retry-delay 2 --retry-connrefused \
+            http://127.0.0.1:7870/api/system/health
+
+      - name: Run Locust performance tests
+        run: |
+          locust -f tests/perf/locustfile.py --headless \
+            -u 20 -r 2 -t 2m \
+            --host http://127.0.0.1:7870 \
+            --only-summary
+
+      - name: Upload performance results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-results
+          path: |
+            *.csv
+            *.log
