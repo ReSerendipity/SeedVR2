@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """UI 参数与偏好路由包。
 
 本包包含 SeedVR2 项目前端 UI 所需的后端 API 路由：

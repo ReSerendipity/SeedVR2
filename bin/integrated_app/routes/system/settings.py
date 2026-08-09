@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """系统设置管理路由模块。
 
 提供系统配置读取/更新、模型加载/卸载/切换、语言切换、
@@ -40,7 +40,7 @@ from bin.integrated_app.i18n import I18n
 from bin.integrated_app.model_manager import ModelManager
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(prefix="/api/system", tags=["设置"])
 
 ALLOWED_ROOT_DIRS: list[str] = []
 

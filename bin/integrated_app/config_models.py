@@ -38,7 +38,8 @@ SeedVR2 - 配置数据模型定义模块
     └── user_preferences      # 用户偏好设置（前端管理）
 """
 
-from typing import Any
+import os
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -120,10 +121,17 @@ class ModelConfig(BaseModel):
     定义默认模型大小、精度、预训练目录、自动加载等参数，
     以及所有可用模型的配置字典。
 
+    支持两种模型源模式（借鉴 Image_MultiModel）:
+    - portable: 模型文件存储在项目内的 pretrained_dir 目录中（默认模式，完全自包含）
+    - shared: 模型文件存储在外部共享目录 shared_models_root 中，
+      多个项目（SeedVR2 / TTS / Image）可共用同一套模型文件，节省磁盘空间
+
     Attributes:
         default_size: 默认模型大小标识（如 "3b" 表示 30 亿参数）。
         default_precision: 默认推理精度，"fp16" 或 "fp8"。
-        pretrained_dir: 预训练模型文件根目录。
+        pretrained_dir: 预训练模型文件根目录（portable 模式下使用）。
+        model_source_mode: 模型源模式，"portable"（项目内自包含）或 "shared"（外部共享目录）。
+        shared_models_root: shared 模式下的外部共享模型目录绝对路径，为空时回退到 portable 模式。
         auto_load: 应用启动时是否自动加载默认模型。
         device: 模型加载设备，"auto" 自动选择，或指定 "cuda:0"。
         models: 模型名称到 ModelEntryConfig 的映射字典。
@@ -132,7 +140,9 @@ class ModelConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     default_size: str = "3b"
     default_precision: str = "fp16"
-    pretrained_dir: str = "."
+    pretrained_dir: str = "pretrained_models"
+    model_source_mode: Literal["shared", "portable"] = "portable"
+    shared_models_root: str = ""
     auto_load: bool = True
     device: str = "auto"
     models: dict[str, ModelEntryConfig] = Field(default_factory=dict)
@@ -385,6 +395,8 @@ class RuntimeTaskConfig(BaseModel):
         max_timeout_seconds: 单个任务最大执行时间（秒），60-86400 范围，防止卡死任务阻塞队列。
         queue_maxsize: 任务队列最大容量，1-10000 范围，超出时新任务提交会拒绝。
         auto_recover: 启动时是否自动恢复未完成任务并继续推理，默认关闭。
+        checkpoint_dir: 断点续跑 checkpoint 文件存储目录，相对于项目根目录。
+        checkpoint_every: 每处理多少个文件写一次 checkpoint，1 表示每个文件都写。
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -394,6 +406,16 @@ class RuntimeTaskConfig(BaseModel):
     auto_recover: bool = Field(
         False,
         description="启动时是否自动恢复数据库中未完成的修复任务并重新推理",
+    )
+    checkpoint_dir: str = Field(
+        "data/checkpoints",
+        description="断点续跑 checkpoint 文件存储目录",
+    )
+    checkpoint_every: int = Field(
+        1,
+        ge=1,
+        le=100,
+        description="每处理多少个文件写一次 checkpoint",
     )
 
 
@@ -593,6 +615,49 @@ class AppConfig(BaseModel):
     inference: InferenceConfig = Field(default_factory=InferenceConfig)
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
     user_preferences: dict[str, Any] = Field(default_factory=dict)
+
+
+def get_pretrained_root(model_config: dict | ModelConfig, project_root: str | None = None) -> str:
+    """根据模型源模式解析预训练模型根目录的绝对路径。
+
+    支持两种模式（借鉴 Image_MultiModel 的 shared/portable 双模式）:
+    - portable 模式（默认）: 返回 {project_root}/{pretrained_dir}，
+      模型文件存储在项目内部的 pretrained_models 目录中。
+    - shared 模式: 当 shared_models_root 非空时，返回该外部共享目录路径，
+      多个项目可共用同一套模型文件；shared_models_root 为空时回退到 portable 模式。
+
+    Args:
+        model_config: 模型配置字典或 ModelConfig 实例，包含 model_source_mode、
+                      shared_models_root 和 pretrained_dir 字段。
+        project_root: 项目根目录路径，为 None 时自动推断（基于本文件位置）。
+
+    Returns:
+        str: 预训练模型根目录的绝对路径。
+
+    Example:
+        >>> cfg = {"model_source_mode": "shared", "shared_models_root": "D:/shared_models"}
+        >>> get_pretrained_root(cfg)
+        'D:/shared_models'
+        >>> cfg = {"model_source_mode": "portable", "pretrained_dir": "pretrained_models"}
+        >>> get_pretrained_root(cfg, "/project")
+        '/project/pretrained_models'
+    """
+    # 从 dict 或 ModelConfig 中提取字段
+    if isinstance(model_config, dict):
+        mode = model_config.get("model_source_mode", "portable")
+        shared_root = model_config.get("shared_models_root", "")
+        pretrained_dir = model_config.get("pretrained_dir", "pretrained_models")
+    else:
+        mode = model_config.model_source_mode
+        shared_root = model_config.shared_models_root
+        pretrained_dir = model_config.pretrained_dir
+
+    if mode == "shared" and shared_root:
+        return os.path.abspath(shared_root)
+
+    if project_root is None:
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    return os.path.join(project_root, pretrained_dir)
 
 
 def load_validated_config(config_path: str) -> AppConfig:

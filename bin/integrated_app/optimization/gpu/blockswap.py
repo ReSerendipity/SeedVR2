@@ -1,4 +1,4 @@
-﻿"""BlockSwap 动态块交换模块 - SeedVR2 视频修复项目
+"""BlockSwap 动态块交换模块 - SeedVR2 视频修复项目
 
 本模块实现 GPU/CPU 之间的动态 Transformer 块交换技术，使得在显存有限的 GPU
 （如 RTX 5070 Ti 12GB）上也能运行大参数量模型。通过推理时按需将 Transformer 块

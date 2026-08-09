@@ -10,6 +10,7 @@
     - GPU 显存实时监控（总显存、已分配、已保留、可用、利用率）
     - 系统内存信息查询
     - 模型加载显存需求估算（考虑模型大小、精度、分辨率）
+    - VRAM 预检 + 精度/分块参数推荐（借鉴 Image_MultiModel）
     - GPU 缓存清理与强制垃圾回收
     - OOM 保护装饰器（捕获显存不足异常并自动清理）
     - 完整系统信息聚合（GPU + 内存 + OS）
@@ -48,6 +49,33 @@ _BASE_VRAM_MB = {
 _DEFAULT_MODEL_VRAM_MB = {"fp16": 8000, "fp8": 4000}  # 未知模型大小的默认估值
 _BASE_RESOLUTION_PIXELS = 1080 * 1920  # 基准分辨率（用于计算像素比例因子）
 _BASE_INFERENCE_VRAM_MB = 4000  # 推理额外显存基线（4GB 起，随分辨率线性增长）
+
+# ===========================================================================
+# VRAM 预检常量 — 借鉴 Image_MultiModel，用于 estimate_vram_requirements / recommend_params
+# ===========================================================================
+# 模型 VRAM 基线值（GB），与 config.yaml 中 models.*.min_vram_*_gb 对齐
+_MODEL_VRAM_BASE_GB: dict[str, dict[str, float]] = {
+    "3b": {"fp16": 16.0, "fp8": 8.0},
+    "7b": {"fp16": 24.0, "fp8": 12.0},
+    "7b_sharp": {"fp16": 24.0, "fp8": 12.0},
+}
+# 模型 Transformer 块数（用于 BlockSwap 策略推荐）
+_MODEL_NUM_BLOCKS: dict[str, int] = {
+    "3b": 32,
+    "7b": 36,
+    "7b_sharp": 36,
+}
+# BlockSwap 开启时模型权重显存削减比例（默认 swap 32/36 块，约 50% 削减）
+_BLOCKSWAP_REDUCTION = 0.5
+# 安全阈值：推荐参数时使用可用显存的 90% 作为安全线
+_SAFE_THRESHOLD_RATIO = 0.9
+# 分辨率额外开销系数：超过 1080p 后每单位 resolution_factor 增加 2GB
+_RESOLUTION_OVERHEAD_PER_UNIT_GB = 2.0
+# 视频帧缓冲冗余系数
+_FRAME_BUFFER_REDUNDANCY = 1.5
+# 每帧每通道字节数（FP16 下 2 字节 × 3 通道 RGB）
+_FRAME_BYTES_PER_PIXEL = 3 * 2
+_GB = 1024**3  # 1 GB 的字节数
 
 
 def get_gpu_memory_info() -> dict:
@@ -207,6 +235,185 @@ def oom_protect(func: Callable) -> Callable:
             raise
 
     return wrapper
+
+
+def _normalize_model_name(model_name: str) -> str:
+    """将用户输入的模型名称标准化为内部 key。
+
+    支持的输入格式：
+        - "3b" / "3B"
+        - "7b" / "7B"
+        - "7b-sharp" / "7b_sharp" / "7B-Sharp" / "7bsharp"
+
+    Args:
+        model_name: 用户输入的模型名称。
+
+    Returns:
+        str: 标准化后的内部 key（"3b" / "7b" / "7b_sharp"）。
+    """
+    key = model_name.lower().replace("-", "_").replace(" ", "")
+    if "sharp" in key:
+        return "7b_sharp"
+    return key
+
+
+def estimate_vram_requirements(
+    model_name: str,
+    precision: str,
+    input_width: int,
+    input_height: int,
+    num_frames: int = 1,
+) -> float:
+    """估算推理所需 VRAM（GB），不含 BlockSwap 优化。
+
+    估算公式：
+        总显存 = 模型基线 + 分辨率额外开销 + 视频帧缓冲
+        - 模型基线：根据模型大小和精度查表（与 config.yaml min_vram_*_gb 对齐）
+        - 分辨率额外开销：超过 1080p 后按平方根缩放，每单位增加 2GB
+        - 视频帧缓冲：每帧 (W×H×3×2) 字节 × num_frames × 1.5 倍冗余
+
+    Args:
+        model_name: 模型名称，支持 "3b" / "7b" / "7b-sharp" / "7b_sharp"。
+        precision: 计算精度，"fp16" 或 "fp8"。
+        input_width: 输入宽度（像素）。
+        input_height: 输入高度（像素）。
+        num_frames: 帧数，图像=1，视频=实际帧数。
+
+    Returns:
+        float: 估算所需 VRAM（GB），保留两位小数。
+    """
+    model_key = _normalize_model_name(model_name)
+    base_vram = _MODEL_VRAM_BASE_GB.get(model_key, _MODEL_VRAM_BASE_GB["3b"])
+    base = base_vram.get(precision, base_vram["fp16"])
+
+    # 分辨率额外开销（平方根缩放，1080p 为基准）
+    resolution_factor = max(1.0, ((input_width * input_height) / _BASE_RESOLUTION_PIXELS) ** 0.5)
+    resolution_overhead = (resolution_factor - 1.0) * _RESOLUTION_OVERHEAD_PER_UNIT_GB
+
+    # 视频帧缓冲：(W×H×3×2) bytes × num_frames × 1.5 倍冗余
+    frame_buffer_gb = (
+        input_width * input_height * _FRAME_BYTES_PER_PIXEL * _FRAME_BUFFER_REDUNDANCY * max(1, num_frames)
+    ) / _GB
+
+    total = base + resolution_overhead + frame_buffer_gb
+    return round(total, 2)
+
+
+def recommend_params(
+    model_name: str,
+    input_width: int,
+    input_height: int,
+    num_frames: int = 1,
+    available_vram_gb: float | None = None,
+) -> dict:
+    """根据输入参数和可用显存推荐精度/分块/BlockSwap 参数组合。
+
+    推荐逻辑（逐级回退）：
+        1. FP16 不开 BlockSwap → 如果满足安全阈值，推荐此组合（risk=low）
+        2. FP8 不开 BlockSwap → 如果满足安全阈值，推荐此组合（risk=low）
+        3. FP8 + BlockSwap → 如果满足可用显存，推荐此组合（risk=medium）
+        4. 以上均不满足 → 强制 FP8 + BlockSwap（risk=high）
+
+    安全阈值 = 可用显存 × 0.9（预留 10% 安全余量）。
+    BlockSwap 开启时模型权重显存削减约 50%。
+
+    Args:
+        model_name: 模型名称，支持 "3b" / "7b" / "7b-sharp" / "7b_sharp"。
+        input_width: 输入宽度（像素）。
+        input_height: 输入高度（像素）。
+        num_frames: 帧数，图像=1，视频=实际帧数。
+        available_vram_gb: 可用显存（GB），None 时自动探测。
+
+    Returns:
+        dict: 推荐参数组合，包含以下键：
+            - precision (str): 推荐精度，"fp16" 或 "fp8"
+            - enable_blockswap (bool): 是否开启 BlockSwap
+            - blocks_to_swap (int): 推荐换出块数（BlockSwap 开启时有效）
+            - tile_size (int): 推荐 VAE tile 分块大小
+            - vram_tile_overlap (int): 推荐 tile 重叠像素
+            - estimated_vram_gb (float): 估算所需显存（GB）
+            - available_vram_gb (float): 可用显存（GB）
+            - risk (str): OOM 风险等级，"low" / "medium" / "high"
+            - warning (str): 风险提示信息（空字符串表示无风险）
+    """
+    # 自动探测可用显存
+    if available_vram_gb is None:
+        info = get_gpu_memory_info()
+        available_vram_gb = info["available_mb"] / 1024.0
+
+    model_key = _normalize_model_name(model_name)
+    base_vram = _MODEL_VRAM_BASE_GB.get(model_key, _MODEL_VRAM_BASE_GB["3b"])
+    num_blocks = _MODEL_NUM_BLOCKS.get(model_key, 36)
+
+    # 估算各方案所需显存
+    fp16_needed = estimate_vram_requirements(model_name, "fp16", input_width, input_height, num_frames)
+    fp8_needed = estimate_vram_requirements(model_name, "fp8", input_width, input_height, num_frames)
+
+    # BlockSwap 削减模型权重显存
+    fp8_base = base_vram["fp8"]
+    fp8_with_blockswap = fp8_needed - fp8_base * _BLOCKSWAP_REDUCTION
+
+    safe_threshold = available_vram_gb * _SAFE_THRESHOLD_RATIO
+
+    warning = ""
+
+    if fp16_needed <= safe_threshold:
+        precision = "fp16"
+        enable_blockswap = False
+        estimated = fp16_needed
+        risk = "low"
+    elif fp8_needed <= safe_threshold:
+        precision = "fp8"
+        enable_blockswap = False
+        estimated = fp8_needed
+        risk = "low"
+    elif fp8_with_blockswap <= available_vram_gb:
+        precision = "fp8"
+        enable_blockswap = True
+        estimated = fp8_with_blockswap
+        risk = "medium"
+        warning = (
+            f"VRAM 紧张：估算 {estimated}GB，可用 {available_vram_gb:.1f}GB。"
+            f"已开启 BlockSwap 换出 {num_blocks - 4} 块到 CPU，推理速度可能较慢。"
+        )
+    else:
+        precision = "fp8"
+        enable_blockswap = True
+        estimated = fp8_with_blockswap
+        risk = "high"
+        warning = (
+            f"VRAM 严重不足：估算 {estimated}GB（含 BlockSwap），可用 {available_vram_gb:.1f}GB。"
+            f"建议降低分辨率、减少帧数或使用更小的模型。"
+        )
+
+    # BlockSwap 推荐换出块数（保留 4 块在 GPU，其余换出）
+    blocks_to_swap = num_blocks - 4 if enable_blockswap else 0
+
+    # VAE tile 分块推荐（根据可用显存分级）
+    if available_vram_gb >= 20:
+        tile_size = 1024
+        vram_tile_overlap = 512
+    elif available_vram_gb >= 12:
+        tile_size = 768
+        vram_tile_overlap = 256
+    elif available_vram_gb >= 8:
+        tile_size = 512
+        vram_tile_overlap = 128
+    else:
+        tile_size = 256
+        vram_tile_overlap = 64
+
+    return {
+        "precision": precision,
+        "enable_blockswap": enable_blockswap,
+        "blocks_to_swap": blocks_to_swap,
+        "tile_size": tile_size,
+        "vram_tile_overlap": vram_tile_overlap,
+        "estimated_vram_gb": estimated,
+        "available_vram_gb": round(available_vram_gb, 2),
+        "risk": risk,
+        "warning": warning,
+    }
 
 
 def get_system_memory_info() -> dict:

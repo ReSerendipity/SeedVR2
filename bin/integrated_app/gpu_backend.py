@@ -1,4 +1,4 @@
-﻿"""GPU 后端抽象层模块 - SeedVR2 视频修复项目
+"""GPU 后端抽象层模块 - SeedVR2 视频修复项目
 
 本模块提供 GPU 后端的抽象与统一管理接口，采用 Strategy 设计模式实现后端分发，
 避免冗长的 if/elif 条件链。当前仅支持 NVIDIA CUDA GPU 后端，未检测到可用 GPU 时

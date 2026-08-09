@@ -1,4 +1,4 @@
-﻿"""SeedVR2 - SeedVR2 视频/图像修复推理引擎核心实现
+"""SeedVR2 - SeedVR2 视频/图像修复推理引擎核心实现
 
 本模块实现基于 ByteDance SeedVR2 官方推理逻辑的完整修复引擎，
 是 SeedVR2 项目的核心推理模块，继承自 RestoreEngine 抽象基类。

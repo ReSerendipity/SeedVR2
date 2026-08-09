@@ -20,10 +20,49 @@ SeedVR2 - 配置加载模块
 """
 
 import contextlib
+import logging
 import os
 import tempfile
 
 import yaml
+
+logger = logging.getLogger(__name__)
+
+
+def _load_dotenv() -> None:
+    """加载项目根目录下的 .env 文件（无第三方依赖，纯标准库实现）。
+
+    解析简单的 KEY=VALUE 行，忽略 # 注释和空行。
+    使用 os.environ.setdefault 写入，保证显式系统环境变量优先级高于 .env 文件。
+    支持去除首尾单引号/双引号，以及将字面量 \\n 转换为真实换行（多行 PEM 密钥等场景）。
+
+    .env 文件路径为项目根目录下的 .env（与 config.yaml 同级）。
+    文件不存在时静默返回，不影响应用启动。
+    """
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    env_path = os.path.join(project_root, ".env")
+    if not os.path.exists(env_path):
+        return
+    try:
+        with open(env_path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                key = key.strip()
+                value = value.strip()
+                # 去除首尾引号（单引号或双引号）
+                if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+                    value = value[1:-1]
+                # 将字面量 \n 转换为真实换行（多行 PEM 密钥等场景）
+                value = value.replace("\\n", "\n")
+                if key:
+                    os.environ.setdefault(key, value)
+    except Exception as e:
+        logger.warning(f".env 文件加载失败: {e}")
 
 
 def load_config(config_path: str | None = None) -> dict:
@@ -45,6 +84,7 @@ def load_config(config_path: str | None = None) -> dict:
         - 验证失败时静默回退到原始 yaml.safe_load
         - 此接口保持向后兼容，新代码建议使用 get_app_config() 获取类型安全的 AppConfig 实例
     """
+    _load_dotenv()
     try:
         validated = load_validated_config(config_path)
         return validated.model_dump()
@@ -84,6 +124,7 @@ def load_validated_config(config_path: str | None = None):
     """
     from .config_models import AppConfig
 
+    _load_dotenv()
     if config_path is None:
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         config_path = os.path.join(project_root, "config.yaml")

@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """SeedVR2 - 模型状态注册中心模块（线程安全单例）
 
 本模块实现全局模型状态注册中心，统一管理当前加载的引擎实例和模型状态，
@@ -98,6 +98,7 @@ class _ModelRegistry:
         self._model_info: dict = {}
         self._engine: Any = None
         self._listeners: list[Listener] = []
+        self._engine_classes: dict[str, type] = {}
         self._initialized = True
 
     # ------------------------------------------------------------------
@@ -314,6 +315,49 @@ class _ModelRegistry:
             self._current_precision = precision
             self._model_info = info if info is not None else {}
         self._notify_listeners()
+
+    # ------------------------------------------------------------------
+    # 引擎注册器接口（EngineRegistry Protocol 实现）
+    # ------------------------------------------------------------------
+
+    def register(self, name: str, engine_class: type) -> None:
+        """注册一个引擎类到注册表。
+
+        实现 EngineRegistry Protocol 的 register 方法。
+        支持运行时动态注册新的引擎类型，用于未来扩展多引擎支持。
+
+        Args:
+            name: 引擎名称（如 "seedvr2"）
+            engine_class: 引擎类（实现 RestoreEngine 协议的类）
+        """
+        with self._rlock:
+            self._engine_classes[name] = engine_class
+        logger.info(f"已注册引擎类: {name} -> {engine_class.__name__}")
+
+    def get(self, name: str) -> type | None:
+        """从注册表获取引擎类。
+
+        实现 EngineRegistry Protocol 的 get 方法。
+
+        Args:
+            name: 引擎名称
+
+        Returns:
+            type | None: 引擎类，未注册时返回 None
+        """
+        with self._rlock:
+            return self._engine_classes.get(name)
+
+    def list_engines(self) -> list[str]:
+        """列出所有已注册的引擎名称。
+
+        实现 EngineRegistry Protocol 的 list_engines 方法。
+
+        Returns:
+            list[str]: 引擎名称列表
+        """
+        with self._rlock:
+            return list(self._engine_classes.keys())
 
     # ------------------------------------------------------------------
     # 测试支持

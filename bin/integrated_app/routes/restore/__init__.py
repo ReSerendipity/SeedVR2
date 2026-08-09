@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """图像与视频修复路由包。
 
 本包包含 SeedVR2 项目的修复功能路由模块，按职责拆分为子模块：

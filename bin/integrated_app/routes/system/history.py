@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """历史记录管理路由模块。
 
 提供修复历史记录的查询、统计、删除、取消等端点，
@@ -27,7 +27,7 @@ from bin.integrated_app.history_db import HistoryDB
 from bin.integrated_app.security.path_guard import build_default_path_guard
 from bin.integrated_app.task_queue import TaskQueue
 
-router = APIRouter(prefix="/history", tags=["history"])
+router = APIRouter(prefix="/api/system/history", tags=["历史记录"])
 
 
 @router.get("")

@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """任务状态操作路由模块。
 
 提供单个修复任务的进度查询（SSE）、取消、结果查询、结果下载等端点。
@@ -29,7 +29,7 @@ from bin.integrated_app.task_queue import TaskQueue
 from bin.integrated_app.utils.response import respond_success
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(prefix="/api/restore", tags=["修复"])
 
 
 @router.get("/{task_id}/progress")

@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 SeedVR2 - FastAPI 依赖注入模块
 

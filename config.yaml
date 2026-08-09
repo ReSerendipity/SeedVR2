@@ -57,6 +57,7 @@ model:
   default_precision: fp16
   default_size: 3b
   device: auto
+  model_source_mode: portable
   models:
     3b:
       checkpoint_fp16: seedvr2_ema_3b_fp16.safetensors
@@ -92,6 +93,7 @@ model:
       pos_emb: pos_emb.pt
       vae_checkpoint: ema_vae_fp16.safetensors
   pretrained_dir: pretrained_models
+  shared_models_root: ''
 restore:
   default_resolution_h: 1080
   default_resolution_w: 1920
@@ -116,6 +118,8 @@ runtime:
     poll_interval_seconds: 0.5
   task:
     auto_recover: false
+    checkpoint_dir: data/checkpoints
+    checkpoint_every: 1
     id_length: 16
     max_timeout_seconds: 86400
     queue_maxsize: 100

@@ -30,6 +30,7 @@ import os
 
 import torch
 
+from bin.integrated_app.engine_interface import RestoreEngine
 from bin.integrated_app.engines.seedvr2_engine import SeedVR2Engine
 from bin.integrated_app.gpu_utils import check_vram_available, clear_gpu_cache, estimate_model_vram
 from bin.integrated_app.model_registry import model_registry
@@ -64,7 +65,7 @@ class ModelManager:
         """
         self.config = config
         self.model_config = config.get("model", {})
-        self._engine: SeedVR2Engine | None = None
+        self._engine: RestoreEngine | None = None
 
     @property
     def is_loaded(self) -> bool:
@@ -79,11 +80,11 @@ class ModelManager:
         return model_registry.model_loaded
 
     @property
-    def engine(self) -> SeedVR2Engine | None:
+    def engine(self) -> RestoreEngine | None:
         """获取当前引擎实例
 
         Returns:
-            SeedVR2Engine | None: 当前激活的引擎实例，未加载时为 None
+            RestoreEngine | None: 当前激活的引擎实例，未加载时为 None
 
         Note:
             引擎引用从全局 model_registry 获取，确保始终是最新实例
@@ -105,14 +106,16 @@ class ModelManager:
     def get_pretrained_dir(self) -> str:
         """获取预训练模型根目录的绝对路径
 
-        根据配置中的 pretrained_dir 相对路径，结合项目根目录计算绝对路径。
+        根据 model_source_mode 配置解析模型根目录:
+        - portable 模式（默认）: {project_root}/{pretrained_dir}
+        - shared 模式: 使用 shared_models_root 指定的外部共享目录
 
         Returns:
             str: 预训练模型目录的绝对路径
         """
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        pretrained_dir = self.model_config.get("pretrained_dir", "pretrained_models")
-        return os.path.join(project_root, pretrained_dir)
+        from bin.integrated_app.config_models import get_pretrained_root
+
+        return get_pretrained_root(self.model_config)
 
     def check_model_exists(self, size: str, precision: str | None = None) -> bool:
         """检查指定模型文件是否存在

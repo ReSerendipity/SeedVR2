@@ -360,6 +360,33 @@
             <input type="hidden" name="offload_device" value="cpu">
         </div>
 
+        <!-- VRAM 预检 & 参数推荐 -->
+        <div class="sv-param-group sv-vram-recommend" id="vramRecommendBox">
+            <button type="button" class="sv-btn sv-btn-outline sv-btn-sm sv-w-100" id="btnVramRecommend">
+                <i class="bi bi-speedometer2"></i> VRAM 预检 & 推荐参数
+            </button>
+            <div id="vramRecommendResult" style="display:none;" class="sv-mt-2">
+                <div class="sv-vram-rec-item">
+                    <span class="sv-text-xs sv-text-muted">推荐精度</span>
+                    <span class="sv-badge sv-badge-completed sv-text-xs" id="restoreRecPrecision">--</span>
+                </div>
+                <div class="sv-vram-rec-item">
+                    <span class="sv-text-xs sv-text-muted">估算显存</span>
+                    <span class="sv-text-xs" id="restoreRecEstimated">--</span>
+                </div>
+                <div class="sv-vram-rec-item">
+                    <span class="sv-text-xs sv-text-muted">OOM 风险</span>
+                    <span class="sv-badge sv-text-xs" id="restoreRecRisk">--</span>
+                </div>
+                <button type="button" class="sv-btn sv-btn-primary sv-btn-xs sv-w-100 sv-mt-1" id="btnApplyRecommend">
+                    <i class="bi bi-magic"></i> 一键应用推荐
+                </button>
+                <div id="restoreRecWarning" class="sv-alert sv-alert-warning sv-mt-1" style="display:none;">
+                    <small><i class="bi bi-exclamation-triangle"></i> <span id="restoreRecWarningText"></span></small>
+                </div>
+            </div>
+        </div>
+
         <div class="sv-param-actions">
             <button type="button" class="sv-btn sv-btn-primary" id="btnStartRestore" data-disabled-reason="{{ t('restore.please_select') }}">
                 <i class="bi bi-play-fill"></i> {{ t('restore.upload_and_restore') }}
@@ -1237,6 +1264,97 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     els.btnResetRestore.addEventListener('click', resetRestore);
     els.btnRestoreAgain.addEventListener('click', resetRestore);
+
+    // VRAM 预检 & 参数推荐
+    let lastRecommendation = null;
+    document.getElementById('btnVramRecommend')?.addEventListener('click', async () => {
+        const ditModel = document.getElementById('ditModel').value;
+        const resolution = parseInt(document.getElementById('resolution').value) || 960;
+        const btn = document.getElementById('btnVramRecommend');
+        const resultDiv = document.getElementById('vramRecommendResult');
+
+        // 从 dit_model 解析模型名和精度 (如 "3b_fp16" → model="3b", precision="fp16")
+        const parts = ditModel.split('_');
+        let modelName = parts[0] || '3b';
+        if (ditModel.includes('sharp')) modelName = '7b-sharp';
+        const precision = parts.includes('fp8') ? 'fp8' : 'fp16';
+
+        // 估算输入分辨率（resolution 是短边，假设 16:9）
+        const isLandscape = true;
+        const height = resolution;
+        const width = Math.round(resolution * (isLandscape ? 16/9 : 9/16));
+
+        try {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split"></i> 估算中...';
+
+            const url = `/api/system/gpu/recommend-params?model_name=${encodeURIComponent(modelName)}&width=${width}&height=${height}&num_frames=1`;
+            const resp = await SeedVR2.api.get(url);
+
+            if (resp.success && resp.data) {
+                const d = resp.data;
+                lastRecommendation = d;
+
+                document.getElementById('restoreRecPrecision').textContent = d.precision.toUpperCase();
+                document.getElementById('restoreRecEstimated').textContent = `${d.estimated_vram_gb} GB / ${d.available_vram_gb} GB`;
+
+                const riskEl = document.getElementById('restoreRecRisk');
+                riskEl.textContent = d.risk;
+                riskEl.className = 'sv-badge sv-text-xs ' + (d.risk === 'low' ? 'sv-badge-completed' : d.risk === 'medium' ? 'sv-badge-warning' : 'sv-badge-error');
+
+                const warnDiv = document.getElementById('restoreRecWarning');
+                const warnText = document.getElementById('restoreRecWarningText');
+                if (d.warning) {
+                    warnDiv.style.display = '';
+                    warnText.textContent = d.warning;
+                } else {
+                    warnDiv.style.display = 'none';
+                }
+
+                resultDiv.style.display = '';
+            }
+        } catch (err) {
+            console.error('VRAM recommend failed:', err);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-speedometer2"></i> VRAM 预检 & 推荐参数';
+        }
+    });
+
+    document.getElementById('btnApplyRecommend')?.addEventListener('click', () => {
+        if (!lastRecommendation) return;
+        const d = lastRecommendation;
+
+        // 应用推荐精度到 ditModel 选择框
+        const ditModelSelect = document.getElementById('ditModel');
+        const currentVal = ditModelSelect.value;
+        const modelPrefix = currentVal.includes('sharp') ? '7b_sharp' : currentVal.split('_')[0];
+        const newModelVal = `${modelPrefix}_${d.precision}`;
+        for (const opt of ditModelSelect.options) {
+            if (opt.value === newModelVal) {
+                ditModelSelect.value = newModelVal;
+                break;
+            }
+        }
+
+        // 应用 BlockSwap 推荐值
+        const blocksToSwapInput = document.getElementById('blocksToSwap');
+        if (blocksToSwapInput) {
+            blocksToSwapInput.value = d.blocks_to_swap;
+        }
+
+        // 应用 tile 大小到 encode/decode tile
+        const encodeTileSize = document.getElementById('encodeTileSize');
+        const decodeTileSize = document.getElementById('decodeTileSize');
+        const encodeTileOverlap = document.getElementById('encodeTileOverlap');
+        const decodeTileOverlap = document.getElementById('decodeTileOverlap');
+        if (encodeTileSize) encodeTileSize.value = d.tile_size;
+        if (decodeTileSize) decodeTileSize.value = d.tile_size;
+        if (encodeTileOverlap) encodeTileOverlap.value = d.vram_tile_overlap;
+        if (decodeTileOverlap) decodeTileOverlap.value = d.vram_tile_overlap;
+
+        SeedVR2.toast?.success?.('已应用推荐参数') || console.log('推荐参数已应用');
+    });
     if (els.btnCancelRestore) {
         els.btnCancelRestore.addEventListener('click', cancelRestore);
     }

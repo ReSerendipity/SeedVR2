@@ -29,13 +29,6 @@ import sys
 import webbrowser
 from contextlib import asynccontextmanager, suppress
 
-os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
-
-
-os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
-os.environ.setdefault("PYTORCH_ALLOC_CONF", "expandable_segments:True")
-
-
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, PROJECT_ROOT)
 os.chdir(PROJECT_ROOT)
@@ -179,6 +172,22 @@ async def lifespan(app: FastAPI):
             logger.info("启动任务自动恢复已关闭 (runtime.task.auto_recover=false)")
     except Exception as e:
         logger.warning(f"恢复未完成任务失败: {e}")
+
+    # 初始化断点续跑管理器并扫描待恢复的 checkpoint
+    try:
+        from bin.integrated_app.checkpoint import TaskCheckpoint
+
+        task_cfg = config.get("runtime", {}).get("task", {})
+        ckpt_dir = task_cfg.get("checkpoint_dir", "data/checkpoints")
+        project_root_for_ckpt = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        checkpoint_mgr = TaskCheckpoint(os.path.join(project_root_for_ckpt, ckpt_dir))
+        pending_checkpoints = checkpoint_mgr.list_checkpoints()
+        if pending_checkpoints:
+            logger.info(f"发现 {len(pending_checkpoints)} 个待恢复的批量任务 checkpoint")
+        app.state.checkpoint_mgr = checkpoint_mgr
+    except Exception as e:
+        logger.warning(f"初始化断点续跑管理器失败: {e}")
+        app.state.checkpoint_mgr = None
 
     file_cache: FileCache = app.state.file_cache
     file_cache.start_cleanup_task(interval=3600)

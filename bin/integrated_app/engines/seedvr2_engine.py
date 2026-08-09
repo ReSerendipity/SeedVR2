@@ -52,7 +52,7 @@ except ImportError:
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from bin.integrated_app.engine_interface import RestoreEngine  # noqa: E402
+from bin.integrated_app.engine_interface import BatchRestoreEngine, RestoreEngine  # noqa: E402
 
 # 导入管线 mixin（阶段二A 重构）
 from bin.integrated_app.engines._dit_pipeline import _DitPipelineMixin  # noqa: E402
@@ -85,11 +85,13 @@ class SeedVR2Engine(
     _DitPipelineMixin,
     _VideoPipelineMixin,
     _ImagePipelineMixin,
-    RestoreEngine,
 ):
     """SeedVR2 视频/图像修复推理引擎 - 完整 4 阶段推理流水线实现
 
-    继承自 RestoreEngine 抽象基类，实现 SeedVR2 模型的完整推理功能。
+    实现 RestoreEngine 和 BatchRestoreEngine 协议（通过结构化类型/鸭子类型），
+    无需显式继承 Protocol。isinstance(engine, RestoreEngine) 和
+    isinstance(engine, BatchRestoreEngine) 运行时检查均通过。
+
     采用延迟加载策略：启动时仅加载配置和文本嵌入(~1MB)，VAE/DiT 大模型
     在推理时按阶段加载，用完立即销毁，严格控制内存峰值。
 
@@ -288,10 +290,15 @@ class SeedVR2Engine(
             if not model_cfg:
                 raise ValueError(f"未找到模型配置: {model_size}")
 
-            pretrained_dir = self.config.get("model", {}).get("pretrained_dir", ".")
+            # 解析预训练模型根目录（支持 shared/portable 双模式）
+            from bin.integrated_app.config_models import get_pretrained_root
+
+            model_cfg_dict = self.config.get("model", {})
+            pretrained_root = get_pretrained_root(model_cfg_dict)
+            pretrained_root_path = Path(pretrained_root)
             config_dir = model_cfg["config_dir"]
 
-            # 加载 JSON 模型配置
+            # 加载 JSON 模型配置（config 文件始终从项目目录读取，不跟随 shared 模式）
             config_path = PROJECT_ROOT / config_dir / "config.json"
             if not config_path.exists():
                 raise FileNotFoundError(f"模型配置文件未找到: {config_path}")
@@ -301,8 +308,7 @@ class SeedVR2Engine(
             # SHA256 完整性校验 (CWE-353 防御) — 在加载前验证权重文件哈希
             from bin.integrated_app.security.integrity_check import verify_model_files
 
-            pretrained_full_dir = PROJECT_ROOT / pretrained_dir
-            integrity_results = verify_model_files(pretrained_full_dir, model_cfg, precision)
+            integrity_results = verify_model_files(pretrained_root_path, model_cfg, precision)
             failed_checks = [k for k, v in integrity_results.items() if not v]
             if failed_checks:
                 raise RuntimeError(
@@ -313,7 +319,7 @@ class SeedVR2Engine(
             # 记录 DiT 路径 (延迟加载)
             checkpoint_key = f"checkpoint_{precision}"
             checkpoint_name = model_cfg.get(checkpoint_key) or model_cfg.get("checkpoint_fp16")
-            checkpoint_path = PROJECT_ROOT / pretrained_dir / checkpoint_name
+            checkpoint_path = pretrained_root_path / checkpoint_name
             if not checkpoint_path.exists():
                 raise FileNotFoundError(f"DiT 模型文件未找到: {checkpoint_path}")
             self._dit_checkpoint_path = str(checkpoint_path)
@@ -323,7 +329,7 @@ class SeedVR2Engine(
 
             # 记录 VAE 路径 (延迟加载)
             vae_checkpoint_name = model_cfg["vae_checkpoint"]
-            self._vae_checkpoint_path = str(PROJECT_ROOT / pretrained_dir / vae_checkpoint_name)
+            self._vae_checkpoint_path = str(pretrained_root_path / vae_checkpoint_name)
             if not os.path.exists(self._vae_checkpoint_path):
                 raise FileNotFoundError(f"VAE 模型文件未找到: {self._vae_checkpoint_path}")
             self.vae = None
@@ -331,8 +337,8 @@ class SeedVR2Engine(
             # 加载文本嵌入 (~1MB，常驻内存)
             pos_emb_name = model_cfg.get("pos_emb", "pos_emb.pt")
             neg_emb_name = model_cfg.get("neg_emb", "neg_emb.pt")
-            pos_path = PROJECT_ROOT / pretrained_dir / pos_emb_name
-            neg_path = PROJECT_ROOT / pretrained_dir / neg_emb_name
+            pos_path = pretrained_root_path / pos_emb_name
+            neg_path = pretrained_root_path / neg_emb_name
 
             if pos_path.exists() and neg_path.exists():
                 logger.info(f"加载文本嵌入: {pos_path}, {neg_path}")

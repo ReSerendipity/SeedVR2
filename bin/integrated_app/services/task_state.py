@@ -1,4 +1,4 @@
-﻿"""SeedVR2 - 任务状态管理服务。
+"""SeedVR2 - 任务状态管理服务。
 
 封装内存缓存 + SQLite 数据库持久化的双层任务状态管理，是系统任务状态的唯一可信源。
 替代原 routes/restore/common.py 中无锁保护的全局 OrderedDict（存在 C8 内存泄漏风险和竞态条件）。

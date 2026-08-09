@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """单文件上传与修复路由模块。
 
 处理文件上传、修复任务创建、后台推理执行逻辑。
@@ -42,7 +42,7 @@ from bin.integrated_app.task_queue import TaskQueue
 from bin.integrated_app.utils.response import respond_success
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(prefix="/api/restore", tags=["修复"])
 
 
 @router.post("/")
