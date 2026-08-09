@@ -1,12 +1,39 @@
+/**
+ * SeedVR2 - Full Website Screenshot Capture
+ *
+ * Prerequisites:
+ *   - SeedVR2 server running (default http://127.0.0.1:7870), start with start.bat
+ *   - Playwright chromium installed: npm install && npx playwright install chromium
+ *
+ * Usage:
+ *   node capture-screenshots.js
+ *
+ * Optional env overrides:
+ *   SEEDVR2_BASE_URL  e.g. http://127.0.0.1:7870
+ *   SEEDVR2_OUT_DIR   e.g. ./screenshots
+ *
+ * Output: screenshots/<viewport>/<theme>/<NN>-<name>.png
+ *
+ * NOTE: All selectors below are verified against the real templates in
+ *       bin/integrated_app/templates/. Only UI-state toggles are clicked
+ *       (advanced params, mode tabs, help panel, view toggle, FAQ details,
+ *       locale dropdown, mobile nav). Action buttons that trigger real
+ *       backend work (start restore, scan folder, start batch) are NOT
+ *       clicked because they require preconditions (file selected / GPU).
+ */
 const { chromium } = require('@playwright/test');
 const path = require('path');
 const fs = require('fs');
 
-const BASE_URL = 'http://127.0.0.1:7870';
-const OUTPUT_DIR = path.join(__dirname, '..', 'screenshots');
+const BASE_URL = process.env.SEEDVR2_BASE_URL || 'http://127.0.0.1:7870';
+const OUTPUT_DIR = process.env.SEEDVR2_OUT_DIR
+  ? path.resolve(process.env.SEEDVR2_OUT_DIR)
+  : path.join(__dirname, '..', 'screenshots');
 
 const VIEWPORTS = {
   desktop: { width: 1920, height: 1080 },
+  tablet: { width: 768, height: 1024, isMobile: true, hasTouch: true },
+  mobile: { width: 375, height: 812, isMobile: true, hasTouch: true },
 };
 
 const THEMES = ['dark', 'light'];
@@ -18,27 +45,30 @@ function ensureDir(dir) {
 }
 
 async function screenshotPage(page, name, options = {}) {
-  const { fullPage = true, waitFor = null, clickBefore = null, viewportName = 'desktop', theme = 'dark' } = options;
-  
+  const {
+    fullPage = true,
+    waitFor = null,
+    viewportName = 'desktop',
+    theme = 'dark',
+  } = options;
+
   const dir = path.join(OUTPUT_DIR, viewportName, theme);
   ensureDir(dir);
-  
+
   const filePath = path.join(dir, `${name}.png`);
-  
-  if (clickBefore) {
-    await page.click(clickBefore);
-    await page.waitForTimeout(500);
-  }
-  
+
   if (waitFor) {
     await page.waitForTimeout(waitFor);
   }
-  
+
   await page.screenshot({ path: filePath, fullPage });
   console.log(`  Captured: ${filePath}`);
 }
 
 async function setTheme(page, theme) {
+  // Theme key 'sv-theme' is the real key used by base.html inline script
+  // and static/js/app.js. Setting it before navigation + data-theme attr
+  // is enough for a correct visual capture.
   await page.evaluate((t) => {
     localStorage.setItem('sv-theme', t);
     document.documentElement.setAttribute('data-theme', t);
@@ -46,11 +76,19 @@ async function setTheme(page, theme) {
   await page.waitForTimeout(300);
 }
 
+async function safe(label, viewportName, theme, fn) {
+  try {
+    await fn();
+  } catch (e) {
+    console.error(`  [SKIP] ${label} (${viewportName}, ${theme}): ${e.message}`);
+  }
+}
+
 async function captureHomePage(page, viewportName, theme) {
   console.log(`Capturing Home Page (${viewportName}, ${theme})...`);
   await page.goto(`${BASE_URL}/`, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForTimeout(3000);
-  
+
   await screenshotPage(page, '01-home-full', { viewportName, theme });
 }
 
@@ -58,155 +96,167 @@ async function captureRestorePage(page, viewportName, theme) {
   console.log(`Capturing Restore Page (${viewportName}, ${theme})...`);
   await page.goto(`${BASE_URL}/restore`, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForTimeout(3000);
-  
-  await screenshotPage(page, '02-restore-default', { viewportName, theme });
-  
-  const hasAdvancedParams = await page.locator('#advancedParamsCard .sv-card-header').count() > 0;
-  if (hasAdvancedParams) {
-    await page.evaluate(() => {
-      const card = document.getElementById('advancedParamsCard');
-      if (card) {
-        card.classList.add('expanded');
-        const header = card.querySelector('.sv-card-header');
-        const body = card.querySelector('.sv-card-body');
-        if (header) header.setAttribute('aria-expanded', 'true');
-        if (body) body.style.display = 'block';
-      }
-    });
-    await page.waitForTimeout(500);
-    await screenshotPage(page, '03-restore-advanced-params-expanded', { viewportName, theme });
-  }
-  
-  const hasFileSidebarToggle = await page.locator('#btnToggleFileSidebar').count() > 0;
-  if (hasFileSidebarToggle) {
-    await page.evaluate(() => {
-      const sidebar = document.getElementById('fileSidebar');
-      if (sidebar) sidebar.classList.add('sv-sidebar-collapsed');
-    });
-    await page.waitForTimeout(300);
-    await screenshotPage(page, '04-restore-left-sidebar-collapsed', { viewportName, theme });
-    await page.evaluate(() => {
-      const sidebar = document.getElementById('fileSidebar');
-      if (sidebar) sidebar.classList.remove('sv-sidebar-collapsed');
-    });
-    await page.waitForTimeout(300);
-  }
-  
-  const hasParamsSidebarToggle = await page.locator('#btnToggleParamsSidebar').count() > 0;
-  if (hasParamsSidebarToggle) {
-    await page.evaluate(() => {
-      const sidebar = document.getElementById('paramsSidebar');
-      if (sidebar) sidebar.classList.add('sv-sidebar-collapsed');
-    });
-    await page.waitForTimeout(300);
-    await screenshotPage(page, '05-restore-right-sidebar-collapsed', { viewportName, theme });
-    await page.evaluate(() => {
-      const sidebar = document.getElementById('paramsSidebar');
-      if (sidebar) sidebar.classList.remove('sv-sidebar-collapsed');
-    });
-    await page.waitForTimeout(300);
-  }
+
+  await screenshotPage(page, '02-restore-single-default', { viewportName, theme });
+
+  // Advanced params expand: #advToggle toggles .open on #advParams.
+  // JS click avoids any overlay interception; the onboarding modal is
+  // suppressed globally via addInitScript (see main entry).
+  await safe('restore-advanced-params', viewportName, theme, async () => {
+    const advToggle = page.locator('#advToggle');
+    if (await advToggle.count()) {
+      await page.evaluate(() => {
+        const el = document.getElementById('advToggle');
+        if (el) el.click();
+      });
+      await page.waitForSelector('#advParams.open', { timeout: 5000 });
+      await page.waitForTimeout(400);
+      await screenshotPage(page, '03-restore-advanced-params-expanded', { viewportName, theme });
+    }
+  });
+
+  // Batch mode: click [data-mode="batch"] tab to reveal batch pane
+  await safe('restore-batch-mode', viewportName, theme, async () => {
+    // re-enter single mode first to keep a clean starting state
+    await page.goto(`${BASE_URL}/restore`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.waitForTimeout(1500);
+    const batchTab = page.locator('[data-mode="batch"]');
+    if (await batchTab.count()) {
+      await batchTab.click();
+      await page.waitForTimeout(500);
+      await screenshotPage(page, '04-restore-batch-mode', { viewportName, theme });
+    }
+  });
+
+  // Float help panel: #helpToggle toggles .sv-float-help--open on #floatHelp.
+  // Use a JS click because on tablet/mobile the floating system-status widget
+  // (#sysWidgetToggle) overlaps #helpToggle and intercepts real pointer clicks.
+  await safe('restore-help-panel', viewportName, theme, async () => {
+    const helpToggle = page.locator('#helpToggle');
+    if (await helpToggle.count()) {
+      await page.evaluate(() => {
+        const el = document.getElementById('helpToggle');
+        if (el) el.click();
+      });
+      await page.waitForSelector('#floatHelp.sv-float-help--open', { timeout: 5000 });
+      await page.waitForTimeout(400);
+      await screenshotPage(page, '05-restore-help-panel-open', { viewportName, theme, fullPage: false });
+      // close it again
+      await page.evaluate(() => {
+        const el = document.getElementById('helpToggle');
+        if (el) el.click();
+      }).catch(() => {});
+      await page.waitForTimeout(200);
+    }
+  });
 }
 
 async function captureHistoryPage(page, viewportName, theme) {
   console.log(`Capturing History Page (${viewportName}, ${theme})...`);
   await page.goto(`${BASE_URL}/history`, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForTimeout(3000);
-  
-  await screenshotPage(page, '06-history-full', { viewportName, theme });
+
+  // Default view is table
+  await screenshotPage(page, '06-history-table-view', { viewportName, theme });
+
+  // Cards view: #btnViewCards toggles the layout. JS click is used because on
+  // tablet/mobile the button can be visually hidden / off-screen (responsive
+  // toolbar), but its click handler still works when invoked directly.
+  await safe('history-cards-view', viewportName, theme, async () => {
+    const cardsBtn = page.locator('#btnViewCards');
+    if (await cardsBtn.count()) {
+      await page.evaluate(() => {
+        const el = document.getElementById('btnViewCards');
+        if (el) el.click();
+      });
+      await page.waitForTimeout(600);
+      await screenshotPage(page, '07-history-cards-view', { viewportName, theme });
+    }
+  });
 }
 
 async function captureSystemStatusPage(page, viewportName, theme) {
   console.log(`Capturing System Status Page (${viewportName}, ${theme})...`);
-  await page.goto(`${BASE_URL}/`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  // FIXED: original script navigated to '/' here; the real dedicated route is /system-status
+  await page.goto(`${BASE_URL}/system-status`, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForTimeout(4000);
-  
-  await screenshotPage(page, '07-system-status-full', { viewportName, theme });
+
+  await screenshotPage(page, '08-system-status-full', { viewportName, theme });
 }
 
 async function captureSettingsPage(page, viewportName, theme) {
   console.log(`Capturing Settings Page (${viewportName}, ${theme})...`);
+  // settings.html is a single scrolling About page (no tabs). The original
+  // script's [data-tab="model"] / [data-tab="language"] clicks were no-ops
+  // because those tabs do not exist.
   await page.goto(`${BASE_URL}/settings`, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForTimeout(2000);
-  
-  await screenshotPage(page, '08-settings-paths-tab', { viewportName, theme });
-  
-  const hasModelTab = await page.locator('[data-tab="model"]').count() > 0;
-  if (hasModelTab) {
-    await page.click('[data-tab="model"]');
-    await page.waitForTimeout(300);
-    await screenshotPage(page, '09-settings-model-tab', { viewportName, theme });
-  }
-  
-  const hasLangTab = await page.locator('[data-tab="language"]').count() > 0;
-  if (hasLangTab) {
-    await page.click('[data-tab="language"]');
-    await page.waitForTimeout(300);
-    await screenshotPage(page, '10-settings-language-tab', { viewportName, theme });
-  }
+
+  await screenshotPage(page, '09-settings-full', { viewportName, theme });
+
+  // FAQ expand: open the first <details> (native disclosure widget)
+  await safe('settings-faq-expanded', viewportName, theme, async () => {
+    const firstSummary = page.locator('details.sv-about-faq-item > summary').first();
+    if (await firstSummary.count()) {
+      await firstSummary.click();
+      await page.waitForTimeout(400);
+      await screenshotPage(page, '10-settings-faq-expanded', { viewportName, theme });
+    }
+  });
 }
 
 async function captureNavInteractions(page, viewportName, theme) {
   console.log(`Capturing Navigation Interactions (${viewportName}, ${theme})...`);
   await page.goto(`${BASE_URL}/`, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForTimeout(2000);
-  
-  const hasLocaleDropdown = await page.locator('#btnLocaleSwitch').count() > 0;
-  if (hasLocaleDropdown) {
-    await page.click('#btnLocaleSwitch');
-    await page.waitForTimeout(300);
-    await screenshotPage(page, '11-locale-dropdown-open', { viewportName, theme, fullPage: false });
-    await page.click('#btnLocaleSwitch');
-    await page.waitForTimeout(200);
-  }
-  
-  const hasMobileNavToggle = await page.locator('#btnToggleNav').count() > 0;
-  const isMobile = viewportName === 'mobile' || viewportName === 'tablet';
-  if (hasMobileNavToggle && isMobile) {
-    await page.evaluate(() => {
-      const btn = document.getElementById('btnToggleNav');
-      if (btn) {
-        const nav = document.getElementById('mainNav');
-        if (nav) nav.classList.add('sv-mobile-nav-open');
+
+  // Locale dropdown: #btnLocaleSwitch opens the language menu
+  await safe('locale-dropdown-open', viewportName, theme, async () => {
+    const localeBtn = page.locator('#btnLocaleSwitch');
+    if (await localeBtn.count()) {
+      await localeBtn.click();
+      await page.waitForTimeout(400);
+      await screenshotPage(page, '11-locale-dropdown-open', { viewportName, theme, fullPage: false });
+      // close: click again or press Escape
+      await page.keyboard.press('Escape').catch(() => {});
+      await localeBtn.click({ force: true }).catch(() => {});
+      await page.waitForTimeout(200);
+    }
+  });
+
+  // Mobile nav: #btnToggleNav (.sv-md-hidden) is only visible on the mobile
+  // viewport. On tablet width the full nav still shows, so the hamburger
+  // button is hidden and should not be attempted.
+  const isMobile = viewportName === 'mobile';
+  if (isMobile) {
+    await safe('mobile-nav-open', viewportName, theme, async () => {
+      const navToggle = page.locator('#btnToggleNav');
+      if (await navToggle.count()) {
+        await navToggle.click();
+        await page.waitForTimeout(400);
+        await screenshotPage(page, '12-mobile-nav-open', { viewportName, theme, fullPage: false });
+        await navToggle.click({ force: true }).catch(() => {});
+        await page.waitForTimeout(200);
       }
     });
-    await page.waitForTimeout(300);
-    await screenshotPage(page, '12-mobile-nav-open', { viewportName, theme, fullPage: false });
   }
 }
 
 async function captureAllViewports(page, viewports, themes) {
   for (const [vpName, vpSize] of Object.entries(viewports)) {
     console.log(`\n=== Viewport: ${vpName} (${vpSize.width}x${vpSize.height}) ===`);
-    await page.setViewportSize(vpSize);
-    
+    await page.setViewportSize({ width: vpSize.width, height: vpSize.height });
+
     for (const theme of themes) {
       console.log(`\n--- Theme: ${theme} ---`);
       await setTheme(page, theme);
-      
-      try {
-        await captureHomePage(page, vpName, theme);
-      } catch (e) { console.error(`Error capturing home page: ${e.message}`); }
-      
-      try {
-        await captureRestorePage(page, vpName, theme);
-      } catch (e) { console.error(`Error capturing restore page: ${e.message}`); }
-      
-      try {
-        await captureHistoryPage(page, vpName, theme);
-      } catch (e) { console.error(`Error capturing history page: ${e.message}`); }
-      
-      try {
-        await captureSystemStatusPage(page, vpName, theme);
-      } catch (e) { console.error(`Error capturing system status page: ${e.message}`); }
-      
-      try {
-        await captureSettingsPage(page, vpName, theme);
-      } catch (e) { console.error(`Error capturing settings page: ${e.message}`); }
-      
-      try {
-        await captureNavInteractions(page, vpName, theme);
-      } catch (e) { console.error(`Error capturing nav interactions: ${e.message}`); }
+
+      await captureHomePage(page, vpName, theme);
+      await captureRestorePage(page, vpName, theme);
+      await captureHistoryPage(page, vpName, theme);
+      await captureSystemStatusPage(page, vpName, theme);
+      await captureSettingsPage(page, vpName, theme);
+      await captureNavInteractions(page, vpName, theme);
     }
   }
 }
@@ -217,13 +267,25 @@ async function captureAllViewports(page, viewports, themes) {
   console.log(`Base URL: ${BASE_URL}`);
   console.log(`Output Dir: ${OUTPUT_DIR}`);
   console.log('');
-  
+
   ensureDir(OUTPUT_DIR);
-  
+
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext();
   const page = await context.newPage();
-  
+
+  // Suppress the first-visit onboarding modal on the restore page. The modal
+  // (restore.html #onboardingModal) shows when sessionStorage key
+  // 'sv_onboarding_seen_v2' is unset and would intercept all pointer events.
+  // addInitScript runs before any page script on every navigation.
+  await page.addInitScript(() => {
+    try {
+      sessionStorage.setItem('sv_onboarding_seen_v2', '1');
+    } catch (e) {
+      // sessionStorage may be unavailable on some pages (e.g. health JSON) - ignore
+    }
+  });
+
   try {
     console.log('Checking if server is running...');
     try {
@@ -234,13 +296,13 @@ async function captureAllViewports(page, viewports, themes) {
       console.error('Please start the server first with: start.bat');
       process.exit(1);
     }
-    
+
     await captureAllViewports(page, VIEWPORTS, THEMES);
-    
+
     console.log('\n=========================================');
     console.log('Screenshot capture complete!');
     console.log(`All screenshots saved to: ${OUTPUT_DIR}`);
-    
+
   } catch (error) {
     console.error('Error:', error);
     process.exit(1);

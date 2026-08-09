@@ -34,6 +34,9 @@ tests/node_modules/
 tests/test-results/
 tests/playwright-report/
 tests/blob-report/
+# Auto-captured screenshots (output of tests/capture-screenshots.js)
+/screenshots/
+/screenshots-new/
 *.tmp
 *.bak
 *.orig
