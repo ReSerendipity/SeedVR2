@@ -190,11 +190,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('platform').textContent = health.system.platform || '--';
                 document.getElementById('pythonVer').textContent = health.system.python_version || '--';
                 document.getElementById('cpuCount').textContent = health.system.cpu_count || '--';
-                document.getElementById('memTotal').textContent = `${health.system.memory_total_gb} GB`;
-                document.getElementById('memAvail').textContent = `${health.system.memory_available_gb} GB`;
+                // 数值格式化：GB 保留一位小数（避免原始浮点，如 9.921432 泄漏）
+                document.getElementById('memTotal').textContent = `${Number(health.system.memory_total_gb).toFixed(1)} GB`;
+                document.getElementById('memAvail').textContent = `${Number(health.system.memory_available_gb).toFixed(1)} GB`;
 
-                const memPct = health.system.memory_utilization_pct || 0;
-                document.getElementById('memPct').textContent = `${memPct}%`;
+                const memPct = Number(health.system.memory_utilization_pct) || 0;
+                // 百分比保留一位小数（修复现状原始浮点泄漏，如 68.74214114028064%）
+                const memPctText = `${memPct.toFixed(1)}%`;
+                document.getElementById('memPct').textContent = memPctText;
 
                 // 圆形进度
                 const circumference = 2 * Math.PI * 42; // 263.89
@@ -202,7 +205,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const memFill = document.getElementById('memRingFill');
                 if (memFill) memFill.style.strokeDashoffset = memOffset;
                 const memRingValue = document.getElementById('memRingValue');
-                if (memRingValue) memRingValue.textContent = `${memPct}%`;
+                if (memRingValue) memRingValue.textContent = memPctText;
 
                 // 根据内存使用率改变颜色
                 if (memPct > 85) {
