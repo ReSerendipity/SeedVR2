@@ -18,6 +18,7 @@
     --sv-primary-800: #4a5e47;
     --sv-primary-900: #334030;
     --sv-primary-dim: rgba(148, 184, 143, 0.18);
+    --sv-primary-soft: color-mix(in srgb, var(--sv-primary) 16%, var(--sv-bg-surface));
     --sv-primary-glow: rgba(148, 184, 143, 0.32);
     --sv-primary-glow-strong: rgba(148, 184, 143, 0.50);
 
@@ -158,6 +159,7 @@
     --sv-primary-800: #374934;
     --sv-primary-900: #2b3828;
     --sv-primary-dim: rgba(94, 125, 90, 0.08);
+    --sv-primary-soft: color-mix(in srgb, var(--sv-primary) 12%, var(--sv-bg-surface));
     --sv-primary-glow: rgba(94, 125, 90, 0.15);
     --sv-primary-glow-strong: rgba(94, 125, 90, 0.28);
 
@@ -5418,6 +5420,25 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
     min-width: 220px;
 }
 
+/* 画布工具条（空态禁用，结果显示后启用） */
+.sv-canvas-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sv-space-3);
+    width: min(760px, 100%);
+    background: var(--sv-glass-bg);
+    border: 1px solid var(--sv-glass-border);
+    border-radius: var(--sv-radius);
+    padding: var(--sv-space-2) var(--sv-space-3);
+    box-shadow: var(--sv-shadow-sm);
+    backdrop-filter: blur(var(--sv-glass-blur));
+}
+.sv-canvas-toolbar .sv-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
 /* 批量面板（模式面板化后的布局补充） */
 .sv-batch-section.sv-mode-tab-pane {
     padding: 20px;
@@ -6375,10 +6396,10 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
 }
 
 .sv-mode-tab.active {
-    background: var(--sv-primary);
-    color: var(--sv-tab-active-text, #ffffff);
+    background: var(--sv-primary-soft);
+    color: var(--sv-primary);
     font-weight: 600;
-    box-shadow: 0 2px 8px rgba(94, 125, 90, 0.3);
+    box-shadow: none;
 }
 
 .sv-mode-tab-desc {
