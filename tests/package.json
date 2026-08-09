@@ -8,7 +8,8 @@
     "test:headed": "npx playwright test --headed",
     "test:ui": "npx playwright test --ui",
     "test:debug": "npx playwright test --debug",
-    "test:report": "npx playwright show-report"
+    "test:report": "npx playwright show-report",
+    "screenshots": "node capture-screenshots.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.0",
