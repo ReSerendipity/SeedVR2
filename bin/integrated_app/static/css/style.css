@@ -5116,8 +5116,13 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
     border-radius: var(--sv-radius-sm);
     background: var(--sv-surface-1);
     padding: 44px 36px;
-    max-width: 480px;
+    max-width: 640px;
+    min-height: 340px;
     width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     text-align: center;
     cursor: pointer;
     margin-bottom: var(--sv-space-4);
@@ -6807,6 +6812,7 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
 .sv-dropzone {
     border-radius: var(--sv-radius-sm);
     padding: 44px 36px;
+    min-height: 340px;
     border-width: 2px;
     transition: all 0.3s var(--sv-easing-standard);
 }
