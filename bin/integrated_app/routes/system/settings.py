@@ -363,7 +363,7 @@ async def set_locale(
 
     请求体（JSON）：
     {
-        "locale": str  // 语言代码，如 "zh"、"en"、"ja"、"fr"
+        "locale": str  // 语言代码，如 "zh"、"zh-TW"、"en"、"ja"、"fr"
     }
 
     返回格式（JSON）：

@@ -232,13 +232,13 @@ class I18nConfig(BaseModel):
     定义默认语言和可用语言列表，翻译文件位于 locales/ 目录。
 
     Attributes:
-        default_locale: 默认语言代码，"zh"（中文）、"en"（英文）、"ja"（日文）、"fr"（法文）。
+        default_locale: 默认语言代码，"zh"（中文）、"zh-TW"（繁体中文）、"en"（英文）、"ja"（日文）、"fr"（法文）。
         available_locales: 可用语言代码列表。
     """
 
     model_config = ConfigDict(extra="ignore")
     default_locale: str = "zh"
-    available_locales: list[str] = Field(default_factory=lambda: ["zh", "en", "ja", "fr"])
+    available_locales: list[str] = Field(default_factory=lambda: ["zh", "zh-TW", "en", "ja", "fr"])
 
 
 class LoggingConfig(BaseModel):
