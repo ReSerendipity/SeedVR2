@@ -4,7 +4,7 @@
  * Tests cover:
  * - Default language detection (zh / Chinese)
  * - Switching between Chinese and English via locale API
- * - Language selector in settings page with zh/en/ja/fr options
+ * - Language selector in settings page with zh/zh-TW/en/ja/fr options
  * - API locale endpoint (POST /api/system/locale)
  * - Available locales endpoint (GET /api/system/locales)
  * - Client-side i18n globals (window.__LOCALE__, window.__I18N__)
@@ -161,7 +161,7 @@ test.describe('Internationalization', () => {
   // Language selector in settings
   // ----------------------------------------------------------
 
-  test('should display locale dropdown with zh/en/ja/fr options in settings', async ({ page }) => {
+  test('should display locale dropdown with zh/zh-TW/en/ja/fr options in settings', async ({ page }) => {
     const settingsPage = new SettingsPage(page);
     await settingsPage.goto();
 
@@ -177,8 +177,9 @@ test.describe('Internationalization', () => {
       (els) => els.map((el) => (el as HTMLOptionElement).value),
     );
 
-    // Check that zh, en, ja, fr are available as option values
+    // Check that zh, zh-TW, en, ja, fr are available as option values
     expect(optionValues).toContain('zh');
+    expect(optionValues).toContain('zh-TW');
     expect(optionValues).toContain('en');
     expect(optionValues).toContain('ja');
     expect(optionValues).toContain('fr');

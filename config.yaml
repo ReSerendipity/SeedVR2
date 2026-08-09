@@ -9,10 +9,11 @@ history:
 i18n:
   available_locales:
   - zh
+  - zh-TW
   - en
   - ja
   - fr
-  default_locale: zh
+  default_locale: zh-TW
 inference:
   attention_mode: sdpa
   batch_size: 5

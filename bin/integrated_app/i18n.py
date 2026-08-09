@@ -1,6 +1,6 @@
 """国际化（i18n）支持模块
 
-提供多语言文本翻译功能，支持中文、英文、日文、法文四种语言。
+提供多语言文本翻译功能，支持中文、繁体中文、英文、日文、法文五种语言。
 翻译文件以 YAML 格式存储在 locales/ 目录下，支持嵌套键（点号分隔访问）
 和 Python str.format() 参数替换。
 
@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 LOCALE_NAMES = {
     "zh": "中文",
+    "zh-TW": "繁體中文",
     "en": "English",
     "ja": "日本語",
     "fr": "Français",
@@ -27,6 +28,7 @@ LOCALE_NAMES = {
 
 LOCALE_ICONS = {
     "zh": "bi-flag",
+    "zh-TW": "bi-flag",
     "en": "bi-flag",
     "ja": "bi-flag",
     "fr": "bi-flag",
@@ -127,7 +129,7 @@ class I18n:
         """获取已加载的可用语言代码列表。
 
         Returns:
-            语言代码字符串列表，如 ["zh", "en", "ja", "fr"]。
+            语言代码字符串列表，如 ["zh", "zh-TW", "en", "ja", "fr"]。
         """
         return list(self._translations.keys())
 
