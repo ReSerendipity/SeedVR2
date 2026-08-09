@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """文件夹扫描路由模块。
 
 提供递归扫描指定文件夹下图片/视频文件的 API 端点，
@@ -29,7 +29,7 @@ from bin.integrated_app.routes.restore import common
 from bin.integrated_app.security.path_guard import build_default_path_guard
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(prefix="/api/restore", tags=["修复"])
 
 _DEFAULT_MAX_SCAN_DEPTH = 32
 _DEFAULT_MAX_SCAN_FILES = 50000

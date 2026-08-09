@@ -8227,3 +8227,42 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
     }
 }
 
+/* ===== VRAM 预检 & 参数推荐样式 ===== */
+.sv-form-control-sm {
+    padding: 4px 8px;
+    font-size: 13px;
+    border-radius: var(--sv-radius-sm, 4px);
+}
+
+.sv-w-100 {
+    width: 100%;
+}
+
+.sv-badge-warning {
+    background: var(--sv-warning-soft);
+    color: var(--sv-warning);
+}
+
+.sv-badge-error {
+    background: var(--sv-danger-soft);
+    color: var(--sv-danger);
+}
+
+.sv-vram-recommend {
+    padding: 8px 0;
+    border-top: 1px solid var(--sv-border);
+    margin-top: 8px;
+}
+
+.sv-vram-rec-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+}
+
+.sv-btn-xs {
+    padding: 2px 8px;
+    font-size: 11px;
+    border-radius: var(--sv-radius-sm, 4px);
+}

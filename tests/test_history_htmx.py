@@ -13,7 +13,8 @@ class TestHistoryHtmxFragment:
         )
         assert response.status_code == 200
         assert "sv-empty-state" in response.text
-        assert "暂无记录" in response.text
+        # 默认语言为 zh-TW（繁体中文），显示"暫無記錄"；zh（简体）显示"暂无记录"
+        assert "暫無記錄" in response.text or "暂无记录" in response.text
 
     async def test_table_contains_record(self, test_app):
         history_db = test_app.app.state.history_db

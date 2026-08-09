@@ -1,4 +1,4 @@
-﻿"""SeedVR2 - 单 Worker 任务队列
+"""SeedVR2 - 单 Worker 任务队列
 
 桌面端通常为单 GPU，因此使用一个 worker 串行执行修复任务，避免并发导致 OOM。
 提供取消注册表，通过 asyncio.Event / Task.cancel 通知运行中任务退出。

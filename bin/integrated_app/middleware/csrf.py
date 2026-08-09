@@ -40,6 +40,12 @@ _SAFE_GET_PATH_PATTERNS = (
     re.compile(r"^/api/restore/scan-folder$"),
 )
 
+# 对非安全方法 (POST/PUT/DELETE) 的豁免路径 —— 这些端点本身不涉及敏感操作
+# 或使用了其他认证方式，CSRF 攻击无实际危害
+_EXEMPT_POST_PATH_PATTERNS = (
+    re.compile(r"^/api/system/locale$"),   # 语言切换：仅修改用户偏好显示语言
+)
+
 
 class CSRFMiddleware(BaseHTTPMiddleware):
     """CSRF 保护中间件。
@@ -166,6 +172,10 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             return response
 
         if any(request.url.path.startswith(prefix) for prefix in self.SKIP_PATHS):
+            return await call_next(request)
+
+        # 豁免非安全方法中低风险的端点
+        if any(p.match(request.url.path) for p in _EXEMPT_POST_PATH_PATTERNS):
             return await call_next(request)
 
         cookie_token = request.cookies.get(self.CSRF_COOKIE_NAME)

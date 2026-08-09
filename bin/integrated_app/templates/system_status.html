@@ -173,6 +173,68 @@
             </div>
         </div>
     </div>
+
+    <!-- VRAM 预检 & 参数推荐卡片 -->
+    <div class="sv-card">
+        <div class="sv-card-header">
+            <h3><i class="bi bi-speedometer2 sv-text-primary"></i> VRAM 预检 & 参数推荐</h3>
+            <span class="sv-badge sv-badge-secondary" id="vramEstimateBadge">--</span>
+        </div>
+        <div class="sv-card-body" id="vramEstimateBody">
+            <div class="sv-stat-item">
+                <span class="stat-label">模型</span>
+                <select id="vramModelSelect" class="sv-form-control sv-form-control-sm" style="max-width:160px;display:inline-block;">
+                    <option value="3b">SeedVR2-3B</option>
+                    <option value="7b">SeedVR2-7B</option>
+                    <option value="7b-sharp">SeedVR2-7B-Sharp</option>
+                </select>
+            </div>
+            <div class="sv-stat-item">
+                <span class="stat-label">分辨率 (W×H)</span>
+                <div class="sv-flex sv-gap-2 sv-items-center">
+                    <input type="number" id="vramWidth" value="1920" min="64" max="7680" class="sv-form-control sv-form-control-sm" style="max-width:80px;">
+                    <span>×</span>
+                    <input type="number" id="vramHeight" value="1080" min="64" max="4320" class="sv-form-control sv-form-control-sm" style="max-width:80px;">
+                </div>
+            </div>
+            <div class="sv-stat-item">
+                <span class="stat-label">帧数 (图像=1)</span>
+                <input type="number" id="vramFrames" value="1" min="1" max="10000" class="sv-form-control sv-form-control-sm" style="max-width:80px;">
+            </div>
+            <button type="button" class="sv-btn sv-btn-primary sv-btn-sm sv-mt-2" id="btnVramEstimate">
+                <i class="bi bi-calculator"></i> 估算 & 推荐
+            </button>
+            <div id="vramEstimateResults" style="display:none;" class="sv-mt-3">
+                <div class="sv-stat-item">
+                    <span class="stat-label">推荐精度</span>
+                    <span class="stat-value"><span class="sv-badge sv-badge-completed" id="vramRecPrecision">--</span></span>
+                </div>
+                <div class="sv-stat-item">
+                    <span class="stat-label">BlockSwap</span>
+                    <span class="stat-value" id="vramRecBlockswap">--</span>
+                </div>
+                <div class="sv-stat-item">
+                    <span class="stat-label">估算显存</span>
+                    <span class="stat-value" id="vramRecEstimated">--</span>
+                </div>
+                <div class="sv-stat-item">
+                    <span class="stat-label">可用显存</span>
+                    <span class="stat-value" id="vramRecAvailable">--</span>
+                </div>
+                <div class="sv-stat-item">
+                    <span class="stat-label">Tile 大小</span>
+                    <span class="stat-value" id="vramRecTileSize">--</span>
+                </div>
+                <div class="sv-stat-item">
+                    <span class="stat-label">OOM 风险</span>
+                    <span class="stat-value" id="vramRecRisk">--</span>
+                </div>
+                <div id="vramRecWarning" class="sv-alert sv-alert-warning sv-mt-2" style="display:none;">
+                    <i class="bi bi-exclamation-triangle"></i> <span id="vramRecWarningText"></span>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
@@ -316,6 +378,55 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     document.getElementById('btnRefreshStatus').addEventListener('click', loadStatus);
+
+    // VRAM 估算 & 参数推荐
+    document.getElementById('btnVramEstimate')?.addEventListener('click', async () => {
+        const model = document.getElementById('vramModelSelect').value;
+        const width = parseInt(document.getElementById('vramWidth').value) || 1920;
+        const height = parseInt(document.getElementById('vramHeight').value) || 1080;
+        const frames = parseInt(document.getElementById('vramFrames').value) || 1;
+        const resultsDiv = document.getElementById('vramEstimateResults');
+        const btn = document.getElementById('btnVramEstimate');
+
+        try {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split"></i> 估算中...';
+
+            const url = `/api/system/gpu/recommend-params?model_name=${encodeURIComponent(model)}&width=${width}&height=${height}&num_frames=${frames}`;
+            const resp = await SeedVR2.api.get(url);
+
+            if (resp.success && resp.data) {
+                const d = resp.data;
+                document.getElementById('vramRecPrecision').textContent = d.precision.toUpperCase();
+                document.getElementById('vramRecBlockswap').textContent = d.enable_blockswap ? `开启 (${d.blocks_to_swap} 块)` : '关闭';
+                document.getElementById('vramRecEstimated').textContent = `${d.estimated_vram_gb} GB`;
+                document.getElementById('vramRecAvailable').textContent = `${d.available_vram_gb} GB`;
+                document.getElementById('vramRecTileSize').textContent = `${d.tile_size}px (overlap: ${d.vram_tile_overlap}px)`;
+
+                const riskEl = document.getElementById('vramRecRisk');
+                riskEl.textContent = d.risk;
+                riskEl.className = 'sv-badge ' + (d.risk === 'low' ? 'sv-badge-completed' : d.risk === 'medium' ? 'sv-badge-warning' : 'sv-badge-error');
+
+                document.getElementById('vramEstimateBadge').textContent = `${d.estimated_vram_gb} GB`;
+
+                const warnDiv = document.getElementById('vramRecWarning');
+                const warnText = document.getElementById('vramRecWarningText');
+                if (d.warning) {
+                    warnDiv.style.display = '';
+                    warnText.textContent = d.warning;
+                } else {
+                    warnDiv.style.display = 'none';
+                }
+
+                resultsDiv.style.display = '';
+            }
+        } catch (err) {
+            console.error('VRAM estimate failed:', err);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-calculator"></i> 估算 & 推荐';
+        }
+    });
 
     // 初始加载
     loadStatus();

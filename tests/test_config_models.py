@@ -1,6 +1,8 @@
 """测试 SeedVR2 配置数据模型"""
 
-from bin.integrated_app.config_models import AppConfig, ModelConfig, ServerConfig
+import os
+
+from bin.integrated_app.config_models import AppConfig, ModelConfig, ServerConfig, get_pretrained_root
 
 
 class TestAppConfig:
@@ -58,7 +60,20 @@ class TestModelConfig:
 
     def test_default_pretrained_dir(self):
         config = ModelConfig()
-        assert config.pretrained_dir == "."
+        assert config.pretrained_dir == "pretrained_models"
+
+    def test_default_model_source_mode(self):
+        config = ModelConfig()
+        assert config.model_source_mode == "portable"
+
+    def test_default_shared_models_root(self):
+        config = ModelConfig()
+        assert config.shared_models_root == ""
+
+    def test_shared_mode_config(self):
+        config = ModelConfig(model_source_mode="shared", shared_models_root="/data/shared_models")
+        assert config.model_source_mode == "shared"
+        assert config.shared_models_root == "/data/shared_models"
 
     def test_default_auto_load(self):
         config = ModelConfig()
@@ -71,3 +86,49 @@ class TestModelConfig:
     def test_default_models_empty(self):
         config = ModelConfig()
         assert config.models == {}
+
+
+class TestGetPretrainedRoot:
+    """get_pretrained_root() shared/portable 双模式解析测试"""
+
+    def test_portable_mode_default(self):
+        """portable 模式默认路径解析"""
+        cfg = {"model_source_mode": "portable", "pretrained_dir": "pretrained_models"}
+        path = get_pretrained_root(cfg, project_root="/project")
+        assert "pretrained_models" in path
+        assert "/project" in path
+
+    def test_shared_mode_resolution(self):
+        """shared 模式使用外部共享目录"""
+        cfg = {
+            "model_source_mode": "shared",
+            "shared_models_root": "/data/shared_models",
+            "pretrained_dir": "pretrained_models",
+        }
+        path = get_pretrained_root(cfg, project_root="/project")
+        assert path == os.path.abspath("/data/shared_models")
+        assert "pretrained_models" not in path
+
+    def test_shared_mode_empty_root_falls_back_to_portable(self):
+        """shared 模式但 shared_models_root 为空时回退到 portable"""
+        cfg = {"model_source_mode": "shared", "shared_models_root": "", "pretrained_dir": "pretrained_models"}
+        path = get_pretrained_root(cfg, project_root="/project")
+        assert "pretrained_models" in path
+
+    def test_portable_mode_custom_dir(self):
+        """portable 模式自定义 pretrained_dir"""
+        cfg = {"model_source_mode": "portable", "pretrained_dir": "custom_models"}
+        path = get_pretrained_root(cfg, project_root="/project")
+        assert "custom_models" in path
+
+    def test_defaults_when_fields_missing(self):
+        """缺少 model_source_mode 字段时默认 portable"""
+        cfg = {}
+        path = get_pretrained_root(cfg, project_root="/project")
+        assert "pretrained_models" in path
+
+    def test_model_config_instance_input(self):
+        """接受 ModelConfig 实例作为输入"""
+        mc = ModelConfig(model_source_mode="shared", shared_models_root="/external/models")
+        path = get_pretrained_root(mc)
+        assert os.path.isabs(path) or "/external/models" in path

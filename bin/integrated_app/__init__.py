@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """SeedVR2 集成应用包
 
 SeedVR2 视频修复桌面应用的核心集成层，提供独立于 ComfyUI 的完整应用服务。

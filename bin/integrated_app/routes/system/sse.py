@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """全局 SSE 事件总线与端点模块。
 
 提供发布/订阅模式的 Server-Sent Events 事件总线，用于跨模块实时推送事件到前端。
@@ -32,7 +32,7 @@ from fastapi.responses import StreamingResponse
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["sse"])
+router = APIRouter(tags=["SSE事件流"])
 
 HEARTBEAT_INTERVAL = 30
 

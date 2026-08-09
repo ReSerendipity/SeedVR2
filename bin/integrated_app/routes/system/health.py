@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """系统健康检查路由模块。
 
 提供系统存活探针和详细健康检查端点，用于负载均衡、监控和服务状态查询。
@@ -23,7 +23,7 @@ from bin.integrated_app.gpu_backend import GPUBackendManager
 from bin.integrated_app.model_manager import ModelManager
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(prefix="/api/system", tags=["系统状态"])
 
 _start_time = time.time()
 

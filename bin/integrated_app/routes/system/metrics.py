@@ -18,7 +18,7 @@ from bin.integrated_app.metrics import metrics_collector
 from bin.integrated_app.utils.response import respond_success
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(prefix="/api/system", tags=["性能指标"])
 
 
 @router.get("/metrics")

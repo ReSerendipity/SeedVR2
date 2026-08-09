@@ -26,6 +26,7 @@ from bin.integrated_app.config_models import (
     UnifiedRestoreParams,
     VideoRestoreParams,
 )
+from bin.integrated_app.checkpoint import TaskCheckpoint, _file_fingerprint
 from bin.integrated_app.dependencies import (
     get_config,
     get_history_db,
@@ -41,7 +42,7 @@ from bin.integrated_app.utils.response import respond_success
 from bin.integrated_app.utils.retry import exponential_backoff_with_jitter
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(prefix="/api/restore", tags=["修复"])
 
 
 @router.post("/batch")
@@ -194,10 +195,11 @@ async def _process_batch_background(
     app_config: dict,
     results_to_update: list | None = None,
 ):
-    """后台逐个处理批量任务（含自动重试）（内部函数）。
+    """后台逐个处理批量任务（含自动重试 + 断点续跑）（内部函数）。
 
     顺序处理媒体文件列表，每个文件失败后使用指数退避+抖动自动重试，
     重试次数和间隔从配置读取。处理过程中实时更新缓存和数据库状态。
+    支持断点续跑：每个文件处理完成后保存 checkpoint，崩溃重启后可恢复。
 
     Args:
         batch_id: 批量任务 ID。
@@ -213,6 +215,23 @@ async def _process_batch_background(
     task_state = await common.get_task_state(batch_id, history_db)
     if task_state is None:
         return
+
+    # 初始化断点续跑管理器
+    task_cfg = app_config.get("runtime", {}).get("task", {})
+    checkpoint_dir = task_cfg.get("checkpoint_dir", "data/checkpoints")
+    checkpoint_every = task_cfg.get("checkpoint_every", 1)
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    checkpoint_mgr = TaskCheckpoint(os.path.join(project_root, checkpoint_dir))
+
+    # 加载已有 checkpoint，跳过已完成的文件
+    completed_fingerprints = checkpoint_mgr.get_completed_fingerprints(batch_id)
+    completed_files_list: list[dict] = []
+    if completed_fingerprints:
+        # 从 checkpoint 恢复已完成文件列表
+        ckpt_data = checkpoint_mgr.load_checkpoint(batch_id)
+        if ckpt_data:
+            completed_files_list = ckpt_data.get("completed_files", [])
+        logger.info(f"批量任务 {batch_id} 从断点恢复: 已完成 {len(completed_fingerprints)} 个文件")
 
     cached = common.get_cached_or_create(
         batch_id,
@@ -254,6 +273,33 @@ async def _process_batch_background(
     retry_max = batch_cfg.get("retry_max_delay_seconds", 30.0)
 
     for i, media_path in enumerate(media_files):
+        # 断点续跑：跳过已完成的文件
+        if media_path in completed_fingerprints:
+            fp = completed_fingerprints[media_path]
+            # 验证文件指纹（大小 + 修改时间）是否一致
+            current_fp = _file_fingerprint(media_path)
+            if fp.get("size", 0) == current_fp.get("size", 0) and fp.get("mtime", 0) == current_fp.get("mtime", 0):
+                logger.debug(f"断点续跑: 跳过已完成文件 {media_path}")
+                completed += 1
+                common.get_task_cache().update(batch_id, completed=completed)
+                # 为跳过的文件创建结果项
+                task_item = common.create_batch_item(media_path)
+                task_item["status"] = "completed"
+                task_item["output_path"] = fp.get("output_path", "")
+                results.append(task_item)
+                records_to_insert.append(
+                    HistoryRecord(
+                        task_type=media_type,
+                        input_file=media_path,
+                        model_size=use_model_size,
+                        status="completed",
+                        output_file=fp.get("output_path", ""),
+                    )
+                )
+                continue
+            else:
+                logger.warning(f"断点续跑: 文件指纹不匹配，重新处理 {media_path}")
+
         if task_queue.is_cancelled(batch_id):
             for remaining in media_files[i:]:
                 records_to_insert.append(
@@ -322,6 +368,22 @@ async def _process_batch_background(
                     task_item["error"] = None
                     completed += 1
                     common.get_task_cache().update(batch_id, completed=completed)
+
+                    # 断点续跑：保存 checkpoint
+                    completed_files_list.append(
+                        {**_file_fingerprint(media_path), "output_path": result.output_path}
+                    )
+                    remaining_files = media_files[i + 1 :]
+                    if checkpoint_mgr.should_checkpoint(completed, checkpoint_every):
+                        checkpoint_mgr.save_checkpoint(
+                            batch_id,
+                            total=len(media_files),
+                            completed_files=completed_files_list,
+                            remaining=remaining_files,
+                            config=config,
+                            media_type=media_type,
+                            use_model_size=use_model_size,
+                        )
                     break
                 else:
                     last_error = result.error or "未知错误"
@@ -387,6 +449,12 @@ async def _process_batch_background(
         status=final_status,
         progress=100.0 if final_status == "completed" else final_cached.get("progress", 0),
     )
+
+    # 批量任务完成后清理 checkpoint
+    if final_status == "completed":
+        checkpoint_mgr.remove_checkpoint(batch_id)
+        logger.info(f"批量任务 {batch_id} checkpoint 已清理")
+
     logger.info(f"批量任务 {batch_id} 完成: {completed} 成功, {failed} 失败")
 
 

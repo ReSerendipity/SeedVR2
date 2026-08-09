@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """UI 参数面板与用户偏好 API 路由模块。
 
 暴露 webui_enhancement 模块的后端框架组件，为前端提供：
@@ -26,7 +26,7 @@ from fastapi import APIRouter
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(prefix="/api/ui", tags=["UI参数与偏好"])
 
 
 def _get_optimizer():

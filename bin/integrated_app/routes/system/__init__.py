@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """系统路由包。
 
 本包包含 SeedVR2 项目的系统管理相关路由模块，按职责拆分如下：

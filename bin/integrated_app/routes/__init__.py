@@ -18,50 +18,72 @@ API 路由前缀：
 
 import importlib
 import logging
+import pkgutil
+from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
 logger = logging.getLogger(__name__)
 
-# 路由模块注册表：(模块路径, URL 前缀, 标签)
-ROUTE_MODULES = [
-    ("bin.integrated_app.routes.restore.unified", "/api/restore", "修复"),
-    ("bin.integrated_app.routes.system.health", "/api/system", "系统状态"),
-    ("bin.integrated_app.routes.system.gpu", "/api/system", "GPU信息"),
-    ("bin.integrated_app.routes.system.settings", "/api/system", "设置"),
-    ("bin.integrated_app.routes.system.history", "/api/system", "历史记录"),
-    ("bin.integrated_app.routes.system.metrics", "/api/system", "性能指标"),
-    ("bin.integrated_app.routes.system.sse", "", "SSE事件流"),
-    ("bin.integrated_app.routes.ui.parameters", "/api/ui", "UI参数与偏好"),
-]
+
+def _auto_discover_routers(routes_package: Any, prefix: str = "") -> list[Any]:
+    """递归发现并收集路由包中所有带有 router 属性的模块。
+
+    使用 pkgutil.iter_modules 遍历当前包下的所有模块和子包。
+    每个模块如果有 router 属性（即 APIRouter 实例），则加入列表。
+    子包会递归进入扫描。
+
+    Args:
+        routes_package: 要扫描的路由包（必须有 __path__ 属性）。
+        prefix: 当前导入前缀（用于嵌套包的递归调用）。
+
+    Returns:
+        发现的 APIRouter 实例列表。
+    """
+    routers: list[Any] = []
+    if not hasattr(routes_package, "__path__"):
+        return routers
+
+    for _importer, modname, ispkg in pkgutil.iter_modules(routes_package.__path__):
+        full_name = f"{routes_package.__name__}.{modname}"
+        try:
+            mod = importlib.import_module(full_name)
+            if hasattr(mod, "router"):
+                routers.append(mod.router)
+                prefix_info = getattr(mod.router, "prefix", "")
+                logger.info(f"自动发现路由: {full_name} (prefix={prefix_info})")
+        except Exception as e:
+            logger.warning(f"导入路由模块失败 {full_name}: {e}")
+
+        if ispkg:
+            try:
+                subpkg = importlib.import_module(full_name)
+                routers.extend(_auto_discover_routers(subpkg))
+            except Exception as e:
+                logger.warning(f"递归扫描子包失败 {full_name}: {e}")
+
+    return routers
 
 
 def auto_discover_routes(app: FastAPI):
     """自动发现并注册所有路由模块。
 
-    遍历 ROUTE_MODULES 列表，动态导入每个模块并注册其 router 对象到 FastAPI 应用。
-    导入失败或模块缺少 router 属性时会记录警告日志，但不会中断应用启动。
+    使用 pkgutil 递归扫描 routes 包下的所有模块，
+    发现带有 router 属性的模块并注册到 FastAPI 应用。
+    新增路由文件只需放入 routes/ 目录（或子目录）并定义 router = APIRouter(...)，
+    无需修改任何其他代码即可自动生效。
 
     Args:
         app: FastAPI 应用实例，路由将被注册到此应用。
-
-    Returns:
-        None
     """
-    for module_path, prefix, tag in ROUTE_MODULES:
-        try:
-            module = importlib.import_module(module_path)
-            router = getattr(module, "router", None)
-            if router is not None:
-                app.include_router(router, prefix=prefix, tags=[tag])
-                logger.info(f"已注册路由: {prefix} [{tag}]")
-            else:
-                logger.warning(f"模块 {module_path} 没有 router 对象")
-        except ImportError as e:
-            logger.warning(f"无法导入路由模块 {module_path}: {e}")
-        except Exception as e:
-            logger.error(f"注册路由失败 {module_path}: {e}")
+    from bin.integrated_app import routes as routes_pkg
+
+    discovered_routers = _auto_discover_routers(routes_pkg)
+    for router in discovered_routers:
+        app.include_router(router)
+
+    logger.info(f"自动发现并注册 {len(discovered_routers)} 个路由模块")
 
 
 def _render_template(request: Request, template_name: str, context: dict | None = None) -> HTMLResponse:

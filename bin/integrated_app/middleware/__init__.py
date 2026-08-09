@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """SeedVR2 - FastAPI/Starlette 中间件包。
 
 本模块包含应用级 HTTP 中间件，按职责分层处理请求与响应：

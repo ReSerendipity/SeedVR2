@@ -1,4 +1,4 @@
-﻿"""多引擎架构 / 引擎调度框架模块
+"""多引擎架构 / 引擎调度框架模块
 
 所属项目: SeedVR2 (SeedVR2 视频/图像修复应用)
 核心技术栈: Python, PyTorch, ThreadPoolExecutor, ABC抽象基类

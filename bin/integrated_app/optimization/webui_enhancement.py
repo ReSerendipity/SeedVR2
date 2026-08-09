@@ -1,4 +1,4 @@
-﻿"""WebUI / 用户交互增强模块
+"""WebUI / 用户交互增强模块
 
 所属项目: SeedVR2 (SeedVR2 视频/图像修复应用)
 核心技术栈: Python, PyYAML, Gradio设计模式, 文件管理, 用户偏好持久化
