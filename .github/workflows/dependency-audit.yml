@@ -6,6 +6,8 @@ on:
       - 'requirements.txt'
       - 'requirements-lock.txt'
       - 'pyproject.toml'
+      - 'tests/package.json'
+      - 'tests/package-lock.json'
   schedule:
     - cron: '0 6 * * 1'
 
@@ -41,3 +43,15 @@ jobs:
           if [ -f requirements.txt ]; then
             safety check -r requirements.txt --json
           fi
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: tests/package-lock.json
+
+      - name: Run npm audit
+        run: |
+          cd tests
+          npm audit --audit-level=moderate || exit 1

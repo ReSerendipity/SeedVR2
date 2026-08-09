@@ -113,6 +113,7 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+addopts = "--strict-markers --tb=short --timeout=60"
 markers = [
     "integration: marks integration tests (deselect with '-m \"not integration\"')",
     "benchmark: marks benchmark tests",
@@ -125,6 +126,7 @@ markers = [
 # including those paths here would report near-zero coverage and mask the
 # app-layer signal. Regression safety for the core relies on the engine
 # self-check (verify_engine.py) plus end-to-end runs instead.
+branch = true
 source = ["bin/integrated_app"]
 omit = [
     "*/tests/*",

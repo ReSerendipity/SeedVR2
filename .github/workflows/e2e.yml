@@ -10,11 +10,24 @@ on:
       - 'tests/fixtures/**'
       - 'tests/utils/**'
       - 'tests/playwright.config.ts'
+  push:
+    branches: [main]
+    paths:
+      - 'bin/integrated_app/**'
+      - 'tests/specs/**'
+      - 'tests/pages/**'
+      - 'tests/fixtures/**'
+      - 'tests/utils/**'
+      - 'tests/playwright.config.ts'
 
 jobs:
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [chromium-desktop, firefox-desktop, webkit-desktop]
     steps:
       - uses: actions/checkout@v4
 
@@ -31,6 +44,14 @@ jobs:
           cache: 'npm'
           cache-dependency-path: tests/package-lock.json
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ matrix.project }}-${{ hashFiles('tests/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-${{ matrix.project }}-
+
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
@@ -40,7 +61,7 @@ jobs:
         run: |
           cd tests
           npm ci
-          npx playwright install --with-deps chromium
+          npx playwright install --with-deps ${{ matrix.project == 'firefox-desktop' && 'firefox' || matrix.project == 'webkit-desktop' && 'webkit' || 'chromium' }}
 
       - name: Start app server in background
         run: |
@@ -53,19 +74,19 @@ jobs:
           curl --retry 30 --retry-delay 2 --retry-connrefused \
             http://127.0.0.1:7870/api/system/health
 
-      - name: Run Playwright tests (chromium-desktop only for CI speed)
-        run: cd tests && npx playwright test --project=chromium-desktop
+      - name: Run Playwright tests
+        run: cd tests && npx playwright test --project=${{ matrix.project }}
 
       - name: Upload HTML report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.project }}
           path: tests/playwright-report/
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-results
+          name: playwright-results-${{ matrix.project }}
           path: tests/test-results/

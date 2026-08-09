@@ -57,7 +57,7 @@ class SeedVR2User(HttpUser):
     def view_history(self):
         """历史记录查询。"""
         with self.client.get(
-            "/api/system/history?page=0&page_size=20",
+            "/api/system/history?page=1&page_size=20",
             name="GET /api/system/history",
             catch_response=True,
         ) as response:

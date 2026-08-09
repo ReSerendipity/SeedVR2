@@ -483,14 +483,13 @@ test.describe('Responsive layout - Tablet (768x1024)', () => {
       (t) => t.tag === 'button' || t.id.includes('btn') || t.id.includes('Toggle'),
     );
 
-    // Known UI issue: some buttons may not meet 44x44px on mobile.
-    // Use a soft check to log warnings without failing the test.
-    // TODO: Fix undersized touch targets and tighten this assertion.
+    // Tightened from <=30 to <=10 in phase 1 of WCAG 2.5.5 compliance improvement.
+    // Target: eventually tighten to toBe(0) once all touch targets are fixed.
     expect(
       criticalSmallTargets.length,
       `Found ${criticalSmallTargets.length} button/toggle elements below 44x44px on tablet viewport. ` +
       'Critical interactive elements should meet the minimum touch target size.',
-    ).toBeLessThanOrEqual(30);
+    ).toBeLessThanOrEqual(10);
   });
 });
 
@@ -595,14 +594,13 @@ test.describe('Responsive layout - Mobile (375x812)', () => {
         t.id.includes('Download'),
     );
 
-    // Known UI issue: some critical elements may not meet 44x44px on mobile.
-    // Use a soft check to log warnings without failing the test.
-    // TODO: Fix undersized touch targets and tighten this assertion.
+    // Tightened from <=30 to <=10 in phase 1 of WCAG 2.5.5 compliance improvement.
+    // Target: eventually tighten to toBe(0) once all touch targets are fixed.
     expect(
       criticalSmallTargets.length,
       `Found ${criticalSmallTargets.length} critical interactive elements below 44x44px on mobile. ` +
       'All buttons and primary actions must meet the minimum touch target size (WCAG 2.5.5).',
-    ).toBeLessThanOrEqual(30);
+    ).toBeLessThanOrEqual(10);
   });
 
   test('no horizontal overflow on mobile', async ({ page }) => {
@@ -798,7 +796,7 @@ test.describe('Visual regression tests', () => {
 
   // --- Dark theme screenshots ---
 
-  test.skip('Home page - dark theme visual regression', async ({ page }) => {
+  test('Home page - dark theme visual regression', async ({ page }) => {
     const basePage = new BasePage(page);
     await basePage.navigate('/');
     await basePage.switchTheme('dark');
@@ -809,7 +807,7 @@ test.describe('Visual regression tests', () => {
     });
   });
 
-  test.skip('Video Restore page - dark theme visual regression', async ({ page }) => {
+  test('Video Restore page - dark theme visual regression', async ({ page }) => {
     const basePage = new BasePage(page);
     await basePage.navigate('/restore');
     await basePage.switchTheme('dark');
@@ -820,7 +818,7 @@ test.describe('Visual regression tests', () => {
     });
   });
 
-  test.skip('Image Restore page - dark theme visual regression', async ({ page }) => {
+  test('Image Restore page - dark theme visual regression', async ({ page }) => {
     const basePage = new BasePage(page);
     await basePage.navigate('/restore');
     await basePage.switchTheme('dark');
@@ -831,7 +829,7 @@ test.describe('Visual regression tests', () => {
     });
   });
 
-  test.skip('Settings page - dark theme visual regression', async ({ page }) => {
+  test('Settings page - dark theme visual regression', async ({ page }) => {
     const basePage = new BasePage(page);
     await basePage.navigate('/settings');
     await basePage.switchTheme('dark');
@@ -842,7 +840,7 @@ test.describe('Visual regression tests', () => {
     });
   });
 
-  test.skip('History page - dark theme visual regression', async ({ page }) => {
+  test('History page - dark theme visual regression', async ({ page }) => {
     const basePage = new BasePage(page);
     await basePage.navigate('/history');
     await basePage.switchTheme('dark');
@@ -853,7 +851,7 @@ test.describe('Visual regression tests', () => {
     });
   });
 
-  test.skip('System Status page - dark theme visual regression', async ({ page }) => {
+  test('System Status page - dark theme visual regression', async ({ page }) => {
     const basePage = new BasePage(page);
     await basePage.navigate('/');
     await basePage.switchTheme('dark');
@@ -866,7 +864,7 @@ test.describe('Visual regression tests', () => {
 
   // --- Light theme screenshots ---
 
-  test.skip('Home page - light theme visual regression', async ({ page }) => {
+  test('Home page - light theme visual regression', async ({ page }) => {
     const basePage = new BasePage(page);
     await basePage.navigate('/');
     await basePage.switchTheme('light');
@@ -877,7 +875,7 @@ test.describe('Visual regression tests', () => {
     });
   });
 
-  test.skip('Video Restore page - light theme visual regression', async ({ page }) => {
+  test('Video Restore page - light theme visual regression', async ({ page }) => {
     const basePage = new BasePage(page);
     await basePage.navigate('/restore');
     await basePage.switchTheme('light');
@@ -888,7 +886,7 @@ test.describe('Visual regression tests', () => {
     });
   });
 
-  test.skip('Image Restore page - light theme visual regression', async ({ page }) => {
+  test('Image Restore page - light theme visual regression', async ({ page }) => {
     const basePage = new BasePage(page);
     await basePage.navigate('/restore');
     await basePage.switchTheme('light');
@@ -899,7 +897,7 @@ test.describe('Visual regression tests', () => {
     });
   });
 
-  test.skip('Settings page - light theme visual regression', async ({ page }) => {
+  test('Settings page - light theme visual regression', async ({ page }) => {
     const basePage = new BasePage(page);
     await basePage.navigate('/settings');
     await basePage.switchTheme('light');
@@ -910,7 +908,7 @@ test.describe('Visual regression tests', () => {
     });
   });
 
-  test.skip('History page - light theme visual regression', async ({ page }) => {
+  test('History page - light theme visual regression', async ({ page }) => {
     const basePage = new BasePage(page);
     await basePage.navigate('/history');
     await basePage.switchTheme('light');
@@ -921,7 +919,7 @@ test.describe('Visual regression tests', () => {
     });
   });
 
-  test.skip('System Status page - light theme visual regression', async ({ page }) => {
+  test('System Status page - light theme visual regression', async ({ page }) => {
     const basePage = new BasePage(page);
     await basePage.navigate('/');
     await basePage.switchTheme('light');
@@ -983,14 +981,13 @@ test.describe('Touch target compliance', () => {
       );
     }
 
-    // Known UI issue: some buttons may not meet 44x44px on mobile.
-    // Use a soft check to log warnings without failing the test.
-    // TODO: Fix undersized touch targets and tighten this assertion.
+    // Tightened from <=30 to <=10 in phase 1 of WCAG 2.5.5 compliance improvement.
+    // Target: eventually tighten to toBe(0) once all touch targets are fixed.
     expect(
       smallButtons.length,
       `Found ${smallButtons.length} buttons below 44x44px on mobile. ` +
       'All buttons should meet the minimum touch target size for mobile usability.',
-    ).toBeLessThanOrEqual(30);
+    ).toBeLessThanOrEqual(10);
   });
 
   test('all links have minimum 44x44px clickable area on mobile', async ({ page }) => {
@@ -1031,14 +1028,13 @@ test.describe('Touch target compliance', () => {
       (l) => l.id.includes('nav') || l.href === '/' || l.href.includes('restore') || l.href.includes('settings'),
     );
 
-    // Known UI issue: some nav links may not meet 44x44px on mobile.
-    // Use a soft check to log warnings without failing the test.
-    // TODO: Fix undersized touch targets and tighten this assertion.
+    // Tightened from <=10 to <=5 in phase 1 of WCAG 2.5.5 compliance improvement.
+    // Target: eventually tighten to toBe(0) once all touch targets are fixed.
     expect(
       smallNavLinks.length,
       `Found ${smallNavLinks.length} navigation links below 44x44px on mobile. ` +
       'Navigation links must meet the minimum touch target size.',
-    ).toBeLessThanOrEqual(10);
+    ).toBeLessThanOrEqual(5);
   });
 
   test('all switches and toggle controls have minimum 44x44px clickable area', async ({ page }) => {
@@ -1121,13 +1117,12 @@ test.describe('Touch target compliance', () => {
       );
     }
 
-    // Known UI issue: some critical elements may not meet 44x44px.
-    // Use a soft check to log warnings without failing the test.
-    // TODO: Fix undersized touch targets and tighten this assertion.
+    // Tightened from <=25 to <=10 in phase 1 of WCAG 2.5.5 compliance improvement.
+    // Target: eventually tighten to toBe(0) once all touch targets are fixed.
     expect(
       criticalSmall.length,
       `Found ${criticalSmall.length} critical interactive elements below 44x44px on video restore page.`,
-    ).toBeLessThanOrEqual(25);
+    ).toBeLessThanOrEqual(10);
   });
 
   test('touch target compliance on settings page', async ({ page }) => {
@@ -1158,13 +1153,12 @@ test.describe('Touch target compliance', () => {
       );
     }
 
-    // Known UI issue: some critical elements may not meet 44x44px.
-    // Use a soft check to log warnings without failing the test.
-    // TODO: Fix undersized touch targets and tighten this assertion.
+    // Tightened from <=25 to <=10 in phase 1 of WCAG 2.5.5 compliance improvement.
+    // Target: eventually tighten to toBe(0) once all touch targets are fixed.
     expect(
       criticalSmall.length,
       `Found ${criticalSmall.length} critical interactive elements below 44x44px on settings page.`,
-    ).toBeLessThanOrEqual(25);
+    ).toBeLessThanOrEqual(10);
   });
 });
 
