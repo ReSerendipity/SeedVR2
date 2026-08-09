@@ -68,6 +68,8 @@
         "restore.upload_hint": "{{ t('restore.upload_hint') }}",
         "restore.supported_formats": "{{ t('restore.supported_formats') }}",
         "restore.single_mode": "{{ t('restore.single_mode') }}",
+        "restore.collapse_params": "{{ t('restore.collapse_params') }}",
+        "restore.expand_params": "{{ t('restore.expand_params') }}",
         "restore.batch_mode": "{{ t('restore.batch_mode') }}",
         "history.title": "{{ t('history.title') }}",
         "history.no_records": "{{ t('history.no_records') }}",
@@ -292,15 +294,15 @@
                     <span>{{ t('nav.system') }}</span>
                 </a>
             </li>
+            <li>
+                <a href="/settings" class="sv-nav-link {% if active_page == 'settings' %}active{% endif %}">
+                    <i class="bi bi-gear nav-icon"></i>
+                    <span>{{ t('nav.settings') }}</span>
+                </a>
+            </li>
         </ul>
 
         <div class="sv-navbar-actions">
-            <!-- 关于入口（信息图标） -->
-            <a href="/settings" class="sv-nav-icon-btn {% if active_page == 'settings' %}active{% endif %}"
-               title="{{ t('nav.settings') }}" aria-label="{{ t('nav.settings') }}">
-                <i class="bi bi-info-circle"></i>
-            </a>
-
             <!-- 主题切换按钮 -->
             <button class="sv-theme-toggle" id="btnThemeToggle" aria-label="{{ t('common.switch_theme') }}" title="{{ t('common.switch_theme') }}">
                 <i class="bi bi-moon-stars-fill" id="themeIcon"></i>
@@ -313,6 +315,7 @@
                 </button>
                 <div class="sv-locale-menu" id="localeMenu" role="menu">
                     <button class="sv-locale-item {% if current_locale == 'zh' %}active{% endif %}" data-locale="zh" role="menuitem">中文</button>
+                    <button class="sv-locale-item {% if current_locale == 'zh-TW' %}active{% endif %}" data-locale="zh-TW" role="menuitem">繁體中文</button>
                     <button class="sv-locale-item {% if current_locale == 'en' %}active{% endif %}" data-locale="en" role="menuitem">English</button>
                     <button class="sv-locale-item {% if current_locale == 'ja' %}active{% endif %}" data-locale="ja" role="menuitem">日本語</button>
                     <button class="sv-locale-item {% if current_locale == 'fr' %}active{% endif %}" data-locale="fr" role="menuitem">Français</button>
