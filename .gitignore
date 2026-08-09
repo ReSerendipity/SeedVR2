@@ -193,3 +193,17 @@ scripts/explore_repos.ps1
 scripts/generate_markdown.ps1
 scripts/parse_repos.ps1
 scripts/simple_summary.ps1
+
+# ===== 2026-08-09 审计补充（仓库瘦身防回归） =====
+# 权重/模型格式全局兜底（现有规则只覆盖 pretrained_models/ 下 4 种）
+*.ckpt
+*.onnx
+*.gguf
+*.pkl
+*.h5
+*.npy
+*.npz
+# 通用日志兜底
+*.log
+# hypothesis property-based 测试缓存
+.hypothesis/
