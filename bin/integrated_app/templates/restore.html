@@ -35,6 +35,20 @@
                     <i class="bi bi-collection"></i> {{ t('restore.batch_from_folder') }}
                 </button>
             </div>
+            <div class="sv-canvas-toolbar" id="canvasToolbar">
+                <span class="sv-badge sv-badge-secondary" id="canvasStateLabel">{{ t('restore.empty_state') or '未上传' }}</span>
+                <div class="sv-flex sv-gap-2">
+                    <button type="button" class="sv-btn sv-btn-outline sv-btn-sm" id="btnCanvasCompare" disabled>
+                        <i class="bi bi-columns-gap"></i> {{ t('restore.compare_mode') or '对比模式' }}
+                    </button>
+                    <button type="button" class="sv-btn sv-btn-outline sv-btn-sm" id="btnCanvasZoom" disabled>
+                        <i class="bi bi-zoom-in"></i> {{ t('restore.zoom') or '缩放' }}
+                    </button>
+                    <button type="button" class="sv-btn sv-btn-outline sv-btn-sm" id="btnCanvasDownload" disabled>
+                        <i class="bi bi-download"></i> {{ t('common.download') }}
+                    </button>
+                </div>
+            </div>
         </div>
 
         <!-- 单文件模式：对比/预览区 -->
@@ -1413,6 +1427,26 @@ document.addEventListener('DOMContentLoaded', () => {
             if (icon) icon.className = collapsed ? 'bi bi-chevron-double-right' : 'bi bi-chevron-double-left';
         });
     }
+
+    // 画布工具条：委托到结果区的真实功能（结果显示后由 app.js 启用）
+    function bindCanvasToolbar() {
+        var dl = document.getElementById('btnCanvasDownload');
+        if (dl) dl.addEventListener('click', function () {
+            var b = document.getElementById('btnDownload');
+            if (b) b.click();
+        });
+        var cmp = document.getElementById('btnCanvasCompare');
+        if (cmp) cmp.addEventListener('click', function () {
+            var b = document.getElementById('btnCompareHorizontal');
+            if (b) b.click();
+        });
+        var zm = document.getElementById('btnCanvasZoom');
+        if (zm) zm.addEventListener('click', function () {
+            var b = document.getElementById('btnCompareZoomIn');
+            if (b) b.click();
+        });
+    }
+    bindCanvasToolbar();
 
     document.querySelectorAll('.sv-mode-tab').forEach(tab => {
         tab.addEventListener('click', () => switchMode(tab.dataset.mode));

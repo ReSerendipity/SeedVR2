@@ -42,7 +42,7 @@ const SeedVR2 = (() => {
     // ===== 客户端 i18n =====
     /**
      * @constant {Object} _translations
-     * @description 多语言翻译字典，支持中文(zh)、英文(en)、日文(ja)、法文(fr)四种语言
+     * @description 多语言翻译字典，支持中文(zh)、繁体中文(zh-TW)、英文(en)、日文(ja)、法文(fr)五种语言
      * @property {Object} zh - 中文翻译
      * @property {Object} en - 英文翻译
      * @property {Object} ja - 日文翻译
@@ -1379,6 +1379,16 @@ const SeedVR2 = (() => {
         if (resultCard) resultCard.style.display = 'block';
         if (btnDownload) btnDownload.href = `/api/restore/${taskId}/download`;
 
+        // 画布工具条：结果显示后启用；图片任务开放对比/缩放/下载，视频任务仅下载
+        const canvasStateLabel = document.getElementById('canvasStateLabel');
+        if (canvasStateLabel) canvasStateLabel.textContent = t('status.completed');
+        const enableCanvasBtn = (id) => { const b = document.getElementById(id); if (b) b.disabled = false; };
+        enableCanvasBtn('btnCanvasDownload');
+        if (taskType !== 'video') {
+            enableCanvasBtn('btnCanvasCompare');
+            enableCanvasBtn('btnCanvasZoom');
+        }
+
         // 持久化结果状态到 sessionStorage，切页返回时可恢复
         const beforeSrc = document.getElementById('imagePreview')?.src || '';
         try {
@@ -1983,7 +1993,7 @@ const SeedVR2 = (() => {
         if (!isoString) return '--';
         try {
             const date = new Date(isoString);
-            const localeMap = { zh: 'zh-CN', en: 'en-US', ja: 'ja-JP', fr: 'fr-FR' };
+            const localeMap = { zh: 'zh-CN', 'zh-TW': 'zh-TW', en: 'en-US', ja: 'ja-JP', fr: 'fr-FR' };
             const currentLocale = window.__LOCALE__ || 'zh';
             return date.toLocaleString(localeMap[currentLocale] || 'zh-CN', {
                 year: 'numeric',
@@ -2035,14 +2045,14 @@ const SeedVR2 = (() => {
     /**
      * @constant {string[]} LOCALE_ORDER
      * @description 支持的语言代码列表，按显示顺序排列
-     * @default ['zh', 'en', 'ja', 'fr']
+     * @default ['zh', 'zh-TW', 'en', 'ja', 'fr']
      */
-    const LOCALE_ORDER = ['zh', 'en', 'ja', 'fr'];
+    const LOCALE_ORDER = ['zh', 'zh-TW', 'en', 'ja', 'fr'];
 
     /**
      * @function switchLocale
      * @description 切换界面语言，调用API后刷新页面
-     * @param {string} localeCode - 语言代码（zh/en/ja/fr）
+     * @param {string} localeCode - 语言代码（zh/zh-TW/en/ja/fr）
      * @returns {Promise<void>}
      */
     async function switchLocale(localeCode) {
@@ -2414,7 +2424,7 @@ const SeedVR2 = (() => {
         updateWidgetMemory();
 
         // 定期更新状态栏时间（i18n格式）
-        const localeMap = { zh: 'zh-CN', en: 'en-US', ja: 'ja-JP', fr: 'fr-FR' };
+        const localeMap = { zh: 'zh-CN', 'zh-TW': 'zh-TW', en: 'en-US', ja: 'ja-JP', fr: 'fr-FR' };
         const _statusTimeInterval = setInterval(() => {
             const statusTime = document.getElementById('statusTime');
             if (statusTime) {
