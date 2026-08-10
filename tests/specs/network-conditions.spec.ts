@@ -61,8 +61,8 @@ test.describe('Network Conditions - Slow 3G', () => {
     await page.goto('/', { timeout: 30000 });
     await page.waitForLoadState('domcontentloaded');
 
-    // Wait for content to load (with generous timeout for slow network)
-    await page.waitForTimeout(5000);
+    // Wait for content to load — use waitForSelector for body content instead of timeout
+    await page.waitForSelector('body *', { timeout: 15000 });
 
     // After loading, the page should show content (not a blank screen)
     const body = page.locator('body');
@@ -85,7 +85,8 @@ test.describe('Network Conditions - Offline', () => {
     await page.goto('/');
 
     // The page should not crash — it should show some content or error
-    await page.waitForTimeout(3000);
+    // Use waitForSelector to wait for body content instead of hardcoded timeout
+    await page.waitForSelector('body *', { timeout: 10000 }).catch(() => null);
 
     // Check that the page rendered something (even if it's an error message)
     const body = page.locator('body');
@@ -123,7 +124,8 @@ test.describe('Network Conditions - Intermittent', () => {
 
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(3000);
+    // Use waitForSelector to wait for body content instead of hardcoded timeout
+    await page.waitForSelector('body *', { timeout: 10000 }).catch(() => null);
 
     // The page should still render despite intermittent failures
     const body = page.locator('body');

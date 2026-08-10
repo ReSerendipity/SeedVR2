@@ -73,12 +73,12 @@ test.describe('Security - XSS Prevention', () => {
 
     // Trigger the error by saving settings (the mock will return the XSS payload)
     const saveBtn = page.locator('#btnSavePaths');
-    if (await saveBtn.isVisible()) {
-      await saveBtn.click();
-    }
+    await expect(saveBtn).toBeVisible({ timeout: 5000 });
+    await saveBtn.click();
 
-    // Wait for the toast to appear
-    await page.waitForTimeout(2000);
+    // Wait for the toast to appear — use waitForSelector instead of hardcoded timeout
+    const toastContainer = page.locator('#toastContainer, .toast, [role="alert"]');
+    await expect(toastContainer.first()).toBeVisible({ timeout: 5000 });
 
     // Verify the alert was NOT fired (XSS was not executed)
     const xssAlertFired = await page.evaluate(() => (window as any).__xssAlertFired === true);
@@ -86,12 +86,9 @@ test.describe('Security - XSS Prevention', () => {
     expect(alertFired, 'Browser dialog was triggered — XSS payload was executed').toBe(false);
 
     // Verify the toast shows the payload as plain text, not rendered HTML
-    const toastContainer = page.locator('#toastContainer, .toast, [role="alert"]');
-    if (await toastContainer.first().isVisible()) {
-      const toastText = await toastContainer.first().textContent();
-      // The XSS payload should appear as literal text, not be rendered as HTML
-      expect(toastText, 'Toast should contain the XSS payload as plain text').toContain(xssPayload);
-    }
+    const toastText = await toastContainer.first().textContent();
+    // The XSS payload should appear as literal text, not be rendered as HTML
+    expect(toastText, 'Toast should contain the XSS payload as plain text').toContain(xssPayload);
   });
 
   test('XSS in directory browser: HTML in filenames is not rendered as HTML', async ({ page }) => {
@@ -126,10 +123,10 @@ test.describe('Security - XSS Prevention', () => {
 
     // Trigger the directory browser
     const browseBtn = page.locator('#btnPickVideoFolder, .btn-browse-dir');
-    if (await browseBtn.first().isVisible()) {
-      await browseBtn.first().click();
-      await page.waitForTimeout(1000);
-    }
+    await expect(browseBtn.first()).toBeVisible({ timeout: 5000 });
+    await browseBtn.first().click();
+    // Wait for directory listing to render
+    await page.waitForLoadState('networkidle');
 
     // Verify XSS was not executed
     const xssFired = await page.evaluate(() => (window as any).__xssDirFired === true);
@@ -161,38 +158,35 @@ test.describe('Security - XSS Prevention', () => {
     const xssFilename = '<script>alert("xss-file")</script>.mp4';
     const fileInput = page.locator('#videoFileInput');
 
-    if (await fileInput.isVisible()) {
-      await fileInput.setInputFiles({
-        name: xssFilename,
-        mimeType: 'video/mp4',
-        buffer: Buffer.from('mock-video-data'),
-      });
+    await expect(fileInput).toBeVisible({ timeout: 5000 });
+    await fileInput.setInputFiles({
+      name: xssFilename,
+      mimeType: 'video/mp4',
+      buffer: Buffer.from('mock-video-data'),
+    });
 
-      // Wait for file info to render
-      await page.waitForTimeout(1000);
+    // Wait for file info to render — use waitForSelector instead of hardcoded timeout
+    const fileInfo = page.locator('#videoFileInfo');
+    await expect(fileInfo).toBeVisible({ timeout: 5000 });
 
-      // Set up XSS detection
-      await page.evaluate(() => {
-        (window as any).__xssFileFired = false;
-        const originalAlert = window.alert;
-        window.alert = function (...args) {
-          (window as any).__xssFileFired = true;
-          originalAlert.apply(window, args);
-        };
-      });
+    // Set up XSS detection
+    await page.evaluate(() => {
+      (window as any).__xssFileFired = false;
+      const originalAlert = window.alert;
+      window.alert = function (...args) {
+        (window as any).__xssFileFired = true;
+        originalAlert.apply(window, args);
+      };
+    });
 
-      // Verify XSS was not executed
-      const xssFired = await page.evaluate(() => (window as any).__xssFileFired === true);
-      expect(xssFired, 'XSS script was executed from filename — it was rendered as HTML instead of text').toBe(false);
+    // Verify XSS was not executed
+    const xssFired = await page.evaluate(() => (window as any).__xssFileFired === true);
+    expect(xssFired, 'XSS script was executed from filename — it was rendered as HTML instead of text').toBe(false);
 
-      // Verify the filename is displayed as plain text
-      const fileInfo = page.locator('#videoFileInfo');
-      if (await fileInfo.isVisible()) {
-        const textContent = await fileInfo.textContent();
-        // The script tags should appear as literal text, not be executed
-        expect(textContent, 'File info should display the filename as plain text').toContain(xssFilename);
-      }
-    }
+    // Verify the filename is displayed as plain text
+    const textContent = await fileInfo.textContent();
+    // The script tags should appear as literal text, not be executed
+    expect(textContent, 'File info should display the filename as plain text').toContain(xssFilename);
   });
 });
 
@@ -223,25 +217,27 @@ test.describe('Security - CSRF Protection', () => {
 
     // Trigger a POST request by saving settings
     const saveBtn = page.locator('#btnSavePaths');
-    if (await saveBtn.isVisible()) {
-      await saveBtn.click();
-      await page.waitForTimeout(1000);
-    }
+    await expect(saveBtn).toBeVisible({ timeout: 5000 });
+    await saveBtn.click();
+    // Wait for POST request to be sent
+    await page.waitForResponse(
+      (resp) => resp.url().includes('/api/system/settings') && resp.request().method() === 'POST',
+      { timeout: 5000 },
+    );
 
     // Verify that at least one POST request was made and check for CSRF token
-    if (requestHeaders.length > 0) {
-      const hasCsrfToken = requestHeaders.some((headers) => {
-        const headerKeys = Object.keys(headers).map((k) => k.toLowerCase());
-        return headerKeys.includes('x-csrf-token')
-          || headerKeys.includes('x-xsrf-token')
-          || headerKeys.includes('csrf-token');
-      });
+    expect(requestHeaders.length, 'At least one POST request should have been made').toBeGreaterThan(0);
+    const hasCsrfToken = requestHeaders.some((headers) => {
+      const headerKeys = Object.keys(headers).map((k) => k.toLowerCase());
+      return headerKeys.includes('x-csrf-token')
+        || headerKeys.includes('x-xsrf-token')
+        || headerKeys.includes('csrf-token');
+    });
 
-      expect(
-        hasCsrfToken,
-        'POST requests should include a CSRF token header (x-csrf-token, x-xsrf-token, or csrf-token)',
-      ).toBe(true);
-    }
+    expect(
+      hasCsrfToken,
+      'POST requests should include a CSRF token header (x-csrf-token, x-xsrf-token, or csrf-token)',
+    ).toBe(true);
   });
 });
 
@@ -569,8 +565,8 @@ test.describe('Security - Input Sanitization', () => {
     ];
 
     const pretrainedDir = page.locator('#pretrainedDir');
-    if (await pretrainedDir.isVisible()) {
-      for (const { input, description } of maliciousInputs) {
+    await expect(pretrainedDir).toBeVisible({ timeout: 5000 });
+    for (const { input, description } of maliciousInputs) {
         await pretrainedDir.clear();
         await pretrainedDir.fill(input);
 
@@ -602,6 +598,5 @@ test.describe('Security - Input Sanitization', () => {
         // Clear the field for the next test
         await pretrainedDir.clear();
       }
-    }
   });
 });
