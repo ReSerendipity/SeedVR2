@@ -11,6 +11,7 @@ import pytest
 try:
     from hypothesis import HealthCheck, given, settings
     from hypothesis import strategies as st
+
     HYPOTHESIS_AVAILABLE = True
 except ImportError:
     HYPOTHESIS_AVAILABLE = False
@@ -71,9 +72,7 @@ if HYPOTHESIS_AVAILABLE:
     class TestSettingsProperties:
         """Property-based tests for settings API"""
 
-        @given(
-            cfg_scale=st.floats(min_value=1.0, max_value=10.0, allow_nan=False, allow_infinity=False)
-        )
+        @given(cfg_scale=st.floats(min_value=1.0, max_value=10.0, allow_nan=False, allow_infinity=False))
         @settings(max_examples=10, suppress_health_check=[HealthCheck.function_scoped_fixture])
         def test_cfg_scale_validation(self, test_app, cfg_scale):
             """Any cfg_scale in [1.0, 10.0] should pass validation"""
@@ -86,9 +85,7 @@ if HYPOTHESIS_AVAILABLE:
             data = response.json()
             assert data["data"]["valid"] is True
 
-        @given(
-            denoising=st.floats(min_value=0.4, max_value=0.8, allow_nan=False, allow_infinity=False)
-        )
+        @given(denoising=st.floats(min_value=0.4, max_value=0.8, allow_nan=False, allow_infinity=False))
         @settings(max_examples=10, suppress_health_check=[HealthCheck.function_scoped_fixture])
         def test_denoising_strength_validation(self, test_app, denoising):
             """Any denoising_strength in [0.4, 0.8] (recommended range) should pass validation"""

@@ -18,10 +18,11 @@ jobs:
       - name: Semgrep Scan
         run: |
           python -m pip install --upgrade semgrep
-          semgrep ci --config auto --sarif --output semgrep.sarif || true
+          semgrep ci --config auto --sarif --output semgrep.sarif
 
       - name: Upload SARIF results
         if: always()
         uses: github/codeql-action/upload-sarif@v3
-        with:
+         continue-on-error: true
+       with:
           sarif_file: semgrep.sarif

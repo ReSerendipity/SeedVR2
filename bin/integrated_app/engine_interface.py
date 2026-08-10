@@ -60,6 +60,7 @@ class RestoreResult:
 # 第一层：基础修复引擎协议
 # ===========================================================================
 
+
 @runtime_checkable
 class RestoreEngine(Protocol):
     """基础修复引擎协议：所有修复引擎必须实现的最小能力。
@@ -97,9 +98,7 @@ class RestoreEngine(Protocol):
         """
         ...
 
-    async def load_model(
-        self, model_size: str = "3b", device: str = "auto", precision: str | None = None
-    ) -> bool:
+    async def load_model(self, model_size: str = "3b", device: str = "auto", precision: str | None = None) -> bool:
         """加载修复模型到内存/GPU。
 
         初始化模型结构、加载权重、配置推理组件。
@@ -197,6 +196,7 @@ class RestoreEngine(Protocol):
 # 第二层：进阶批量修复引擎协议
 # ===========================================================================
 
+
 @runtime_checkable
 class BatchRestoreEngine(RestoreEngine, Protocol):
     """进阶批量修复引擎协议：扩展批量处理能力。
@@ -240,6 +240,7 @@ class BatchRestoreEngine(RestoreEngine, Protocol):
 # ===========================================================================
 # 第三层：引擎注册器协议
 # ===========================================================================
+
 
 @runtime_checkable
 class EngineRegistry(Protocol):

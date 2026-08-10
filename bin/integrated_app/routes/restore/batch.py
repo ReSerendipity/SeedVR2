@@ -370,9 +370,7 @@ async def _process_batch_background(
                     common.get_task_cache().update(batch_id, completed=completed)
 
                     # 断点续跑：保存 checkpoint
-                    completed_files_list.append(
-                        {**_file_fingerprint(media_path), "output_path": result.output_path}
-                    )
+                    completed_files_list.append({**_file_fingerprint(media_path), "output_path": result.output_path})
                     remaining_files = media_files[i + 1 :]
                     if checkpoint_mgr.should_checkpoint(completed, checkpoint_every):
                         checkpoint_mgr.save_checkpoint(
