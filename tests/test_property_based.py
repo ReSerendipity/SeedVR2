@@ -9,13 +9,13 @@ from __future__ import annotations
 import pytest
 
 try:
-    from hypothesis import given, settings, strategies as st, HealthCheck
+    from hypothesis import HealthCheck, given, settings
+    from hypothesis import strategies as st
     HYPOTHESIS_AVAILABLE = True
 except ImportError:
     HYPOTHESIS_AVAILABLE = False
 
 from tests.conftest import csrf_post
-
 
 # Skip all tests if hypothesis is not installed
 pytestmark = pytest.mark.skipif(

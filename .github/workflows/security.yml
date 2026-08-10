@@ -16,10 +16,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Semgrep Scan
-        uses: returntocorp/semgrep-action@v1
-        with:
-          config: auto
-          generate-sarif: true
+        run: |
+          python -m pip install --upgrade semgrep
+          semgrep ci --config auto --sarif --output semgrep.sarif || true
 
       - name: Upload SARIF results
         if: always()

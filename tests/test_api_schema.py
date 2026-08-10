@@ -6,8 +6,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 
 class TestOpenAPISchema:
     """OpenAPI Schema 完整性测试"""

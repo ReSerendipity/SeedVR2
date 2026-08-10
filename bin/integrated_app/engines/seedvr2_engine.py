@@ -52,7 +52,6 @@ except ImportError:
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from bin.integrated_app.engine_interface import BatchRestoreEngine, RestoreEngine  # noqa: E402
 
 # 导入管线 mixin（阶段二A 重构）
 from bin.integrated_app.engines._dit_pipeline import _DitPipelineMixin  # noqa: E402
