@@ -140,7 +140,14 @@ test.describe('WCAG 2.1 AA Contrast Compliance', () => {
             document.documentElement.setAttribute('data-theme', t);
             localStorage.setItem('sv-theme', t);
           }, theme);
-          await page.waitForTimeout(300);
+          await page.waitForFunction(
+            () => {
+              const style = getComputedStyle(document.documentElement);
+              return style.getPropertyValue('--sv-bg-base').trim() !== '';
+            },
+            undefined,
+            { timeout: 5000 },
+          );
 
           const failures: string[] = [];
 
@@ -212,8 +219,12 @@ test.describe('WCAG 2.1 AA Contrast Compliance', () => {
                     `${styleData.fontSize}/${styleData.fontWeight}`,
                   );
                 }
-              } catch {
-                // Skip elements that can't be evaluated
+              } catch (err) {
+                // Log elements that can't be evaluated for debugging, but don't fail the test
+                // as some elements may be detached or hidden during evaluation
+                if (err instanceof Error) {
+                  console.warn(`Skipping element evaluation: ${err.message}`);
+                }
               }
             }
           }
