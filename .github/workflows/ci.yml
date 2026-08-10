@@ -37,13 +37,7 @@ jobs:
         run: python -m mypy bin/integrated_app || true
 
       - name: Pytest + coverage
-        run: |
-          python -m pytest -q -m "not integration" \
-            --ignore=tests/perf \
-            --cov=bin/integrated_app \
-            --cov-report=xml \
-            --cov-report=html \
-            --cov-report=term || true
+        run: python -m pytest -q -m "not integration" --ignore=tests/perf --cov=bin/integrated_app --cov-report=xml --cov-report=html --cov-report=term || true
 
       - name: Upload coverage XML
         if: always()
