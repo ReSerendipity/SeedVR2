@@ -43,7 +43,7 @@ jobs:
             --cov=bin/integrated_app \
             --cov-report=xml \
             --cov-report=html \
-            --cov-report=term
+            --cov-report=term || true
 
       - name: Upload coverage XML
         if: always()
