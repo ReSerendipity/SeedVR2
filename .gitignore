@@ -168,7 +168,6 @@ docs/similar-repos-analysis.md
 # ---------------------------------------------------------------------------
 # Dev-only content (not needed to clone-and-run the app)
 # ---------------------------------------------------------------------------
-AGENTS.md
 GITIGNORE_UPDATE.md
 docs/CONSTRAINTS.md
 docs/OPTIMIZATION_GUIDE.md
@@ -178,7 +177,7 @@ docs/workflows/
 docs/prototypes/
 history_scan.sh
 remove_tracked_sample_seedvr2.sh
-verify_engine.py
+/verify_engine.py
 run_checks.bat
 run_verify.bat
 scripts/explore_repos.ps1

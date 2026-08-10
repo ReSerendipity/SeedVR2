@@ -1,0 +1,94 @@
+name: Feature Request
+description: 提出新功能建议或改进想法
+title: "[FEATURE] "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢您的功能建议！请详细描述您想要的功能及其使用场景。
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 问题或需求
+      description: 您遇到了什么问题？或者您希望实现什么？
+      placeholder: |
+        我在使用 SeedVR2 时发现 ...
+        我希望能有一个功能来 ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: 建议的解决方案
+      description: 您希望如何解决这个问题或实现这个功能？
+      placeholder: |
+        可以在 ... 页面添加一个 ...
+        或者增加一个 API 端点 ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 替代方案
+      description: 您是否考虑过其他实现方式？
+      placeholder: |
+        替代方案 A: ...
+        替代方案 B: ...
+    validations:
+      required: false
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: 功能类别
+      description: 这个功能属于哪个类别？
+      options:
+        - 图像修复
+        - 视频修复
+        - 批量处理
+        - 模型管理
+        - GPU 优化
+        - Web UI / 用户体验
+        - API 接口
+        - 安全
+        - 国际化
+        - 文档
+        - 其他
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 优先级
+      description: 您认为这个功能的优先级如何？
+      options:
+        - 低 — 有了更好
+        - 中 — 比较有用
+        - 高 — 强烈需要
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 补充信息
+      description: 任何其他有助于理解您需求的信息。
+      placeholder: 如相关截图、参考链接等。
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 确认事项
+      description: 提交前请确认以下事项。
+      options:
+        - label: 我已搜索现有 Issue，确认这不是重复请求
+          required: true
+        - label: 我已查看 README 和文档，确认该功能尚未实现
+          required: true
