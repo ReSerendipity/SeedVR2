@@ -5,6 +5,14 @@
 **基于 SeedVR2 扩散模型的视频与图像超分辨率修复工具箱 — 独立运行的 Web UI，一键修复，无需 ComfyUI**
 
 > **SeedVR2** — A standalone video & image super-resolution toolkit powered by SeedVR2 diffusion models. One-click restoration via Web UI, no ComfyUI dependency required.
+## 🧪 在线模拟演示（GitHub Pages）
+
+无需 GPU / Python / 模型权重，纯前端仿真环境即可体验完整界面与流程模拟：
+
+**<https://reserendipity.github.io/SeedVR2/>** （由 `.github/workflows/pages-deploy.yml` 自动部署 `demo/` 目录，详见 [demo/README.md](demo/README.md)）
+
+---
+
 
 ---
 

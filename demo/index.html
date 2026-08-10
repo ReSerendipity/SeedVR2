@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SeedVR2 · 在线模拟演示</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%235e7d5a'/%3E%3Cpath d='M8 20l5-7 4 5 3-3 4 5' stroke='%23faf7f2' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+/* ===== SeedVR2 设计系统 (Warm Print 暖暮/暖纸) ===== */
+:root{
+  --primary:#94b88f; --primary-hover:#a8c9a3; --primary-dim:rgba(148,184,143,.18);
+  --success:#94b88f; --warning:#c9a55a; --danger:#c96a5a; --info:#6e90ac;
+  --terracotta:#c48870; --gold:#c9a878;
+  --bg-base:#1e1c19; --bg-surface:#272421; --bg-elevated:#302d29; --bg-hover:#45403b;
+  --border:rgba(234,230,225,.18); --border-hover:rgba(234,230,225,.26);
+  --text-1:#e8e4de; --text-2:#c8c1b9; --text-muted:#9e958c;
+  --radius:8px; --radius-lg:12px;
+  --shadow:0 10px 30px rgba(0,0,0,.35);
+}
+[data-theme="light"]{
+  --primary:#5e7d5a; --primary-hover:#506c4d; --primary-dim:rgba(94,125,90,.08);
+  --success:#4f7049; --warning:#a6823a; --danger:#b85a4a; --info:#52707c;
+  --terracotta:#905040; --gold:#967a4d;
+  --bg-base:#faf7f2; --bg-surface:#ffffff; --bg-elevated:#f0ebe3; --bg-hover:#e6dfd5;
+  --border:rgba(44,36,32,.14); --border-hover:rgba(44,36,32,.22);
+  --text-1:#2c2420; --text-2:#4a3f38; --text-muted:#7a6f66;
+  --shadow:0 10px 30px rgba(44,36,32,.12);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scrollbar-color:var(--border) transparent}
+body{background:var(--bg-base);color:var(--text-1);font:14px/1.55 "DM Sans","Segoe UI",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit}
+.hidden{display:none!important}
+
+/* 演示横幅 */
+.demo-banner{background:linear-gradient(90deg,#2a2620,#33291f);color:#e8e4de;font-size:12.5px;padding:7px 16px;display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--border)}
+[data-theme="light"] .demo-banner{background:linear-gradient(90deg,#f0ebe3,#efe3d2);color:#4a3f38}
+.demo-banner .dot{width:8px;height:8px;border-radius:50%;background:var(--warning);flex:none;animation:pulse 2s infinite}
+@keyframes pulse{50%{opacity:.4}}
+.demo-banner b{color:var(--gold)}
+[data-theme="light"] .demo-banner b{color:#967a4d}
+
+/* 顶栏 */
+.topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:8px;padding:0 16px;height:54px;background:var(--bg-surface);border-bottom:1px solid var(--border);backdrop-filter:blur(8px)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px;letter-spacing:.2px}
+.brand .logo{width:26px;height:26px;border-radius:7px;background:var(--primary);display:flex;align-items:center;justify-content:center;font-size:13px;color:#1a1917}
+.brand small{font-weight:400;color:var(--text-muted);font-size:11px;display:block;line-height:1.1}
+.nav{display:flex;gap:2px;margin-left:12px;flex:1;overflow-x:auto}
+.nav button{background:none;border:none;color:var(--text-muted);padding:8px 13px;border-radius:7px;font-size:13.5px;white-space:nowrap;transition:.15s}
+.nav button:hover{color:var(--text-1);background:var(--bg-hover)}
+.nav button.active{color:var(--primary);background:var(--primary-dim)}
+.top-right{display:flex;gap:8px;align-items:center}
+.icon-btn{background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-2);border-radius:7px;padding:6px 10px;font-size:13px}
+.icon-btn:hover{border-color:var(--border-hover);color:var(--text-1)}
+.badge{background:var(--primary-dim);color:var(--primary);border:1px solid rgba(148,184,143,.35);padding:3px 9px;border-radius:99px;font-size:11.5px;white-space:nowrap}
+
+/* 布局 */
+main{max-width:1240px;margin:0 auto;padding:20px 16px 60px}
+.page{display:none}
+.page.active{display:block;animation:fade .25s}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1}}
+.page-head{margin-bottom:16px}
+.page-head h1{font-size:21px;font-family:"Instrument Serif",Georgia,serif;font-weight:600}
+.page-head p{color:var(--text-muted);font-size:13px;margin-top:2px}
+.grid-2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+@media(max-width:900px){.grid-2{grid-template-columns:1fr}}
+
+.card{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;box-shadow:var(--shadow)}
+.card-title{font-size:13px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.card-title .bar{width:3px;height:14px;border-radius:2px;background:var(--primary)}
+
+/* 上传区 */
+.dropzone{border:2px dashed var(--border-hover);border-radius:var(--radius-lg);padding:34px 20px;text-align:center;color:var(--text-muted);cursor:pointer;transition:.2s;background:var(--bg-base)}
+.dropzone:hover,.dropzone.drag{border-color:var(--primary);background:var(--primary-dim);color:var(--text-2)}
+.dropzone .dz-icon{font-size:30px;margin-bottom:8px;color:var(--primary)}
+.dropzone b{color:var(--text-1)}
+.file-card{display:flex;align-items:center;gap:12px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-top:10px}
+.file-card img,.file-card .thumb{width:52px;height:52px;border-radius:6px;object-fit:cover;background:var(--bg-hover)}
+.file-card .meta{flex:1;min-width:0}
+.file-card .meta b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.file-card .meta span{font-size:11.5px;color:var(--text-muted)}
+
+/* 表单 */
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+@media(max-width:560px){.form-row{grid-template-columns:1fr}}
+.field label{display:block;font-size:12px;color:var(--text-muted);margin-bottom:5px}
+.field select,.field input[type=text]{width:100%;background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-1);border-radius:7px;padding:8px 10px;font-size:13px;outline:none}
+.field select:focus{border-color:var(--primary)}
+input[type=range]{width:100%;accent-color:var(--primary)}
+.range-label{display:flex;justify-content:space-between;font-size:11.5px;color:var(--text-muted);margin-bottom:2px}
+
+/* 按钮 */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:none;border-radius:8px;padding:10px 18px;font-size:14px;font-weight:600;transition:.15s}
+.btn-primary{background:var(--primary);color:#1a1917}
+.btn-primary:hover{background:var(--primary-hover)}
+[data-theme="light"] .btn-primary{color:#fff}
+.btn-primary:disabled{opacity:.55;cursor:not-allowed}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text-2)}
+.btn-ghost:hover{border-color:var(--border-hover);color:var(--text-1)}
+.btn-sm{padding:6px 12px;font-size:12.5px;border-radius:7px}
+.btn-block{width:100%;margin-top:12px}
+
+/* 进度 */
+.progress-wrap{margin-top:14px}
+.progress-bar{height:8px;background:var(--bg-elevated);border-radius:99px;overflow:hidden}
+.progress-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--primary),#a8c9a3);border-radius:99px;transition:width .3s}
+.progress-meta{display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);margin-top:6px}
+.log-box{margin-top:12px;background:#171512;border:1px solid var(--border);border-radius:8px;padding:10px 12px;font:11.5px/1.7 "Cascadia Code",Consolas,monospace;color:#b8b2a9;height:120px;overflow-y:auto}
+[data-theme="light"] .log-box{background:#f6f1e9}
+.log-box .ok{color:var(--success)} .log-box .warn{color:var(--warning)}
+
+/* 对比滑块 */
+.cmp{position:relative;border-radius:var(--radius-lg);overflow:hidden;user-select:none;background:var(--bg-elevated)}
+.cmp img{display:block;width:100%;height:auto}
+.cmp .before{position:absolute;inset:0;clip-path:inset(0 calc(100% - var(--pos,50%)) 0 0)}
+.cmp .divider{position:absolute;top:0;bottom:0;left:var(--pos,50%);width:2px;background:#fff;box-shadow:0 0 8px rgba(0,0,0,.5);transform:translateX(-1px);pointer-events:none}
+.cmp .handle{position:absolute;top:50%;left:var(--pos,50%);transform:translate(-50%,-50%);width:34px;height:34px;border-radius:50%;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;color:#333;font-size:13px;pointer-events:none}
+.cmp input[type=range]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:ew-resize}
+.cmp-tag{position:absolute;top:10px;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:600;background:rgba(0,0,0,.55);color:#fff;backdrop-filter:blur(4px)}
+.cmp-tag.before-tag{left:10px}
+.cmp-tag.after-tag{right:10px;background:rgba(94,125,90,.85)}
+.sim-badge{display:inline-flex;align-items:center;gap:5px;background:rgba(201,165,90,.14);color:var(--warning);border:1px solid rgba(201,165,90,.3);border-radius:99px;padding:3px 10px;font-size:11.5px;margin-top:10px}
+
+/* 历史表格 */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;color:var(--text-muted);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;padding:8px 10px;border-bottom:1px solid var(--border)}
+td{padding:10px;border-bottom:1px solid var(--border);color:var(--text-2)}
+tr:hover td{background:var(--bg-elevated)}
+.status-dot{display:inline-flex;align-items:center;gap:6px}
+.status-dot::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--success)}
+.status-dot.warn::before{background:var(--warning)}
+
+/* 指标块 */
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.metric{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius);padding:12px}
+.metric .k{font-size:11.5px;color:var(--text-muted)}
+.metric .v{font-size:20px;font-weight:700;margin-top:2px;font-family:"Cascadia Code",Consolas,monospace}
+.metric .v small{font-size:11px;color:var(--text-muted);font-weight:400}
+.metric .sub{font-size:11px;color:var(--text-muted);margin-top:2px}
+
+/* 画廊 */
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.g-item{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:.15s}
+.g-item:hover{border-color:var(--primary);transform:translateY(-2px)}
+.g-item img{width:100%;height:130px;object-fit:cover;display:block}
+.g-item .cap{padding:8px 10px;font-size:12px;color:var(--text-2)}
+
+/* 模态 */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;backdrop-filter:blur(4px)}
+.modal-box{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);max-width:760px;width:100%;max-height:86vh;overflow:auto;padding:20px;box-shadow:var(--shadow)}
+.modal-box h3{font-size:16px;margin-bottom:12px}
+
+/* toast */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--bg-elevated);border:1px solid var(--border-hover);color:var(--text-1);padding:10px 18px;border-radius:9px;font-size:13px;box-shadow:var(--shadow);z-index:200;opacity:0;transition:.25s;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
+
+/* 表格搜索 */
+.toolbar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.search{flex:1;min-width:200px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:7px;padding:8px 12px;color:var(--text-1);font-size:13px;outline:none}
+.search:focus{border-color:var(--primary)}
+.pager{display:flex;gap:6px;align-items:center;margin-top:12px;font-size:12.5px;color:var(--text-muted)}
+.pager button{background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-2);border-radius:6px;padding:5px 10px;font-size:12px}
+.pager button:disabled{opacity:.4;cursor:not-allowed}
+
+/* 设置列表 */
+.set-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 0;border-bottom:1px solid var(--border)}
+.set-row:last-child{border-bottom:none}
+.set-row .l b{font-size:13.5px}
+.set-row .l span{display:block;font-size:12px;color:var(--text-muted);margin-top:2px}
+.switch{position:relative;width:42px;height:24px;flex:none}
+.switch input{opacity:0;width:0;height:0}
+.switch .sl{position:absolute;inset:0;background:var(--bg-hover);border-radius:99px;transition:.2s;cursor:pointer}
+.switch .sl::before{content:"";position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;top:3px;left:3px;transition:.2s}
+.switch input:checked+.sl{background:var(--primary)}
+.switch input:checked+.sl::before{transform:translateX(18px)}
+footer{margin-top:30px;padding-top:14px;border-top:1px solid var(--border);color:var(--text-muted);font-size:12px}
+</style>
+</head>
+<body>
+
+<div class="demo-banner"><span class="dot"></span><span><b>在线模拟演示模式</b> — 纯前端仿真环境，不含模型推理。所有进度、日志与结果均为本地模拟，仅用于功能体验。</span></div>
+
+<header class="topbar">
+  <div class="brand"><div class="logo">SV</div><div>SeedVR2<small>视频 &amp; 图像超分修复 · 模拟演示</small></div></div>
+  <nav class="nav" id="nav">
+    <button class="active" data-page="workbench">修复工作台</button>
+    <button data-page="batch">批量修复</button>
+    <button data-page="history">历史记录</button>
+    <button data-page="status">系统状态</button>
+    <button data-page="settings">设置</button>
+  </nav>
+  <div class="top-right">
+    <button class="icon-btn" id="themeBtn" title="切换主题">🌗 主题</button>
+    <span class="badge">Simulation v1.0</span>
+  </div>
+</header>
+
+<main>
+
+<!-- ============ 修复工作台 ============ -->
+<section class="page active" id="page-workbench">
+  <div class="page-head"><h1>修复工作台</h1><p>上传低质量图片或视频，模拟 SeedVR2 单步扩散修复流程（演示为模拟，不执行真实推理）。</p></div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title"><span class="bar"></span>输入与参数</div>
+      <div class="dropzone" id="dz" tabindex="0" role="button" aria-label="上传文件">
+        <div class="dz-icon">⤴</div>
+        <div><b>拖拽文件到这里</b> 或 <u>点击选择</u></div>
+        <div style="font-size:12px;margin-top:4px">支持图片 / 视频（模拟环境仅预览，不执行真实推理）</div>
+        <input type="file" id="fileInput" accept="image/*,video/*" class="hidden">
+      </div>
+      <div id="fileCard"></div>
+      <div style="margin-top:14px">
+        <div class="form-row">
+          <div class="field"><label>模型</label><select id="model"><option>SeedVR2-3B</option><option>SeedVR2-7B</option><option>SeedVR2-7B-Sharp</option></select></div>
+          <div class="field"><label>精度</label><select id="precision"><option>FP16</option><option>FP8</option></select></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>放大倍率</label><select id="scale"><option>2x</option><option>4x</option></select></div>
+          <div class="field"><label>分块尺寸</label><select id="tile"><option>512</option><option>1024</option><option>2048</option></select></div>
+        </div>
+        <div class="field">
+          <div class="range-label"><span>去噪强度</span><span id="denoiseVal">0.50</span></div>
+          <input type="range" id="denoise" min="0" max="1" step="0.05" value="0.5">
+        </div>
+        <button class="btn btn-ghost btn-sm" id="vramBtn" style="margin-top:10px">▣ VRAM 预检 &amp; 推荐参数</button>
+        <div id="vramResult" class="hidden" style="margin-top:10px;background:var(--primary-dim);border:1px solid rgba(148,184,143,.35);border-radius:8px;padding:10px 12px;font-size:12.5px;color:var(--text-2)"></div>
+        <button class="btn btn-primary btn-block" id="runBtn">▶ 开始修复（模拟）</button>
+      </div>
+      <div class="progress-wrap hidden" id="progressWrap">
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="progress-meta"><span id="progressPct">0%</span><span id="progressStage">初始化…</span><span id="progressVram">VRAM 0.0 GB</span></div>
+        <div class="log-box" id="logBox"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="bar"></span>修复结果</div>
+      <div id="resultEmpty" style="text-align:center;padding:60px 20px;color:var(--text-muted)">
+        <div style="font-size:34px;margin-bottom:10px">🖼</div>
+        <div>运行修复流程后，这里将展示<br>「修复前 / 修复后」对比效果</div>
+      </div>
+      <div id="resultArea" class="hidden">
+        <div class="cmp" id="cmp">
+          <img id="cmpAfter" src="" alt="修复后">
+          <img class="before" id="cmpBefore" src="" alt="修复前（模拟）">
+          <div class="divider"></div>
+          <div class="handle">⇔</div>
+          <span class="cmp-tag before-tag">修复前 · 模拟</span>
+          <span class="cmp-tag after-tag">修复后</span>
+          <input type="range" id="cmpRange" min="0" max="100" value="50" aria-label="对比位置">
+        </div>
+        <div class="sim-badge">⚡ 对比效果为本地模拟（右侧为仓库内置真实修复示例，左侧为 CSS 模拟退化）</div>
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" id="swapSample">↻ 换一个示例</button>
+          <button class="btn btn-ghost btn-sm" id="downloadResult">⬇ 下载示例图</button>
+        </div>
+        <div class="card-title" style="margin-top:18px"><span class="bar"></span>真实模型输出参考</div>
+        <div class="gallery" id="realGallery"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 批量修复 ============ -->
+<section class="page" id="page-batch">
+  <div class="page-head"><h1>批量修复</h1><p>模拟文件夹批量扫描与断点续跑任务队列（演示为模拟）。</p></div>
+  <div class="card">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-ghost btn-sm" id="batchAdd">＋ 添加模拟文件</button>
+      <button class="btn btn-primary btn-sm" id="batchRun">▶ 开始批量修复（模拟）</button>
+      <span class="badge" id="batchState">空闲 · 0 个文件</span>
+    </div>
+    <div id="batchList" style="margin-top:14px"></div>
+    <div id="batchSummary" class="hidden" style="margin-top:14px;background:var(--primary-dim);border-radius:8px;padding:12px;font-size:13px"></div>
+  </div>
+</section>
+
+<!-- ============ 历史记录 ============ -->
+<section class="page" id="page-history">
+  <div class="page-head"><h1>历史记录</h1><p>模拟 SQLite 历史库，支持搜索与筛选。</p></div>
+  <div class="card">
+    <div class="toolbar">
+      <input class="search" id="histSearch" placeholder="搜索文件名 / 模型…">
+      <select id="histFilter" style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:7px;padding:8px;color:var(--text-1)">
+        <option value="all">全部状态</option><option value="done">已完成</option><option value="fail">失败</option>
+      </select>
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>文件</th><th>模型</th><th>分辨率</th><th>耗时</th><th>时间</th><th>状态</th></tr></thead>
+        <tbody id="histBody"></tbody>
+      </table>
+    </div>
+    <div class="pager">
+      <button id="histPrev">‹ 上一页</button><span id="histInfo"></span><button id="histNext">下一页 ›</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 系统状态 ============ -->
+<section class="page" id="page-status">
+  <div class="page-head"><h1>系统状态</h1><p>模拟 GPU / 系统实时监控与 VRAM 估算（数值为本地模拟）。</p></div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title"><span class="bar"></span>GPU · NVIDIA GeForce RTX 4090 (24 GB) <span class="badge" style="margin-left:auto">模拟在线</span></div>
+    <div class="metrics">
+      <div class="metric"><div class="k">利用率</div><div class="v" id="gpuUtil">37%</div><div class="sub">实时刷新</div></div>
+      <div class="metric"><div class="k">显存占用</div><div class="v" id="gpuVram">6.2 <small>/ 24 GB</small></div><div class="sub" id="gpuVramPct">26%</div></div>
+      <div class="metric"><div class="k">温度</div><div class="v" id="gpuTemp">52°C</div><div class="sub">风扇 1480 RPM</div></div>
+      <div class="metric"><div class="k">功耗</div><div class="v" id="gpuPower">186 <small>W</small></div><div class="sub">上限 450W</div></div>
+    </div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title"><span class="bar"></span>模型注册表</div>
+      <table><thead><tr><th>模型</th><th>大小</th><th>精度</th><th>状态</th></tr></thead>
+      <tbody>
+        <tr><td>SeedVR2-3B</td><td>6.3 GB</td><td>FP16 / FP8</td><td><span class="status-dot">已加载</span></td></tr>
+        <tr><td>SeedVR2-7B</td><td>14.8 GB</td><td>FP16 / FP8</td><td><span class="status-dot">就绪</span></td></tr>
+        <tr><td>SeedVR2-7B-Sharp</td><td>14.9 GB</td><td>FP16 / FP8</td><td><span class="status-dot">就绪</span></td></tr>
+      </tbody></table>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="bar"></span>VRAM 估算计算器</div>
+      <div class="form-row">
+        <div class="field"><label>模型</label><select id="estModel"><option>SeedVR2-3B</option><option>SeedVR2-7B</option><option>SeedVR2-7B-Sharp</option></select></div>
+        <div class="field"><label>输入分辨率</label><select id="estRes"><option>1280×720</option><option>1920×1080</option><option>3840×2160</option></select></div>
+      </div>
+      <div class="field"><label>视频帧数</label><select id="estFrames"><option>1</option><option>16</option><option>32</option><option>64</option></select></div>
+      <button class="btn btn-primary btn-sm" id="estBtn" style="margin-top:10px">计算估算</button>
+      <div id="estResult" class="hidden" style="margin-top:12px;background:var(--primary-dim);border-radius:8px;padding:12px;font-size:13px"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 设置 ============ -->
+<section class="page" id="page-settings">
+  <div class="page-head"><h1>设置</h1><p>模拟全局设置（修改仅保存在浏览器本地）。</p></div>
+  <div class="card" style="max-width:720px">
+    <div class="set-row"><div class="l"><b>深色主题</b><span>暖暮 / 暖纸主题切换（持久化到本地）</span></div><label class="switch"><input type="checkbox" id="setTheme" checked><span class="sl"></span></label></div>
+    <div class="set-row"><div class="l"><b>模型来源模式</b><span>shared：外部共享目录；portable：项目内自包含</span></div>
+      <select id="setMode" style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text-1)">
+        <option>portable（默认）</option><option>shared</option></select></div>
+    <div class="set-row"><div class="l"><b>语言</b><span>演示环境仅内置中文界面</span></div><span class="badge">zh-CN</span></div>
+    <div class="set-row"><div class="l"><b>断点续跑</b><span>批量任务崩溃后自动恢复进度</span></div><label class="switch"><input type="checkbox" checked><span class="sl"></span></label></div>
+    <button class="btn btn-primary btn-sm" style="margin-top:14px" onclick="showToast('已保存（模拟）')">保存设置</button>
+  </div>
+</section>
+
+<footer>SeedVR2 在线模拟演示 · 与真实项目无关的结果均为本地模拟 · 真实推理需 NVIDIA CUDA GPU + 模型权重</footer>
+</main>
+
+<div class="modal hidden" id="modal"><div class="modal-box" id="modalBox"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===== 基础 ===== */
+const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
+let toastTimer;
+function showToast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2400)}
+function openModal(html){$('#modalBox').innerHTML=html;$('#modal').classList.remove('hidden')}
+$('#modal').addEventListener('click',e=>{if(e.target.id==='modal')$('#modal').classList.add('hidden')});
+
+/* 主题 */
+function applyTheme(t){document.documentElement.dataset.theme=t;$('#setTheme').checked=(t==='dark')}
+$('#themeBtn').onclick=()=>applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
+$('#setTheme').onchange=e=>applyTheme(e.target.checked?'dark':'light');
+
+/* 导航 */
+$$('#nav button').forEach(b=>b.onclick=()=>{
+  $$('#nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');
+  $$('.page').forEach(p=>p.classList.remove('active'));$('#page-'+b.dataset.page).classList.add('active');
+  window.scrollTo({top:0});
+});
+
+/* ===== 修复工作台 ===== */
+const RESULTS=['assets/results/result-1.jpg','assets/results/result-2.jpg','assets/results/result-3.jpg','assets/results/result-4.jpg'];
+const INPUTS=['assets/inputs/input-1.jpg','assets/inputs/input-2.jpg','assets/inputs/input-3.jpg','assets/inputs/input-4.jpg'];
+let curResult=0, userFile=null;
+
+$('#dz').onclick=()=>$('#fileInput').click();
+$('#dz').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('#fileInput').click()}};
+$('#fileInput').onchange=e=>{const f=e.target.files[0];if(f)addFile(f)};
+['dragover','dragleave','drop'].forEach(ev=>$('#dz').addEventListener(ev,e=>{
+  e.preventDefault();
+  if(ev==='dragover')$('#dz').classList.add('drag');
+  else $('#dz').classList.remove('drag');
+  if(ev==='drop'&&e.dataTransfer.files[0])addFile(e.dataTransfer.files[0]);
+}));
+function addFile(f){
+  userFile=f;
+  const isImg=f.type.startsWith('image/');
+  const url=URL.createObjectURL(f);
+  $('#fileCard').innerHTML=`<div class="file-card">${isImg?`<img src="${url}">`:'<div class="thumb" style="display:flex;align-items:center;justify-content:center;font-size:20px">🎬</div>'}<div class="meta"><b>${f.name}</b><span>${(f.size/1024/1024).toFixed(2)} MB · ${isImg?'图片':'视频'} · 仅预览</span></div></div>`;
+}
+$('#denoise').oninput=e=>$('#denoiseVal').textContent=Number(e.target.value).toFixed(2);
+$('#vramBtn').onclick=()=>{
+  const m=$('#model').value, p=$('#precision').value, t=$('#tile').value;
+  const base={ 'SeedVR2-3B':6.3,'SeedVR2-7B':14.8,'SeedVR2-7B-Sharp':14.9 }[m];
+  const tileGb=(+t/1024)**2*1.6;
+  const est=(base+(p==='FP8'?-4:0)+tileGb).toFixed(1);
+  $('#vramResult').classList.remove('hidden');
+  $('#vramResult').innerHTML=`<b>推荐参数：</b>${m} / ${p} / 分块 ${t} → 估算显存 <b style="color:var(--primary)">${est} GB</b>（可用 24 GB，${+est>22?'⚠ 风险较高，建议降低分块':'✓ 可流畅运行'}）`;
+};
+$('#swapSample').onclick=()=>{curResult=(curResult+1)%RESULTS.length;setCmp()};
+function setCmp(){
+  $('#cmpAfter').src=RESULTS[curResult];
+  $('#cmpBefore').src=RESULTS[curResult];
+}
+$('#cmpRange').oninput=e=>{
+  const p=e.target.value+'%';
+  $('#cmp').style.setProperty('--pos',p);
+};
+$('#downloadResult').onclick=()=>{
+  const a=document.createElement('a');a.href=RESULTS[curResult];a.download='seedvr2-sample-'+curResult+'.jpg';a.click();
+  showToast('已下载示例图片');
+};
+
+/* 真实示例画廊 */
+function renderGallery(){
+  const g=RESULTS.map((r,i)=>`<div class="g-item" onclick="openModal('<h3>示例对比</h3><div class=&quot;cmp&quot; style=&quot;--pos:50%&quot;><img src=&quot;${r}&quot;><img class=&quot;before&quot; src=&quot;${r}&quot;><div class=&quot;divider&quot;></div><span class=&quot;cmp-tag before-tag&quot;>修复前 · 模拟</span><span class=&quot;cmp-tag after-tag&quot;>修复后</span></div><p style=&quot;font-size:12px;color:var(--text-muted);margin-top:10px&quot;>示例 #${i+1} · 真实模型输出（来自仓库 outputs/image）</p>')"><img src="${r}" alt="示例 ${i+1}"><div class="cap">真实修复示例 #${i+1}</div></div>`).join('');
+  $('#realGallery').innerHTML=g;
+}
+renderGallery();setCmp();
+
+/* 模拟修复流程 */
+const STAGES=[
+  ['加载模型权重…',700],['初始化 DiT / VAE 管线…',800],['VAE 编码 · 时间分块…',900],
+  ['扩散采样 · 单步修复…',1400],['分块融合 / 色彩校正…',900],['VAE 解码 · 输出写入…',700]
+];
+let running=false;
+$('#runBtn').onclick=()=>{
+  if(running)return;running=true;
+  $('#runBtn').disabled=true;$('#progressWrap').classList.remove('hidden');
+  $('#resultEmpty').classList.add('hidden');$('#resultArea').classList.remove('hidden');
+  const log=$('#logBox');log.innerHTML='';
+  const addLog=(t,c='')=>{const d=document.createElement('div');d.innerHTML=t;if(c)d.className=c;log.appendChild(d);log.scrollTop=log.scrollHeight};
+  addLog(`[init] 任务 ${Date.now().toString(36)} 已创建 · 输入: ${userFile?userFile.name:'内置示例'}`, 'ok');
+  const model=$('#model').value, prec=$('#precision').value;
+  const vramBase={ 'SeedVR2-3B':6.3,'SeedVR2-7B':14.8,'SeedVR2-7B-Sharp':14.9 }[model];
+  let pct=0,vi=0;const vramHist=[];
+  STAGES.forEach(([text,ms],i)=>{
+    setTimeout(()=>{
+      addLog(`[${(i+1).toString().padStart(2,'0')}] ${text} · ${model} / ${prec}`);
+      pct=Math.round(((i+1)/STAGES.length)*100);
+      $('#progressFill').style.width=pct+'%';$('#progressPct').textContent=pct+'%';
+      $('#progressStage').textContent=text;
+    },i*ms);
+  });
+  const vramTimer=setInterval(()=>{
+    vi++;const v=vramBase+Math.sin(vi/3)*0.8+vi*0.05;
+    vramHist.push(v);
+    $('#progressVram').textContent='VRAM '+v.toFixed(1)+' GB';
+  },300);
+  setTimeout(()=>{
+    clearInterval(vramTimer);
+    $('#progressFill').style.width='100%';$('#progressPct').textContent='100%';
+    $('#progressStage').textContent='完成';
+    addLog(`[done] 修复完成 · 输出: outputs/image/seedvr2_${Date.now().toString(36)}.png`, 'ok');
+    addLog(`[info] 峰值显存 ${(Math.max(...vramHist)).toFixed(1)} GB · 用时 5.2s（模拟）`, 'warn');
+    running=false;$('#runBtn').disabled=false;
+    showToast('修复完成（模拟）✓');
+  },STAGES.reduce((a,b)=>a+b[1],0));
+};
+
+/* ===== 批量修复 ===== */
+const BATCH_FILES=['IMG_20240812_1601.jpg','DJI_0032.MP4','scan_archive_014.png','old_photo_1987.jpg','cctv_capture_2210.mp4','trip_2024_raw_007.jpg','document_scan_042.png','phone_video_031.mp4'];
+let batchQueue=[];
+function renderBatch(){
+  const list=$('#batchList');
+  if(!batchQueue.length){list.innerHTML='<div style="color:var(--text-muted);font-size:13px;padding:20px;text-align:center;border:1px dashed var(--border);border-radius:8px">点击「添加模拟文件」生成批量任务</div>';return}
+  list.innerHTML=batchQueue.map((f,i)=>`
+    <div class="file-card" style="margin-top:8px">
+      <div class="thumb" style="display:flex;align-items:center;justify-content:center;font-size:18px">${f.name.endsWith('.mp4')?'🎬':'🖼'}</div>
+      <div class="meta"><b>${f.name}</b><span>${f.state==='wait'?'等待中':f.state==='run'?'修复中…':'已完成'}</span></div>
+      ${f.state==='run'?`<div style="width:110px"><div class="progress-bar"><div class="progress-fill" style="width:${f.pct}%;transition:width .2s" id="bp-${i}"></div></div></div>`:f.state==='done'?'<span class="status-dot"></span>':''}
+    </div>`).join('');
+  $('#batchState').textContent=`${batchQueue.some(f=>f.state!=='done')?'处理中':'空闲'} · ${batchQueue.filter(f=>f.state==='done').length}/${batchQueue.length} 完成`;
+}
+$('#batchAdd').onclick=()=>{batchQueue.push({name:BATCH_FILES[batchQueue.length%BATCH_FILES.length],state:'wait',pct:0});renderBatch()};
+$('#batchRun').onclick=()=>{
+  const todo=batchQueue.filter(f=>f.state==='wait');
+  if(!todo.length){showToast('没有待处理任务');return}
+  $('#batchSummary').classList.add('hidden');
+  todo.forEach((f,ti)=>{
+    setTimeout(()=>{f.state='run';renderBatch();
+      const timer=setInterval(()=>{
+        f.pct=Math.min(100,f.pct+8+Math.random()*14);renderBatch();
+        if(f.pct>=100){clearInterval(timer);f.state='done';renderBatch();
+          if(batchQueue.every(x=>x.state==='done')){
+            const sec=(3+Math.random()*4).toFixed(1);
+            $('#batchSummary').classList.remove('hidden');
+            $('#batchSummary').innerHTML=`<b>批量任务完成（模拟）</b> · ${batchQueue.length} 个文件全部处理成功 · 总用时 ${sec}s · 已写入 checkpoint（断点续跑已启用）`;
+            showToast('批量修复完成（模拟）✓');
+          }}
+      },300);
+    },ti*2600);
+  });
+};
+
+/* ===== 历史记录 ===== */
+const HIST=[
+  ['IMG_20240812_1601.jpg','SeedVR2-3B · FP16','1920×1080','4.8s','2026-08-10 21:32','done'],
+  ['DJI_0032.MP4','SeedVR2-7B · FP8','3840×2160','42.1s','2026-08-10 20:15','done'],
+  ['scan_archive_014.png','SeedVR2-3B · FP8','2048×2048','3.2s','2026-08-10 18:47','done'],
+  ['old_photo_1987.jpg','SeedVR2-7B-Sharp · FP16','1200×800','6.9s','2026-08-10 16:03','fail'],
+  ['cctv_capture_2210.mp4','SeedVR2-3B · FP8','1280×720','18.5s','2026-08-10 14:22','done'],
+  ['trip_2024_raw_007.jpg','SeedVR2-7B · FP16','4000×3000','11.4s','2026-08-09 23:41','done'],
+  ['document_scan_042.png','SeedVR2-3B · FP8','2480×3508','4.1s','2026-08-09 22:05','done'],
+  ['phone_video_031.mp4','SeedVR2-7B-Sharp · FP8','1920×1080','33.7s','2026-08-09 20:18','done'],
+  ['wechat_screenshot_013.png','SeedVR2-3B · FP16','1170×2532','2.9s','2026-08-09 19:52','done'],
+  ['archive_vhs_002.avi','SeedVR2-7B · FP8','640×480','27.3s','2026-08-09 17:30','fail'],
+];
+let histPage=0,histRows=[];
+const PER=6;
+function renderHist(){
+  const kw=$('#histSearch').value.toLowerCase(), flt=$('#histFilter').value;
+  histRows=HIST.filter(r=>(!kw||r[0].toLowerCase().includes(kw)||r[1].toLowerCase().includes(kw))&&(flt==='all'||r[5]===flt));
+  const pages=Math.max(1,Math.ceil(histRows.length/PER));
+  histPage=Math.min(histPage,pages-1);
+  const rows=histRows.slice(histPage*PER,histPage*PER+PER);
+  $('#histBody').innerHTML=rows.map(r=>`<tr style="cursor:pointer" onclick="showHist(${HIST.indexOf(r)})"><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td><td>${r[4]}</td><td><span class="status-dot ${r[5]==='fail'?'warn':''}">${r[5]==='done'?'已完成':'失败'}</span></td></tr>`).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">无匹配记录</td></tr>';
+  $('#histInfo').textContent=`第 ${histPage+1} / ${pages} 页 · 共 ${histRows.length} 条`;
+  $('#histPrev').disabled=histPage===0;$('#histNext').disabled=histPage>=pages-1;
+}
+window.showHist=function(r){
+  openModal(`<h3>${r[0]}</h3><div style="display:flex;gap:14px;flex-wrap:wrap"><div style="flex:1;min-width:220px"><img src="${RESULTS[curResult]}" style="width:100%;border-radius:8px"></div><div style="font-size:13px;color:var(--text-2);min-width:180px"><p><b>模型：</b>${r[1]}</p><p style="margin-top:6px"><b>分辨率：</b>${r[2]}</p><p style="margin-top:6px"><b>耗时：</b>${r[3]}</p><p style="margin-top:6px"><b>时间：</b>${r[4]}</p><p style="margin-top:6px"><b>状态：</b>${r[5]==='done'?'已完成':'失败'}</p></div></div><p style="font-size:12px;color:var(--text-muted);margin-top:12px">历史记录为模拟数据，预览图为内置示例。</p>`);
+};
+$('#histSearch').oninput=()=>{histPage=0;renderHist()};
+$('#histFilter').onchange=()=>{histPage=0;renderHist()};
+$('#histPrev').onclick=()=>{histPage--;renderHist()};
+$('#histNext').onclick=()=>{histPage++;renderHist()};
+renderHist();
+
+/* ===== 系统状态 ===== */
+setInterval(()=>{
+  const u=Math.round(20+Math.random()*50), v=(4+Math.random()*10).toFixed(1), t=Math.round(45+Math.random()*18), p=Math.round(120+Math.random()*120);
+  $('#gpuUtil').textContent=u+'%';$('#gpuVram').innerHTML=v+' <small>/ 24 GB</small>';$('#gpuVramPct').textContent=Math.round(v/24*100)+'%';
+  $('#gpuTemp').textContent=t+'°C';$('#gpuPower').innerHTML=p+' <small>W</small>';
+},1800);
+$('#estBtn').onclick=()=>{
+  const m=$('#estModel').value,r=$('#estRes').value,f=$('#estFrames').value;
+  const base={'SeedVR2-3B':6.3,'SeedVR2-7B':14.8,'SeedVR2-7B-Sharp':14.9}[m];
+  const resMap={'1280×720':2.2,'1920×1080':4.8,'3840×2160':16.5}[r];
+  const frames=+f;
+  const est=base+resMap+(frames>1?(frames/16)*2.4:0);
+  const rec=est>22?'⚠ 风险高：建议 FP8 + BlockSwap 或降低分辨率':est>16?'⚠ 偏高：建议 FP8 精度':'✓ 推荐参数可流畅运行';
+  $('#estResult').classList.remove('hidden');
+  $('#estResult').innerHTML=`<b>估算结果：</b>${m} / ${r} / ${frames} 帧 → 约 <b style="color:var(--primary)">${est.toFixed(1)} GB</b> 显存<br><span style="color:var(--text-muted)">${rec}</span>`;
+};
+</script>
+</body>
+</html>
