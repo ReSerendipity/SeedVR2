@@ -101,7 +101,7 @@ test_report_v*.md
 
 # ---------------------------------------------------------------------------
 # UI / UX audit artifacts (dated directories + per-audit screenshots)
-# NOTE: docs/screenshots/current/{dark,light}/ is REFERENCED by README and
+# NOTE: docs/screenshots/current/light/ is REFERENCED by README and
 #       must stay tracked. Only dogfood leftovers and dated audit dumps go.
 # ---------------------------------------------------------------------------
 docs/ui-ux-audit-*/
@@ -176,14 +176,6 @@ docs/PROJECT_CONTEXT.md
 docs/winpython-migration-plan.md
 docs/workflows/
 docs/prototypes/
-docs/screenshots/current/dark/08-settings-paths-tab.png
-docs/screenshots/current/dark/09-settings-model-tab.png
-docs/screenshots/current/dark/10-settings-language-tab.png
-docs/screenshots/current/dark/11-locale-dropdown-open.png
-docs/screenshots/current/light/06-history-full.png
-docs/screenshots/current/light/07-system-status-full.png
-docs/screenshots/current/light/08-settings-paths-tab.png
-docs/screenshots/current/light/10-settings-language-tab.png
 history_scan.sh
 remove_tracked_sample_seedvr2.sh
 verify_engine.py
