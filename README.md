@@ -10,23 +10,17 @@
 
 ## 界面预览
 
-*深色主题 — 首页仪表盘 / 修复工作台 / 历史记录 / 系统状态*
-
-![首页深色](docs/screenshots/current/dark/01-home-full.png)
-
-![修复深色](docs/screenshots/current/dark/02-restore-default.png)
-
-![历史记录深色](docs/screenshots/current/dark/06-history-full.png)
-
-![系统状态深色](docs/screenshots/current/dark/07-system-status-full.png)
-
-*浅色主题 — 首页仪表盘 / 修复工作台 / 模型设置 / 多语言切换*
+*浅色主题 — 首页仪表盘 / 修复工作台 / 历史记录 / 系统状态 / 模型设置 / 多语言切换*
 
 ![首页浅色](docs/screenshots/current/light/01-home-full.png)
 
-![修复浅色](docs/screenshots/current/light/02-restore-default.png)
+![修复浅色](docs/screenshots/current/light/02-restore-single-default.png)
 
-![设置浅色](docs/screenshots/current/light/09-settings-model-tab.png)
+![历史记录浅色](docs/screenshots/current/light/06-history-table-view.png)
+
+![系统状态浅色](docs/screenshots/current/light/08-system-status-full.png)
+
+![设置浅色](docs/screenshots/current/light/09-settings-full.png)
 
 ![多语言切换浅色](docs/screenshots/current/light/11-locale-dropdown-open.png)
 
