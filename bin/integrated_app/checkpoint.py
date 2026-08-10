@@ -145,10 +145,7 @@ class TaskCheckpoint:
             return None
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
-            logger.info(
-                f"Checkpoint 已加载: {task_id} "
-                f"({data.get('completed', 0)}/{data.get('total', 0)})"
-            )
+            logger.info(f"Checkpoint 已加载: {task_id} " f"({data.get('completed', 0)}/{data.get('total', 0)})")
             return data
         except Exception as e:
             logger.warning(f"加载 checkpoint 失败 {task_id}: {e}")

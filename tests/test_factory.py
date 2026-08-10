@@ -10,6 +10,7 @@ import pytest
 
 try:
     import factory
+
     FACTORY_BOY_AVAILABLE = True
 except ImportError:
     FACTORY_BOY_AVAILABLE = False
@@ -23,6 +24,7 @@ pytestmark = pytest.mark.skipif(
 
 
 if FACTORY_BOY_AVAILABLE:
+
     class HistoryRecordFactory(factory.Factory):
         """Factory for HistoryRecord test data generation."""
 

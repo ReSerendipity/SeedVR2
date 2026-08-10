@@ -47,9 +47,11 @@ class TestRestoreEndpointStructure:
         ]
         for endpoint in endpoints:
             response = test_app.get(endpoint)
-            assert response.status_code in (200, 404, 422), (
-                f"Endpoint {endpoint} returned unexpected status {response.status_code}"
-            )
+            assert response.status_code in (
+                200,
+                404,
+                422,
+            ), f"Endpoint {endpoint} returned unexpected status {response.status_code}"
 
     def test_restore_progress_nonexistent_404(self, test_app):
         """不存在的 restore 进度端点应返回 404"""
