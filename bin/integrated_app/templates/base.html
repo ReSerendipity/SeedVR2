@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self';">
     <title>{% block title %}SeedVR2{% endblock %}</title>
     <!-- 主题初始化（防止闪烁，默认暗色主题） -->
     <script>
@@ -23,6 +23,11 @@
     </script>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%235e7d5a'/%3E%3Ctext x='16' y='22' font-family='Georgia,serif' font-size='17' font-style='italic' fill='%23faf7f2' text-anchor='middle'%3ES%3C/text%3E%3C/svg%3E">
     <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%235e7d5a'/%3E%3Ctext x='90' y='126' font-family='Georgia,serif' font-size='96' font-style='italic' fill='%23faf7f2' text-anchor='middle'%3ES%3C/text%3E%3C/svg%3E">
+
+    <!-- 免费开源字体（Google Fonts，SIL OFL / Apache 2.0 协议） -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@400;600;700&family=Ma+Shan+Zheng&family=ZCOOL+XiaoWei&family=ZCOOL+QingKe+HuangYou&family=ZCOOL+KuaiLe&family=Long+Cang&family=Liu+Jian+Mao+Cao&family=Zhi+Mang+Xing&family=Playfair+Display:wght@400;600&family=Cinzel:wght@400;600&family=Great+Vibes&family=Pacifico&family=Dancing+Script:wght@400;600&display=swap" rel="stylesheet">
 
     <!-- 将 i18n 翻译注入前端 JS -->
     <script>
@@ -303,6 +308,14 @@
         </ul>
 
         <div class="sv-navbar-actions">
+            <!-- 标题字体切换下拉 -->
+            <div class="sv-font-dropdown" id="fontDropdown">
+                <button class="sv-nav-icon-btn" id="btnFontSwitch" aria-label="切换标题字体" title="切换标题字体" aria-haspopup="true" aria-expanded="false">
+                    <span style="font-weight:700;font-style:italic;font-size:15px">Aa</span>
+                </button>
+                <div class="sv-font-menu" id="fontMenu" role="menu"></div>
+            </div>
+
             <!-- 主题切换按钮 -->
             <button class="sv-theme-toggle" id="btnThemeToggle" aria-label="{{ t('common.switch_theme') }}" title="{{ t('common.switch_theme') }}">
                 <i class="bi bi-moon-stars-fill" id="themeIcon"></i>

@@ -8,8 +8,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 
 class TestSSEEndpointErrorHandling:
     """SSE 相关端点错误处理测试"""

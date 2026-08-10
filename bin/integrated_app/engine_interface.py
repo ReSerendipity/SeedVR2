@@ -25,7 +25,6 @@
 核心技术栈: Python 3.10+, typing.Protocol, dataclasses
 """
 
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 

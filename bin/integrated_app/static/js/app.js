@@ -3012,3 +3012,90 @@ const SeedVR2 = (() => {
     };
 })();
 
+/* ===== 标题字体切换（14 种免费开源字体，Google Fonts / SIL OFL / Apache 2.0） ===== */
+(function () {
+    var FONTS = [
+        { g: '中文现代', items: [
+            { n: '思源黑体', f: '"Noto Sans SC",sans-serif', d: '现代简洁 · 默认' },
+            { n: '思源宋体', f: '"Noto Serif SC",serif', d: '优雅衬线' },
+            { n: '站酷小薇', f: '"ZCOOL XiaoWei",serif', d: '文艺手写' },
+            { n: '站酷庆科黄油体', f: '"ZCOOL QingKe HuangYou",sans-serif', d: '圆润趣味' },
+            { n: '站酷快乐体', f: '"ZCOOL KuaiLe",sans-serif', d: '活泼可爱' }
+        ]},
+        { g: '中文书法', items: [
+            { n: '马善政楷书', f: '"Ma Shan Zheng",cursive', d: '毛笔楷书' },
+            { n: '龙藏手书', f: '"Long Cang",cursive', d: '手写行书' },
+            { n: '志莽行书', f: '"Zhi Mang Xing",cursive', d: '洒脱行书' },
+            { n: '柳建茂草书', f: '"Liu Jian Mao Cao",cursive', d: '狂草艺术' }
+        ]},
+        { g: '西文艺术', items: [
+            { n: 'Playfair Display', f: '"Playfair Display",serif', d: '优雅衬线' },
+            { n: 'Cinzel', f: '"Cinzel",serif', d: '古典罗马' },
+            { n: 'Great Vibes', f: '"Great Vibes",cursive', d: '花体手写' },
+            { n: 'Pacifico', f: '"Pacifico",cursive', d: '复古圆润' },
+            { n: 'Dancing Script', f: '"Dancing Script",cursive', d: '流畅手写' }
+        ]}
+    ];
+    var menu = document.getElementById('fontMenu');
+    var btn = document.getElementById('btnFontSwitch');
+    if (!menu || !btn) return;
+
+    function curFont() { try { return localStorage.getItem('sv-font') || ''; } catch (e) { return ''; } }
+
+    function build() {
+        menu.innerHTML = '';
+        FONTS.forEach(function (grp) {
+            var g = document.createElement('div');
+            g.className = 'sv-font-group';
+            g.textContent = grp.g;
+            menu.appendChild(g);
+            grp.items.forEach(function (f) {
+                var b = document.createElement('button');
+                b.className = 'sv-font-item';
+                b.type = 'button';
+                b.style.fontFamily = f.f;
+                b.dataset.f = f.f;
+                b.innerHTML = f.n + '<span class="fd">' + f.d + '</span><span class="fg">' + f.f + '</span>';
+                b.addEventListener('click', function () { apply(f.f); });
+                menu.appendChild(b);
+            });
+        });
+        sync();
+    }
+
+    function apply(f) {
+        document.documentElement.style.setProperty('--sv-font', f);
+        try { localStorage.setItem('sv-font', f); } catch (e) {}
+        sync();
+    }
+
+    function sync() {
+        var cur = curFont();
+        menu.querySelectorAll('.sv-font-item').forEach(function (b) {
+            b.classList.toggle('active', b.dataset.f === cur);
+        });
+    }
+
+    function restore() {
+        var saved = curFont();
+        if (saved) document.documentElement.style.setProperty('--sv-font', saved);
+        sync();
+    }
+
+    btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var lm = document.getElementById('localeMenu');
+        if (lm) lm.classList.remove('show');
+        menu.classList.toggle('show');
+        btn.setAttribute('aria-expanded', menu.classList.contains('show'));
+    });
+    document.addEventListener('click', function (e) {
+        if (!e.target.closest('#fontDropdown')) {
+            menu.classList.remove('show');
+            btn.setAttribute('aria-expanded', 'false');
+        }
+    });
+    build();
+    restore();
+})();
+

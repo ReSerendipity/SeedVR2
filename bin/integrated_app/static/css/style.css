@@ -8266,3 +8266,20 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
     font-size: 11px;
     border-radius: var(--sv-radius-sm, 4px);
 }
+
+/* ===== 标题字体选择器（免费开源字体，Google Fonts） ===== */
+.sv-font-dropdown{position:relative;display:inline-flex}
+.sv-font-menu{position:absolute;top:calc(100% + 10px);right:0;width:252px;max-height:70vh;overflow-y:auto;background:#fff;border:1px solid rgba(0,0,0,.12);border-radius:12px;box-shadow:0 10px 32px rgba(0,0,0,.16);padding:6px;display:none;z-index:1200}
+.sv-font-menu.show{display:block}
+[data-theme="dark"] .sv-font-menu{background:#1f2226;border-color:rgba(255,255,255,.12)}
+.sv-font-group{padding:7px 10px 3px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;opacity:.55}
+.sv-font-item{display:block;width:100%;text-align:left;border:none;background:none;padding:7px 10px;font-size:16px;color:#222;border-radius:8px;cursor:pointer;line-height:1.35}
+.sv-font-item:hover{background:rgba(120,120,120,.13)}
+.sv-font-item.active{color:#5e7d5a;font-weight:600}
+[data-theme="dark"] .sv-font-item{color:#eee}
+[data-theme="dark"] .sv-font-item:hover{background:rgba(255,255,255,.08)}
+[data-theme="dark"] .sv-font-item.active{color:#9cc59a}
+.sv-font-item .fd{display:block;font-size:10px;opacity:.6;font-weight:400}
+.sv-font-item .fg{display:block;font-size:9px;opacity:.45;margin-top:1px}
+/* 主标题字体变量：默认用原设计字体，用户切换后覆盖 */
+.sv-hero h1{font-family:var(--sv-font, var(--sv-font-display))}

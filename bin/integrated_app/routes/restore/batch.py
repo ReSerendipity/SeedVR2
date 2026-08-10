@@ -21,12 +21,12 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, HTTPException
 
+from bin.integrated_app.checkpoint import TaskCheckpoint, _file_fingerprint
 from bin.integrated_app.config_models import (
     ImageRestoreParams,
     UnifiedRestoreParams,
     VideoRestoreParams,
 )
-from bin.integrated_app.checkpoint import TaskCheckpoint, _file_fingerprint
 from bin.integrated_app.dependencies import (
     get_config,
     get_history_db,

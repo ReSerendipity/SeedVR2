@@ -13,7 +13,7 @@ i18n:
   - en
   - ja
   - fr
-  default_locale: zh-TW
+  default_locale: zh
 inference:
   attention_mode: sdpa
   batch_size: 5

@@ -16,7 +16,6 @@ except ImportError:
 
 from bin.integrated_app.history_db import HistoryRecord, TaskRecord
 
-
 pytestmark = pytest.mark.skipif(
     not FACTORY_BOY_AVAILABLE,
     reason="factory-boy not installed (pip install factory-boy)",
