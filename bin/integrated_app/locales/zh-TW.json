@@ -522,6 +522,17 @@
     "processing": "處理中",
     "completed": "已完成",
     "failed": "失敗",
-    "uploaded": "已上傳"
+    "uploaded": "已上傳",
+    "lock_hint_lock": "點擊解鎖，可手動修改",
+    "lock_hint_unlock": "點擊鎖回系統推薦值",
+    "optim_locked": "已鎖定系統推薦值",
+    "optim_unlocked": "已解鎖本組優化參數，可手動調整",
+    "switched_by_vram_rec": "按顯存推薦已切換到手動參數",
+    "switched_to_manual": "已切換到手動解析度模式",
+    "manual_res_hint": "可自由修改解析度（兩倍模式未啟用）",
+    "double_res": "兩倍模式",
+    "double_res_tip": "開啟後上傳圖片自動按短邊×2設定解析度，手動輸入無效",
+    "double_res_hint_default": "上傳圖片後將按短邊×2自動計算（兩倍模式下不可手動修改）",
+    "double_res_applied": "已按短邊×2自動填入解析度和分塊參數"
   }
 }

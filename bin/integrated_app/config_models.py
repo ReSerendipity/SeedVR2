@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 SeedVR2 - 配置数据模型定义模块
 
@@ -328,7 +328,7 @@ class InferenceConfig(BaseModel):
     resolution: int = 2048
     max_resolution: int = 0
     batch_size: int = 1
-    uniform_batch_size: bool = False
+    uniform_batch_size: bool = True
     temporal_overlap: int = 0
     prepend_frames: int = 0
     temporal_segment_size: int = 0
@@ -536,7 +536,7 @@ class ImageRestoreParams(BaseModel):
     resolution: int = Field(2160, ge=1)
     max_resolution: int = Field(0, ge=0)
     batch_size: int = Field(1, ge=1)
-    uniform_batch_size: bool = False
+    uniform_batch_size: bool = True
     color_correction: str = "lab"
     temporal_overlap: int = Field(0, ge=0)
     prepend_frames: int = Field(0, ge=0)
@@ -554,9 +554,13 @@ class UnifiedRestoreParams(ImageRestoreParams):
 
     Attributes:
         task_type: 任务类型，"auto" 自动检测、"video" 视频、"image" 图像。
+        double_res: 两倍模式开关。True 时后端忽略客户端传入的分辨率，
+            强制对图片文件按「真实短边 × 2」重新计算分辨率
+            （视频文件暂不支持该模式，即使为 True 也不生效）。
     """
 
     task_type: str = "auto"
+    double_res: bool = False
 
 
 class VideoRestoreParams(BaseModel):

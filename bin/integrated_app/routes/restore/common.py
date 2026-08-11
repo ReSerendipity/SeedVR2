@@ -17,6 +17,7 @@ API 路由前缀：/api/restore（由子模块注册）
 所属项目：SeedVR2 (SeedVR2 视频/图像修复工具)
 """
 
+import logging
 import os
 
 from fastapi import Form
@@ -84,7 +85,7 @@ def parse_unified_params(
     blocks_to_swap: int = Form(32),
     swap_io_components: bool = Form(True),
     dit_offload_device: str = Form("cpu"),
-    dit_cache_model: bool = Form(False),
+    dit_cache_model: bool = Form(True),
     attention_mode: str = Form("sdpa"),
     vae_model: str = Form("ema_vae_fp16"),
     vae_device: str = Form("cuda:0"),
@@ -96,12 +97,12 @@ def parse_unified_params(
     decode_tile_overlap: int = Form(512),
     tile_debug: str = Form("false"),
     vae_offload_device: str = Form("cpu"),
-    vae_cache_model: bool = Form(False),
+    vae_cache_model: bool = Form(True),
     seed: int = Form(1373201197),
     resolution: int = Form(2160),
     max_resolution: int = Form(0),
     batch_size: int = Form(5),
-    uniform_batch_size: bool = Form(False),
+    uniform_batch_size: bool = Form(True),
     color_correction: str = Form("lab"),
     temporal_overlap: int = Form(2),
     prepend_frames: int = Form(0),
@@ -109,6 +110,7 @@ def parse_unified_params(
     latent_noise_scale: float = Form(0.0),
     offload_device: str = Form("cpu"),
     enable_debug: bool = Form(False),
+    double_res: bool = Form(False),
 ) -> UnifiedRestoreParams:
     """解析统一修复表单参数，返回结构化 Pydantic 模型。
 
@@ -139,7 +141,7 @@ def parse_unified_params(
         resolution: 输出分辨率，默认 2160。
         max_resolution: 最大分辨率限制，0 表示不限制，默认 0。
         batch_size: 批处理大小（需满足 4n+1，非法值自动修正），默认 5。
-        uniform_batch_size: 是否统一批处理大小，默认 False。
+        uniform_batch_size: 是否统一批处理大小，默认 True。
         color_correction: 颜色校正模式，默认 "lab"。
         temporal_overlap: 视频帧时序重叠数，默认 0。
         prepend_frames: 前置参考帧数，默认 0。
@@ -187,6 +189,109 @@ def parse_unified_params(
         latent_noise_scale=latent_noise_scale,
         offload_device=offload_device,
         enable_debug=enable_debug,
+        double_res=double_res,
+    )
+
+
+logger = logging.getLogger(__name__)
+
+
+def enforce_double_resolution_if_enabled(
+    raw_params: UnifiedRestoreParams,
+    detected_type: str | None,
+    input_path: str | None,
+) -> None:
+    """两倍模式后端强制校验 —— 就地修改 raw_params.resolution。
+
+    规则（互斥保证）：
+    1. 仅当 raw_params.double_res 为 True 且 detected_type == "image" 时生效；
+    2. 使用 Pillow 重新读取 input_path 指向的真实图片宽高；
+    3. 将 raw_params.resolution 覆写为 short_edge × 2，无论客户端表单传入什么；
+    4. 若图片无法解析，记录 warning 并保持客户端传来的 resolution（fail-safe，不中断用户）；
+    5. 视频文件 / folder_path 场景若传入了非图片类型 → 即使 double_res=True 也不覆写，仅记录 info 日志。
+
+    Args:
+        raw_params: parse_unified_params 返回的 UnifiedRestoreParams 实例，函数内就地修改其 resolution。
+        detected_type: 媒体检测结果，"image"/"video"/None。
+        input_path: 已保存到磁盘的上传文件路径（或本地文件夹模式首个媒体路径）。
+    """
+    if not raw_params.double_res:
+        return
+
+    if not input_path or not os.path.isfile(input_path):
+        logger.warning("[double_res] 开关开启但输入路径无效，跳过强制覆写: %s", input_path)
+        return
+
+    if detected_type != "image":
+        logger.info(
+            "[double_res] 开关开启但当前文件非图片类型 (%s)，保留原分辨率 %d (path=%s)",
+            detected_type,
+            raw_params.resolution,
+            input_path,
+        )
+        return
+
+    try:
+        # 延迟导入 — 只有开关打开时才触发，避免极少数环境缺失 Pillow
+        from PIL import Image  # type: ignore
+    except ImportError as e:
+        logger.warning("[double_res] 开关开启但 Pillow 不可用，无法读取真实宽高: %s", e)
+        return
+
+    try:
+        with Image.open(input_path) as im:  # noqa: S311 — 魔数校验已在上游 validate_upload_magic 完成
+            width, height = im.size
+    except Exception as e:  # noqa: BLE001 — 任何解码失败都 fail-safe
+        logger.warning("[double_res] 图片解析失败，保留原分辨率: path=%s error=%s", input_path, e)
+        return
+
+    if width <= 0 or height <= 0:
+        logger.warning(
+            "[double_res] 图片宽高非法 (%dx%d)，保留原分辨率 %d (path=%s)",
+            width,
+            height,
+            raw_params.resolution,
+            input_path,
+        )
+        return
+
+    short_edge = min(width, height)
+    target_res = short_edge * 2
+    original_res = raw_params.resolution
+    raw_params.resolution = target_res
+
+    # 同步覆写 4 个 VAE tile 参数，与前端自动填值规则保持一致：
+    #   tile_size = short_edge × 100%    (向下取整到整数，且不小于 64)
+    #   tile_overlap = short_edge × 50%  (且必须 ≤ tile_size // 2，避免 VAE 分块重叠越界)
+    safe_tile_size = max(64, int(short_edge))
+    safe_tile_overlap = max(0, min(int(short_edge * 0.5), safe_tile_size // 2))
+    original_encode_tile_size = raw_params.encode_tile_size
+    original_encode_tile_overlap = raw_params.encode_tile_overlap
+    original_decode_tile_size = raw_params.decode_tile_size
+    original_decode_tile_overlap = raw_params.decode_tile_overlap
+    raw_params.encode_tile_size = safe_tile_size
+    raw_params.encode_tile_overlap = safe_tile_overlap
+    raw_params.decode_tile_size = safe_tile_size
+    raw_params.decode_tile_overlap = safe_tile_overlap
+
+    logger.info(
+        "[double_res] 已按「短边×2」强制设置分辨率 & tile 参数: "
+        "图片尺寸 %dx%d -> 短边 %d -> 分辨率 %d (原 %d 丢弃), "
+        "encode_tile %d/%d (原 %d/%d 丢弃), "
+        "decode_tile %d/%d (原 %d/%d 丢弃)",
+        width,
+        height,
+        short_edge,
+        target_res,
+        original_res,
+        safe_tile_size,
+        safe_tile_overlap,
+        original_encode_tile_size,
+        original_encode_tile_overlap,
+        safe_tile_size,
+        safe_tile_overlap,
+        original_decode_tile_size,
+        original_decode_tile_overlap,
     )
 
 

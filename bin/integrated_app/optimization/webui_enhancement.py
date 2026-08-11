@@ -922,6 +922,16 @@ class UserPreferences:
     default_batch_size: int = 5
     default_max_resolution: int = 0
 
+    # 修复页面：用户最后一次填写/修改的表单值（键为表单 name，值保留前端类型）
+    # 前向兼容：from_dict/to_dict 会自然读写 unknown key 之外的已知字段；
+    # 新增字段只需要在这里 + dataclass 里加即可，老配置自动缺省为默认空 dict。
+    restore_form_values: dict[str, Any] = field(default_factory=dict)
+
+    # 修复页面：上锁参数的解锁状态
+    # 键 = 参数 name（例如 "swap_io_components"、"encode_tiled"），
+    # 值 = True 表示用户已经解锁了这组参数，checkbox 允许勾选、不强制推荐值。
+    restore_unlock_state: dict[str, bool] = field(default_factory=dict)
+
     def to_dict(self) -> dict[str, Any]:
         """转换为字典 (用于序列化)"""
         return {
@@ -947,15 +957,26 @@ class UserPreferences:
             "default_color_correction": self.default_color_correction,
             "default_batch_size": self.default_batch_size,
             "default_max_resolution": self.default_max_resolution,
+            "restore_form_values": dict(self.restore_form_values or {}),
+            "restore_unlock_state": dict(self.restore_unlock_state or {}),
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "UserPreferences":
-        """从字典创建 (用于反序列化)"""
+        """从字典创建 (用于反序列化)，未知字段安全忽略。"""
         prefs = cls()
         for key, value in data.items():
             if hasattr(prefs, key):
-                setattr(prefs, key, value)
+                # 对 dict 字段做一次拷贝 + 类型规范化 (保留 bool/int/str/None，过滤不可 JSON 序列化对象)
+                if key in ("restore_form_values", "restore_unlock_state") and isinstance(value, dict):
+                    setattr(prefs, key, dict(value))
+                else:
+                    setattr(prefs, key, value)
+        # 兜底：老配置没有这两个字段时，保证它们是可变空 dict 不是 None
+        if not isinstance(prefs.restore_form_values, dict):
+            prefs.restore_form_values = {}
+        if not isinstance(prefs.restore_unlock_state, dict):
+            prefs.restore_unlock_state = {}
         return prefs
 
 
@@ -1079,6 +1100,81 @@ class SettingsPersistence:
         if self._prefs is None:
             return self.load()
         return self._prefs
+
+    # ------------------------------------------------------------------
+    # Restore 页面参数快速存取（深 merge，保证前向兼容）
+    # ------------------------------------------------------------------
+    def get_restore_form_values(self) -> tuple[dict[str, Any], dict[str, bool]]:
+        """加载修复页的用户自定义表单值和解锁状态。
+
+        Returns:
+            (form_values: dict, unlock_state: dict) 两个字典的元组。
+            加载失败时返回两个空 dict，不会抛异常。
+        """
+        try:
+            prefs = self.load()
+        except Exception as e:  # noqa: BLE001
+            logger.debug(f"加载修复页偏好失败，回退空值: {e}")
+            return {}, {}
+        values = dict(prefs.restore_form_values) if isinstance(prefs.restore_form_values, dict) else {}
+        unlocks = dict(prefs.restore_unlock_state) if isinstance(prefs.restore_unlock_state, dict) else {}
+        return values, unlocks
+
+    def patch_restore_form_values(
+        self,
+        values: dict[str, Any] | None = None,
+        unlock_state: dict[str, bool] | None = None,
+    ) -> tuple[dict[str, Any], dict[str, bool]]:
+        """增量合并保存修复页表单值 + 解锁状态。
+
+        与直接 setattr 再 save 不同：对两个 dict 做浅 merge，
+        保证前端一次只传"变更了的字段"时不会把其它字段清空。
+
+        Args:
+            values: 要合并进 restore_form_values 的 {name: value} 字典；None 表示不更新。
+            unlock_state: 要合并进 restore_unlock_state 的 {name: bool} 字典；None 表示不更新。
+
+        Returns:
+            保存后 (form_values, unlock_state) 的当前完整快照。
+            失败时返回 (加载到的原值或空dict, 加载到的原值或空dict)。
+        """
+        try:
+            prefs = self.load()
+        except Exception as e:  # noqa: BLE001
+            logger.debug(f"patch 前加载偏好失败: {e}")
+            return {}, {}
+
+        if not isinstance(prefs.restore_form_values, dict):
+            prefs.restore_form_values = {}
+        if not isinstance(prefs.restore_unlock_state, dict):
+            prefs.restore_unlock_state = {}
+
+        if isinstance(values, dict):
+            # 过滤明显不可能合法的 name（含路径/超短/超长），纵深防御：
+            cleaned: dict[str, Any] = {}
+            for k, v in values.items():
+                if not isinstance(k, str) or not k or len(k) > 64:
+                    continue
+                # 值只保留 JSON 可序列化的基础类型，禁止嵌套 dict 写入
+                if v is None or isinstance(v, (bool, int, float, str)):
+                    cleaned[k] = v
+            prefs.restore_form_values.update(cleaned)
+
+        if isinstance(unlock_state, dict):
+            cleaned_unlocks: dict[str, bool] = {}
+            for k, v in unlock_state.items():
+                if not isinstance(k, str) or not k or len(k) > 64:
+                    continue
+                cleaned_unlocks[k] = bool(v)
+            prefs.restore_unlock_state.update(cleaned_unlocks)
+
+        ok = self.save(prefs)
+        if not ok:
+            logger.warning("patch_restore_form_values 保存失败，返回未写入的内存快照")
+        return (
+            dict(prefs.restore_form_values),
+            dict(prefs.restore_unlock_state),
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -155,6 +155,8 @@ user_preferences:
   output_path_template: '{input_dir}/restored/{input_name}{ext}'
   output_quality: 95
   recent_model_path: ''
+  restore_form_values: {}
+  restore_unlock_state: {}
   slider_comparison_enabled: true
   step_execution_enabled: false
   vae_tile_size: 512

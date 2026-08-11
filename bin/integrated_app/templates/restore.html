@@ -225,8 +225,14 @@
         <div class="sv-param-group">
             <label class="sv-param-label" for="resolution">{{ t('restore.resolution') }}
                 <span class="sv-param-help" data-tooltip="{{ t('restore.tip_resolution') }}"><i class="bi bi-info-circle"></i></span>
+                <label class="sv-res-auto-toggle" title="{{ '开启后上传图片自动按短边×2设置分辨率' if t('restore.double_res_tip') == 'restore.double_res_tip' else t('restore.double_res_tip') }}">
+                    <input type="checkbox" id="doubleResToggle" name="double_res" value="true" checked>
+                    <span class="sv-res-auto-track"><span class="sv-res-auto-thumb"></span></span>
+                    <span class="sv-res-auto-label">{{ '两倍模式' if t('restore.double_res') == 'restore.double_res' else t('restore.double_res') }}</span>
+                </label>
             </label>
             <input type="number" class="sv-param-input" id="resolution" name="resolution" value="960" min="1">
+            <div class="sv-res-hint" id="resolutionHint">{{ '上传图片后将按短边×2自动计算（两倍模式下不可手动修改）' if t('restore.double_res_hint_default') == 'restore.double_res_hint_default' else t('restore.double_res_hint_default') }}</div>
         </div>
         <div class="sv-param-group">
             <label class="sv-param-label" for="vaeModel">{{ t('video.vae_model') }}</label>
@@ -273,7 +279,7 @@
                         <label class="sv-param-check" data-tooltip="{{ t('restore.tip_swap_io') }}">
                             <input type="checkbox" name="swap_io_components" checked disabled>
                             <input type="hidden" name="swap_io_components" value="true">
-                            <span>{{ t('video.swap_io_components') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted"></i></span>
+                            <span>{{ t('video.swap_io_components') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted" title="{{ '点击解锁，可手动修改' if t('restore.lock_hint_lock') == 'restore.lock_hint_lock' else t('restore.lock_hint_lock') }}"></i></span>
                         </label>
                     </div>
                     <input type="hidden" name="dit_cache_model" value="true">
@@ -304,16 +310,17 @@
                         <label class="sv-param-check" data-tooltip="{{ t('restore.tip_tiled_encode') }}">
                             <input type="checkbox" name="encode_tiled" checked disabled>
                             <input type="hidden" name="encode_tiled" value="true">
-                            <span>{{ t('video.encode_tiled') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted"></i></span>
+                            <span>{{ t('video.encode_tiled') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted" title="{{ '点击解锁，可手动修改' if t('restore.lock_hint_lock') == 'restore.lock_hint_lock' else t('restore.lock_hint_lock') }}"></i></span>
                         </label>
                         <label class="sv-param-check" data-tooltip="{{ t('restore.tip_tiled_decode') }}">
                             <input type="checkbox" name="decode_tiled" checked disabled>
                             <input type="hidden" name="decode_tiled" value="true">
-                            <span>{{ t('video.decode_tiled') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted"></i></span>
+                            <span>{{ t('video.decode_tiled') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted" title="{{ '点击解锁，可手动修改' if t('restore.lock_hint_lock') == 'restore.lock_hint_lock' else t('restore.lock_hint_lock') }}"></i></span>
                         </label>
                         <label class="sv-param-check" data-tooltip="{{ t('restore.tip_tile_debug') }}">
                             <input type="checkbox" name="tile_debug" value="true" disabled>
-                            <span>{{ t('video.tile_debug') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted"></i></span>
+                            <input type="hidden" name="tile_debug" value="false">
+                            <span>{{ t('video.tile_debug') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted" title="{{ '点击解锁，可手动修改' if t('restore.lock_hint_lock') == 'restore.lock_hint_lock' else t('restore.lock_hint_lock') }}"></i></span>
                         </label>
                     </div>
                     <div class="sv-param-group">
@@ -328,8 +335,9 @@
                     <div class="sv-adv-locked-header">{{ t('restore.optimized_params') }}</div>
                     <div class="sv-param-group">
                         <label class="sv-param-check" data-tooltip="{{ t('restore.tip_uniform_batch') }}">
-                            <input type="checkbox" name="uniform_batch_size" disabled>
-                            <span>{{ t('video.uniform_batch_size') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted"></i></span>
+                            <input type="checkbox" name="uniform_batch_size" checked disabled>
+                            <input type="hidden" name="uniform_batch_size" value="true">
+                            <span>{{ t('video.uniform_batch_size') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted" title="{{ '点击解锁，可手动修改' if t('restore.lock_hint_lock') == 'restore.lock_hint_lock' else t('restore.lock_hint_lock') }}"></i></span>
                         </label>
                     </div>
                 </div>
@@ -348,7 +356,8 @@
                 <div class="sv-param-group">
                     <label class="sv-param-check" data-tooltip="{{ t('restore.tip_debug_mode') }}">
                         <input type="checkbox" name="enable_debug" disabled>
-                        <span>{{ t('video.debug_mode') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted"></i></span>
+                        <input type="hidden" name="enable_debug" value="false">
+                        <span>{{ t('video.debug_mode') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted" title="{{ '点击解锁，可手动修改' if t('restore.lock_hint_lock') == 'restore.lock_hint_lock' else t('restore.lock_hint_lock') }}"></i></span>
                     </label>
                 </div>
             </div>
@@ -506,6 +515,142 @@ document.addEventListener('DOMContentLoaded', () => {
         set: function(v) { currentTaskId = v; },
         configurable: true
     });
+
+    // ===== 分辨率 / 两倍模式 管理 =====
+    /** @type {number|null} 最近一次两倍模式自动算出的分辨率（字符串形式的数值），用来检测用户是否手动改动 */
+    let _resolutionLastAutoValue = null;
+    /** @type {string} 最近一次自动设置的依据（如 "1024×768"） */
+    let _resolutionLastSource = '';
+
+    /**
+     * 根据两倍模式状态，同步更新输入框边框高亮、禁用状态与底部提示文字
+     * @param {Object} meta  可选字段说明：
+     *     meta.width     {number} 图片宽度
+     *     meta.height    {number} 图片高度
+     *     meta.shortEdge {number} 短边长度（不传则用 width/height 自动取 min）
+     */
+    function syncResolutionUI(meta) {
+        const toggle = /** @type {HTMLInputElement} */ (document.getElementById('doubleResToggle'));
+        const input = /** @type {HTMLInputElement} */ (document.getElementById('resolution'));
+        const hint = document.getElementById('resolutionHint');
+        if (!toggle || !input || !hint) return;
+
+        const autoOn = toggle.checked;
+        input.classList.toggle('double-res-active', autoOn);
+        // 两倍模式 ON → 禁用分辨率 + 四个 VAE tile 参数，与自定义值完全互斥
+        input.disabled = autoOn;
+        const tileInputs = [
+            document.getElementById('encodeTileSize'),
+            document.getElementById('encodeTileOverlap'),
+            document.getElementById('decodeTileSize'),
+            document.getElementById('decodeTileOverlap'),
+        ];
+        tileInputs.forEach((el) => { if (el) el.disabled = autoOn; });
+
+        if (autoOn && meta && typeof meta.width === 'number' && typeof meta.height === 'number') {
+            const shortEdge = meta.shortEdge != null ? meta.shortEdge : Math.min(meta.width, meta.height);
+            const target = shortEdge * 2;
+            hint.classList.add('is-auto');
+            hint.textContent =
+                (I['restore.double_res_applied'] || '已根据尺寸 {w}×{h} 的短边 {s} 自动设置为 {v}（不可手动修改）')
+                    .replace('{w}', String(meta.width))
+                    .replace('{h}', String(meta.height))
+                    .replace('{s}', String(shortEdge))
+                    .replace('{v}', String(target));
+        } else if (autoOn) {
+            hint.classList.add('is-auto');
+            hint.textContent = I['restore.double_res_hint_default'] || '上传图片后将按短边×2自动计算（两倍模式下不可手动修改）';
+        } else {
+            hint.classList.remove('is-auto');
+            hint.textContent = I['manual_res_hint'] || '自定义模式：可手动输入任意分辨率';
+        }
+    }
+
+    /**
+     * 读取图片真实宽高，若两倍模式开启则自动设置分辨率 = 较短边 × 2
+     * @param {File} file
+     * @returns {Promise<Object|null>} 解析成功返回 {width,height,shortEdge,resolution}，失败返回 null
+     */
+    function autoSetResolutionFromImage(file) {
+        return new Promise((resolve) => {
+            const toggle = /** @type {HTMLInputElement} */ (document.getElementById('doubleResToggle'));
+            const input = /** @type {HTMLInputElement} */ (document.getElementById('resolution'));
+            if (!toggle || !input) { resolve(null); return; }
+
+            const cleanResolve = (result) => {
+                // 防止回调未清理导致内存小泄漏，此处不强制 cleanup
+                resolve(result);
+            };
+
+            const img = new Image();
+            img.onload = () => {
+                const w = img.naturalWidth;
+                const h = img.naturalHeight;
+                if (w <= 0 || h <= 0) { syncResolutionUI({}); cleanResolve(null); return; }
+                const shortEdge = Math.min(w, h);
+                const target = shortEdge * 2;
+                _resolutionLastSource = `${w}×${h}`;
+                if (toggle.checked) {
+                    // 分辨率: short_edge × 2
+                    input.value = String(target);
+                    _resolutionLastAutoValue = target;
+                    // 四个 tile 参数与短边分辨率联动：
+                    // tile_size = short_edge × 100%
+                    // tile_overlap = short_edge × 50%  →  天然满足 size = 2 × overlap
+                    const tileSize = Math.round(shortEdge);
+                    const tileOverlap = Math.round(shortEdge * 0.5);
+                    const ets = document.getElementById('encodeTileSize');
+                    const dts = document.getElementById('decodeTileSize');
+                    const eto = document.getElementById('encodeTileOverlap');
+                    const dto = document.getElementById('decodeTileOverlap');
+                    if (ets) ets.value = String(tileSize);
+                    if (dts) dts.value = String(tileSize);
+                    if (eto) eto.value = String(tileOverlap);
+                    if (dto) dto.value = String(tileOverlap);
+                }
+                syncResolutionUI({ width: w, height: h, shortEdge });
+                cleanResolve({ width: w, height: h, shortEdge, resolution: target });
+            };
+            img.onerror = () => {
+                syncResolutionUI({});
+                cleanResolve(null);
+            };
+
+            // 优先使用已创建的预览 objectUrl（如果已存在则复用，避免重复解码）
+            try {
+                if (previewObjectUrl) {
+                    img.src = previewObjectUrl;
+                } else {
+                    img.src = URL.createObjectURL(file);
+                }
+            } catch (e) {
+                syncResolutionUI({});
+                cleanResolve(null);
+            }
+        });
+    }
+
+    /** 重置分辨率开关和提示到页面初始状态 */
+    function resetResolutionState() {
+        const toggle = /** @type {HTMLInputElement} */ (document.getElementById('doubleResToggle'));
+        const input = /** @type {HTMLInputElement} */ (document.getElementById('resolution'));
+        if (toggle) toggle.checked = true;
+        if (input) input.value = input.getAttribute('value') || '960'; // 回到 HTML 默认值
+        // 四个 tile 参数同时回到初始 HTML 默认值
+        const tileDefaults = [
+            ['encodeTileSize', '1024'],
+            ['encodeTileOverlap', '512'],
+            ['decodeTileSize', '1024'],
+            ['decodeTileOverlap', '512'],
+        ];
+        tileDefaults.forEach(([id, def]) => {
+            const el = document.getElementById(id);
+            if (el) el.value = el.getAttribute('value') || def;
+        });
+        _resolutionLastAutoValue = null;
+        _resolutionLastSource = '';
+        syncResolutionUI({});
+    }
 
     // 降级模式检查：无 NVIDIA GPU 时禁用推理功能
     async function checkGpuAvailability() {
@@ -829,8 +974,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 const wg = document.getElementById('workflowGuide');
                 if (wg) wg.style.display = 'none';
+                // 两倍模式：自动根据图片短边 × 2 填分辨率
+                autoSetResolutionFromImage(file).catch(() => { /* 忽略非致命错误 */ });
             } else {
                 els.imagePreview.style.display = 'none';
+                // 视频文件：暂不自动设置（不同视频分辨率语义不同），仅刷新提示
+                syncResolutionUI({});
             }
             // 保存文件元信息到持久化会话，切页回来可恢复
             try {
@@ -857,6 +1006,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (wg) wg.style.display = '';
             // 文件清除时也清理持久化会话
             try { SeedVR2.saveRestoreSession({ status: 'cleared' }); } catch(e) {}
+            resetResolutionState();
             updateStartButton();
         },
     });
@@ -892,6 +1042,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (wg) wg.style.display = '';
             // 清除持久化会话
             try { localStorage.removeItem('sv_restore_session'); } catch(e) {}
+            resetResolutionState();
             updateStartButton();
         });
     }
@@ -1245,6 +1396,7 @@ document.addEventListener('DOMContentLoaded', () => {
             URL.revokeObjectURL(previewObjectUrl);
             previewObjectUrl = null;
         }
+        resetResolutionState();
         updateStartButton();
     }
 
@@ -1264,6 +1416,56 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     els.btnResetRestore.addEventListener('click', resetRestore);
     els.btnRestoreAgain.addEventListener('click', resetRestore);
+
+    // ===== 分辨率 / 两倍模式 事件绑定 =====
+    (function bindResolutionEvents() {
+        const toggle = /** @type {HTMLInputElement|null} */ (document.getElementById('doubleResToggle'));
+        const input = /** @type {HTMLInputElement|null} */ (document.getElementById('resolution'));
+        if (!toggle || !input) return;
+
+        // 初始状态同步 UI 提示
+        syncResolutionUI({});
+
+        // 用户切换开关
+        toggle.addEventListener('change', () => {
+            const autoOn = toggle.checked;
+            // 切回两倍模式 + 当前已有图片文件 → 立即自动填入
+            if (autoOn && els.fileInput && els.fileInput.files && els.fileInput.files[0]) {
+                const f = els.fileInput.files[0];
+                if (f.type && f.type.startsWith('image/')) {
+                    autoSetResolutionFromImage(f).catch(() => {});
+                    return;
+                }
+            }
+            // 否则仅刷新提示
+            syncResolutionUI({});
+            if (!autoOn) {
+                // 切到自定义模式，不再认为当前值是"自动设置"的，之后用户输入不会再跳开关
+                _resolutionLastAutoValue = null;
+            }
+        });
+
+        // 用户手动输入分辨率：若输入值与自动设置值不一致，自动切回自定义模式
+        input.addEventListener('input', () => {
+            if (!toggle.checked) return; // 已经是自定义，无需处理
+            const currentNum = parseInt(input.value, 10);
+            if (_resolutionLastAutoValue !== null && Number.isFinite(currentNum)) {
+                if (currentNum !== _resolutionLastAutoValue) {
+                    toggle.checked = false;
+                    _resolutionLastAutoValue = null;
+                    syncResolutionUI({});
+                    SeedVR2.toast(
+                        I['restore.switched_to_manual'] || '检测到手动修改，已切换为「自定义」模式',
+                        'info'
+                    );
+                }
+            } else if (input.value !== '' && _resolutionLastAutoValue === null) {
+                // 用户在两倍模式未生效（未上传图片）时就开始输入 → 视为想自定义
+                toggle.checked = false;
+                syncResolutionUI({});
+            }
+        });
+    })();
 
     // VRAM 预检 & 参数推荐
     let lastRecommendation = null;
@@ -1337,6 +1539,18 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
+        // 两倍模式下用户主动"应用推荐参数"= 放弃自动计算 → 先切到自定义模式再应用
+        (function exitDoubleModeIfActive() {
+            const tg = /** @type {HTMLInputElement|null} */ (document.getElementById('doubleResToggle'));
+            if (!tg || !tg.checked) return;
+            tg.checked = false;
+            syncResolutionUI({});
+            SeedVR2.toast?.(
+                I['restore.switched_by_vram_rec'] || '检测到应用推荐参数，已切换至自定义模式',
+                'info'
+            );
+        })();
+
         // 应用 BlockSwap 推荐值
         const blocksToSwapInput = document.getElementById('blocksToSwap');
         if (blocksToSwapInput) {
@@ -1361,6 +1575,69 @@ document.addEventListener('DOMContentLoaded', () => {
     if (els.btnCancelBatch) {
         els.btnCancelBatch.addEventListener('click', cancelBatch);
     }
+
+    // ===== 优化参数分组：点击 🔒/🔓 图标解锁 & 重新锁定 =====
+    (function bindOptimizationLocks() {
+        /**
+         * 每次点击图标在「锁定 / 解锁」之间切换：
+         * - 锁定：可见复选框 disabled + 隐藏字段启用（强制提交系统推荐值） + bi-lock-fill
+         * - 解锁：可见复选框 enabled + 隐藏字段 disabled（使用可见复选框的真实值提交） + bi-unlock-fill + 组背景虚线化
+         */
+        document.addEventListener('click', (e) => {
+            const icon = /** @type {HTMLElement|null} */ (
+                e.target.closest('.sv-adv-locked-group i.bi-lock-fill, .sv-adv-locked-group i.bi-unlock-fill')
+            );
+            if (!icon) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const group = icon.closest('.sv-adv-locked-group');
+            if (!group) return;
+            const currentlyUnlocked = icon.classList.contains('bi-unlock-fill');
+            const willUnlock = !currentlyUnlocked; // true = 切换为"解锁"
+            group.classList.toggle('is-unlocked', willUnlock);
+
+            const labels = /** @type {NodeListOf<HTMLLabelElement>} */ (
+                group.querySelectorAll('label.sv-param-check')
+            );
+            labels.forEach((lbl) => {
+                const visCb = /** @type {HTMLInputElement|null} */ (
+                    lbl.querySelector('input[type="checkbox"]')
+                );
+                const hiddenInp = /** @type {HTMLInputElement|null} */ (
+                    lbl.querySelector('input[type="hidden"]')
+                );
+                const iEl = /** @type {HTMLElement|null} */ (
+                    lbl.querySelector('i.bi-lock-fill, i.bi-unlock-fill')
+                );
+                if (!visCb || !iEl) return;
+
+                if (willUnlock) {
+                    visCb.disabled = false;
+                    if (hiddenInp) hiddenInp.disabled = true; // 停止强制提交硬编码值
+                    iEl.classList.remove('bi-lock-fill');
+                    iEl.classList.add('bi-unlock-fill');
+                    const fb = '点击重新锁定（恢复系统推荐值）';
+                    iEl.title = (I['restore.lock_hint_unlock'] && I['restore.lock_hint_unlock'] !== 'restore.lock_hint_unlock')
+                        ? I['restore.lock_hint_unlock'] : fb;
+                } else {
+                    visCb.disabled = true;
+                    visCb.checked = true; // 回到系统推荐的勾选状态
+                    if (hiddenInp) hiddenInp.disabled = false;
+                    iEl.classList.remove('bi-unlock-fill');
+                    iEl.classList.add('bi-lock-fill');
+                    const fb = '点击解锁，允许手动修改优化参数';
+                    iEl.title = (I['restore.lock_hint_lock'] && I['restore.lock_hint_lock'] !== 'restore.lock_hint_lock')
+                        ? I['restore.lock_hint_lock'] : fb;
+                }
+            });
+            SeedVR2.toast?.(
+                willUnlock
+                    ? (I['restore.optim_unlocked'] || '已解锁本组优化参数，可手动调整')
+                    : (I['restore.optim_locked'] || '已重新锁定本组优化参数，恢复系统推荐值'),
+                'info'
+            );
+        });
+    })();
 
     // 键盘快捷键：Ctrl+Enter 开始修复，Esc 取消任务
     document.addEventListener('keydown', (e) => {
@@ -1417,97 +1694,253 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // ===== 加载用户偏好并应用到表单 =====
-    async function applyUserPreferences() {
+    // ===== 修复页参数分组：上锁 / 解锁交互 =====
+    // 规则：每个 .sv-adv-locked-group 内含：
+    //   - 一组 checkbox（初始 disabled，表示锁定时不可改）
+    //   - 对应一组同名 hidden input（锁定时提交默认值）
+    //   - 一个锁图标（.bi-lock-fill 或 .bi-unlock-fill）
+    function _setupLockToggles() {
+        const groups = document.querySelectorAll('.sv-adv-locked-group');
+        groups.forEach((group) => {
+            // 在组内找到锁图标（可能多个，每个 checkbox 行一个也可共享同一组状态 —— 这里按"组名=第一个参数名"统一管理）
+            const lockIcons = group.querySelectorAll('.bi-lock-fill, .bi-unlock-fill');
+            const checkboxes = group.querySelectorAll('input[type="checkbox"]');
+            const hiddenInputs = group.querySelectorAll('input[type="hidden"]');
+            if (lockIcons.length === 0) return;
+
+            // 提取组的统一 key：用第一个 checkbox name 或第一个 hidden name
+            let groupKey = '';
+            const firstCheckbox = checkboxes[0];
+            const firstHidden = hiddenInputs[0];
+            if (firstCheckbox && firstCheckbox.name) groupKey = firstCheckbox.name;
+            else if (firstHidden && firstHidden.name) groupKey = firstHidden.name;
+            if (!groupKey) return;
+
+            // 将组 key 存到 dataset 便于后续 apply / save
+            group.dataset.lockGroup = groupKey;
+
+            // 绑定点击（每个锁图标都能触发同一组切换）
+            lockIcons.forEach((icon) => {
+                icon.style.cursor = 'pointer';
+                icon.style.pointerEvents = 'auto';
+                icon.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const unlocked = group.classList.toggle('sv-adv-unlocked');
+                    // 同步所有子控件
+                    checkboxes.forEach((cb) => { cb.disabled = !unlocked; });
+                    hiddenInputs.forEach((hi) => { hi.disabled = unlocked; });
+                    // 同步图标
+                    lockIcons.forEach((ic) => {
+                        if (unlocked) {
+                            ic.classList.remove('bi-lock-fill');
+                            ic.classList.add('bi-unlock-fill');
+                            ic.title = I['lock_hint_unlock'] || '点击锁回系统推荐值';
+                        } else {
+                            ic.classList.remove('bi-unlock-fill');
+                            ic.classList.add('bi-lock-fill');
+                            ic.title = I['lock_hint_lock'] || '点击解锁，可手动修改';
+                        }
+                    });
+                    // 解锁状态变更 → 触发一次增量保存
+                    _queueSaveRestorePrefs(null, { [groupKey]: unlocked });
+                    // 视觉提示
+                    SeedVR2.toast(unlocked
+                        ? (I['optim_unlocked'] || '已解锁本组优化参数，可手动调整')
+                        : (I['optim_locked'] || '已锁定系统推荐值'), 'info');
+                });
+            });
+        });
+    }
+
+    // 根据 unlock_state dict 恢复分组解锁状态（必须在 setupLockToggles 之后调用，或内部兼容）
+    function _applyUnlockState(unlockState) {
+        if (!unlockState || typeof unlockState !== 'object') return;
+        const groups = document.querySelectorAll('.sv-adv-locked-group');
+        groups.forEach((group) => {
+            const groupKey = group.dataset.lockGroup;
+            if (!groupKey || !(groupKey in unlockState)) return;
+            const unlocked = Boolean(unlockState[groupKey]);
+            const lockIcons = group.querySelectorAll('.bi-lock-fill, .bi-unlock-fill');
+            const checkboxes = group.querySelectorAll('input[type="checkbox"]');
+            const hiddenInputs = group.querySelectorAll('input[type="hidden"]');
+            group.classList.toggle('sv-adv-unlocked', unlocked);
+            checkboxes.forEach((cb) => { cb.disabled = !unlocked; });
+            hiddenInputs.forEach((hi) => { hi.disabled = unlocked; });
+            lockIcons.forEach((ic) => {
+                if (unlocked) {
+                    ic.classList.remove('bi-lock-fill');
+                    ic.classList.add('bi-unlock-fill');
+                } else {
+                    ic.classList.remove('bi-unlock-fill');
+                    ic.classList.add('bi-lock-fill');
+                }
+            });
+        });
+    }
+
+    // ===== 收集当前修复页的所有表单值（按 name → value） =====
+    // 只保存 JSON 可序列化基础类型，避免复杂对象入库
+    function _collectRestoreFormValues() {
+        const values = {};
+        const inputs = document.querySelectorAll('#paramsSidebar [name]');
+        inputs.forEach((input) => {
+            const name = input.name;
+            if (!name) return;
+            // 用第一个非 disabled 的同 name 元素（避免 hidden 与 checkbox 同名冲突时，优先读当前"生效"的那个）
+            if (input.disabled && input.type !== 'hidden') return;
+            // 对于 hidden + checkbox 同名双写模式：只有当 checkbox disabled 时 hidden 才生效
+            if (input.type === 'hidden') {
+                const siblingCb = document.querySelector(`#paramsSidebar input[type="checkbox"][name="${CSS.escape(name)}"]`);
+                if (siblingCb && !siblingCb.disabled) return; // 以 checkbox 为准
+            }
+            if (input.type === 'checkbox') {
+                values[name] = input.checked;
+            } else if (input.type === 'number' || input.type === 'range') {
+                const parsed = parseFloat(input.value);
+                values[name] = Number.isFinite(parsed) ? parsed : (input.value || '');
+            } else if (input.tagName === 'SELECT') {
+                values[name] = input.value;
+            } else {
+                values[name] = input.value;
+            }
+        });
+        return values;
+    }
+
+    // ===== 加载保存的表单值并写回 DOM =====
+    // 注意：必须只对"当前未被 autoSetResolutionFromImage 覆盖"的字段赋值（防覆盖上传图片后的联动值）
+    function _applyRestoreFormValues(values) {
+        if (!values || typeof values !== 'object') return;
+        const inputs = document.querySelectorAll('#paramsSidebar [name]');
+        const applied = new Set();
+        inputs.forEach((input) => {
+            const name = input.name;
+            if (!name || applied.has(name)) return;
+            if (!(name in values)) return;
+            const saved = values[name];
+
+            // hidden / checkbox 同名双写：统一按 checkbox 那一组的状态应用
+            if (input.type === 'hidden') {
+                const siblingCb = document.querySelector(`#paramsSidebar input[type="checkbox"][name="${CSS.escape(name)}"]`);
+                if (siblingCb) return; // 由下面的 checkbox 分支处理
+            }
+
+            applied.add(name);
+            try {
+                if (input.type === 'checkbox') {
+                    const cb = /** @type {HTMLInputElement} */ (input);
+                    cb.checked = Boolean(saved);
+                    // 同步同名 hidden value（否则后端拿不到）
+                    const siblingHidden = document.querySelector(`#paramsSidebar input[type="hidden"][name="${CSS.escape(name)}"]`);
+                    if (siblingHidden) siblingHidden.value = String(Boolean(saved));
+                } else if (input.type === 'number' || input.type === 'range') {
+                    const parsed = typeof saved === 'number' ? saved : parseFloat(String(saved));
+                    if (Number.isFinite(parsed)) input.value = String(parsed);
+                } else {
+                    input.value = String(saved);
+                }
+            } catch (e) {
+                console.debug(`应用修复页字段失败 ${name}:`, e);
+            }
+        });
+    }
+
+    // ===== 修复页偏好保存（统一入口：防抖 + 浅 merge + 容错） =====
+    let _restoreSaveTimer = null;
+    function _queueSaveRestorePrefs(valuesPatch, unlockStatePatch) {
+        clearTimeout(_restoreSaveTimer);
+        _restoreSaveTimer = setTimeout(async () => {
+            try {
+                // values 传 null 表示本次只存解锁状态
+                const values = valuesPatch == null ? _collectRestoreFormValues() : valuesPatch;
+                const payload = {};
+                // 只在确实有变更字段时才传对应 key（后端 merge 语义）
+                if (valuesPatch !== null) payload.values = values;
+                if (unlockStatePatch != null) payload.unlock_state = unlockStatePatch;
+                if (payload.values == null && payload.unlock_state == null) return;
+                await SeedVR2.saveRestorePrefs(payload);
+            } catch (e) {
+                console.debug('保存修复页偏好失败（静默忽略）:', e);
+            }
+        }, 500);
+    }
+
+    // ===== 初始化：加载偏好 → 应用表单值 → 应用解锁状态 → 绑定事件 =====
+    async function applyRestorePreferences() {
         try {
-            const prefs = await SeedVR2.loadUserPreferences();
-            if (!prefs) return;
-            if (prefs.default_resolution) {
-                const resEl = document.getElementById('resolution');
-                if (resEl) resEl.value = prefs.default_resolution;
+            // 1. 先建立锁交互（后续应用解锁状态依赖 DOM class）
+            _setupLockToggles();
+
+            // 2. 从后端加载快照
+            const snapshot = await SeedVR2.loadRestorePrefs();
+
+            // 3. 若新接口无历史，则回退到老 preferences 字段（一次性迁移兼容）
+            let values = {};
+            let unlockState = {};
+            if (snapshot) {
+                values = snapshot.values || {};
+                unlockState = snapshot.unlock_state || {};
             }
-            if (prefs.default_seed && prefs.default_seed !== -1) {
-                const seedEl = document.querySelector('input[name="seed"]');
-                if (seedEl) seedEl.value = prefs.default_seed;
+            // 兼容迁移：如果新 dict 几乎为空，尝试从老的 default_* 填一些常用字段
+            if (Object.keys(values).length === 0) {
+                try {
+                    const legacy = await SeedVR2.loadUserPreferences();
+                    if (legacy) {
+                        if (legacy.default_resolution != null) values.resolution = legacy.default_resolution;
+                        if (legacy.default_seed != null && legacy.default_seed !== -1) values.seed = legacy.default_seed;
+                        if (legacy.blocks_to_swap != null) values.blocks_to_swap = legacy.blocks_to_swap;
+                        if (legacy.default_model) values.dit_model = legacy.default_model;
+                        if (legacy.default_vae) values.vae_model = legacy.default_vae;
+                        if (legacy.default_color_correction) values.color_correction = legacy.default_color_correction;
+                        if (legacy.default_batch_size != null) values.batch_size = legacy.default_batch_size;
+                        if (legacy.vae_tile_size != null) values.encode_tile_size = legacy.vae_tile_size;
+                        if (legacy.default_max_resolution != null) values.max_resolution = legacy.default_max_resolution;
+                    }
+                } catch (_) { /* ignore legacy migration */ }
             }
-            if (prefs.blocks_to_swap !== undefined) {
-                const bsEl = document.getElementById('blocksToSwap');
-                if (bsEl) bsEl.value = prefs.blocks_to_swap;
+
+            // 4. 应用表单值（先写值，再同步 UI）
+            _applyRestoreFormValues(values);
+
+            // 5. 应用解锁状态（必须在 setup 之后）
+            _applyUnlockState(unlockState);
+
+            // 6. 最后同步分辨率互斥 UI（此时已恢复用户上次的 double_res 勾选值）
+            //    注意：只有当用户未上传文件（没有 width/height 元数据）时才做默认同步，
+            //    防止 autoSetResolutionFromImage 已经设置过的联动值被默认逻辑覆盖。
+            const toggle = document.getElementById('doubleResToggle');
+            const hasUploaded = toggle && (document.getElementById('imagePreviewContainer')?.style.display !== 'none'
+                || document.getElementById('restoreFileInfo')?.style.display !== 'none');
+            if (!hasUploaded) {
+                syncResolutionUI({});
             }
-            if (prefs.default_model) {
-                const ditEl = document.getElementById('ditModel');
-                if (ditEl) ditEl.value = prefs.default_model;
-            }
-            if (prefs.default_vae) {
-                const vaeEl = document.getElementById('vaeModel');
-                if (vaeEl) vaeEl.value = prefs.default_vae;
-            }
-            if (prefs.default_color_correction) {
-                const colorEl = document.getElementById('colorCorrection');
-                if (colorEl) colorEl.value = prefs.default_color_correction;
-            }
-            if (prefs.default_batch_size) {
-                const bsEl = document.getElementById('batchSize');
-                if (bsEl) bsEl.value = prefs.default_batch_size;
-            }
-            if (prefs.vae_tile_size) {
-                const etsEl = document.getElementById('encodeTileSize');
-                if (etsEl) etsEl.value = prefs.vae_tile_size;
-            }
-            if (prefs.default_max_resolution) {
-                const mrEl = document.getElementById('maxResolution');
-                if (mrEl) mrEl.value = prefs.default_max_resolution;
-            }
+
         } catch (e) {
-            console.debug('应用用户偏好失败:', e);
+            console.debug('应用修复页偏好失败:', e);
         }
     }
 
-    applyUserPreferences();
+    // 启动加载（DOMContentLoaded 之后脚本位于 body 末尾，所以 DOM 已就绪，直接调用）
+    applyRestorePreferences();
 
     // ===== 恢复上次修复会话（跨页面持久化） =====
     if (typeof SeedVR2 !== 'undefined' && typeof SeedVR2.restoreRestoreSession === 'function') {
         SeedVR2.restoreRestoreSession();
     }
 
-    // ===== 参数自动保存 =====
-    let _autoSaveTimer = null;
-    function autoSaveParams() {
-        clearTimeout(_autoSaveTimer);
-        _autoSaveTimer = setTimeout(async () => {
-            try {
-                const values = {};
-                // 收集所有参数（包括隐藏域），分类型保存
-                document.querySelectorAll('#paramsSidebar input[name], #paramsSidebar select[name]').forEach(input => {
-                    if (input.type === 'checkbox') {
-                        if (input.disabled) return;
-                        values[input.name] = input.checked;
-                    } else if (input.type === 'number') {
-                        const parsed = parseFloat(input.value);
-                        if (Number.isFinite(parsed)) values[input.name] = parsed;
-                    } else if (input.name) {
-                        values[input.name] = input.value;
-                    }
-                });
-                // 映射前端字段到后端字段
-                const mapped = {};
-                if (values.resolution !== undefined) mapped.default_resolution = values.resolution;
-                if (values.seed !== undefined) mapped.default_seed = values.seed;
-                if (values.blocks_to_swap !== undefined) mapped.blocks_to_swap = values.blocks_to_swap;
-                if (values.dit_model !== undefined) mapped.default_model = values.dit_model;
-                if (values.vae_model !== undefined) mapped.default_vae = values.vae_model;
-                if (values.color_correction !== undefined) mapped.default_color_correction = values.color_correction;
-                if (values.batch_size !== undefined) mapped.default_batch_size = values.batch_size;
-                if (values.encode_tile_size !== undefined) mapped.vae_tile_size = values.encode_tile_size;
-                if (values.max_resolution !== undefined) mapped.default_max_resolution = values.max_resolution;
-                await SeedVR2.saveUserPreferences(mapped);
-            } catch (e) { /* silent */ }
-        }, 800); // 800ms 防抖
+    // ===== 参数变更 → 自动保存（防抖 500ms，采用 merge 增量保存） =====
+    function _bindAutoSaveListeners() {
+        const sidebar = document.getElementById('paramsSidebar');
+        if (!sidebar) return;
+        const handler = () => _queueSaveRestorePrefs(null, null);
+        const inputs = sidebar.querySelectorAll('input, select, textarea');
+        inputs.forEach((el) => {
+            el.addEventListener('input', handler);
+            el.addEventListener('change', handler);
+        });
     }
-    document.querySelectorAll('#paramsSidebar input, #paramsSidebar select').forEach(el => {
-        el.addEventListener('input', autoSaveParams);
-        el.addEventListener('change', autoSaveParams);
-    });
+    _bindAutoSaveListeners();
 
     // 模式切换标签（单文件/批量）+ URL hash 同步（重构：顶部工具条 + sv-mode-tab-pane）
     function switchMode(mode) {

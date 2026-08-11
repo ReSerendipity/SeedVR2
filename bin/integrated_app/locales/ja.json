@@ -522,6 +522,17 @@
     "processing": "処理中",
     "completed": "完了",
     "failed": "失敗",
-    "uploaded": "アップロード済み"
+    "uploaded": "アップロード済み",
+    "lock_hint_lock": "クリックでロック解除して手動調整できます",
+    "lock_hint_unlock": "クリックでシステム推奨値にロックします",
+    "optim_locked": "システム推奨値にロックされています",
+    "optim_unlocked": "最適化グループがロック解除されました。手動で調整できます",
+    "switched_by_vram_rec": "VRAMプリセットに従い手動パラメータに切り替えました",
+    "switched_to_manual": "手動解像度モードに切り替わりました",
+    "manual_res_hint": "解像度を自由に編集できます（自動2×はオフ）",
+    "double_res": "自動2×モード",
+    "double_res_tip": "オン時はアップロード後、解像度とタイルパラメータを短辺×2で自動設定します。手動入力は無視されます",
+    "double_res_hint_default": "画像アップロード後、解像度は短辺×2で自動計算されます（このモードでは手動編集無効）",
+    "double_res_applied": "解像度とタイルパラメータを短辺×2で自動設定しました"
   }
 }

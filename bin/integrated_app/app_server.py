@@ -1,25 +1,25 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2024-2026 ReSerendipity
 # SPDX-License-Identifier: Apache-2.0
 """
-SeedVR2 - 应用服务器入口模块
+SeedVR2 - 搴旂敤鏈嶅姟鍣ㄥ叆鍙ｆā鍧?
 
-所属项目：SeedVR2 (AI-powered video & image super-resolution toolkit)
-核心功能：
-    - FastAPI 应用创建与配置
-    - 应用生命周期管理（启动初始化、优雅关闭）
-    - 核心组件初始化与依赖注入
-    - 中间件注册（CORS、CSRF、错误处理）
-    - 静态文件服务与模板引擎配置
-    - 路由自动发现与注册
-    - 端口冲突自动处理与服务器启动
+鎵€灞為」鐩細SeedVR2 (AI-powered video & image super-resolution toolkit)
+鏍稿績鍔熻兘锛?
+    - FastAPI 搴旂敤鍒涘缓涓庨厤缃?
+    - 搴旂敤鐢熷懡鍛ㄦ湡绠＄悊锛堝惎鍔ㄥ垵濮嬪寲銆佷紭闆呭叧闂級
+    - 鏍稿績缁勪欢鍒濆鍖栦笌渚濊禆娉ㄥ叆
+    - 涓棿浠舵敞鍐岋紙CORS銆丆SRF銆侀敊璇鐞嗭級
+    - 闈欐€佹枃浠舵湇鍔′笌妯℃澘寮曟搸閰嶇疆
+    - 璺敱鑷姩鍙戠幇涓庢敞鍐?
+    - 绔彛鍐茬獊鑷姩澶勭悊涓庢湇鍔″櫒鍚姩
 
-核心技术栈：
-    - FastAPI 0.100+ 作为 Web 框架
-    - Uvicorn 作为 ASGI 服务器
-    - Pydantic 用于配置验证
-    - Jinja2 用于模板渲染
-    - 观察者模式实现模型状态到 SSE 的桥接
+鏍稿績鎶€鏈爤锛?
+    - FastAPI 0.100+ 浣滀负 Web 妗嗘灦
+    - Uvicorn 浣滀负 ASGI 鏈嶅姟鍣?
+    - Pydantic 鐢ㄤ簬閰嶇疆楠岃瘉
+    - Jinja2 鐢ㄤ簬妯℃澘娓叉煋
+    - 瑙傚療鑰呮ā寮忓疄鐜版ā鍨嬬姸鎬佸埌 SSE 鐨勬ˉ鎺?
 """
 
 import asyncio
@@ -53,37 +53,37 @@ logger = logging.getLogger(__name__)
 
 
 def _bridge_model_status_to_sse(event_name: str, payload: dict) -> None:
-    """将 model_registry 状态变更桥接到 SSE 事件总线。
+    """灏?model_registry 鐘舵€佸彉鏇存ˉ鎺ュ埌 SSE 浜嬩欢鎬荤嚎銆?
 
-    作为 model_registry 的观察者监听器，在模型状态变更时通过 event_bus 广播，
-    使 SSE 客户端能实时收到 model_status 事件。
-    使用观察者模式解耦 model_registry 与 event_bus 的直接依赖。
+    浣滀负 model_registry 鐨勮瀵熻€呯洃鍚櫒锛屽湪妯″瀷鐘舵€佸彉鏇存椂閫氳繃 event_bus 骞挎挱锛?
+    浣?SSE 瀹㈡埛绔兘瀹炴椂鏀跺埌 model_status 浜嬩欢銆?
+    浣跨敤瑙傚療鑰呮ā寮忚В鑰?model_registry 涓?event_bus 鐨勭洿鎺ヤ緷璧栥€?
 
     Args:
-        event_name: 事件名称，如 'model_loading'、'model_loaded'、'model_unloaded'。
-        payload: 事件数据字典，包含模型状态详情。
+        event_name: 浜嬩欢鍚嶇О锛屽 'model_loading'銆?model_loaded'銆?model_unloaded'銆?
+        payload: 浜嬩欢鏁版嵁瀛楀吀锛屽寘鍚ā鍨嬬姸鎬佽鎯呫€?
     """
     event_bus.publish(event_name, payload)
 
 
 class VersionedStaticFiles(StaticFiles):
-    """带版本控制的静态文件处理类。
+    """甯︾増鏈帶鍒剁殑闈欐€佹枃浠跺鐞嗙被銆?
 
-    继承自 FastAPI StaticFiles，为不同类型的静态资源设置差异化的 Cache-Control 头：
-    - CSS/JS 文件：不缓存，每次刷新获取最新版本
-    - 字体文件（woff2/woff/ttf/eot/otf）：中期缓存（30天）
-    - 图片资源（png/jpg/jpeg/gif/svg/ico/webp）：短期缓存（1天）
+    缁ф壙鑷?FastAPI StaticFiles锛屼负涓嶅悓绫诲瀷鐨勯潤鎬佽祫婧愯缃樊寮傚寲鐨?Cache-Control 澶达細
+    - CSS/JS 鏂囦欢锛氫笉缂撳瓨锛屾瘡娆″埛鏂拌幏鍙栨渶鏂扮増鏈?
+    - 瀛椾綋鏂囦欢锛坵off2/woff/ttf/eot/otf锛夛細涓湡缂撳瓨锛?0澶╋級
+    - 鍥剧墖璧勬簮锛坧ng/jpg/jpeg/gif/svg/ico/webp锛夛細鐭湡缂撳瓨锛?澶╋級
     """
 
     def file_response(self, *args, **kwargs) -> Response:
-        """重写 file_response 方法，为不同文件类型添加缓存头。
+        """閲嶅啓 file_response 鏂规硶锛屼负涓嶅悓鏂囦欢绫诲瀷娣诲姞缂撳瓨澶淬€?
 
         Args:
-            *args: 位置参数，第一个参数为文件路径。
-            **kwargs: 关键字参数。
+            *args: 浣嶇疆鍙傛暟锛岀涓€涓弬鏁颁负鏂囦欢璺緞銆?
+            **kwargs: 鍏抽敭瀛楀弬鏁般€?
 
         Returns:
-            Response: 添加了 Cache-Control 头的 HTTP 响应。
+            Response: 娣诲姞浜?Cache-Control 澶寸殑 HTTP 鍝嶅簲銆?
         """
         response = super().file_response(*args, **kwargs)
         if args:
@@ -100,36 +100,36 @@ class VersionedStaticFiles(StaticFiles):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """FastAPI 应用生命周期管理上下文管理器。
+    """FastAPI 搴旂敤鐢熷懡鍛ㄦ湡绠＄悊涓婁笅鏂囩鐞嗗櫒銆?
 
-    处理应用启动和关闭时的资源初始化与清理：
+    澶勭悊搴旂敤鍚姩鍜屽叧闂椂鐨勮祫婧愬垵濮嬪寲涓庢竻鐞嗭細
 
-    启动阶段（yield 前）：
-        1. 初始化历史记录数据库
-        2. 启动异步任务队列
-        3. 注册模型状态到 SSE 的桥接监听器
-        4. 恢复数据库中未完成的任务
-        5. 启动缓存定期清理任务
-        6. 检测 GPU 后端与兼容性
-        7. 可选自动加载模型（GPU 可用且配置启用时）
-        8. 可选自动打开浏览器访问应用
+    鍚姩闃舵锛坹ield 鍓嶏級锛?
+        1. 鍒濆鍖栧巻鍙茶褰曟暟鎹簱
+        2. 鍚姩寮傛浠诲姟闃熷垪
+        3. 娉ㄥ唽妯″瀷鐘舵€佸埌 SSE 鐨勬ˉ鎺ョ洃鍚櫒
+        4. 鎭㈠鏁版嵁搴撲腑鏈畬鎴愮殑浠诲姟
+        5. 鍚姩缂撳瓨瀹氭湡娓呯悊浠诲姟
+        6. 妫€娴?GPU 鍚庣涓庡吋瀹规€?
+        7. 鍙€夎嚜鍔ㄥ姞杞芥ā鍨嬶紙GPU 鍙敤涓旈厤缃惎鐢ㄦ椂锛?
+        8. 鍙€夎嚜鍔ㄦ墦寮€娴忚鍣ㄨ闂簲鐢?
 
-    关闭阶段（yield 后）：
-        1. 移除模型状态监听器
-        2. 停止缓存清理任务
-        3. 优雅停止任务队列（最多等待30秒）
-        4. 卸载模型释放 GPU 显存
-        5. 关闭数据库连接
+    鍏抽棴闃舵锛坹ield 鍚庯級锛?
+        1. 绉婚櫎妯″瀷鐘舵€佺洃鍚櫒
+        2. 鍋滄缂撳瓨娓呯悊浠诲姟
+        3. 浼橀泤鍋滄浠诲姟闃熷垪锛堟渶澶氱瓑寰?0绉掞級
+        4. 鍗歌浇妯″瀷閲婃斁 GPU 鏄惧瓨
+        5. 鍏抽棴鏁版嵁搴撹繛鎺?
 
     Args:
-        app: FastAPI 应用实例，通过 app.state 访问已初始化的组件。
+        app: FastAPI 搴旂敤瀹炰緥锛岄€氳繃 app.state 璁块棶宸插垵濮嬪寲鐨勭粍浠躲€?
 
     Yields:
-        None:  yield 点分隔启动和关闭阶段，应用在此期间运行。
+        None:  yield 鐐瑰垎闅斿惎鍔ㄥ拰鍏抽棴闃舵锛屽簲鐢ㄥ湪姝ゆ湡闂磋繍琛屻€?
     """
     config = app.state.config
 
-    # 核心模块完整性自检 (CWE-912 防御)
+    # 鏍稿績妯″潡瀹屾暣鎬ц嚜妫€ (CWE-912 闃插尽)
     try:
         from bin.integrated_app.security.integrity_selfcheck import run_startup_selfcheck
 
@@ -137,43 +137,43 @@ async def lifespan(app: FastAPI):
         if selfcheck["failed"] > 0:
             logger.error(
                 "=" * 60 + "\n"
-                "[SECURITY] ⚠️  启动时核心模块完整性自检失败！\n"
-                f"    失败文件: {', '.join(selfcheck['failed_files'])}\n"
-                "    请检查代码是否被篡改或重新生成清单。\n" + "=" * 60
+                "[SECURITY] 鈿狅笍  鍚姩鏃舵牳蹇冩ā鍧楀畬鏁存€ц嚜妫€澶辫触锛乗n"
+                f"    澶辫触鏂囦欢: {', '.join(selfcheck['failed_files'])}\n"
+                "    璇锋鏌ヤ唬鐮佹槸鍚﹁绡℃敼鎴栭噸鏂扮敓鎴愭竻鍗曘€俓n" + "=" * 60
             )
     except Exception as e:
-        logger.debug(f"核心模块完整性自检跳过: {e}")
+        logger.debug(f"鏍稿績妯″潡瀹屾暣鎬ц嚜妫€璺宠繃: {e}")
 
     history_db: HistoryDB = app.state.history_db
     await history_db.initialize()
-    logger.info("历史数据库已初始化")
+    logger.info("鍘嗗彶鏁版嵁搴撳凡鍒濆鍖?)
 
     task_queue: TaskQueue = app.state.task_queue
     await task_queue.start()
-    logger.info("任务队列已启动")
+    logger.info("浠诲姟闃熷垪宸插惎鍔?)
 
     model_registry.add_listener(_bridge_model_status_to_sse)
-    logger.info("已注册模型状态 SSE 桥接监听器")
+    logger.info("宸叉敞鍐屾ā鍨嬬姸鎬?SSE 妗ユ帴鐩戝惉鍣?)
 
     try:
         from bin.integrated_app.routes.restore import unified as unified_routes
 
-        # 先清理卡死的 processing 任务，再恢复可恢复的任务
+        # 鍏堟竻鐞嗗崱姝荤殑 processing 浠诲姟锛屽啀鎭㈠鍙仮澶嶇殑浠诲姟
         cleaned_count = await unified_routes.cleanup_stale_tasks(history_db)
         if cleaned_count:
-            logger.info(f"已清理 {cleaned_count} 个卡死的 processing 任务")
+            logger.info(f"宸叉竻鐞?{cleaned_count} 涓崱姝荤殑 processing 浠诲姟")
 
         auto_recover = config.get("runtime", {}).get("task", {}).get("auto_recover", False)
         if auto_recover:
             recovered_count = await unified_routes.recover_tasks(history_db, task_queue, config)
             if recovered_count:
-                logger.info(f"已从数据库恢复 {recovered_count} 个未完成任务")
+                logger.info(f"宸蹭粠鏁版嵁搴撴仮澶?{recovered_count} 涓湭瀹屾垚浠诲姟")
         else:
-            logger.info("启动任务自动恢复已关闭 (runtime.task.auto_recover=false)")
+            logger.info("鍚姩浠诲姟鑷姩鎭㈠宸插叧闂?(runtime.task.auto_recover=false)")
     except Exception as e:
-        logger.warning(f"恢复未完成任务失败: {e}")
+        logger.warning(f"鎭㈠鏈畬鎴愪换鍔″け璐? {e}")
 
-    # 初始化断点续跑管理器并扫描待恢复的 checkpoint
+    # 鍒濆鍖栨柇鐐圭画璺戠鐞嗗櫒骞舵壂鎻忓緟鎭㈠鐨?checkpoint
     try:
         from bin.integrated_app.checkpoint import TaskCheckpoint
 
@@ -183,52 +183,52 @@ async def lifespan(app: FastAPI):
         checkpoint_mgr = TaskCheckpoint(os.path.join(project_root_for_ckpt, ckpt_dir))
         pending_checkpoints = checkpoint_mgr.list_checkpoints()
         if pending_checkpoints:
-            logger.info(f"发现 {len(pending_checkpoints)} 个待恢复的批量任务 checkpoint")
+            logger.info(f"鍙戠幇 {len(pending_checkpoints)} 涓緟鎭㈠鐨勬壒閲忎换鍔?checkpoint")
         app.state.checkpoint_mgr = checkpoint_mgr
     except Exception as e:
-        logger.warning(f"初始化断点续跑管理器失败: {e}")
+        logger.warning(f"鍒濆鍖栨柇鐐圭画璺戠鐞嗗櫒澶辫触: {e}")
         app.state.checkpoint_mgr = None
 
     file_cache: FileCache = app.state.file_cache
     file_cache.start_cleanup_task(interval=3600)
 
-    # 启动定期清理卡死任务的后台任务（每5分钟检查一次）
+    # 鍚姩瀹氭湡娓呯悊鍗℃浠诲姟鐨勫悗鍙颁换鍔★紙姣?鍒嗛挓妫€鏌ヤ竴娆★級
     async def _periodic_stale_cleanup():
         while True:
             try:
-                await asyncio.sleep(300)  # 每5分钟
+                await asyncio.sleep(300)  # 姣?鍒嗛挓
                 cleaned = await unified_routes.cleanup_stale_tasks(history_db)
                 if cleaned:
-                    logger.info(f"定期清理：已清理 {cleaned} 个卡死的 processing 任务")
+                    logger.info(f"瀹氭湡娓呯悊锛氬凡娓呯悊 {cleaned} 涓崱姝荤殑 processing 浠诲姟")
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.warning(f"定期清理卡死任务失败: {e}")
+                logger.warning(f"瀹氭湡娓呯悊鍗℃浠诲姟澶辫触: {e}")
 
     stale_cleanup_task = asyncio.create_task(_periodic_stale_cleanup())
     app.state.stale_cleanup_task = stale_cleanup_task
 
     backend_value = gpu_manager.backend.value if gpu_manager.backend else "unavailable"
-    logger.info(f"GPU 后端: {backend_value}, 设备: {gpu_manager.device_name}")
+    logger.info(f"GPU 鍚庣: {backend_value}, 璁惧: {gpu_manager.device_name}")
 
     if gpu_manager.is_gpu_available and config.get("model", {}).get("auto_load", True):
         try:
             model_manager: ModelManager = app.state.model_manager
             await model_manager.load_model()
-            logger.info("模型自动加载完成")
+            logger.info("妯″瀷鑷姩鍔犺浇瀹屾垚")
         except Exception as e:
-            logger.warning(f"自动加载模型失败: {e}")
+            logger.warning(f"鑷姩鍔犺浇妯″瀷澶辫触: {e}")
     elif not gpu_manager.is_gpu_available:
-        logger.warning("未检测到 NVIDIA GPU，跳过模型自动加载（降级模式）")
+        logger.warning("鏈娴嬪埌 NVIDIA GPU锛岃烦杩囨ā鍨嬭嚜鍔ㄥ姞杞斤紙闄嶇骇妯″紡锛?)
 
     host = config.get("server", {}).get("host", "127.0.0.1")
     port = config.get("server", {}).get("port", 7870)
     if config.get("server", {}).get("auto_open_browser", True):
         url = f"http://{host}:{port}"
         asyncio.get_running_loop().call_later(1.5, lambda: webbrowser.open(url))
-        logger.info(f"将在浏览器中打开: {url}")
+        logger.info(f"灏嗗湪娴忚鍣ㄤ腑鎵撳紑: {url}")
 
-    logger.info(f"SeedVR2已启动: http://{host}:{port}")
+    logger.info(f"SeedVR2宸插惎鍔? http://{host}:{port}")
 
     yield
 
@@ -236,7 +236,7 @@ async def lifespan(app: FastAPI):
 
     file_cache.stop_cleanup_task()
 
-    # 停止定期清理卡死任务的后台任务
+    # 鍋滄瀹氭湡娓呯悊鍗℃浠诲姟鐨勫悗鍙颁换鍔?
     stale_cleanup = getattr(app.state, "stale_cleanup_task", None)
     if stale_cleanup:
         stale_cleanup.cancel()
@@ -246,9 +246,9 @@ async def lifespan(app: FastAPI):
     task_queue = app.state.task_queue
     try:
         await asyncio.wait_for(task_queue.stop(), timeout=30.0)
-        logger.info("任务队列已优雅停止")
+        logger.info("浠诲姟闃熷垪宸蹭紭闆呭仠姝?)
     except TimeoutError:
-        logger.warning("任务队列停止超时（30s），强制退出")
+        logger.warning("浠诲姟闃熷垪鍋滄瓒呮椂锛?0s锛夛紝寮哄埗閫€鍑?)
 
     model_manager = app.state.model_manager
     await model_manager.unload_model()
@@ -256,35 +256,35 @@ async def lifespan(app: FastAPI):
     history_db = app.state.history_db
     await history_db.close()
 
-    logger.info("SeedVR2已关闭")
+    logger.info("SeedVR2宸插叧闂?)
 
 
 def create_app(config: dict | None = None) -> FastAPI:
-    """创建并配置 FastAPI 应用实例。
+    """鍒涘缓骞堕厤缃?FastAPI 搴旂敤瀹炰緥銆?
 
-    完整的应用构建流程：
-    1. 加载配置（未提供时从 config.yaml 加载）
-    2. 创建 FastAPI 实例，配置标题、描述、版本和生命周期
-    3. 注册中间件（CORS、CSRF、全局错误处理）
-    4. 初始化所有核心组件并挂载到 app.state：
-       - config: 应用配置字典
-       - model_manager: 模型加载/卸载/切换管理器
-       - gpu_backend: GPU 后端管理器
-       - history_db: SQLite 历史记录数据库
-       - task_queue: 单 worker 异步任务队列
-       - event_bus: SSE 事件总线
-       - i18n: 国际化支持
-       - file_cache: 上传文件缓存
-       - jinja_env: Jinja2 模板环境
-    5. 挂载版本化静态文件目录
-    6. 自动发现并注册所有 API 路由和页面路由
-    7. 可选初始化多引擎调度器和专用引擎
+    瀹屾暣鐨勫簲鐢ㄦ瀯寤烘祦绋嬶細
+    1. 鍔犺浇閰嶇疆锛堟湭鎻愪緵鏃朵粠 config.yaml 鍔犺浇锛?
+    2. 鍒涘缓 FastAPI 瀹炰緥锛岄厤缃爣棰樸€佹弿杩般€佺増鏈拰鐢熷懡鍛ㄦ湡
+    3. 娉ㄥ唽涓棿浠讹紙CORS銆丆SRF銆佸叏灞€閿欒澶勭悊锛?
+    4. 鍒濆鍖栨墍鏈夋牳蹇冪粍浠跺苟鎸傝浇鍒?app.state锛?
+       - config: 搴旂敤閰嶇疆瀛楀吀
+       - model_manager: 妯″瀷鍔犺浇/鍗歌浇/鍒囨崲绠＄悊鍣?
+       - gpu_backend: GPU 鍚庣绠＄悊鍣?
+       - history_db: SQLite 鍘嗗彶璁板綍鏁版嵁搴?
+       - task_queue: 鍗?worker 寮傛浠诲姟闃熷垪
+       - event_bus: SSE 浜嬩欢鎬荤嚎
+       - i18n: 鍥介檯鍖栨敮鎸?
+       - file_cache: 涓婁紶鏂囦欢缂撳瓨
+       - jinja_env: Jinja2 妯℃澘鐜
+    5. 鎸傝浇鐗堟湰鍖栭潤鎬佹枃浠剁洰褰?
+    6. 鑷姩鍙戠幇骞舵敞鍐屾墍鏈?API 璺敱鍜岄〉闈㈣矾鐢?
+    7. 鍙€夊垵濮嬪寲澶氬紩鎿庤皟搴﹀櫒鍜屼笓鐢ㄥ紩鎿?
 
     Args:
-        config: 应用配置字典，为 None 时自动从 config.yaml 加载。
+        config: 搴旂敤閰嶇疆瀛楀吀锛屼负 None 鏃惰嚜鍔ㄤ粠 config.yaml 鍔犺浇銆?
 
     Returns:
-        FastAPI: 配置完成的 FastAPI 应用实例，可直接传入 uvicorn.run()。
+        FastAPI: 閰嶇疆瀹屾垚鐨?FastAPI 搴旂敤瀹炰緥锛屽彲鐩存帴浼犲叆 uvicorn.run()銆?
     """
     if config is None:
         config = load_config()
@@ -310,7 +310,7 @@ def create_app(config: dict | None = None) -> FastAPI:
 
     app.add_middleware(CSRFMiddleware)
 
-    # Basic Auth 中间件 (公网部署保护, CWE-306 防御)
+    # Basic Auth 涓棿浠?(鍏綉閮ㄧ讲淇濇姢, CWE-306 闃插尽)
     from bin.integrated_app.middleware.basic_auth import should_enable_auth
 
     if should_enable_auth(config):
@@ -325,7 +325,7 @@ def create_app(config: dict | None = None) -> FastAPI:
             password=_os.environ.get("SEEDVR2_AUTH_PASSWORD", auth_cfg.get("password", "")),
             realm=auth_cfg.get("realm", "SeedVR2"),
         )
-        logger.info("Basic Auth 中间件已注册")
+        logger.info("Basic Auth 涓棿浠跺凡娉ㄥ唽")
 
     from bin.integrated_app.middleware.error_handler import register_error_handlers
 
@@ -367,7 +367,7 @@ def create_app(config: dict | None = None) -> FastAPI:
         )
         app.state.jinja_env = env
     else:
-        logger.warning(f"模板目录不存在: {templates_dir}")
+        logger.warning(f"妯℃澘鐩綍涓嶅瓨鍦? {templates_dir}")
         os.makedirs(templates_dir, exist_ok=True)
         app.state.jinja_env = jinja2.Environment(
             loader=jinja2.FileSystemLoader(templates_dir),
@@ -396,10 +396,10 @@ def create_app(config: dict | None = None) -> FastAPI:
 
         @engine_router.get("/list")
         async def list_engines():
-            """列出所有已注册的推理引擎。
+            """鍒楀嚭鎵€鏈夊凡娉ㄥ唽鐨勬帹鐞嗗紩鎿庛€?
 
             Returns:
-                dict: 统一响应格式，包含所有引擎名称列表和当前可用引擎列表。
+                dict: 缁熶竴鍝嶅簲鏍煎紡锛屽寘鍚墍鏈夊紩鎿庡悕绉板垪琛ㄥ拰褰撳墠鍙敤寮曟搸鍒楄〃銆?
             """
             from bin.integrated_app.optimization.engine.engine_scheduler import EngineRegistry
 
@@ -415,13 +415,13 @@ def create_app(config: dict | None = None) -> FastAPI:
 
         @engine_router.get("/detect")
         async def detect_engines():
-            """检测所有推理引擎的可用性状态。
+            """妫€娴嬫墍鏈夋帹鐞嗗紩鎿庣殑鍙敤鎬х姸鎬併€?
 
             Returns:
-                dict: 统一响应格式，包含各引擎名称到可用性状态的映射。
+                dict: 缁熶竴鍝嶅簲鏍煎紡锛屽寘鍚悇寮曟搸鍚嶇О鍒板彲鐢ㄦ€х姸鎬佺殑鏄犲皠銆?
 
             Raises:
-                Exception: 检测过程出错时返回错误信息。
+                Exception: 妫€娴嬭繃绋嬪嚭閿欐椂杩斿洖閿欒淇℃伅銆?
             """
             try:
                 status = _engine_scheduler.detect_available_engines()
@@ -435,18 +435,18 @@ def create_app(config: dict | None = None) -> FastAPI:
             input_path: str = "",
             output_path: str = "",
         ):
-            """向指定引擎提交推理任务。
+            """鍚戞寚瀹氬紩鎿庢彁浜ゆ帹鐞嗕换鍔°€?
 
             Args:
-                engine_name: 引擎名称，为 None 时自动选择。
-                input_path: 输入文件路径。
-                output_path: 输出文件路径。
+                engine_name: 寮曟搸鍚嶇О锛屼负 None 鏃惰嚜鍔ㄩ€夋嫨銆?
+                input_path: 杈撳叆鏂囦欢璺緞銆?
+                output_path: 杈撳嚭鏂囦欢璺緞銆?
 
             Returns:
-                dict: 统一响应格式，成功时包含 task_id，失败时包含错误信息。
+                dict: 缁熶竴鍝嶅簲鏍煎紡锛屾垚鍔熸椂鍖呭惈 task_id锛屽け璐ユ椂鍖呭惈閿欒淇℃伅銆?
 
             Raises:
-                Exception: 任务提交失败时返回错误信息。
+                Exception: 浠诲姟鎻愪氦澶辫触鏃惰繑鍥為敊璇俊鎭€?
             """
             try:
                 task_id = _engine_scheduler.submit(
@@ -460,13 +460,13 @@ def create_app(config: dict | None = None) -> FastAPI:
 
         @engine_router.get("/task/{task_id}")
         async def get_task_status(task_id: str):
-            """查询任务状态和结果。
+            """鏌ヨ浠诲姟鐘舵€佸拰缁撴灉銆?
 
             Args:
-                task_id: 任务唯一标识符。
+                task_id: 浠诲姟鍞竴鏍囪瘑绗︺€?
 
             Returns:
-                dict: 统一响应格式，包含任务状态和结果数据（如已完成）。
+                dict: 缁熶竴鍝嶅簲鏍煎紡锛屽寘鍚换鍔＄姸鎬佸拰缁撴灉鏁版嵁锛堝宸插畬鎴愶級銆?
             """
             status = _engine_scheduler.get_task_status(task_id)
             result = _engine_scheduler.get_result(task_id)
@@ -497,21 +497,21 @@ def create_app(config: dict | None = None) -> FastAPI:
 
 
 def _kill_port_process(port: int) -> bool:
-    """尝试终止占用指定端口的进程（Windows 平台专用）。
+    """灏濊瘯缁堟鍗犵敤鎸囧畾绔彛鐨勮繘绋嬶紙Windows 骞冲彴涓撶敤锛夈€?
 
-    使用 netstat 命令查找 LISTENING 状态占用指定端口的进程 PID，
-    然后使用 taskkill /F 强制终止该进程。
+    浣跨敤 netstat 鍛戒护鏌ユ壘 LISTENING 鐘舵€佸崰鐢ㄦ寚瀹氱鍙ｇ殑杩涚▼ PID锛?
+    鐒跺悗浣跨敤 taskkill /F 寮哄埗缁堟璇ヨ繘绋嬨€?
 
     Args:
-        port: 要释放的端口号，如 7870。
+        port: 瑕侀噴鏀剧殑绔彛鍙凤紝濡?7870銆?
 
     Returns:
-        bool: 成功找到并终止进程返回 True，未找到或终止失败返回 False。
+        bool: 鎴愬姛鎵惧埌骞剁粓姝㈣繘绋嬭繑鍥?True锛屾湭鎵惧埌鎴栫粓姝㈠け璐ヨ繑鍥?False銆?
 
     Note:
-        - 仅在 Windows 平台有效，依赖 netstat 和 taskkill 系统命令
-        - 终止后等待1秒让端口释放
-        - 此函数仅在端口被占用且需要自动释放时调用
+        - 浠呭湪 Windows 骞冲彴鏈夋晥锛屼緷璧?netstat 鍜?taskkill 绯荤粺鍛戒护
+        - 缁堟鍚庣瓑寰?绉掕绔彛閲婃斁
+        - 姝ゅ嚱鏁颁粎鍦ㄧ鍙ｈ鍗犵敤涓旈渶瑕佽嚜鍔ㄩ噴鏀炬椂璋冪敤
     """
     import subprocess
 
@@ -526,35 +526,35 @@ def _kill_port_process(port: int) -> bool:
             if f":{port}" in line and "LISTENING" in line:
                 parts = line.strip().split()
                 pid = int(parts[-1])
-                logger.warning(f"端口 {port} 被进程 PID={pid} 占用，尝试终止...")
+                logger.warning(f"绔彛 {port} 琚繘绋?PID={pid} 鍗犵敤锛屽皾璇曠粓姝?..")
                 subprocess.run(["taskkill", "/PID", str(pid), "/F"], capture_output=True, timeout=5)
                 import time
 
                 time.sleep(1)
                 return True
     except Exception as e:
-        logger.warning(f"终止端口占用进程失败: {e}")
+        logger.warning(f"缁堟绔彛鍗犵敤杩涚▼澶辫触: {e}")
     return False
 
 
 def main() -> None:
-    """启动 SeedVR2 FastAPI 应用服务器。
+    """鍚姩 SeedVR2 FastAPI 搴旂敤鏈嶅姟鍣ㄣ€?
 
-    完整启动流程：
-    1. 加载配置文件
-    2. 创建 FastAPI 应用实例
-    3. 配置日志级别和格式
-    4. 尝试启动 Uvicorn 服务器
-    5. 如果端口被占用（OSError 10048），自动尝试终止占用进程后重试
+    瀹屾暣鍚姩娴佺▼锛?
+    1. 鍔犺浇閰嶇疆鏂囦欢
+    2. 鍒涘缓 FastAPI 搴旂敤瀹炰緥
+    3. 閰嶇疆鏃ュ織绾у埆鍜屾牸寮?
+    4. 灏濊瘯鍚姩 Uvicorn 鏈嶅姟鍣?
+    5. 濡傛灉绔彛琚崰鐢紙OSError 10048锛夛紝鑷姩灏濊瘯缁堟鍗犵敤杩涚▼鍚庨噸璇?
 
-    服务器配置：
-    - 默认监听地址：127.0.0.1
-    - 默认端口：7870
-    - debug 模式下启用热重载（从配置读取）
+    鏈嶅姟鍣ㄩ厤缃細
+    - 榛樿鐩戝惉鍦板潃锛?27.0.0.1
+    - 榛樿绔彛锛?870
+    - debug 妯″紡涓嬪惎鐢ㄧ儹閲嶈浇锛堜粠閰嶇疆璇诲彇锛?
 
     Raises:
-        OSError: 端口被占用且自动释放失败时重新抛出异常。
-        SystemExit: Uvicorn 运行出错时可能触发。
+        OSError: 绔彛琚崰鐢ㄤ笖鑷姩閲婃斁澶辫触鏃堕噸鏂版姏鍑哄紓甯搞€?
+        SystemExit: Uvicorn 杩愯鍑洪敊鏃跺彲鑳借Е鍙戙€?
     """
     import uvicorn
 
@@ -571,7 +571,7 @@ def main() -> None:
     port = config.get("server", {}).get("port", 7870)
     debug = config.get("server", {}).get("debug", False)
 
-    logger.info(f"SeedVR2启动中... http://{host}:{port}")
+    logger.info(f"SeedVR2鍚姩涓?.. http://{host}:{port}")
     try:
         uvicorn.run(
             app,
@@ -582,9 +582,9 @@ def main() -> None:
         )
     except OSError as e:
         if "10048" in str(e) or "already in use" in str(e).lower():
-            logger.warning(f"端口 {port} 已被占用，尝试自动终止占用进程...")
+            logger.warning(f"绔彛 {port} 宸茶鍗犵敤锛屽皾璇曡嚜鍔ㄧ粓姝㈠崰鐢ㄨ繘绋?..")
             if _kill_port_process(port):
-                logger.info(f"端口 {port} 已释放，重新启动服务器...")
+                logger.info(f"绔彛 {port} 宸查噴鏀撅紝閲嶆柊鍚姩鏈嶅姟鍣?..")
                 uvicorn.run(
                     app,
                     host=host,
@@ -593,7 +593,7 @@ def main() -> None:
                     reload=debug,
                 )
             else:
-                logger.error(f"无法释放端口 {port}，请手动终止占用进程后重试")
+                logger.error(f"鏃犳硶閲婃斁绔彛 {port}锛岃鎵嬪姩缁堟鍗犵敤杩涚▼鍚庨噸璇?)
                 raise
         else:
             raise

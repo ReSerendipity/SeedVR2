@@ -1464,6 +1464,7 @@ const SeedVR2 = (() => {
             this.dragAbort = null;
             this.snapThreshold = 0.03; // 50% 吸附阈值
             this.rafId = null;
+            this._alignCleanup = null; // resize/observer 清理句柄
 
             this._initState();
             this._bindDrag();
@@ -1696,22 +1697,93 @@ const SeedVR2 = (() => {
             this._updateSliderUI(this.position);
         }
 
-        // ── 图片加载状态 ──
+        // ── 图片加载状态 & 对齐计算 ──
 
         _bindImageLoad() {
             const beforeImg = document.getElementById('compareBefore');
             const afterImg = document.getElementById('compareAfterImg');
+            // 每次初始化先回退到文档流模式，保证图片可见（防止上次is-aligned残留导致容器塌陷）
+            this.container.classList.remove('is-aligned');
+            this.container.style.aspectRatio = '';
+            this.container.style.width = '';
+            this.container.style.height = '';
+            this.container.style.minHeight = '';
+
+            this._tryAlign = () => {
+                const bOK = beforeImg && beforeImg.complete && beforeImg.naturalWidth > 0;
+                const aOK = afterImg && afterImg.complete && afterImg.naturalWidth > 0;
+                // 必须两张图都加载完成后才计算精确对齐尺寸
+                if (!bOK || !aOK) return;
+
+                // ── 1. 确定宽高比（优先以原图作为锚点） ──
+                const ref = beforeImg;
+                const ratio = ref.naturalWidth / ref.naturalHeight;
+                if (!ratio || !isFinite(ratio)) return;
+
+                // ── 2. 取父级 viewport 的真实像素尺寸作为最大可用区域（避免 parseFloat("100%") === 100 的坑） ──
+                const vp = this.viewport; // compareViewport，flex:1 已自动扣除顶部工具栏高度
+                const vpRect = vp.getBoundingClientRect();
+                // 预留 8px 安全边距，避免 1px 溢出
+                const maxW = Math.max(200, vpRect.width - 8);
+                const maxH = Math.max(200, vpRect.height - 8);
+
+                // ── 3. 计算受约束下的最终容器尺寸（宽度优先，超限则按高度反推） ──
+                let w = maxW;
+                let h = w / ratio;
+                if (h > maxH) {
+                    h = maxH;
+                    w = h * ratio;
+                }
+
+                // ── 4. 应用容器尺寸，并切换到两张图共享坐标系的 absolute 对齐模式 ──
+                this.container.style.aspectRatio = `${ratio}`;
+                this.container.style.width = `${w}px`;
+                this.container.classList.add('is-aligned');
+
+                // ── 5. 刷新滑块位置，确保分割线与新尺寸同步 ──
+                requestAnimationFrame(() => this._updateSliderUI(this.position));
+            };
+
+            // 首次：图片加载时触发
             [beforeImg, afterImg].forEach((img) => {
                 if (!img) return;
-                img.addEventListener('load', () => {
-                    this.container.style.minHeight = '';
-                });
+                const onReady = () => this._tryAlign && this._tryAlign();
+                if (img.complete && img.naturalWidth > 0) {
+                    onReady();
+                } else {
+                    img.addEventListener('load', onReady);
+                    img.addEventListener('error', onReady);
+                }
             });
+
+            // 响应式：窗口尺寸 / 侧边栏折叠 导致 viewport 尺寸变化时重新计算
+            if (!this._alignCleanup) {
+                let raf = 0;
+                const onResize = () => {
+                    cancelAnimationFrame(raf);
+                    raf = requestAnimationFrame(() => this._tryAlign && this._tryAlign());
+                };
+                window.addEventListener('resize', onResize);
+                let ro = null;
+                if (typeof ResizeObserver !== 'undefined') {
+                    ro = new ResizeObserver(onResize);
+                    ro.observe(this.viewport);
+                }
+                this._alignCleanup = () => {
+                    cancelAnimationFrame(raf);
+                    window.removeEventListener('resize', onResize);
+                    if (ro) ro.disconnect();
+                };
+            }
         }
 
         destroy() {
             if (this.dragAbort) this.dragAbort.abort();
             if (this.rafId) cancelAnimationFrame(this.rafId);
+            if (this._alignCleanup) {
+                this._alignCleanup();
+                this._alignCleanup = null;
+            }
         }
     }
 
@@ -2862,6 +2934,49 @@ const SeedVR2 = (() => {
         }
     }
 
+    /**
+     * @function loadRestorePrefs
+     * @description 加载修复页最后一次保存的表单值 + 解锁状态快照
+     * @returns {Promise<{values: Object, unlock_state: Object}|null>}
+     */
+    async function loadRestorePrefs() {
+        try {
+            const data = await api.get('/api/ui/restore-preferences');
+            if (data.success && data.data) {
+                return {
+                    values: data.data.values || {},
+                    unlock_state: data.data.unlock_state || {},
+                };
+            }
+        } catch (e) {
+            console.debug('Load restore preferences failed:', e);
+        }
+        return null;
+    }
+
+    /**
+     * @function saveRestorePrefs
+     * @description 增量保存修复页表单值和/或解锁状态（浅 merge，不会清空其他字段）
+     * @param {Object} [payload]
+     * @param {Object} [payload.values]  {form_name: value} 只传变更字段即可
+     * @param {Object} [payload.unlock_state]  {form_name: true/false}
+     * @returns {Promise<{values: Object, unlock_state: Object}|null>} 保存后完整快照；失败返回 null
+     */
+    async function saveRestorePrefs(payload) {
+        try {
+            const data = await api.post('/api/ui/restore-preferences', payload || {});
+            if (data.success && data.data) {
+                return {
+                    values: data.data.values || {},
+                    unlock_state: data.data.unlock_state || {},
+                };
+            }
+        } catch (e) {
+            console.error('Save restore preferences failed:', e);
+        }
+        return null;
+    }
+
     // ===== 卡片显示/隐藏动画 =====
     /**
      * @function showCard
@@ -3003,6 +3118,10 @@ const SeedVR2 = (() => {
         loadUserPreferences,
         /** @type {Function} 保存用户偏好 */
         saveUserPreferences,
+        /** @type {Function} 加载修复页表单值+解锁状态快照 */
+        loadRestorePrefs,
+        /** @type {Function} 增量保存修复页表单值+解锁状态 */
+        saveRestorePrefs,
         /** @type {Function} 设置按钮加载状态 */
         setButtonLoading,
         /** @type {Function} 保存修复会话到 localStorage */
