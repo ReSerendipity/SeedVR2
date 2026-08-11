@@ -23,6 +23,7 @@ API 端点：
 import logging
 
 from fastapi import APIRouter
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -354,3 +355,58 @@ async def get_layout():
         )
 
     return {"success": True, "data": {"groups": groups}}
+
+
+class RestorePrefsRequest(BaseModel):
+    """修复页偏好增量保存请求体。
+
+    两个字段都可选、都采用"浅 merge + 覆盖"语义，前端只传变更了的字段即可。
+    """
+
+    values: dict | None = None
+    unlock_state: dict | None = None
+
+
+@router.get("/restore-preferences")
+async def load_restore_preferences():
+    """加载修复页最后一次保存的参数值 + 解锁状态快照。
+
+    API 端点：GET /api/ui/restore-preferences
+
+    返回（JSON，统一包装）：
+        success: true
+        data: {
+            values: {<form_name>: <value>, ...}
+            unlock_state: {<form_name>: true/false, ...}
+        }
+    """
+    persistence = _get_persistence()
+    values, unlocks = persistence.get_restore_form_values()
+    return {"success": True, "data": {"values": values, "unlock_state": unlocks}}
+
+
+@router.post("/restore-preferences")
+async def patch_restore_preferences(req: RestorePrefsRequest):
+    """增量保存修复页偏好（merge 更新，不会清空其它字段）。
+
+    API 端点：POST /api/ui/restore-preferences
+    请求体：
+        {
+            "values": {<form_name>: <value>, ...} | null,
+            "unlock_state": {<form_name>: true/false, ...} | null,
+        }
+        任一字段 null 表示"本次不更新"，对应 dict 缺失的 key 也不会被删除。
+
+    返回：保存后当前完整快照（data.values + data.unlock_state）。
+    失败时返回 success=false，data=null，error.message 带提示。
+    """
+    persistence = _get_persistence()
+    try:
+        values, unlocks = persistence.patch_restore_form_values(
+            values=req.values,
+            unlock_state=req.unlock_state,
+        )
+        return {"success": True, "data": {"values": values, "unlock_state": unlocks}}
+    except Exception as e:  # noqa: BLE001
+        logger.exception("保存修复页偏好异常")
+        return {"success": False, "data": None, "error": {"message": f"保存失败: {e}"}}

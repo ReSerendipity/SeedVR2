@@ -88,6 +88,7 @@
     /* Tooltip 专用背景 */
     --sv-tooltip-bg: rgba(42, 38, 34, 0.96);
     --sv-tooltip-border: rgba(234, 230, 225, 0.15);
+    --sv-tooltip-color: #ffffff;
 
     /* 阴影 - 暗色主题减轻，依赖边框区分层级 */
     --sv-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.12), 0 1px 1px rgba(0, 0, 0, 0.08);
@@ -218,6 +219,7 @@
     /* Tooltip 专用背景 */
     --sv-tooltip-bg: rgba(44, 36, 32, 0.94);
     --sv-tooltip-border: rgba(234, 230, 225, 0.12);
+    --sv-tooltip-color: #ffffff;
 
     --sv-text-primary: #2c2420;
     --sv-text-secondary: #4a3f38;
@@ -2081,11 +2083,26 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
     vertical-align: top;
 }
 
-.sv-compare-container img {
+.sv-compare-container > img {
     display: block;
+    /* 默认文档流撑开容器，确保图片加载前/加载过程中始终可见；JS 加载完成后会转为 absolute 与修复后图对齐 */
     width: 100%;
     height: auto;
     pointer-events: none;
+    object-fit: contain;
+    object-position: left top;
+}
+
+/* 加载完成对齐模式：两张图都 absolute，共享相同坐标系 */
+.sv-compare-container.is-aligned > img,
+.sv-compare-container.is-aligned .sv-compare-after img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: left top;
 }
 
 .sv-compare-after {
@@ -2103,7 +2120,8 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
     left: 0;
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
+    object-position: left top;
 }
 
 /* 分割线：纤细柔和，带纵向渐变与苔绿柔光 */
@@ -4562,7 +4580,7 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
     background: var(--sv-tooltip-bg);
     border: 1px solid var(--sv-tooltip-border);
     border-radius: var(--sv-radius-sm);
-    color: var(--sv-text-primary);
+    color: var(--sv-tooltip-color, #ffffff);
     font-size: 0.78rem;
     font-weight: 500;
     line-height: 1.4;
@@ -5901,6 +5919,33 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
     font-family: 'bootstrap-icons';
     font-size: 0.75rem;
     color: var(--sv-primary);
+}
+/* 优化参数锁图标 — 可点击解锁提示 */
+.sv-adv-locked-group i.bi-lock-fill,
+.sv-adv-locked-group i.bi-unlock-fill {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    transition: color var(--sv-transition-fast, 0.15s ease),
+                transform var(--sv-transition-fast, 0.15s ease),
+                opacity var(--sv-transition-fast, 0.15s ease);
+    padding: 0 2px;
+    border-radius: 2px;
+}
+.sv-adv-locked-group i.bi-lock-fill:hover,
+.sv-adv-locked-group i.bi-unlock-fill:hover {
+    color: var(--sv-primary, #3f8d6a);
+    transform: scale(1.15);
+}
+.sv-adv-locked-group.is-unlocked i.bi-unlock-fill {
+    color: var(--sv-primary);
+    opacity: 0.95;
+}
+/* 解锁后锁定分组视觉去强调（允许修改的暗示） */
+.sv-adv-locked-group.is-unlocked {
+    background: var(--sv-surface-1, #fcfcfb);
+    border-style: dashed;
+    border-color: var(--sv-primary-glow-strong, rgba(63,141,106,0.4));
 }
 
 /* 快捷预设行 */
@@ -8283,3 +8328,109 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
 .sv-font-item .fg{display:block;font-size:9px;opacity:.45;margin-top:1px}
 /* 主标题字体变量：默认用原设计字体，用户切换后覆盖 */
 .sv-hero h1{font-family:var(--sv-font, var(--sv-font-display))}
+
+/* ===== 31. 分辨率两倍模式开关 / Auto Resolution Toggle ===== */
+
+/* 包裹在参数标签行右侧的紧凑开关 */
+.sv-res-auto-toggle {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--sv-primary);
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.sv-res-auto-toggle input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+
+/* 轨道 */
+.sv-res-auto-track {
+    position: relative;
+    display: inline-block;
+    width: 32px;
+    height: 18px;
+    border-radius: 9px;
+    background: var(--sv-border, #d0d7de);
+    transition: background var(--sv-transition-fast, 0.15s ease);
+    flex-shrink: 0;
+}
+
+.sv-res-auto-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    transition: transform var(--sv-transition-fast, 0.15s ease),
+                background var(--sv-transition-fast, 0.15s ease);
+}
+
+/* 选中态（两倍模式开） */
+.sv-res-auto-toggle input:checked + .sv-res-auto-track {
+    background: var(--sv-primary, #3f8d6a);
+}
+.sv-res-auto-toggle input:checked + .sv-res-auto-track > .sv-res-auto-thumb {
+    transform: translateX(14px);
+}
+.sv-res-auto-toggle input:checked ~ .sv-res-auto-label {
+    color: var(--sv-primary, #3f8d6a);
+}
+
+/* 非选中态（自定义） */
+.sv-res-auto-toggle input:not(:checked) ~ .sv-res-auto-label {
+    color: var(--sv-text-muted, #6a737d);
+}
+
+/* 聚焦可访问性 */
+.sv-res-auto-toggle input:focus-visible + .sv-res-auto-track {
+    outline: 2px solid var(--sv-primary);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px var(--sv-primary-dim, rgba(63, 141, 106, 0.18));
+}
+
+/* 分辨率提示文字 */
+.sv-res-hint {
+    margin-top: 6px;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--sv-text-muted, #6a737d);
+    padding-left: 2px;
+}
+
+.sv-res-hint.is-auto {
+    color: var(--sv-primary, #3f8d6a);
+}
+
+.sv-res-hint.is-auto::before {
+    content: "\2728";
+    margin-right: 4px;
+}
+
+/* 当两倍模式开启时，给输入框加一个轻微的强调描边 */
+#resolution.double-res-active {
+    border-color: var(--sv-primary-glow-strong, rgba(63, 141, 106, 0.45));
+    box-shadow: inset 0 0 0 1px var(--sv-primary-dim, rgba(63, 141, 106, 0.12));
+}
+#resolution:disabled,
+#resolution[disabled] {
+    background: var(--sv-surface-2, #eef2f1);
+    color: var(--sv-text-muted, #6a737d);
+    border-color: var(--sv-border, #d0d7de);
+    cursor: not-allowed;
+    opacity: 0.92;
+}
+

@@ -166,6 +166,12 @@ async def upload_and_restore(
         input_path, file_ext = media_files[0]
         detected_type = common.detect_media_type(file_ext)
 
+    # ============== 两倍模式后端互斥校验 ==============
+    # 当 double_res=True 且输入是图片时，忽略任何客户端传入的分辨率，
+    # 用 Pillow 重新读取真实宽高并按 short_edge × 2 覆写 raw_params.resolution。
+    # 输入非图片或解析失败时 fail-safe 保留原数值，不抛异常打断任务。
+    common.enforce_double_resolution_if_enabled(raw_params, detected_type, input_path)
+
     task_type = raw_params.task_type
     if task_type == "auto":
         task_type = detected_type or "image"

@@ -487,7 +487,7 @@ class SeedVR2Engine(
             "resolution": kwargs.get("resolution", inf_cfg.get("resolution", 2048)),
             "max_resolution": kwargs.get("max_resolution", inf_cfg.get("max_resolution", 0)),
             "batch_size": kwargs.get("batch_size", inf_cfg.get("batch_size", 1)),
-            "uniform_batch_size": kwargs.get("uniform_batch_size", inf_cfg.get("uniform_batch_size", False)),
+            "uniform_batch_size": kwargs.get("uniform_batch_size", inf_cfg.get("uniform_batch_size", True)),
             "color_correction": kwargs.get("color_fix", inf_cfg.get("color_correction", "lab")),
             "temporal_overlap": kwargs.get("temporal_overlap", inf_cfg.get("temporal_overlap", 0)),
             "prepend_frames": kwargs.get("prepend_frames", inf_cfg.get("prepend_frames", 0)),

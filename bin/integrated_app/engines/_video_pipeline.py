@@ -133,7 +133,7 @@ class _VideoPipelineMixin:
                 temporal_overlap if temporal_overlap > 0 else max(0, int(inf.get("temporal_segment_overlap", 8) or 0))
             )
             # uniform_batch_size: 末段补齐到 batch_size, 防止小末段时间伪影
-            uniform_batch_size = bool(inf.get("uniform_batch_size", False))
+            uniform_batch_size = bool(inf.get("uniform_batch_size", True))
             # prepend_frames: 视频开头反转预填充, 减少起始伪影 (自动移除)
             prepend_frames = max(0, int(inf.get("prepend_frames", 0) or 0))
             # cache_model: 是否缓存 DiT/VAE 模型跨任务复用 (12GB 默认关闭)
