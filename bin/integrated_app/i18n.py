@@ -139,13 +139,13 @@ def _resolve_key(translations: dict[str, Any], key: str) -> str | None:
             parts = key.split(".")
             if not parts:
                 return None
-            result: Any = translations
+            nested: Any = translations
             for part in parts:
-                if isinstance(result, dict) and part in result:
-                    result = result[part]
+                if isinstance(nested, dict) and part in nested:
+                    nested = nested[part]
                 else:
                     return None
-            return result if isinstance(result, str) else None
+            return nested if isinstance(nested, str) else None
         except Exception:
             return None
 
