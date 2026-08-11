@@ -133,7 +133,9 @@ input[type=range]{width:100%;accent-color:var(--primary)}
 /* 对比滑块 */
 .cmp{position:relative;border-radius:var(--radius-lg);overflow:hidden;user-select:none;background:var(--bg-elevated)}
 .cmp img{display:block;width:100%;height:auto}
-.cmp .before{position:absolute;inset:0;clip-path:inset(0 calc(100% - var(--pos,50%)) 0 0)}
+.cmp .before{position:absolute;inset:0;clip-path:inset(0 calc(100% - var(--pos,50%)) 0 0);overflow:hidden}
+.cmp .before img{width:100%;height:100%;object-fit:cover;filter:blur(3px) saturate(.45) contrast(.78) brightness(1.12)}
+.cmp .before::after{content:"";position:absolute;inset:0;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='140' height='140' filter='url(%23n)' opacity='0.35'/></svg>");background-size:140px 140px;opacity:.55;mix-blend-mode:overlay;pointer-events:none}
 .cmp .divider{position:absolute;top:0;bottom:0;left:var(--pos,50%);width:2px;background:#fff;box-shadow:0 0 8px rgba(0,0,0,.5);transform:translateX(-1px);pointer-events:none}
 .cmp .handle{position:absolute;top:50%;left:var(--pos,50%);transform:translate(-50%,-50%);width:34px;height:34px;border-radius:50%;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;color:#333;font-size:13px;pointer-events:none}
 .cmp input[type=range]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:ew-resize}
@@ -317,7 +319,7 @@ footer{margin-top:30px;padding-top:14px;border-top:1px solid var(--border);color
       <div id="resultArea" class="hidden">
         <div class="cmp" id="cmp" style="border-radius:var(--radius-lg) var(--radius-lg) 0 0">
           <img id="cmpAfter" src="" alt="修复后">
-          <img class="before" id="cmpBefore" src="" alt="修复前（模拟）">
+          <div class="before" id="beforeWrap"><img id="cmpBefore" src="" alt="修复前（模拟）"></div>
           <div class="divider"></div>
           <div class="handle">⇔</div>
           <span class="cmp-tag before-tag">修复前 · 模拟</span>
@@ -637,7 +639,7 @@ $('#btnRestoreAgain').onclick=()=>$('#runBtn').click();
 
 /* 真实示例画廊 */
 function renderGallery(){
-  const g=RESULTS.map((r,i)=>`<div class="g-item" onclick="openModal('<h3>示例对比</h3><div class=&quot;cmp&quot; style=&quot;--pos:50%&quot;><img src=&quot;${r}&quot;><img class=&quot;before&quot; src=&quot;${r}&quot;><div class=&quot;divider&quot;></div><span class=&quot;cmp-tag before-tag&quot;>修复前 · 模拟</span><span class=&quot;cmp-tag after-tag&quot;>修复后</span></div><p style=&quot;font-size:12px;color:var(--text-muted);margin-top:10px&quot;>示例 #${i+1} · 真实模型输出（来自仓库 outputs/image）</p>')"><img src="${r}" alt="示例 ${i+1}"><div class="cap">真实修复示例 #${i+1}</div></div>`).join('');
+  const g=RESULTS.map((r,i)=>`<div class="g-item" onclick="openModal('<h3>示例对比</h3><div class=&quot;cmp&quot; style=&quot;--pos:50%&quot;><img src=&quot;${r}&quot;><div class=&quot;before&quot;><img src=&quot;${r}&quot;></div><div class=&quot;divider&quot;></div><span class=&quot;cmp-tag before-tag&quot;>修复前 · 模拟</span><span class=&quot;cmp-tag after-tag&quot;>修复后</span></div><p style=&quot;font-size:12px;color:var(--text-muted);margin-top:10px&quot;>示例 #${i+1} · 真实模型输出（来自仓库 outputs/image）· 左侧为模拟退化效果</p>')"><img src="${r}" alt="示例 ${i+1}"><div class="cap">真实修复示例 #${i+1}</div></div>`).join('');
   $('#realGallery').innerHTML=g;
 }
 renderGallery();setCmp();
