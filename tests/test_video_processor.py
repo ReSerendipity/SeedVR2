@@ -1,170 +1,231 @@
-"""VideoProcessor / FFmpegWrapper 单元测试
+"""视频处理模块测试 (video_processor.py) — mock subprocess 覆盖 FFmpegWrapper 路径。"""
 
-覆盖 FFmpeg 视频信息查询、帧提取和视频封装功能。
-使用 mock subprocess 模拟 FFmpeg 命令，不依赖真实 FFmpeg。
-"""
-
+import asyncio
 import json
-from unittest.mock import MagicMock, patch
+import subprocess
+from unittest.mock import patch
 
-from bin.integrated_app.video_processor import FFmpegWrapper, VideoInfo, VideoProcessor
+import pytest
 
-# ---------------------------------------------------------------------------
-# VideoInfo
-# ---------------------------------------------------------------------------
-
-
-class TestVideoInfo:
-    """VideoInfo 数据类测试"""
-
-    def test_init(self):
-        info = VideoInfo(
-            path="test.mp4",
-            width=1920,
-            height=1080,
-            fps=30.0,
-            frame_count=100,
-            duration=3.33,
-            codec="h264",
-            has_audio=True,
-        )
-        assert info.path == "test.mp4"
-        assert info.width == 1920
-        assert info.height == 1080
-        assert info.fps == 30.0
-        assert info.frame_count == 100
-        assert info.duration == 3.33
-        assert info.codec == "h264"
-        assert info.has_audio is True
-        assert info.audio_codec == ""
-
-    def test_init_with_audio_codec(self):
-        info = VideoInfo(
-            path="test.mp4",
-            width=1280,
-            height=720,
-            fps=25.0,
-            frame_count=50,
-            duration=2.0,
-            codec="hevc",
-            has_audio=True,
-            audio_codec="aac",
-        )
-        assert info.audio_codec == "aac"
-
-    def test_no_audio(self):
-        info = VideoInfo(
-            path="test.mp4",
-            width=640,
-            height=480,
-            fps=24.0,
-            frame_count=10,
-            duration=0.416,
-            codec="h264",
-            has_audio=False,
-        )
-        assert info.has_audio is False
+from bin.integrated_app.video_processor import (
+    FFmpegWrapper,
+    VideoProcessor,
+    rife_interpolate_video,
+)
 
 
-# ---------------------------------------------------------------------------
-# FFmpegWrapper
-# ---------------------------------------------------------------------------
+@pytest.fixture
+def wrapper():
+    return FFmpegWrapper(ffmpeg_path="ffmpeg", ffprobe_path="ffprobe")
 
 
-class TestFFmpegWrapper:
-    """FFmpegWrapper 命令封装测试"""
-
-    def test_init_default(self):
-        wrapper = FFmpegWrapper()
-        assert wrapper is not None
-
-    def test_init_custom_paths(self):
-        wrapper = FFmpegWrapper(ffmpeg_path="/usr/bin/ffmpeg", ffprobe_path="/usr/bin/ffprobe")
-        assert wrapper is not None
-
-    @patch("subprocess.run")
-    def test_get_video_info_success(self, mock_run, tmp_path):
-        """模拟 ffprobe 返回视频信息"""
-        video_file = tmp_path / "test.mp4"
-        video_file.write_bytes(b"fake video")
-
-        probe_output = json.dumps(
-            {
-                "streams": [
-                    {
-                        "codec_type": "video",
-                        "width": 1920,
-                        "height": 1080,
-                        "r_frame_rate": "30/1",
-                        "nb_frames": "100",
-                        "duration": "3.333333",
-                        "codec_name": "h264",
-                    }
-                ],
-                "format": {"duration": "3.333333"},
-            }
-        )
-
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = probe_output
-        mock_result.stderr = ""
-        mock_run.return_value = mock_result
-
-        wrapper = FFmpegWrapper()
-        info = wrapper.get_video_info(str(video_file))
-        assert info is not None
-        assert info.width == 1920
-        assert info.height == 1080
-        assert info.fps == 30.0
-
-    @patch("subprocess.run")
-    def test_get_video_info_not_found(self, mock_run, tmp_path):
-        """模拟 ffprobe 返回错误"""
-        mock_result = MagicMock()
-        mock_result.returncode = 1
-        mock_result.stdout = ""
-        mock_result.stderr = "No such file"
-        mock_run.return_value = mock_result
-
-        wrapper = FFmpegWrapper()
-        info = wrapper.get_video_info(str(tmp_path / "nonexistent.mp4"))
-        assert info is None
-
-    @patch("subprocess.run")
-    def test_get_video_info_invalid_json(self, mock_run, tmp_path):
-        """模拟 ffprobe 返回无效 JSON"""
-        video_file = tmp_path / "test.mp4"
-        video_file.write_bytes(b"fake")
-
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = "not json"
-        mock_result.stderr = ""
-        mock_run.return_value = mock_result
-
-        wrapper = FFmpegWrapper()
-        info = wrapper.get_video_info(str(video_file))
-        assert info is None
+class _Result:
+    def __init__(self, returncode=0, stdout="", stderr=""):
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
 
 
-# ---------------------------------------------------------------------------
-# VideoProcessor
-# ---------------------------------------------------------------------------
+# ---------- is_available ----------
 
 
-class TestVideoProcessor:
-    """VideoProcessor 视频处理测试"""
+def test_is_available_success(wrapper):
+    with patch("bin.integrated_app.video_processor.subprocess.run", return_value=_Result(0)):
+        assert wrapper.is_available() is True
 
-    def test_init_default(self):
-        processor = VideoProcessor()
-        assert processor is not None
 
-    def test_init_with_ffmpeg(self):
-        ffmpeg = FFmpegWrapper()
-        processor = VideoProcessor(ffmpeg=ffmpeg)
-        assert processor.ffmpeg is ffmpeg
+def test_is_available_failure(wrapper):
+    with patch("bin.integrated_app.video_processor.subprocess.run", side_effect=OSError("no ffmpeg")):
+        assert wrapper.is_available() is False
 
-    def test_init_with_max_segment_frames(self):
-        processor = VideoProcessor(max_segment_frames=60)
-        assert processor is not None
+
+# ---------- get_video_info ----------
+
+
+def _ffprobe_json():
+    return json.dumps(
+        {
+            "streams": [
+                {
+                    "codec_type": "video",
+                    "codec_name": "h264",
+                    "width": 1920,
+                    "height": 1080,
+                    "r_frame_rate": "30/1",
+                    "nb_frames": "300",
+                },
+                {"codec_type": "audio", "codec_name": "aac"},
+            ],
+            "format": {"duration": "10.0"},
+        }
+    )
+
+
+def test_get_video_info_success(wrapper, tmp_path):
+    video = tmp_path / "v.mp4"
+    video.write_bytes(b"fake")
+    with patch("bin.integrated_app.video_processor.subprocess.run", return_value=_Result(0, _ffprobe_json())):
+        info = wrapper.get_video_info(str(video))
+    assert info is not None
+    assert info.width == 1920 and info.height == 1080
+    assert info.fps == 30.0
+    assert info.frame_count == 300
+    assert info.duration == 10.0
+    assert info.has_audio is True
+    assert info.audio_codec == "aac"
+
+
+def test_get_video_info_missing_file(wrapper):
+    assert wrapper.get_video_info("C:/nonexistent/xyz.mp4") is None
+
+
+def test_get_video_info_ffprobe_fail(wrapper, tmp_path):
+    video = tmp_path / "v.mp4"
+    video.write_bytes(b"fake")
+    with patch("bin.integrated_app.video_processor.subprocess.run", return_value=_Result(1, "", "boom")):
+        assert wrapper.get_video_info(str(video)) is None
+
+
+def test_get_video_info_no_video_stream(wrapper, tmp_path):
+    video = tmp_path / "v.mp4"
+    video.write_bytes(b"fake")
+    bad = json.dumps({"streams": [{"codec_type": "audio"}], "format": {}})
+    with patch("bin.integrated_app.video_processor.subprocess.run", return_value=_Result(0, bad)):
+        assert wrapper.get_video_info(str(video)) is None
+
+
+def test_get_video_info_fps_fraction_and_frame_count_fallback(wrapper, tmp_path):
+    video = tmp_path / "v.mp4"
+    video.write_bytes(b"fake")
+    data = json.dumps(
+        {
+            "streams": [{"codec_type": "video", "r_frame_rate": "30000/1001", "nb_frames": "0"}],
+            "format": {"duration": "10"},
+        }
+    )
+    with patch("bin.integrated_app.video_processor.subprocess.run", return_value=_Result(0, data)):
+        info = wrapper.get_video_info(str(video))
+    assert info is not None
+    assert info.fps == pytest.approx(29.97, rel=1e-2)
+    assert info.frame_count == int(10 * 29.97)
+    assert info.has_audio is False
+
+
+def test_get_video_info_parse_error(wrapper, tmp_path):
+    video = tmp_path / "v.mp4"
+    video.write_bytes(b"fake")
+    with patch("bin.integrated_app.video_processor.subprocess.run", return_value=_Result(0, "not json")):
+        assert wrapper.get_video_info(str(video)) is None
+
+
+# ---------- extract_frames ----------
+
+
+def test_extract_frames_success(wrapper, tmp_path):
+    out = tmp_path / "frames"
+    out.mkdir()
+    (out / "frame_000001.png").write_bytes(b"a")
+    (out / "frame_000002.png").write_bytes(b"b")
+    with patch("bin.integrated_app.video_processor.subprocess.run", return_value=_Result(0)):
+        frames = wrapper.extract_frames("in.mp4", str(out))
+    assert len(frames) == 2
+    assert frames[0].endswith("frame_000001.png")
+
+
+def test_extract_frames_fail(wrapper, tmp_path):
+    out = tmp_path / "frames"
+    out.mkdir()
+    with patch("bin.integrated_app.video_processor.subprocess.run", return_value=_Result(1, "", "err")):
+        assert wrapper.extract_frames("in.mp4", str(out)) == []
+
+
+def test_extract_frames_timeout(wrapper, tmp_path):
+    out = tmp_path / "frames"
+    out.mkdir()
+    with patch(
+        "bin.integrated_app.video_processor.subprocess.run", side_effect=subprocess.TimeoutExpired("ffmpeg", 10)
+    ):
+        assert wrapper.extract_frames("in.mp4", str(out)) == []
+
+
+# ---------- compose_video ----------
+
+
+def test_compose_video_no_frames(wrapper, tmp_path):
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    assert wrapper.compose_video(str(empty), str(tmp_path / "o.mp4")) is False
+
+
+def test_compose_video_success(wrapper, tmp_path):
+    frames = tmp_path / "frames"
+    frames.mkdir()
+    (frames / "frame_000001.png").write_bytes(b"a")
+    with patch("bin.integrated_app.video_processor.subprocess.run", return_value=_Result(0)):
+        assert wrapper.compose_video(str(frames), str(tmp_path / "o.mp4")) is True
+
+
+def test_compose_video_with_audio(wrapper, tmp_path):
+    frames = tmp_path / "frames"
+    frames.mkdir()
+    (frames / "frame_000001.png").write_bytes(b"a")
+    video = tmp_path / "v.mp4"
+    video.write_bytes(b"fake")
+    with patch(
+        "bin.integrated_app.video_processor.subprocess.run", side_effect=[_Result(0, _ffprobe_json()), _Result(0)]
+    ):
+        assert wrapper.compose_video(str(frames), str(tmp_path / "o.mp4"), source_video=str(video)) is True
+
+
+def test_compose_video_fail(wrapper, tmp_path):
+    frames = tmp_path / "frames"
+    frames.mkdir()
+    (frames / "frame_000001.png").write_bytes(b"a")
+    with patch("bin.integrated_app.video_processor.subprocess.run", return_value=_Result(1, "", "err")):
+        assert wrapper.compose_video(str(frames), str(tmp_path / "o.mp4")) is False
+
+
+# ---------- extract_audio / merge_audio_video ----------
+
+
+def test_extract_audio_success(wrapper):
+    with patch("bin.integrated_app.video_processor.subprocess.run", return_value=_Result(0)):
+        assert wrapper.extract_audio("in.mp4", "out.aac") is True
+
+
+def test_extract_audio_fail(wrapper):
+    with patch("bin.integrated_app.video_processor.subprocess.run", side_effect=OSError("no")):
+        assert wrapper.extract_audio("in.mp4", "out.aac") is False
+
+
+def test_merge_audio_video_success(wrapper):
+    with patch("bin.integrated_app.video_processor.subprocess.run", return_value=_Result(0)):
+        assert wrapper.merge_audio_video("v.mp4", "a.aac", "o.mp4") is True
+
+
+def test_merge_audio_video_fail(wrapper):
+    with patch(
+        "bin.integrated_app.video_processor.subprocess.run", side_effect=subprocess.TimeoutExpired("ffmpeg", 300)
+    ):
+        assert wrapper.merge_audio_video("v.mp4", "a.aac", "o.mp4") is False
+
+
+# ---------- VideoProcessor (deprecated) ----------
+
+
+def test_video_processor_deprecated():
+    with pytest.warns(DeprecationWarning):
+        vp = VideoProcessor()
+    assert vp.max_segment_frames == 30
+
+
+def test_video_processor_no_info(wrapper):
+    with pytest.warns(DeprecationWarning):
+        vp = VideoProcessor(ffmpeg=wrapper)
+    with patch("bin.integrated_app.video_processor.FFmpegWrapper.get_video_info", return_value=None):
+        ok, msg = asyncio.run(vp.process_video("x.mp4", "out", restore_func=lambda frames, **kw: frames))
+    assert ok is False
+
+
+def test_rife_interpolate_unavailable():
+    assert rife_interpolate_video("in.mp4", "out.mp4") is False
