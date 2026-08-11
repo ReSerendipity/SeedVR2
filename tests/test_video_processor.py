@@ -9,6 +9,7 @@ import pytest
 
 from bin.integrated_app.video_processor import (
     FFmpegWrapper,
+    VideoInfo,
     VideoProcessor,
     rife_interpolate_video,
 )
@@ -229,3 +230,60 @@ def test_video_processor_no_info(wrapper):
 
 def test_rife_interpolate_unavailable():
     assert rife_interpolate_video("in.mp4", "out.mp4") is False
+
+
+# ---------------------------------------------------------------------------
+# VideoInfo 数据类
+# ---------------------------------------------------------------------------
+
+
+class TestVideoInfo:
+    """VideoInfo 数据类测试。"""
+
+    def test_init(self):
+        info = VideoInfo(
+            path="test.mp4",
+            width=1920,
+            height=1080,
+            fps=30.0,
+            frame_count=100,
+            duration=3.33,
+            codec="h264",
+            has_audio=True,
+        )
+        assert info.path == "test.mp4"
+        assert info.width == 1920
+        assert info.height == 1080
+        assert info.fps == 30.0
+        assert info.frame_count == 100
+        assert info.duration == 3.33
+        assert info.codec == "h264"
+        assert info.has_audio is True
+        assert info.audio_codec == ""
+
+    def test_init_with_audio_codec(self):
+        info = VideoInfo(
+            path="test.mp4",
+            width=1280,
+            height=720,
+            fps=25.0,
+            frame_count=50,
+            duration=2.0,
+            codec="hevc",
+            has_audio=True,
+            audio_codec="aac",
+        )
+        assert info.audio_codec == "aac"
+
+    def test_no_audio(self):
+        info = VideoInfo(
+            path="test.mp4",
+            width=640,
+            height=480,
+            fps=24.0,
+            frame_count=10,
+            duration=0.416,
+            codec="h264",
+            has_audio=False,
+        )
+        assert info.has_audio is False
