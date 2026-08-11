@@ -377,8 +377,10 @@ def query_history(base_url: str, page: int = 1, page_size: int = 10):
     records = history.get("records", [])
     print(f"  总记录: {history.get('total', 0)}, 第 {page} 页, 每页 {page_size} 条")
     for record in records[:5]:
-        print(f"    [{record.get('id')}] {record.get('task_type')} | "
-              f"{record.get('status')} | {record.get('input_file', 'N/A')[:50]}")
+        print(
+            f"    [{record.get('id')}] {record.get('task_type')} | "
+            f"{record.get('status')} | {record.get('input_file', 'N/A')[:50]}"
+        )
 
 
 def main():
