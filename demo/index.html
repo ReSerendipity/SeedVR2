@@ -608,10 +608,10 @@ $('#cmpRange').oninput=e=>{const p=e.target.value+'%';$('#cmp').style.setPropert
 let cmpZoom=100, cmpMode='h';
 function setCmpMode(mode){
   cmpMode=mode;
-  const after=$('#cmpAfter'),before=$('#cmpBefore');
+  const after=$('#cmpAfter'),before=$('#beforeWrap');
   if(mode==='v'){
     $('#cmp').style.setProperty('--pos','50%');
-    after.style.clipPath='inset(0 0 50% 0)';before.style.clipPath='inset(50% 0 0 0)';
+    after.style.clipPath='inset(50% 0 0 0)';before.style.clipPath='inset(0 0 50% 0)';
     $('#cmpRange').classList.add('hidden');
   }else{
     after.style.clipPath='';before.style.clipPath='';
