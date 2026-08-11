@@ -45,7 +45,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
 
   // Retry failed tests once (video and trace captured on first retry)
-  retries: process.env.CI ? 2 : 1,
+  retries: process.env.CI ? 1 : 1,
 
   // Number of parallel workers (limit on CI for stability)
   workers: process.env.CI ? 2 : undefined,
