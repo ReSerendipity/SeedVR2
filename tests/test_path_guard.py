@@ -43,7 +43,10 @@ class TestPathGuardInit:
         assert (tmp_path / "outputs").resolve() in allowed
         assert (tmp_path / "data" / "uploads").resolve() in allowed
         assert (tmp_path / "custom_dir").resolve() in allowed
-        assert Path("/abs/path").resolve() in allowed
+        # Windows 上无驱动器绝对路径（/abs/path）resolve 后带 CWD 驱动器前缀
+        # （如 C:/abs/path 或 D:/abs/path），用规范化字符串匹配避免驱动器差异
+        allowed_norm = {str(a).replace("\\", "/").lower() for a in allowed}
+        assert any(p.endswith("/abs/path") for p in allowed_norm)
 
     def test_extra_dirs_none_in_default_builder(self, tmp_path):
         guard = build_default_path_guard(tmp_path, extra_dirs=None)
