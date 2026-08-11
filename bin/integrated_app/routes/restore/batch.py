@@ -422,9 +422,9 @@ async def _process_batch_background(
                 input_file=media_path,
                 model_size=use_model_size,
                 status=task_item["status"],
-                output_file=task_item.get("output_path"),
-                processing_time=task_item.get("processing_time"),
-                error_message=task_item.get("error"),
+                output_file=task_item.get("output_path") or "",
+                processing_time=float(task_item.get("processing_time") or 0.0),
+                error_message=task_item.get("error") or "",
             )
         )
 

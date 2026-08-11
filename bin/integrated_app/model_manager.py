@@ -286,7 +286,7 @@ class ModelManager:
         await engine.load_model(model_size=model_size, device=device, precision=precision)
 
         model_registry.set_engine(engine)
-        self._engine = engine
+        self._engine = engine  # type: ignore[assignment]
 
         logger.info(f"模型加载完成: {model_size}/{precision}")
         return {
