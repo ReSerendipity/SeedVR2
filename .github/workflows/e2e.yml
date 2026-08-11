@@ -19,6 +19,7 @@ on:
       - 'tests/fixtures/**'
       - 'tests/utils/**'
       - 'tests/playwright.config.ts'
+  workflow_dispatch:
 
 jobs:
   e2e:
