@@ -79,7 +79,7 @@ jobs:
             http://127.0.0.1:7870/api/system/health
 
       - name: Run Playwright tests
-        run: cd tests && npx playwright test --project=${{ matrix.project }}
+        run: cd tests && npx playwright test --project=${{ matrix.project }} --reporter=github,list
 
       - name: Upload HTML report
         if: always()
