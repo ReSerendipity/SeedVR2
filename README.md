@@ -285,6 +285,17 @@ SeedVR2 的 Web UI **默认仅绑定 `127.0.0.1`**（`config.yaml` 中 `server.h
 
 ---
 
+
+## 合规说明
+
+使用本项目请遵守 [USER_AGREEMENT.md](USER_AGREEMENT.md)。模型权重（SeedVR/SeedVR2）为 Apache 2.0；FFmpeg 为本地开发依赖，不随仓库分发，由用户自行安装（详见 NOTICE）。
+
+### AI 生成内容标识
+
+- 输出图像/视频默认嵌入**不可感知 DCT 频域数字水印**（v2 签名版：载荷 = 品牌标识 + 时间戳 + HMAC-SHA256 签名），属隐式溯源标识，**仅持有签名密钥者可验证真伪，他人无法伪造可通过验证的水印**（实现见 `bin/integrated_app/security/watermark.py`，可用 `config.yaml -> security.watermark.enable` 开关）；密钥通过 `python scripts/init_watermark_key.py` 生成，存于项目根 `.watermark_key`（已 gitignore，**打包分发时必须排除**，请离线备份，密钥遗失后旧水印将无法验证）；
+- 根据《人工智能生成合成内容标识办法》（2025-09-01 施行），对外提供 AI 生成合成内容服务时应在文件元数据中写入标识字段并按规定添加显式标识；当前版本已具备溯源水印，元数据字段标识为后续增强项；
+- 请勿移除或篡改输出内容中的水印/标识，并遵守所在司法辖区对 AI 生成内容的标识义务。
+
 ## 许可证
 
 本项目采用 [Apache License 2.0](LICENSE) 开源协议。

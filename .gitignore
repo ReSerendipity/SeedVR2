@@ -198,3 +198,7 @@ scripts/simple_summary.ps1
 *.log
 # hypothesis property-based 测试缓存
 .hypothesis/
+
+
+# 水印签名密钥（仅本机，严禁入库/随包分发）
+.watermark_key
