@@ -22,8 +22,12 @@
     watermarked_np = embed_watermark(image_np)  # 在保存前调用
 """
 
+import hashlib
+import hmac
 import logging
+import os
 import time
+from pathlib import Path
 
 import numpy as np
 
@@ -36,6 +40,14 @@ _WATERMARK_BRAND = "SeedVR2_ReSerendipity"
 # 对于 QIM 量化: quant_step = 1.0 / alpha
 # alpha=0.5 -> quant_step=2, 对 8bit 图像最大修改量 ~1, PSNR > 48dB
 _WATERMARK_ALPHA = 0.5
+
+# ===== 密钥签名配置（v2）=====
+# 载荷格式: "<brand>_<timestamp>|<hmac-sha256 hex>"
+# 无密钥时嵌入旧格式未签名载荷（兼容旧版验证）；有密钥时嵌入签名载荷，
+# 未持有密钥者无法伪造可通过验证的水印，溯源举证以签名验证为准。
+_WATERMARK_KEY_ENV = "SEEDVR2_WATERMARK_KEY"
+_WATERMARK_KEY_FILE = Path(__file__).resolve().parent.parent.parent.parent / ".watermark_key"
+_HMAC_SEPARATOR = "|"
 
 # DCT 块大小
 _BLOCK_SIZE = 8
@@ -96,6 +108,46 @@ def _generate_watermark_payload() -> str:
     """
     timestamp = time.strftime("%Y%m%d%H%M%S")
     return f"{_WATERMARK_BRAND}_{timestamp}"
+
+
+def _load_secret_key() -> bytes | None:
+    """加载水印签名密钥（环境变量优先，其次项目根 .watermark_key 文件）。"""
+    env_key = os.environ.get(_WATERMARK_KEY_ENV, "").strip()
+    if env_key:
+        return env_key.encode("utf-8")
+    try:
+        if _WATERMARK_KEY_FILE.exists():
+            key = _WATERMARK_KEY_FILE.read_text(encoding="utf-8").strip()
+            if key:
+                return key.encode("utf-8")
+    except Exception as e:
+        logger.debug(f"读取水印密钥文件失败: {e}")
+    return None
+
+
+def _sign_payload(payload: str, key: bytes) -> str:
+    """对水印载荷附加 HMAC-SHA256 签名。"""
+    digest = hmac.new(key, payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"{payload}{_HMAC_SEPARATOR}{digest}"
+
+
+def _verify_signature(signed_payload: str, key: bytes) -> str | None:
+    """验证签名载荷，返回原始载荷；签名缺失或无效返回 None。
+
+    解析规则：首个分隔符前的部分为载荷，其后固定 64 位 hex 为摘要；
+    提取噪声不会影响解析（分隔符后的多余内容被忽略）。
+    """
+    sep_pos = signed_payload.find(_HMAC_SEPARATOR)
+    if sep_pos < 0:
+        return None
+    payload = signed_payload[:sep_pos]
+    digest = signed_payload[sep_pos + 1 : sep_pos + 1 + 64]
+    if len(digest) != 64:
+        return None
+    expected = hmac.new(key, payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    if hmac.compare_digest(expected, digest):
+        return payload
+    return None
 
 
 def _dct_1d(arr: np.ndarray) -> np.ndarray:
@@ -182,6 +234,14 @@ def embed_watermark(
 
     if payload is None:
         payload = _generate_watermark_payload()
+    key = _load_secret_key()
+    if key is not None and _HMAC_SEPARATOR not in payload:
+        payload = _sign_payload(payload, key)
+    else:
+        logger.warning(
+            "未配置水印签名密钥，将嵌入未签名水印（不可证伪归属）。"
+            "请运行 scripts/init_watermark_key.py 生成密钥"
+        )
 
     bits = _text_to_bits(payload)
     if len(bits) == 0:
@@ -307,17 +367,29 @@ def extract_watermark(
     return _bits_to_text(np.array(bits, dtype=np.uint8))
 
 
-def verify_watermark(image_np: np.ndarray) -> bool:
-    """验证图像是否包含 SeedVR2 归属水印。
+def verify_watermark(
+    image_np: np.ndarray, *, expected_length: int = 2048
+) -> bool:
+    """验证图像是否包含可信的 SeedVR2 归属水印（v2 签名验证）。
+
+    - 配置了密钥时（推荐）：严格验证 HMAC 签名，仅持有密钥嵌入的水印通过；
+      旧版未签名水印将验证失败（无法证明真伪）。
+    - 未配置密钥时：退化为弱检测（品牌字符串包含检查），仅作参考。
 
     Args:
         image_np: 待验证的图像。
+        expected_length: 提取位数上限（签名载荷较长，默认 2048 bit）。
 
     Returns:
-        bool: True 表示检测到 "SeedVR2" 归属水印。
+        bool: True 表示检测到可信水印。
     """
     try:
-        extracted = extract_watermark(image_np)
+        extracted = extract_watermark(image_np, expected_length=expected_length)
+        if not extracted:
+            return False
+        key = _load_secret_key()
+        if key is not None:
+            return _verify_signature(extracted, key) is not None
         return "SeedVR2" in extracted
     except Exception as e:
         logger.debug(f"水印验证失败: {e}")

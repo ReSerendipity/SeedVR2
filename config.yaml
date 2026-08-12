@@ -112,6 +112,8 @@ runtime:
     - outputs/
     - data/uploads/
     rate_limit_per_minute: 30
+    watermark:
+      enable: true
   sse:
     heartbeat_interval_seconds: 30
     max_duration_seconds: 300
