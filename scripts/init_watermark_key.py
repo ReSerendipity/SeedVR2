@@ -1,11 +1,10 @@
-# -*- coding: utf-8 -*-
 """生成 SeedVR2 水印签名密钥（仅本机持有，切勿提交仓库或随便携包分发）。
 
 用法:
     python scripts/init_watermark_key.py
 """
-from pathlib import Path
 import secrets
+from pathlib import Path
 
 KEY_FILE = Path(__file__).resolve().parent.parent / ".watermark_key"
 
