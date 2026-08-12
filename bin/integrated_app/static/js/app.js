@@ -3171,6 +3171,7 @@ const SeedVR2 = (() => {
             grp.items.forEach(function (f) {
                 var b = document.createElement('button');
                 b.className = 'sv-font-item';
+                b.setAttribute('role', 'menuitem');
                 b.type = 'button';
                 b.style.fontFamily = f.f;
                 b.dataset.f = f.f;

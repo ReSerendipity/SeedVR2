@@ -135,8 +135,10 @@ test.describe('WCAG 2.1 AA Contrast Compliance', () => {
           await page.goto(pageInfo.path);
           await page.waitForLoadState('networkidle');
 
-          // 稳定化：设置页含异步加载内容，等待关键表单元素渲染完成，
-          // 避免对比度检查时元素样式仍在变化导致 flaky
+          // 稳定化：等待字体与渲染稳定，避免对比度检查时元素样式仍在变化导致 flaky
+          await page.evaluate(() => document.fonts.ready);
+          await page.waitForTimeout(300);
+          // 设置页含异步加载内容，额外等待关键表单元素渲染完成
           if (pageInfo.path === '/settings') {
             await page.waitForSelector('input, select, button, [data-testid]', { timeout: 10000 });
             await page.waitForTimeout(300);
@@ -155,6 +157,14 @@ test.describe('WCAG 2.1 AA Contrast Compliance', () => {
             undefined,
             { timeout: 5000 },
           );
+
+          // Disable CSS transitions/animations: theme switch animates colors,
+          // and contrast checks during the transition see blended mid-state
+          // colors with unstable ratios (flaky). Snap to final state instead.
+          await page.addStyleTag({
+            content: '* { transition: none !important; animation: none !important; }',
+          });
+          await page.waitForTimeout(200);
 
           const failures: string[] = [];
 
