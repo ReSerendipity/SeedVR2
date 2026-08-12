@@ -239,8 +239,7 @@ def embed_watermark(
         payload = _sign_payload(payload, key)
     else:
         logger.warning(
-            "未配置水印签名密钥，将嵌入未签名水印（不可证伪归属）。"
-            "请运行 scripts/init_watermark_key.py 生成密钥"
+            "未配置水印签名密钥，将嵌入未签名水印（不可证伪归属）。" "请运行 scripts/init_watermark_key.py 生成密钥"
         )
 
     bits = _text_to_bits(payload)
@@ -367,9 +366,7 @@ def extract_watermark(
     return _bits_to_text(np.array(bits, dtype=np.uint8))
 
 
-def verify_watermark(
-    image_np: np.ndarray, *, expected_length: int = 2048
-) -> bool:
+def verify_watermark(image_np: np.ndarray, *, expected_length: int = 2048) -> bool:
     """验证图像是否包含可信的 SeedVR2 归属水印（v2 签名验证）。
 
     - 配置了密钥时（推荐）：严格验证 HMAC 签名，仅持有密钥嵌入的水印通过；

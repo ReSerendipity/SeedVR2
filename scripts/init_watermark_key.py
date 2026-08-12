@@ -3,6 +3,7 @@
 用法:
     python scripts/init_watermark_key.py
 """
+
 import secrets
 from pathlib import Path
 
