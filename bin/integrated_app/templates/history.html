@@ -326,7 +326,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // 分页
-            document.getElementById('pagination').style.display = 'flex';
+            const paginationEl = document.getElementById('pagination');
+            paginationEl.classList.remove('sv-hidden');
+            paginationEl.style.display = 'flex';
             document.getElementById('pageInfo').textContent = `${currentPage} / ${totalPages}`;
             document.getElementById('btnPrevPage').disabled = currentPage <= 1;
             document.getElementById('btnNextPage').disabled = currentPage >= totalPages;
