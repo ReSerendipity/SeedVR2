@@ -317,7 +317,9 @@ def _read_media_dimensions(
             with Image.open(input_path) as im:  # noqa: S311 — 魔数校验已在上游 validate_upload_magic 完成
                 return im.size
         except Exception as e:  # noqa: BLE001 — 任何解码失败都 fail-safe
-            logger.warning("[double_res] 图片解析失败，保留原分辨率 %d: path=%s error=%s", current_resolution, input_path, e)
+            logger.warning(
+                "[double_res] 图片解析失败，保留原分辨率 %d: path=%s error=%s", current_resolution, input_path, e
+            )
             return None, None
 
     if detected_type == "video":
@@ -334,7 +336,9 @@ def _read_media_dimensions(
                 return None, None
             return info.width, info.height
         except Exception as e:  # noqa: BLE001
-            logger.warning("[double_res] 视频解析失败，保留原分辨率 %d: path=%s error=%s", current_resolution, input_path, e)
+            logger.warning(
+                "[double_res] 视频解析失败，保留原分辨率 %d: path=%s error=%s", current_resolution, input_path, e
+            )
             return None, None
 
     return None, None

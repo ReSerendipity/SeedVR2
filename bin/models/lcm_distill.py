@@ -25,7 +25,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -34,8 +33,7 @@ logger = logging.getLogger(__name__)
 
 # diffusers 类型在 pyproject.toml 中已配置 ignore_missing_imports
 try:
-    from diffusers import AutoencoderKL
-    from diffusers import UNet2DConditionModel
+    from diffusers import AutoencoderKL, UNet2DConditionModel
 
     DIFFUSERS_AVAILABLE = True
 except ImportError:
@@ -104,9 +102,7 @@ class LCMScheduler:
         beta_prod_t = 1 - alpha_prod_t
 
         # 预测原始图像
-        pred_original_sample = (
-            sample - beta_prod_t**0.5 * model_output
-        ) / alpha_prod_t**0.5
+        pred_original_sample = (sample - beta_prod_t**0.5 * model_output) / alpha_prod_t**0.5
 
         # LCM: 一步到达（直接返回预测的原始图像）
         return pred_original_sample
@@ -133,16 +129,15 @@ class LatentConsistencyModel(nn.Module):
 
     def __init__(
         self,
-        unet: "UNet2DConditionModel",
-        vae: "AutoencoderKL",
-        scheduler: Optional[LCMScheduler] = None,
+        unet: UNet2DConditionModel,
+        vae: AutoencoderKL,
+        scheduler: LCMScheduler | None = None,
     ) -> None:
         super().__init__()
 
         if not DIFFUSERS_AVAILABLE:
             raise ImportError(
-                "diffusers 未安装，无法创建 LatentConsistencyModel。"
-                "请安装: pip install diffusers>=0.30.0",
+                "diffusers 未安装，无法创建 LatentConsistencyModel。" "请安装: pip install diffusers>=0.30.0",
             )
 
         self.unet = unet
@@ -158,8 +153,8 @@ class LatentConsistencyModel(nn.Module):
         num_inference_steps: int = 1,
         guidance_scale: float = 7.5,
         negative_prompt: str = "",
-        device: Optional[torch.device] = None,
-        generator: Optional[torch.Generator] = None,
+        device: torch.device | None = None,
+        generator: torch.Generator | None = None,
     ) -> torch.Tensor:
         """单步生成图像。
 
@@ -219,9 +214,7 @@ class LatentConsistencyModel(nn.Module):
             noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
 
             # CFG 采样
-            noise_pred = noise_pred_uncond + guidance_scale * (
-                noise_pred_text - noise_pred_uncond
-            )
+            noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
             # LCM 单步去噪
             latents = self.scheduler.step(noise_pred, timestep_idx, latents)
@@ -259,11 +252,11 @@ class LatentConsistencyModel(nn.Module):
 
     def train_lcm(
         self,
-        teacher_model: "UNet2DConditionModel",
+        teacher_model: UNet2DConditionModel,
         dataloader: object,
         optimizer: torch.optim.Optimizer,
         num_epochs: int = 10,
-        device: Optional[torch.device] = None,
+        device: torch.device | None = None,
     ) -> list[float]:
         """LCM 蒸馏训练循环。
 
@@ -352,7 +345,7 @@ class LatentConsistencyModel(nn.Module):
 def create_lcm_from_pretrained(
     unet_path: str,
     vae_path: str,
-    device: Optional[torch.device] = None,
+    device: torch.device | None = None,
 ) -> LatentConsistencyModel:
     """从预训练权重创建 LCM 模型。
 

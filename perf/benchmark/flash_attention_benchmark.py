@@ -24,7 +24,6 @@ from __future__ import annotations
 import logging
 import sys
 import time
-from typing import Optional
 
 import torch
 
@@ -53,7 +52,7 @@ def benchmark_attention(
     n_heads: int = 8,
     warmup_iters: int = 10,
     benchmark_iters: int = 100,
-) -> Optional[dict[str, object]]:
+) -> dict[str, object] | None:
     """对 Flash Attention 与标准注意力进行基准测试。
 
     Args:
@@ -80,8 +79,7 @@ def benchmark_attention(
     dim = n_heads * head_dim
 
     try:
-        from bin.vram.flash_attention_wrapper import FlashAttention
-        from bin.vram.flash_attention_wrapper import FLASH_AVAILABLE
+        from bin.vram.flash_attention_wrapper import FLASH_AVAILABLE, FlashAttention
     except ImportError:
         from bin.vram.flash_attention_wrapper import FLASH_AVAILABLE  # type: ignore[assignment]
 
@@ -163,7 +161,7 @@ def benchmark_precision(
     batch_size: int = 2,
     n_heads: int = 8,
     head_dim: int = 64,
-) -> Optional[dict[str, float]]:
+) -> dict[str, float] | None:
     """验证 Flash Attention 与标准注意力的精度一致性。
 
     使用相同的 QKV 权重，对比两种实现的输出差异。
@@ -185,8 +183,7 @@ def benchmark_precision(
     dim = n_heads * head_dim
 
     try:
-        from bin.vram.flash_attention_wrapper import FlashAttention
-        from bin.vram.flash_attention_wrapper import FLASH_AVAILABLE
+        from bin.vram.flash_attention_wrapper import FLASH_AVAILABLE, FlashAttention
     except ImportError:
         from bin.vram.flash_attention_wrapper import FLASH_AVAILABLE  # type: ignore[assignment]
 

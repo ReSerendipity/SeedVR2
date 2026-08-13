@@ -30,23 +30,16 @@ from __future__ import annotations
 
 import argparse
 import logging
-from dataclasses import dataclass
-from dataclasses import field
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-from typing import Callable
-from typing import Optional
 
 import torch
 import torch.nn as nn
 
 # 项目内置分布式工具
-from common.distributed import convert_to_ddp
-from common.distributed import get_device
-from common.distributed import get_global_rank
-from common.distributed import get_local_rank
-from common.distributed import get_world_size
-from common.distributed import init_torch
+from common.distributed import convert_to_ddp, get_device, get_global_rank, get_local_rank, get_world_size, init_torch
 
 logger = logging.getLogger(__name__)
 
@@ -78,13 +71,13 @@ class TrainingConfig:
     epochs: int = 100
     warmup_steps: int = 500
     gradient_accumulation_steps: int = 1
-    max_gradient_norm: Optional[float] = 1.0
+    max_gradient_norm: float | None = 1.0
     sharding_strategy: str = "ddp"
     checkpoint_dir: str = "data/checkpoints"
     checkpoint_interval: int = 500
-    resume_from_checkpoint: Optional[str] = None
+    resume_from_checkpoint: str | None = None
     log_interval: int = 10
-    mixed_precision: Optional[str] = None
+    mixed_precision: str | None = None
     gradient_checkpointing: bool = False
     extra: dict[str, Any] = field(default_factory=dict)
 
@@ -135,7 +128,7 @@ class DistributedTrainer:
             logger.info("单卡模式训练, device=%s", self.device)
 
         # 混合精度设置
-        self._scaler: Optional[torch.cuda.amp.GradScaler] = None
+        self._scaler: torch.cuda.amp.GradScaler | None = None
         if config.mixed_precision == "fp16":
             self._scaler = torch.cuda.amp.GradScaler()
         self._autocast_dtype = {
@@ -158,10 +151,9 @@ class DistributedTrainer:
         model = model.to(self.device)
 
         # 梯度检查点
-        if self.config.gradient_checkpointing:
-            if hasattr(model, "gradient_checkpointing_enable"):
-                model.gradient_checkpointing_enable()
-                logger.info("已启用梯度检查点")
+        if self.config.gradient_checkpointing and hasattr(model, "gradient_checkpointing_enable"):
+            model.gradient_checkpointing_enable()
+            logger.info("已启用梯度检查点")
 
         if self.world_size > 1:
             if self.config.sharding_strategy == "ddp":
@@ -218,7 +210,7 @@ class DistributedTrainer:
         Returns:
             配置好的 DataLoader。
         """
-        sampler: Optional[torch.utils.data.distributed.DistributedSampler] = None
+        sampler: torch.utils.data.distributed.DistributedSampler | None = None
         if self.world_size > 1:
             sampler = torch.utils.data.distributed.DistributedSampler(dataset)
 
@@ -486,9 +478,7 @@ class DistributedTrainer:
                     total_metrics[key] = total_metrics.get(key, 0.0) + value
                 num_batches += 1
 
-        avg_metrics = {
-            key: value / max(num_batches, 1) for key, value in total_metrics.items()
-        }
+        avg_metrics = {key: value / max(num_batches, 1) for key, value in total_metrics.items()}
 
         if self.global_rank == 0:
             metrics_str = ", ".join(f"{k}={v:.4f}" for k, v in avg_metrics.items())

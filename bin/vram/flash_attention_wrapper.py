@@ -23,7 +23,6 @@ O(N²) 降至 O(N²) 但显存占用从 O(N²) 降至 O(N)，从而支持超长�
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -31,15 +30,13 @@ import torch.nn as nn
 logger = logging.getLogger(__name__)
 
 try:
-    from flash_attn import flash_attn_qkvpacked_func
-    from flash_attn import flash_attn_varlen_qkvpacked_func
+    from flash_attn import flash_attn_qkvpacked_func, flash_attn_varlen_qkvpacked_func
 
     FLASH_AVAILABLE = True
 except ImportError:
     FLASH_AVAILABLE = False
     logger.warning(
-        "Flash Attention 未安装，回退到标准注意力。"
-        "安装方法: pip install flash-attn==2.5.0 --no-build-isolation",
+        "Flash Attention 未安装，回退到标准注意力。" "安装方法: pip install flash-attn==2.5.0 --no-build-isolation",
     )
 
 
@@ -79,16 +76,15 @@ class FlashAttention(nn.Module):
         n_heads: int,
         dropout: float = 0.0,
         causal: bool = False,
-        device: Optional[torch.device] = None,
-        dtype: Optional[torch.dtype] = None,
+        device: torch.device | None = None,
+        dtype: torch.dtype | None = None,
     ) -> None:
         factory_kwargs = {"device": device, "dtype": dtype}
         super().__init__()
 
         if not FLASH_AVAILABLE:
             raise RuntimeError(
-                "Flash Attention 未安装，无法使用此模块。"
-                "请安装: pip install flash-attn==2.5.0 --no-build-isolation",
+                "Flash Attention 未安装，无法使用此模块。" "请安装: pip install flash-attn==2.5.0 --no-build-isolation",
             )
 
         if dim % n_heads != 0:
@@ -108,9 +104,9 @@ class FlashAttention(nn.Module):
     def forward(
         self,
         x: torch.Tensor,
-        key_padding_mask: Optional[torch.Tensor] = None,
-        cu_seqlens: Optional[torch.Tensor] = None,
-        max_seqlen: Optional[int] = None,
+        key_padding_mask: torch.Tensor | None = None,
+        cu_seqlens: torch.Tensor | None = None,
+        max_seqlen: int | None = None,
     ) -> torch.Tensor:
         """Flash Attention 前向传播。
 
@@ -174,8 +170,7 @@ def replace_attention_with_flash(model: nn.Module) -> nn.Module:
     """
     if not FLASH_AVAILABLE:
         raise RuntimeError(
-            "Flash Attention 未安装，无法执行替换。"
-            "请安装: pip install flash-attn==2.5.0 --no-build-isolation",
+            "Flash Attention 未安装，无法执行替换。" "请安装: pip install flash-attn==2.5.0 --no-build-isolation",
         )
 
     for name, module in model.named_children():
