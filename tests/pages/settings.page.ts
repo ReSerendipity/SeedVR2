@@ -1,162 +1,83 @@
 import { Page, Locator } from '@playwright/test';
 import { BasePage } from './base.page';
 
+/**
+ * SettingsPage - 匹配 settings.html（"左设置右关于"两栏改版）的页面对象。
+ *
+ * 页面结构（2026-08 产品改版后）：
+ * - 设置面板（.sv-settings-panel）：语言下拉 #settingsLocale、主题下拉 #settingsTheme、路径只读展示 .sv-settings-paths
+ * - 关于项目（.sv-about-hero）：名称/标语/作者/版本/许可证/社交按钮
+ * - 技术特性（.sv-about-feature-card × 9）
+ * - 右侧栏：技术栈表 .sv-about-table、快速开始 .sv-about-setup、FAQ、链接、版权
+ */
 export class SettingsPage extends BasePage {
-  // Navigation
-  readonly settingsNav: Locator;
+  // 设置面板
+  readonly locale: Locator; // #settingsLocale
+  readonly theme: Locator; // #settingsTheme
+  readonly pathsText: Locator; // .sv-settings-paths
+  readonly pathsNote: Locator;
 
-  // Tab selectors
-  readonly tabPaths: Locator;
-  readonly tabModel: Locator;
-  readonly tabLanguage: Locator;
+  // 关于项目 hero
+  readonly aboutHero: Locator;
+  readonly aboutHeroName: Locator;
+  readonly aboutHeroSubtitle: Locator;
+  readonly aboutMetadata: Locator; // 作者/版本/许可证元数据块
+  readonly aboutGithubBtn: Locator;
 
-  // Section selectors
-  readonly sectionPaths: Locator;
-  readonly sectionModel: Locator;
-  readonly sectionLanguage: Locator;
+  // 技术特性
+  readonly featureCards: Locator;
 
-  // Path settings
-  readonly pretrainedDir: Locator;
-  readonly outputDir: Locator;
-  readonly btnSavePaths: Locator;
-  readonly btnResetPaths: Locator;
-  readonly browseDirButtons: Locator;
-
-  // Model settings
-  readonly defaultModelSize: Locator;
-  readonly modelPrecision: Locator;
-  readonly gpuBackend: Locator;
-  readonly btnSaveModelSettings: Locator;
-
-  // Language settings
-  readonly locale: Locator;
-  readonly btnSaveLanguage: Locator;
+  // 右侧栏
+  readonly stackTable: Locator; // .sv-about-table
+  readonly quickstart: Locator; // .sv-about-setup
 
   readonly path = '/settings';
 
   constructor(page: Page) {
     super(page);
 
-    // Navigation
-    this.settingsNav = page.locator('#settingsNav');
+    // 设置面板
+    this.locale = page.locator('#settingsLocale');
+    this.theme = page.locator('#settingsTheme');
+    this.pathsText = page.locator('.sv-settings-paths');
+    this.pathsNote = page.locator('.sv-settings-panel p.sv-text-muted');
 
-    // Tabs
-    this.tabPaths = page.locator('#tab-paths');
-    this.tabModel = page.locator('#tab-model');
-    this.tabLanguage = page.locator('#tab-language');
+    // 关于项目 hero
+    this.aboutHero = page.locator('.sv-about-hero');
+    this.aboutHeroName = page.locator('.sv-about-hero-name');
+    this.aboutHeroSubtitle = page.locator('.sv-about-hero-subtitle');
+    this.aboutMetadata = page.locator('.sv-about-metadata');
+    this.aboutGithubBtn = page.locator('.sv-about-github-btn');
 
-    // Sections
-    this.sectionPaths = page.locator('#section-paths');
-    this.sectionModel = page.locator('#section-model');
-    this.sectionLanguage = page.locator('#section-language');
+    // 技术特性
+    this.featureCards = page.locator('.sv-about-feature-card');
 
-    // Path settings
-    this.pretrainedDir = page.locator('#pretrainedDir');
-    this.outputDir = page.locator('#outputDir');
-    this.btnSavePaths = page.locator('#btnSavePaths');
-    this.btnResetPaths = page.locator('#btnResetPaths');
-    this.browseDirButtons = page.locator('.btn-browse-dir');
-
-    // Model settings
-    this.defaultModelSize = page.locator('#defaultModelSize');
-    this.modelPrecision = page.locator('#modelPrecision');
-    this.gpuBackend = page.locator('#gpuBackend');
-    this.btnSaveModelSettings = page.locator('#btnSaveModelSettings');
-
-    // Language settings
-    this.locale = page.locator('#locale');
-    this.btnSaveLanguage = page.locator('#btnSaveLanguage');
+    // 右侧栏
+    this.stackTable = page.locator('.sv-about-table');
+    this.quickstart = page.locator('.sv-about-setup');
   }
 
   async goto(): Promise<void> {
     await this.navigate(this.path);
   }
 
-  async switchTab(tabName: 'paths' | 'model' | 'language'): Promise<void> {
-    const tabMap: Record<string, Locator> = {
-      paths: this.tabPaths,
-      model: this.tabModel,
-      language: this.tabLanguage,
-    };
-    const tab = tabMap[tabName];
-    if (!tab) throw new Error(`Unknown tab: ${tabName}`);
-    await tab.click();
-    // Wait for the corresponding section to become visible
-    const sectionMap: Record<string, Locator> = {
-      paths: this.sectionPaths,
-      model: this.sectionModel,
-      language: this.sectionLanguage,
-    };
-    await sectionMap[tabName].waitFor({ state: 'visible' });
+  /** 读取语言下拉的当前值 */
+  async getSelectedLocale(): Promise<string> {
+    return await this.locale.inputValue();
   }
 
-  async setPretrainedDir(path: string): Promise<void> {
-    await this.pretrainedDir.fill(path);
+  /** 读取主题下拉的当前值 */
+  async getSelectedTheme(): Promise<string> {
+    return await this.theme.inputValue();
   }
 
-  async setOutputDir(path: string): Promise<void> {
-    await this.outputDir.fill(path);
+  /** 切换语言：选择后触发 switchLocale（POST /api/system/locale + 页面刷新） */
+  async switchLocale(localeCode: string): Promise<void> {
+    await this.locale.selectOption(localeCode);
   }
 
-  async savePaths(): Promise<void> {
-    await this.btnSavePaths.click();
-  }
-
-  async resetPaths(): Promise<void> {
-    await this.btnResetPaths.click();
-    // Confirm in the modal
-    const confirmBtn = this.page.locator('#confirmAction');
-    await confirmBtn.click();
-  }
-
-  async setDefaultModelSize(size: string): Promise<void> {
-    await this.defaultModelSize.selectOption(size);
-  }
-
-  async setModelPrecision(precision: string): Promise<void> {
-    await this.modelPrecision.selectOption(precision);
-  }
-
-  async setGpuBackend(backend: string): Promise<void> {
-    await this.gpuBackend.selectOption(backend);
-  }
-
-  async saveModelSettings(): Promise<void> {
-    await this.btnSaveModelSettings.click();
-  }
-
-  async setLocale(locale: string): Promise<void> {
-    await this.locale.selectOption(locale);
-  }
-
-  async saveLanguage(): Promise<void> {
-    await this.btnSaveLanguage.click();
-    // Language save triggers a page reload
-    await this.page.waitForLoadState('domcontentloaded');
-  }
-
-  async getCurrentSettings(): Promise<Record<string, string>> {
-    // Read values from each tab - switch tabs as needed since hidden elements
-    // may not be interactable in some browsers/frameworks.
-    const result: Record<string, string> = {};
-
-    // Paths tab (default)
-    result.pretrainedDir = await this.pretrainedDir.inputValue();
-    result.outputDir = await this.outputDir.inputValue();
-
-    // Model tab
-    await this.switchTab('model');
-    result.defaultModelSize = await this.defaultModelSize.inputValue();
-    result.modelPrecision = await this.modelPrecision.inputValue();
-    result.gpuBackend = await this.gpuBackend.inputValue();
-
-    // Language tab
-    await this.switchTab('language');
-    result.locale = await this.locale.inputValue();
-
-    // Return to paths tab (default)
-    await this.switchTab('paths');
-
-    return result;
+  /** 切换主题：选择后触发 applyTheme（html[data-theme] 更新 + localStorage 持久化） */
+  async switchTheme(theme: 'dark' | 'light'): Promise<void> {
+    await this.theme.selectOption(theme);
   }
 }

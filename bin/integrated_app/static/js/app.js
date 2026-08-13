@@ -89,6 +89,7 @@ const SeedVR2 = (() => {
             'form.min_value': '最小值为 {min}',
             'form.max_value': '最大值为 {max}',
             'system.connection_failed': '连接失败',
+            'system.reconnected': '已重新连接',
             'history.video': '视频',
             'history.image': '图像',
             'video.batch_current_processing': '当前处理: {current}/{total}',
@@ -144,6 +145,7 @@ const SeedVR2 = (() => {
             'form.min_value': 'Minimum value is {min}',
             'form.max_value': 'Maximum value is {max}',
             'system.connection_failed': 'Connection failed',
+            'system.reconnected': 'Reconnected',
             'history.video': 'Video',
             'history.image': 'Image',
             'video.batch_current_processing': 'Processing: {current}/{total}',
@@ -199,6 +201,7 @@ const SeedVR2 = (() => {
             'form.min_value': '最小値は {min} です',
             'form.max_value': '最大値は {max} です',
             'system.connection_failed': '接続に失敗しました',
+            'system.reconnected': '再接続しました',
             'history.video': '動画',
             'history.image': '画像',
             'video.batch_current_processing': '現在の処理: {current}/{total}',
@@ -254,6 +257,7 @@ const SeedVR2 = (() => {
             'form.min_value': 'La valeur minimale est {min}',
             'form.max_value': 'La valeur maximale est {max}',
             'system.connection_failed': 'Connexion échouée',
+            'system.reconnected': 'Reconnecté',
             'history.video': 'Vidéo',
             'history.image': 'Image',
             'video.batch_current_processing': 'Traitement: {current}/{total}',
@@ -472,10 +476,9 @@ const SeedVR2 = (() => {
         if (!container) return;
 
         // 限制最大数量，超出时移除最早的通知
-        while (container.children.length >= MAX_TOASTS) {
+        if (container.children.length >= MAX_TOASTS) {
             const oldest = container.firstElementChild;
-            oldest.classList.add('toast-out');
-            setTimeout(() => oldest.remove(), 300);
+            if (oldest) oldest.remove();
         }
 
         const iconMap = {
@@ -933,7 +936,7 @@ const SeedVR2 = (() => {
         globalEventSource.onopen = () => {
             if (_sseRetryCount > 0) {
                 console.debug('SSE reconnected after', _sseRetryCount, 'attempts');
-                toast(t('locale.switched') || 'Reconnected', 'success', 2000);
+                toast(t('system.reconnected') || 'Reconnected', 'success', 2000);
             }
             _sseRetryCount = 0;
             _updateSSEStatusUI('online');
@@ -1399,7 +1402,7 @@ const SeedVR2 = (() => {
 
         if (taskType === 'video') {
             // 视频任务显示视频播放器
-            if (resultVideo) resultVideo.src = `/api/restore/${taskId}/download`;
+            if (resultVideo) { resultVideo.src = `/api/restore/${taskId}/download`; resultVideo.style.display = 'block'; }
         } else {
             // 图片任务显示前后对比滑块
             const compareCard = document.getElementById('compareCard');
@@ -2113,6 +2116,31 @@ const SeedVR2 = (() => {
         return `${(seconds / 3600).toFixed(1)}${t('time.hour')}`;
     }
 
+    // ===== 设置页控件绑定（settings.html 左设置右关于改版） =====
+    /**
+     * @function initSettingsPageControls
+     * @description 绑定设置页语言/主题下拉的行为：语言切换复用 switchLocale，
+     *              主题切换复用 applyTheme 并持久化到 localStorage。
+     * @returns {void}
+     */
+    function initSettingsPageControls() {
+        const localeSelect = document.getElementById('settingsLocale');
+        if (localeSelect) {
+            localeSelect.addEventListener('change', () => {
+                switchLocale(localeSelect.value);
+            });
+        }
+        const themeSelect = document.getElementById('settingsTheme');
+        if (themeSelect) {
+            const current = document.documentElement.getAttribute('data-theme') || 'dark';
+            themeSelect.value = current === 'light' ? 'light' : 'dark';
+            themeSelect.addEventListener('change', () => {
+                applyTheme(themeSelect.value);
+                try { localStorage.setItem('sv-theme', themeSelect.value); } catch (e) { /* ignore */ }
+            });
+        }
+    }
+
     // ===== 语言切换下拉菜单 =====
     /**
      * @constant {string[]} LOCALE_ORDER
@@ -2539,6 +2567,9 @@ const SeedVR2 = (() => {
 
         // 设置页面Tab键盘导航
         initSettingsTabKeyboardNav();
+
+        // 设置页语言/主题下拉行为绑定（settings.html 改版后）
+        initSettingsPageControls();
 
         // 移动端参数面板折叠
         if (window.matchMedia('(max-width: 768px)').matches) {

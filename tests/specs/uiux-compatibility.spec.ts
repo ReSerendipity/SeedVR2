@@ -114,16 +114,32 @@ async function getInteractiveElementRects(page: Page): Promise<
     ].join(', ');
 
     const elements = document.querySelectorAll(interactiveSelectors);
-    return Array.from(elements).map((el) => {
-      const rect = el.getBoundingClientRect();
-      return {
-        tag: el.tagName.toLowerCase(),
-        id: el.id || '',
-        text: (el.textContent || '').trim().substring(0, 50),
-        width: Math.round(rect.width),
-        height: Math.round(rect.height),
-      };
-    });
+    return Array.from(elements)
+      .map((el) => {
+        const rect = el.getBoundingClientRect();
+        // Skip invisible elements (e.g. collapsed menu items with 0x0 rects,
+        // opacity:0 / visibility:hidden inputs, hidden modal contents):
+        // hidden elements must not count as undersized touch targets.
+        if (rect.width === 0 && rect.height === 0) {
+          return null;
+        }
+        let node = el as HTMLElement | null;
+        while (node) {
+          const cs = getComputedStyle(node);
+          if (cs.opacity === '0' || cs.visibility === 'hidden' || cs.display === 'none') {
+            return null;
+          }
+          node = node.parentElement;
+        }
+        return {
+          tag: el.tagName.toLowerCase(),
+          id: el.id || '',
+          text: (el.textContent || '').trim().substring(0, 50),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+        };
+      })
+      .filter((item) => item !== null);
   });
 }
 
@@ -964,12 +980,23 @@ test.describe('Touch target compliance', () => {
           text: (btn.textContent || '').trim().substring(0, 40),
           width: Math.round(rect.width),
           height: Math.round(rect.height),
+          opacity: getComputedStyle(btn).opacity,
+          visibility: getComputedStyle(btn).visibility,
+          display: getComputedStyle(btn).display,
         };
       });
     });
 
+    // Skip visually hidden buttons (opacity:0, visibility:hidden) and
+    // zero-size collapsed elements - they are not real touch targets.
     const smallButtons = buttons.filter(
-      (b) => b.width < MIN_TOUCH_TARGET_SIZE || b.height < MIN_TOUCH_TARGET_SIZE,
+      (b) =>
+        (b.width < MIN_TOUCH_TARGET_SIZE || b.height < MIN_TOUCH_TARGET_SIZE) &&
+        b.width > 0 &&
+        b.height > 0 &&
+        b.opacity !== '0' &&
+        b.visibility !== 'hidden' &&
+        b.display !== 'none',
     );
 
     if (smallButtons.length > 0) {

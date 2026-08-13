@@ -1,274 +1,198 @@
-import { Page, Locator } from '@playwright/test';
+/**
+ * Image Restore page object for the SeedVR2 WebUI.
+ *
+ * NOTE: The product has been reworked into a single unified restore
+ * workbench (restore.html). Image restore lives on the "single file"
+ * mode tab of `/restore`; this page object targets the current template
+ * ids (camelCase), replacing the legacy snake_case selectors.
+ */
+import type { Locator, Page } from '@playwright/test';
 import { BasePage } from './base.page';
 
 export class ImageRestorePage extends BasePage {
-  // Upload selectors
-  readonly imageUploadZone: Locator;
-  readonly imageFileInput: Locator;
-  readonly imageFileInfo: Locator;
-  readonly uploadStatus: Locator;
+  readonly path = '/restore';
+
+  // Upload zone (unified restore upload)
+  readonly uploadZone: Locator;
+  readonly fileInput: Locator;
+  readonly fileInfo: Locator;
+  readonly fileDuration: Locator;
+  readonly btnChangeFile: Locator;
+
+  // Preview
+  readonly previewContainer: Locator;
   readonly imagePreview: Locator;
+  readonly btnClearImage: Locator;
 
-  // Folder selectors
-  readonly folderDetails: Locator;
+  // Progress
+  readonly progressCard: Locator;
+  readonly taskStatus: Locator;
+  readonly btnCancelRestore: Locator;
+  readonly progressBar: Locator;
+  readonly progressText: Locator;
+  readonly progressPct: Locator;
+  readonly progressFrames: Locator;
+  readonly progressEta: Locator;
+
+  // Result
+  readonly resultCard: Locator;
+  readonly resultStatus: Locator;
+  readonly btnDownload: Locator;
+  readonly btnRestoreAgain: Locator;
+
+  // Compare
+  readonly compareCard: Locator;
+  readonly btnCompareHorizontal: Locator;
+  readonly btnCompareVertical: Locator;
+  readonly compareSlider: Locator;
+  readonly compareContainer: Locator;
+  readonly compareBefore: Locator;
+  readonly compareAfter: Locator;
+
+  // Batch (folder mode)
+  readonly modeTabs: Locator;
+  readonly batchToolbar: Locator;
   readonly folderPath: Locator;
-  readonly btnPickFolder: Locator;
+  readonly btnBrowseFolder: Locator;
   readonly btnScanFolder: Locator;
-  readonly scanResult: Locator;
-  readonly scanResultText: Locator;
-
-  // Form & action selectors
-  readonly imageRestoreForm: Locator;
-  readonly btnStartRestore: Locator;
-
-  // Processing selectors
-  readonly processingCard: Locator;
-
-  // Batch progress selectors
+  readonly btnStartBatch: Locator;
+  readonly folderScanResults: Locator;
   readonly batchProgressCard: Locator;
   readonly batchProgressBar: Locator;
-  readonly batchProgressLabel: Locator;
-  readonly batchProgressPct: Locator;
-  readonly batchCompletedCount: Locator;
-  readonly batchFailedCount: Locator;
+  readonly batchProgressText: Locator;
+  readonly batchPercentText: Locator;
+  readonly batchCompleted: Locator;
+  readonly batchFailed: Locator;
   readonly batchCurrentFile: Locator;
-  readonly batchCurrentName: Locator;
-  readonly batchFileList: Locator;
-  readonly batchRetrySection: Locator;
-  readonly btnRetryFailed: Locator;
+  readonly batchEta: Locator;
+  readonly btnCancelBatch: Locator;
 
-  // Compare selectors
-  readonly compareCard: Locator;
-  readonly compareContainer: Locator;
-  readonly compareSlider: Locator;
-  readonly compareBefore: Locator;
-  readonly compareAfterImg: Locator;
-  readonly btnDownload: Locator;
-
-  // Parameter selectors - Shrink
-  readonly shrinkAlgorithm: Locator;
-  readonly shrinkScale: Locator;
-  readonly shrinkEnabled: Locator;
-
-  // Parameter selectors - DiT
+  // Parameters
+  readonly paramsSidebar: Locator;
+  readonly btnToggleParams: Locator;
   readonly ditModel: Locator;
-  readonly ditDevice: Locator;
-  readonly blocksToSwap: Locator;
-  readonly swapIoComponents: Locator;
-  readonly ditOffloadDevice: Locator;
-  readonly ditCacheModel: Locator;
-  readonly attentionMode: Locator;
-
-  // Parameter selectors - VAE
+  readonly resolution: Locator;
+  readonly doubleResToggle: Locator;
   readonly vaeModel: Locator;
-  readonly vaeDevice: Locator;
-  readonly encodeTiled: Locator;
+  readonly advToggle: Locator;
+  readonly advParams: Locator;
+  readonly maxResolution: Locator;
+  readonly colorCorrection: Locator;
+  readonly blocksToSwap: Locator;
+  readonly batchSize: Locator;
   readonly encodeTileSize: Locator;
   readonly encodeTileOverlap: Locator;
-  readonly decodeTiled: Locator;
   readonly decodeTileSize: Locator;
   readonly decodeTileOverlap: Locator;
-  readonly tileDebug: Locator;
-  readonly vaeOffloadDevice: Locator;
-  readonly vaeCacheModel: Locator;
 
-  // Parameter selectors - Upscaler
-  readonly seed: Locator;
-  readonly resolution: Locator;
-  readonly batchSize: Locator;
-  readonly colorCorrection: Locator;
-  readonly maxResolution: Locator;
-  readonly uniformBatchSize: Locator;
-  readonly temporalOverlap: Locator;
-  readonly prependFrames: Locator;
-  readonly inputNoiseScale: Locator;
-  readonly latentNoiseScale: Locator;
-  readonly offloadDevice: Locator;
-  readonly enableDebug: Locator;
+  // Actions
+  readonly btnStartRestore: Locator;
+  readonly btnResetRestore: Locator;
 
-  readonly path = '/restore';
+  // Onboarding / help / confirm dialog
+  readonly onboardingModal: Locator;
+  readonly onboardingClose: Locator;
+  readonly confirmAction: Locator;
 
   constructor(page: Page) {
     super(page);
 
-    // Upload
-    this.imageUploadZone = page.locator('#imageUploadZone');
-    this.imageFileInput = page.locator('#imageFileInput');
-    this.imageFileInfo = page.locator('#imageFileInfo');
-    this.uploadStatus = page.locator('#uploadStatus');
+    this.uploadZone = page.locator('#restoreUploadZone');
+    this.fileInput = page.locator('#restoreFileInput');
+    this.fileInfo = page.locator('#restoreFileInfo');
+    this.fileDuration = page.locator('#fileDuration');
+    this.btnChangeFile = page.locator('#btnChangeFile');
+
+    this.previewContainer = page.locator('#imagePreviewContainer');
     this.imagePreview = page.locator('#imagePreview');
+    this.btnClearImage = page.locator('#btnClearImage');
 
-    // Folder - the <details> element wrapping the folder section
-    this.folderDetails = page.locator('details:has(#folder_path)');
-    this.folderPath = page.locator('#folder_path');
-    this.btnPickFolder = page.locator('#btnPickFolder');
+    this.progressCard = page.locator('#progressCard');
+    this.taskStatus = page.locator('#taskStatus');
+    this.btnCancelRestore = page.locator('#btnCancelRestore');
+    this.progressBar = page.locator('#progressBar');
+    this.progressText = page.locator('#progressText');
+    this.progressPct = page.locator('#progressPct');
+    this.progressFrames = page.locator('#progressFrames');
+    this.progressEta = page.locator('#progressEta');
+
+    this.resultCard = page.locator('#resultCard');
+    this.resultStatus = page.locator('#resultStatus');
+    this.btnDownload = page.locator('#btnDownload');
+    this.btnRestoreAgain = page.locator('#btnRestoreAgain');
+
+    this.compareCard = page.locator('#compareCard');
+    this.btnCompareHorizontal = page.locator('#btnCompareHorizontal');
+    this.btnCompareVertical = page.locator('#btnCompareVertical');
+    this.compareSlider = page.locator('#compareSlider');
+    this.compareContainer = page.locator('#compareContainer');
+    this.compareBefore = page.locator('#compareBefore');
+    this.compareAfter = page.locator('#compareAfter');
+
+    this.modeTabs = page.locator('.sv-mode-tab');
+    this.batchToolbar = page.locator('#batchToolbar');
+    this.folderPath = page.locator('#folderPath');
+    this.btnBrowseFolder = page.locator('#btnBrowseFolder');
     this.btnScanFolder = page.locator('#btnScanFolder');
-    this.scanResult = page.locator('#scanResult');
-    this.scanResultText = page.locator('#scanResultText');
-
-    // Form & actions
-    this.imageRestoreForm = page.locator('#imageRestoreForm');
-    this.btnStartRestore = page.locator('#btnStartRestore');
-
-    // Processing
-    this.processingCard = page.locator('#processingCard');
-
-    // Batch progress
+    this.btnStartBatch = page.locator('#btnStartBatch');
+    this.folderScanResults = page.locator('#folderScanResults');
     this.batchProgressCard = page.locator('#batchProgressCard');
     this.batchProgressBar = page.locator('#batchProgressBar');
-    this.batchProgressLabel = page.locator('#batchProgressLabel');
-    this.batchProgressPct = page.locator('#batchProgressPct');
-    this.batchCompletedCount = page.locator('#batchCompletedCount');
-    this.batchFailedCount = page.locator('#batchFailedCount');
+    this.batchProgressText = page.locator('#batchProgressText');
+    this.batchPercentText = page.locator('#batchPercentText');
+    this.batchCompleted = page.locator('#batchCompleted');
+    this.batchFailed = page.locator('#batchFailed');
     this.batchCurrentFile = page.locator('#batchCurrentFile');
-    this.batchCurrentName = page.locator('#batchCurrentName');
-    this.batchFileList = page.locator('#batchFileList');
-    this.batchRetrySection = page.locator('#batchRetrySection');
-    this.btnRetryFailed = page.locator('#btnRetryFailed');
+    this.batchEta = page.locator('#batchEta');
+    this.btnCancelBatch = page.locator('#btnCancelBatch');
 
-    // Compare
-    this.compareCard = page.locator('#compareCard');
-    this.compareContainer = page.locator('#compareContainer');
-    this.compareSlider = page.locator('#compareSlider');
-    this.compareBefore = page.locator('#compareBefore');
-    this.compareAfterImg = page.locator('#compareAfterImg');
-    this.btnDownload = page.locator('#btnDownload');
-
-    // Shrink parameters
-    this.shrinkAlgorithm = page.locator('#shrink_algorithm');
-    this.shrinkScale = page.locator('#shrink_scale');
-    this.shrinkEnabled = page.locator('#shrink_enabled');
-
-    // DiT parameters
-    this.ditModel = page.locator('#dit_model');
-    this.ditDevice = page.locator('#dit_device');
-    this.blocksToSwap = page.locator('#blocks_to_swap');
-    this.swapIoComponents = page.locator('#swap_io_components');
-    this.ditOffloadDevice = page.locator('#dit_offload_device');
-    this.ditCacheModel = page.locator('#dit_cache_model');
-    this.attentionMode = page.locator('#attention_mode');
-
-    // VAE parameters
-    this.vaeModel = page.locator('#vae_model');
-    this.vaeDevice = page.locator('#vae_device');
-    this.encodeTiled = page.locator('#encode_tiled');
-    this.encodeTileSize = page.locator('#encode_tile_size');
-    this.encodeTileOverlap = page.locator('#encode_tile_overlap');
-    this.decodeTiled = page.locator('#decode_tiled');
-    this.decodeTileSize = page.locator('#decode_tile_size');
-    this.decodeTileOverlap = page.locator('#decode_tile_overlap');
-    this.tileDebug = page.locator('#tile_debug');
-    this.vaeOffloadDevice = page.locator('#vae_offload_device');
-    this.vaeCacheModel = page.locator('#vae_cache_model');
-
-    // Upscaler parameters
-    this.seed = page.locator('#seed');
+    this.paramsSidebar = page.locator('#paramsSidebar');
+    this.btnToggleParams = page.locator('#btnToggleParams');
+    this.ditModel = page.locator('#ditModel');
     this.resolution = page.locator('#resolution');
-    this.batchSize = page.locator('#batch_size');
-    this.colorCorrection = page.locator('#color_correction');
-    this.maxResolution = page.locator('#max_resolution');
-    this.uniformBatchSize = page.locator('#uniform_batch_size');
-    this.temporalOverlap = page.locator('#temporal_overlap');
-    this.prependFrames = page.locator('#prepend_frames');
-    this.inputNoiseScale = page.locator('#input_noise_scale');
-    this.latentNoiseScale = page.locator('#latent_noise_scale');
-    this.offloadDevice = page.locator('#offload_device');
-    this.enableDebug = page.locator('#enable_debug');
+    this.doubleResToggle = page.locator('#doubleResToggle');
+    this.vaeModel = page.locator('#vaeModel');
+    this.advToggle = page.locator('#advToggle');
+    this.advParams = page.locator('#advParams');
+    this.maxResolution = page.locator('#maxResolution');
+    this.colorCorrection = page.locator('#colorCorrection');
+    this.blocksToSwap = page.locator('#blocksToSwap');
+    this.batchSize = page.locator('#batchSize');
+    this.encodeTileSize = page.locator('#encodeTileSize');
+    this.encodeTileOverlap = page.locator('#encodeTileOverlap');
+    this.decodeTileSize = page.locator('#decodeTileSize');
+    this.decodeTileOverlap = page.locator('#decodeTileOverlap');
+
+    this.btnStartRestore = page.locator('#btnStartRestore');
+    this.btnResetRestore = page.locator('#btnResetRestore');
+
+    this.onboardingModal = page.locator('#onboardingModal');
+    this.onboardingClose = page.locator('#onboardingClose');
+    this.confirmAction = page.locator('#confirmAction');
   }
 
   async goto(): Promise<void> {
     await this.navigate(this.path);
   }
 
+  /** Upload an image file through the unified restore file input. */
   async uploadImage(filePath: string): Promise<void> {
-    await this.imageFileInput.setInputFiles(filePath);
-    // Wait for file info to appear
-    await this.imageFileInfo.waitFor({ state: 'visible' });
+    await this.fileInput.setInputFiles(filePath);
   }
 
-  async setFolderPath(path: string): Promise<void> {
-    // The folder_path input is inside a <details> element that may be collapsed.
-    // Use JavaScript to expand because summary may be hidden by CSS in certain viewports
-    await this.page.evaluate(() => {
-      const details = document.querySelector('details:has(#folder_path)');
-      if (details && !details.hasAttribute('open')) {
-        details.setAttribute('open', '');
-      }
-    });
-    await this.folderPath.waitFor({ state: 'visible' });
-    await this.folderPath.fill(path);
+  /** Switch to the batch (folder) mode tab. */
+  async switchToBatchMode(): Promise<void> {
+    await this.modeTabs.filter({ hasText: '批量修复' }).click();
   }
 
-  async clickBrowseFolder(): Promise<void> {
-    await this.btnPickFolder.click();
+  /** Switch to the single-file mode tab. */
+  async switchToSingleMode(): Promise<void> {
+    await this.modeTabs.filter({ hasText: '单文件修复' }).click();
   }
 
-  async clickScanFolder(): Promise<void> {
-    // Ensure the folder details section is expanded before clicking scan
-    // Use JavaScript to expand because summary may be hidden by CSS in certain viewports
-    await this.page.evaluate(() => {
-      const details = document.querySelector('details:has(#folder_path)');
-      if (details && !details.hasAttribute('open')) {
-        details.setAttribute('open', '');
-      }
-    });
-    await this.btnScanFolder.waitFor({ state: 'visible' });
-    await this.btnScanFolder.click();
-    // Wait for scan result to appear
-    await this.scanResult.waitFor({ state: 'visible', timeout: 15000 });
-  }
-
-  async getScanResult(): Promise<string> {
-    const text = await this.scanResultText.textContent();
-    return text?.trim() || '';
-  }
-
-  async setDitModel(model: string): Promise<void> {
-    await this.ditModel.selectOption(model);
-  }
-
-  async setDitDevice(device: string): Promise<void> {
-    await this.ditDevice.selectOption(device);
-  }
-
-  async setSeed(value: number): Promise<void> {
-    await this.seed.fill(String(value));
-  }
-
-  async setResolution(value: number): Promise<void> {
-    await this.resolution.fill(String(value));
-  }
-
-  async startRestore(): Promise<void> {
-    await this.btnStartRestore.click();
-  }
-
-  async waitForProcessingComplete(timeout = 300000): Promise<void> {
-    await this.processingCard.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
-    // Wait for processing card to disappear (processing done)
-    await this.processingCard.waitFor({ state: 'hidden', timeout });
-  }
-
-  async waitForResult(timeout = 300000): Promise<void> {
-    await this.compareCard.waitFor({ state: 'visible', timeout });
-  }
-
-  async waitForBatchComplete(timeout = 600000): Promise<void> {
-    await this.batchProgressCard.waitFor({ state: 'visible', timeout: 10000 });
-    // Wait for the batch status badge to show completed
-    const badge = this.page.locator('#batchStatusBadge.sv-badge-completed');
-    await badge.waitFor({ state: 'visible', timeout });
-  }
-
-  async clickRetryFailed(): Promise<void> {
-    await this.btnRetryFailed.click();
-  }
-
-  async resetRestore(): Promise<void> {
-    await this.page.evaluate(() => {
-      if (typeof (window as any).SeedVR2?.resetImageRestore === 'function') {
-        (window as any).SeedVR2.resetImageRestore();
-      }
-    });
+  /** Expand the advanced parameter section. */
+  async expandAdvanced(): Promise<void> {
+    await this.advToggle.click();
+    await this.advParams.waitFor({ state: 'visible' });
   }
 }

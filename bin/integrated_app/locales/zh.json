@@ -531,8 +531,8 @@
     "switched_to_manual": "已切换到手动分辨率模式",
     "manual_res_hint": "可自由修改分辨率（两倍模式未启用）",
     "double_res": "两倍模式",
-    "double_res_tip": "开启后上传图片自动按短边×2设置分辨率，手动输入无效",
-    "double_res_hint_default": "上传图片后将按短边×2自动计算（两倍模式下不可手动修改）",
+    "double_res_tip": "开启后上传图片或视频自动按短边×2设置分辨率，手动输入无效",
+    "double_res_hint_default": "上传图片或视频后将按短边×2自动计算（两倍模式下不可手动修改）",
     "double_res_applied": "已按短边×2自动填充分辨率和分块参数"
   }
 }

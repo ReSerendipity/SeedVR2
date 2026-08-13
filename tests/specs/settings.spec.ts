@@ -1,36 +1,22 @@
 /**
  * Settings management test specification for SeedVR2 WebUI.
  *
- * Covers:
- * - Tab navigation: switch between paths/model/language tabs
- * - Get settings: verify settings form loads with current values
- * - Update model settings: change model size and precision, save, verify success toast
- * - Update language: change locale, save, verify page reloads
- * - Directory browser: click browse button, verify modal opens
- * - Path traversal protection: mock browse-dir with '..' path, verify 400 error
- * - Model load/unload/switch: mock model management API calls
- * - Reset paths: click reset button, verify fields reset to defaults
+ * 与 2026-08 产品改版（"左设置右关于"两栏，commit 735e407/7547815）对齐：
+ * - 设置面板：语言下拉（#settingsLocale，5 语言）、主题下拉（#settingsTheme）、路径只读展示
+ * - 语言切换：绑定 switchLocale → POST /api/system/locale + 页面刷新
+ * - 主题切换：绑定 applyTheme → html[data-theme] 更新 + localStorage 持久化
+ * - 关于项目 hero / 技术特性 / 技术栈表 / 快速开始
  */
 import { test, expect } from '@playwright/test';
 import { SettingsPage } from '../pages/settings.page';
 import {
   setupAllMocks,
-  mockSettingsGetSuccess,
-  mockSettingsUpdateSuccess,
-  mockModelStatusLoaded,
-  mockModelStatusUnloaded,
-  mockModelLoadSuccess,
-  mockModelUnloadSuccess,
-  mockModelSwitchSuccess,
-  mockBrowseDirSuccess,
-  mockLocalesSuccess,
   mockLocaleSwitchSuccess,
-  mock400BadRequest,
 } from '../fixtures/api-mocks';
-import { assertUrlPath } from '../utils/assertion-helpers';
-import { waitForToast, waitForSuccessToast, waitForErrorToast } from '../utils/wait-helpers';
 
-test.describe('Settings Management', () => {
+const EXPECTED_LOCALES = ['zh', 'zh-TW', 'en', 'ja', 'fr'];
+
+test.describe('Settings page (about + settings two-column layout)', () => {
   let settingsPage: SettingsPage;
 
   test.beforeEach(async ({ page }) => {
@@ -41,281 +27,159 @@ test.describe('Settings Management', () => {
   });
 
   // ============================================================
-  // Tab navigation
+  // Settings panel
   // ============================================================
 
-  test.describe('Tab navigation', () => {
-    test('paths tab is active by default', async () => {
-      await expect(settingsPage.tabPaths).toHaveClass(/active/);
-      await expect(settingsPage.sectionPaths).toBeVisible();
+  test.describe('Settings panel', () => {
+    test('settings panel is visible on the page', async () => {
+      await expect(settingsPage.locale).toBeVisible();
+      await expect(settingsPage.theme).toBeVisible();
+      await expect(settingsPage.pathsText).toBeVisible();
     });
 
-    test('switching to model tab shows model settings section', async () => {
-      await settingsPage.switchTab('model');
-      await expect(settingsPage.sectionModel).toBeVisible();
-      await expect(settingsPage.sectionPaths).toBeHidden();
-    });
+    test('locale dropdown shows all 5 supported languages with zh selected', async () => {
+      const options = await settingsPage.locale.locator('option').allTextContents();
+      expect(options.length).toBe(5);
 
-    test('switching to language tab shows language settings section', async () => {
-      await settingsPage.switchTab('language');
-      await expect(settingsPage.sectionLanguage).toBeVisible();
-      await expect(settingsPage.sectionPaths).toBeHidden();
-    });
-
-    test('switching between all tabs shows correct sections', async () => {
-      // Start on paths tab (default)
-      await expect(settingsPage.sectionPaths).toBeVisible();
-
-      // Switch to model tab
-      await settingsPage.switchTab('model');
-      await expect(settingsPage.sectionModel).toBeVisible();
-      await expect(settingsPage.sectionPaths).toBeHidden();
-      await expect(settingsPage.sectionLanguage).toBeHidden();
-
-      // Switch to language tab
-      await settingsPage.switchTab('language');
-      await expect(settingsPage.sectionLanguage).toBeVisible();
-      await expect(settingsPage.sectionModel).toBeHidden();
-
-      // Switch back to paths tab
-      await settingsPage.switchTab('paths');
-      await expect(settingsPage.sectionPaths).toBeVisible();
-      await expect(settingsPage.sectionLanguage).toBeHidden();
-    });
-  });
-
-  // ============================================================
-  // Get settings
-  // ============================================================
-
-  test.describe('Get settings', () => {
-    test('settings form loads with current values from the backend', async ({ page }) => {
-      // The settings form should be populated with values from the mocked API
-      const settings = await settingsPage.getCurrentSettings();
-
-      // Verify key fields are populated (not empty)
-      expect(settings.pretrainedDir.length).toBeGreaterThan(0);
-      expect(settings.outputDir.length).toBeGreaterThan(0);
-      expect(settings.defaultModelSize.length).toBeGreaterThan(0);
-      expect(settings.modelPrecision.length).toBeGreaterThan(0);
-      expect(settings.locale.length).toBeGreaterThan(0);
-    });
-
-    test('pretrained directory field shows the configured path', async () => {
-      const value = await settingsPage.pretrainedDir.inputValue();
-      expect(value.length).toBeGreaterThan(0);
-    });
-
-    test('output directory field shows the configured path', async () => {
-      const value = await settingsPage.outputDir.inputValue();
-      expect(value.length).toBeGreaterThan(0);
-    });
-  });
-
-  // ============================================================
-  // Update model settings
-  // ============================================================
-
-  test.describe('Update model settings', () => {
-    test('changing model size and precision then saving shows success toast', async ({ page }) => {
-      // Switch to model tab
-      await settingsPage.switchTab('model');
-
-      // Change model size
-      await settingsPage.setDefaultModelSize('7b');
-      const modelSizeValue = await settingsPage.defaultModelSize.inputValue();
-      expect(modelSizeValue).toBe('7b');
-
-      // Change model precision
-      await settingsPage.setModelPrecision('fp8');
-      const precisionValue = await settingsPage.modelPrecision.inputValue();
-      expect(precisionValue).toBe('fp8');
-
-      // Save settings
-      await settingsPage.saveModelSettings();
-
-      // Verify success toast appears
-      const toast = await settingsPage.waitForToast('updated', 'success', 10000).catch(() =>
-        settingsPage.waitForToast(undefined, 'success', 5000),
+      const optionValues = await settingsPage.locale.locator('option').evaluateAll(
+        (els) => els.map((el) => (el as HTMLOptionElement).value),
       );
-      await expect(toast).toBeVisible();
+      for (const loc of EXPECTED_LOCALES) {
+        expect(optionValues).toContain(loc);
+      }
+
+      // 默认语言为中文
+      expect(await settingsPage.getSelectedLocale()).toBe('zh');
+    });
+
+    test('theme dropdown shows dark and light options', async () => {
+      const optionValues = await settingsPage.theme.locator('option').evaluateAll(
+        (els) => els.map((el) => (el as HTMLOptionElement).value),
+      );
+      expect(optionValues).toContain('dark');
+      expect(optionValues).toContain('light');
+    });
+
+    test('paths are displayed read-only with the configured directories', async () => {
+      const text = (await settingsPage.pathsText.textContent()) || '';
+      expect(text).toContain('outputs/');
+      expect(text).toContain('pretrained_models/');
+      // 路径为只读展示（非输入框）
+      await expect(settingsPage.pathsText.locator('input')).toHaveCount(0);
+      // 说明文字可见
+      await expect(settingsPage.pathsNote).toBeVisible();
     });
   });
 
   // ============================================================
-  // Update language
+  // Language switch behavior
   // ============================================================
 
-  test.describe('Update language', () => {
-    test('changing locale and saving triggers page reload', async ({ page }) => {
-      // Switch to language tab
-      await settingsPage.switchTab('language');
-
-      // Change locale
-      await settingsPage.setLocale('en');
-
-      // Save language (this triggers a page reload per the page object)
-      await settingsPage.saveLanguage();
-
-      // After reload, verify the page is still on settings
-      await assertUrlPath(page, '/settings');
-    });
-  });
-
-  // ============================================================
-  // Directory browser
-  // ============================================================
-
-  test.describe('Directory browser', () => {
-    test('clicking browse button opens directory browser modal', async ({ page }) => {
-      // Click the first browse directory button
-      const browseBtn = settingsPage.browseDirButtons.first();
-      await browseBtn.click();
-
-      // A directory browser modal should appear
-      const dirModal = page.locator('.sv-dir-browser, #dirBrowserModal, .modal');
-      await expect(dirModal.first()).toBeVisible();
-    });
-
-    test('directory browser shows folder entries from mocked response', async ({ page }) => {
-      // Ensure browse dir mock returns entries
-      await mockBrowseDirSuccess(page);
-
-      const browseBtn = settingsPage.browseDirButtons.first();
-      await browseBtn.click();
-
-      // The modal should display directory entries
-      const dirModal = page.locator('.sv-dir-browser, #dirBrowserModal, .modal');
-      await expect(dirModal.first()).toBeVisible();
-    });
-  });
-
-  // ============================================================
-  // Path traversal protection
-  // ============================================================
-
-  test.describe('Path traversal protection', () => {
-    test('browse-dir with ".." path returns 400 error', async ({ page }) => {
-      // Mock browse-dir to return 400 for path traversal attempts
-      await page.route('**/api/system/browse-dir**', async (route) => {
-        const url = new URL(route.request().url());
-        const path = url.searchParams.get('path') || '';
-
-        if (path.includes('..')) {
+  test.describe('Language switch', () => {
+    test('changing locale calls POST /api/system/locale', async ({ page }) => {
+      // 记录 API 调用并直接返回 mock 成功响应（不转发到真实服务器，避免污染服务器端 locale）
+      let localeRequested: string | null = null;
+      await page.route('**/api/system/locale', async (route) => {
+        if (route.request().method() === 'POST') {
+          try {
+            localeRequested = JSON.parse(route.request().postData() || '{}').locale;
+          } catch { /* ignore */ }
           await route.fulfill({
-            status: 400,
+            status: 200,
             contentType: 'application/json',
-            body: JSON.stringify({
-              detail: 'Path traversal detected',
-              error_code: 'INVALID_PATH',
-            }),
+            body: JSON.stringify({ status: 'ok', locale: localeRequested, message: 'ok' }),
           });
         } else {
           await route.continue();
         }
       });
 
-      // Attempt to browse a path with ".."
-      // This simulates a malicious input that should be rejected by the backend
-      const response = await page.request.get(
-        '/api/system/browse-dir?path=C%3A%5CUsers%5C..%5C..%5CWindows',
-      );
+      // 切换语言（选择触发 switchLocale）
+      await settingsPage.switchLocale('en');
+      await page.waitForTimeout(500);
 
-      // The backend should reject the path traversal attempt
-      expect(response.status()).toBe(400);
+      expect(localeRequested).toBe('en');
+    });
+
+    test('changing locale triggers page reload', async ({ page }) => {
+      // mock 响应（不转发真实请求），验证 switchLocale 触发页面刷新
+      await page.route('**/api/system/locale', async (route) => {
+        if (route.request().method() === 'POST') {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ status: 'ok', locale: 'ja', message: 'ok' }),
+          });
+        } else {
+          await route.continue();
+        }
+      });
+
+      // switchLocale 内部 300ms 后 window.location.reload()
+      await settingsPage.switchLocale('ja');
+      await page.waitForLoadState('domcontentloaded').catch(() => {});
+      await page.waitForTimeout(1500);
+
+      // 页面应已重新加载（导航事件发生），重新回到 /settings
+      expect(new URL(page.url()).pathname).toBe('/settings');
+      await expect(settingsPage.locale).toBeVisible();
     });
   });
 
   // ============================================================
-  // Model load/unload/switch
+  // Theme switch behavior
   // ============================================================
 
-  test.describe('Model load/unload/switch', () => {
-    test('loading a model triggers the load API and shows success', async ({ page }) => {
-      await mockModelLoadSuccess(page);
-      await mockModelStatusLoaded(page);
+  test.describe('Theme switch', () => {
+    test('changing theme updates the html data-theme attribute', async ({ page }) => {
+      const current = await settingsPage.getCurrentTheme();
+      const target = current === 'dark' ? 'light' : 'dark';
 
-      // If the settings page has a model load button, click it
-      const loadBtn = page.locator('#btnLoadModel, .btn-load-model');
-      if (await loadBtn.isVisible().catch(() => false)) {
-        await loadBtn.click();
+      await settingsPage.switchTheme(target);
 
-        // Verify success feedback
-        const toast = await settingsPage.waitForToast('load', undefined, 10000).catch(() =>
-          settingsPage.waitForToast(undefined, 'success', 5000),
-        );
-        await expect(toast).toBeVisible();
-      }
-    });
-
-    test('unloading a model triggers the unload API and shows success', async ({ page }) => {
-      await mockModelUnloadSuccess(page);
-      await mockModelStatusUnloaded(page);
-
-      // If the settings page has a model unload button, click it
-      const unloadBtn = page.locator('#btnUnloadModel, .btn-unload-model');
-      if (await unloadBtn.isVisible().catch(() => false)) {
-        await unloadBtn.click();
-
-        // Verify success feedback
-        const toast = await settingsPage.waitForToast('unload', undefined, 10000).catch(() =>
-          settingsPage.waitForToast(undefined, 'success', 5000),
-        );
-        await expect(toast).toBeVisible();
-      }
-    });
-
-    test('switching model triggers the switch API and shows success', async ({ page }) => {
-      await mockModelSwitchSuccess(page);
-      await mockModelStatusLoaded(page);
-
-      // Change the model selection and save
-      await settingsPage.switchTab('model');
-      await settingsPage.setDefaultModelSize('7b');
-      await settingsPage.saveModelSettings();
-
-      // Verify success feedback
-      const toast = await settingsPage.waitForToast('updated', 'success', 10000).catch(() =>
-        settingsPage.waitForToast('switch', undefined, 5000).catch(() =>
-          settingsPage.waitForToast(undefined, 'success', 5000),
-        ),
+      // applyTheme 同步更新 data-theme
+      await page.waitForFunction(
+        (expected) => document.documentElement.getAttribute('data-theme') === expected,
+        target,
       );
-      await expect(toast).toBeVisible();
+      expect(await settingsPage.getCurrentTheme()).toBe(target);
     });
   });
 
   // ============================================================
-  // Reset paths
+  // About section
   // ============================================================
 
-  test.describe('Reset paths', () => {
-    test('clicking reset button resets path fields to defaults', async ({ page }) => {
-      // First, modify the path fields
-      await settingsPage.setPretrainedDir('/custom/pretrained/path');
-      await settingsPage.setOutputDir('/custom/output/path');
+  test.describe('About section', () => {
+    test('about hero shows project name, tagline and metadata', async () => {
+      await expect(settingsPage.aboutHero).toBeVisible();
+      await expect(settingsPage.aboutHeroName).toHaveText('SeedVR2');
+      await expect(settingsPage.aboutHeroSubtitle).toBeVisible();
 
-      // Verify the custom values are set
-      let pretrainedValue = await settingsPage.pretrainedDir.inputValue();
-      let outputValue = await settingsPage.outputDir.inputValue();
-      expect(pretrainedValue).toBe('/custom/pretrained/path');
-      expect(outputValue).toBe('/custom/output/path');
-
-      // Click reset button (this also confirms in a modal)
-      await settingsPage.resetPaths();
-
-      // After reset, the fields should have default values (not the custom ones)
-      pretrainedValue = await settingsPage.pretrainedDir.inputValue();
-      outputValue = await settingsPage.outputDir.inputValue();
-      expect(pretrainedValue).not.toBe('/custom/pretrained/path');
-      expect(outputValue).not.toBe('/custom/output/path');
+      const metadata = (await settingsPage.aboutMetadata.textContent()) || '';
+      expect(metadata).toContain('ReSerendipity');
+      expect(metadata).toContain('v1.0.0');
+      expect(metadata).toContain('Apache');
     });
 
-    test('reset paths shows confirmation modal before resetting', async ({ page }) => {
-      // Click reset button
-      await settingsPage.btnResetPaths.click();
+    test('github button links to the repository', async () => {
+      await expect(settingsPage.aboutGithubBtn.first()).toBeVisible();
+      const href = await settingsPage.aboutGithubBtn.first().getAttribute('href');
+      expect(href).toContain('github.com');
+    });
 
-      // A confirmation modal should appear
-      await expect(settingsPage.confirmModal).toBeVisible();
+    test('feature cards are displayed', async () => {
+      const count = await settingsPage.featureCards.count();
+      expect(count).toBeGreaterThanOrEqual(9);
+    });
+
+    test('stack table and quickstart are displayed in the right column', async () => {
+      // 页面含多张 sv-about-table（技术栈 + 模型对照），验证第一张（技术栈）可见
+      await expect(settingsPage.stackTable.first()).toBeVisible();
+      const rows = await settingsPage.stackTable.first().locator('tr').count();
+      expect(rows).toBeGreaterThanOrEqual(5);
+
+      await expect(settingsPage.quickstart).toBeVisible();
     });
   });
 });

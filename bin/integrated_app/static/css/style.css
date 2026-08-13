@@ -33,13 +33,13 @@
     --sv-warning-soft: rgba(201, 165, 90, 0.10);
     --sv-warning-dim: rgba(201, 165, 90, 0.14);
     --sv-warning-border: rgba(201, 165, 90, 0.30);
-    --sv-danger: #c96a5a;
-    --sv-danger-hover: #d47f70;
+    --sv-danger: #dd8a7a;
+    --sv-danger-hover: #e69584;
     --sv-danger-soft: rgba(201, 106, 90, 0.10);
     --sv-danger-dim: rgba(201, 106, 90, 0.14);
     --sv-danger-border: rgba(201, 106, 90, 0.30);
-    --sv-info: #6e90ac;
-    --sv-info-hover: #85a3bb;
+    --sv-info: #82a4bf;
+    --sv-info-hover: #92aec8;
     --sv-info-soft: rgba(110, 144, 172, 0.10);
     --sv-info-dim: rgba(110, 144, 172, 0.14);
     --sv-info-border: rgba(110, 144, 172, 0.30);
@@ -146,41 +146,41 @@
 
 /* ===== CSS 变量 - Light 主题 · Warm Print 暖纸 ===== */
 [data-theme="light"] {
-    --sv-primary: #5e7d5a;
+    --sv-primary: #45633f;
     --sv-primary-50: #eef3ec;
     --sv-primary-100: #dce7d9;
     --sv-primary-200: #bcd1b7;
     --sv-primary-300: #9fbb9a;
-    --sv-primary-hover: #506c4d;
+    --sv-primary-hover: #3d5a38;
     --sv-primary-400: #7fa37a;
     --sv-primary-500: #5e7d5a;
     --sv-primary-600: #506c4d;
-    --sv-primary-active: #435a40;
+    --sv-primary-active: #385233;
     --sv-primary-700: #435a40;
     --sv-primary-800: #374934;
     --sv-primary-900: #2b3828;
-    --sv-primary-dim: rgba(94, 125, 90, 0.08);
+    --sv-primary-dim: rgba(69, 99, 63, 0.08);
     --sv-primary-soft: color-mix(in srgb, var(--sv-primary) 12%, var(--sv-bg-surface));
-    --sv-primary-glow: rgba(94, 125, 90, 0.15);
-    --sv-primary-glow-strong: rgba(94, 125, 90, 0.28);
+    --sv-primary-glow: rgba(69, 99, 63, 0.15);
+    --sv-primary-glow-strong: rgba(69, 99, 63, 0.28);
 
-    --sv-success: #4f7049;
-    --sv-success-hover: #5e7d5a;
+    --sv-success: #45633f;
+    --sv-success-hover: #4f7049;
     --sv-success-soft: rgba(94, 125, 90, 0.10);
     --sv-success-dim: rgba(94, 125, 90, 0.12);
     --sv-success-border: rgba(94, 125, 90, 0.30);
-    --sv-warning: #a6823a;
-    --sv-warning-hover: #b89240;
-    --sv-warning-soft: rgba(184, 146, 64, 0.10);
-    --sv-warning-dim: rgba(184, 146, 64, 0.12);
-    --sv-warning-border: rgba(184, 146, 64, 0.30);
-    --sv-danger: #b85a4a;
-    --sv-danger-hover: #c46b5b;
+    --sv-warning: #71541d;
+    --sv-warning-hover: #8f6f2c;
+    --sv-warning-soft: rgba(113, 84, 29, 0.10);
+    --sv-warning-dim: rgba(113, 84, 29, 0.12);
+    --sv-warning-border: rgba(113, 84, 29, 0.30);
+    --sv-danger: #9e4638;
+    --sv-danger-hover: #a94d3f;
     --sv-danger-soft: rgba(184, 90, 74, 0.09);
     --sv-danger-dim: rgba(184, 90, 74, 0.12);
     --sv-danger-border: rgba(184, 90, 74, 0.30);
-    --sv-info: #52707c;
-    --sv-info-hover: #5a7d8a;
+    --sv-info: #46606b;
+    --sv-info-hover: #4a6673;
     --sv-info-soft: rgba(90, 125, 138, 0.09);
     --sv-info-dim: rgba(90, 125, 138, 0.12);
     --sv-info-border: rgba(90, 125, 138, 0.30);
@@ -626,8 +626,8 @@ a {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 34px;
-    height: 34px;
+    width: 44px;
+    height: 44px;
     border: 1px solid var(--sv-border);
     border-radius: 50%;
     background: transparent;
@@ -934,6 +934,8 @@ a {
     font-size: 0.7rem;
     line-height: 1;
     opacity: 0.6;
+    min-width: 44px;
+    min-height: 44px;
     transition: opacity 0.2s, color 0.2s;
     border-radius: 4px;
 }
@@ -4348,8 +4350,8 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     border: 1px solid var(--sv-border);
     border-radius: 50%;
     background: transparent;
@@ -5815,7 +5817,7 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
 }
 
 .sv-alert-gpu .sv-alert-actions .sv-btn {
-    min-height: 32px;
+    min-height: 44px;
     padding: 4px 12px;
     font-size: 0.78rem;
 }
@@ -6606,8 +6608,8 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
 }
 
 .sv-nav-icon-btn {
-    width: 38px;
-    height: 38px;
+    width: 44px;
+    height: 44px;
     border-radius: var(--sv-radius);
     transition: all var(--sv-transition);
 }
@@ -6621,8 +6623,8 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 38px;
-    height: 38px;
+    width: 44px;
+    height: 44px;
     border: 1px solid var(--sv-border);
     border-radius: var(--sv-radius);
     background: transparent;
@@ -6795,7 +6797,7 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
 }
 
 .sv-btn-sm {
-    min-height: 34px;
+    min-height: 44px;
     padding: 0.25rem var(--sv-space-3);
 }
 
@@ -8434,3 +8436,13 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
     opacity: 0.92;
 }
 
+
+/* ===== Touch target hardening: remaining compact controls (WCAG 2.5.5) ===== */
+#helpToggle,
+#btnToggleParams,
+#dirBrowserGoBtn,
+#dirBrowserOpenExplorerBtn,
+#advToggle {
+    min-width: 44px;
+    min-height: 44px;
+}
