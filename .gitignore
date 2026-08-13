@@ -82,6 +82,7 @@ $RECYCLE.BIN/
 
 # Reference repos (development reference only, not part of the project)
 repo/
+references/
 
 # ---------------------------------------------------------------------------
 # Local runtime binaries (downloadable; keep out of repo to avoid bloat)
