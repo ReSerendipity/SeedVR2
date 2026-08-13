@@ -1,7 +1,7 @@
 # Seedvr2 AGENTS.md — AI 辅助开发指南
 
-> 🧬 **自进化协议版本**：v1.0  
-> 📅 **最后更新日期**：2026-08-10  
+> 🧬 **自进化协议版本**：v1.3  
+> 📅 **最后更新日期**：2026-08-13  
 > 🎯 **对应项目版本**：v1.0.0（Apache-2.0 开源协议）
 
 ---
@@ -318,6 +318,9 @@ Scope 建议：`core` / `security` / `engines` / `routes` / `i18n` / `ci`
 | 2 | 多个 router 前缀（prefix）不能重复 | 新写的 `scene_router_v2.py` 也用了 `prefix="/scene"`，老的 `scene_router.py` 还在 | FastAPI 启动不报错，但 Swagger UI 路径重复 → 实际调用时返回 404 / 或随机命中一个，排查极难 | 命名前缀必须语义化且唯一：v2 的话用 `prefix="/scene/v2"` 或直接改名替换老的（老的移到 `_deprecated/`） | 2026-05-20 |
 | 3 | 严禁监听 `host="0.0.0.0"` | 为了局域网访问方便，直接在代码或启动脚本写 `uvicorn.run(app, host="0.0.0.0", port=7860)` | 所有接口直接暴露公网（如果机器公网 IP）→ 未授权用户可以直接调用生成接口消耗 GPU / 上传任意文件（路径穿越风险） | 永远 `host="127.0.0.1"`，局域网访问用 `ssh -L 7860:127.0.0.1:7860 user@server` 端口转发，或服务器上套 Nginx（带 Basic Auth + IP 白名单） | 2026-06-01 |
 | 4 | 依赖注入用 `Depends(get_settings)`，不要直接 `from common.config import settings` | 在路由函数里直接读全局 settings | 单测 mock 配置时极其痛苦（要 import 后 patch 变量），且容易出现「模块导入时 settings 还没初始化」的竞态 | 所有路由 / service 一律用 FastAPI Depends：`async def route(settings: Settings = Depends(get_settings))`，测试时 override_dependency 一行就能替换 | 2026-06-15 |
+| 5 | 修改核心模块后忘记重新生成完整性清单 | 改动 `app_server.py` / `model_manager.py` / `security/` 下文件 / `engines/seedvr2_engine.py` 等被完整性自检覆盖的核心模块 | 启动时报 `[SECURITY WARNING] 核心模块完整性校验失败: xxx.py`，期望/实际 SHA256 不一致，误以为被篡改 | 这是合法代码改动导致的清单过期，改完核心模块后必须运行 `python scripts/generate_integrity_manifest.py` 重新生成 `bin/integrated_app/security/integrity_manifest.json`（见 SOP-4） | 2026-08-13 |
+| 6 | `bin/models` 常规包遮蔽项目根 `models` 命名空间包 | 应用经 `python bin/clean_launch.py` 启动（`bin/` 进入 sys.path），同时存在项目根 `models/`（无 `__init__.py`，命名空间包）与 `bin/models/`（有 `__init__.py`，常规包） | 视频修复时报 `ModuleNotFoundError: No module named 'models.video_vae_v3'`（`import models` 解析到了 `bin/models/`），但图片修复正常 | 给项目根 `models/` 补 `__init__.py` 使其成为常规包，确保在 sys.path 首位（项目根）优先解析；注意 `bin/models/` 仅被 `perf/benchmark/test_suite.py` 以全限定名 `bin.models.*` 引用 | 2026-08-13 |
+| 7 | CSP 缺 `media-src blob:` 导致 `<video>` 无法加载 blob 源 | 前端用 `<video src="blob:...">` 读取视频宽高（两倍模式自动填分辨率/预览） | 控制台报 `MEDIA_ELEMENT_ERROR: Media load rejected by URL safety check`，`videoWidth` 恒为 0，两倍检测失效（图片正常，因为 `img-src` 已含 blob:） | 在 `templates/base.html` 的 Content-Security-Policy 加 `media-src 'self' blob:`；`<video>`/`<audio>` 回退到 `default-src`，不会继承 `img-src` 的 blob: | 2026-08-13 |
 
 ---
 
@@ -373,6 +376,29 @@ Scope 建议：`core` / `security` / `engines` / `routes` / `i18n` / `ci`
 3. 更新本文件第 7 节启动命令或第 3 节模块边界描述（如果新增配置影响启动流程或模块边界）
 4. 执行 `python -c "from common.config import settings; print(settings.model_dump())"` 验证新字段被正确加载
 
+#### SOP-4: 修改核心模块后重新生成完整性清单（改完必做）
+**适用条件**：改动任何被启动自检覆盖的核心模块后，必须重新生成清单，否则下次启动会报「完整性校验失败」误报。
+**被覆盖的核心模块**（清单见 `bin/integrated_app/security/integrity_manifest.json`，自检列表见 `integrity_selfcheck.py` 的 `_CORE_MODULES`）：
+- `app_server.py` / `config.py` / `model_manager.py`
+- `security/` 下：`path_guard.py` / `integrity_check.py` / `watermark.py` / `integrity_selfcheck.py`
+- `middleware/` 下：`csrf.py` / `basic_auth.py`
+- `engines/seedvr2_engine.py`
+
+**步骤**：
+1. 完成上述任一核心模块的代码修改（改完逻辑后、提交前）
+2. 运行 `python scripts/generate_integrity_manifest.py` 重新生成清单
+3. 确认输出显示所有模块 `[OK]` 且生成路径为 `bin/integrated_app/security/integrity_manifest.json`
+
+**验证**：启动前先跑一次自检确认通过：
+```python
+python -c "from bin.integrated_app.security.integrity_selfcheck import run_startup_selfcheck; print(run_startup_selfcheck())"
+# 期望输出 failed=0，failed_files=[]
+```
+**关联文件**：
+- scripts/generate_integrity_manifest.py
+- bin/integrated_app/security/integrity_selfcheck.py
+- bin/integrated_app/security/integrity_manifest.json
+
 ---
 
 ## 13. API 响应规范（保持所有路由一致）
@@ -424,5 +450,8 @@ if scene_id not in db:
 | 自进化版本 | 日期 | 触发原因 | 更新内容摘要 | 对应项目版本 |
 |:---------:|------|---------|------------|:------------:|
 | v1.0 | 2026-08-10 | 初始建立自进化协议 | 从 Seedvr2 项目健康度评估报告建议补齐：建立自进化协议（5 条铁律 + 自检清单）+ 启动命令章节 + i18n 翻译规范章节 + 版本号同步修改清单 + 发布流程 & CI/CD 说明 + API 响应规范 + 2 个典型 SOP | v1.0.0 |
+| v1.1 | 2026-08-13 | 修改核心模块后完整性清单过期 | 新增第 11 节陷阱 #5（修改核心模块后忘记重新生成完整性清单）+ 新增 SOP-4（修改核心模块后重新生成完整性清单，含被覆盖模块清单、步骤、验证命令） | v1.0.0 |
+| v1.2 | 2026-08-13 | 视频修复报 No module named 'models.video_vae_v3' | 新增第 11 节陷阱 #6（`bin/models` 常规包遮蔽项目根 `models` 命名空间包）；修复为给项目根 `models/` 补 `__init__.py` | v1.0.0 |
+| v1.3 | 2026-08-13 | 视频两倍检测失败（CSP 拦截 blob 媒体） | 新增第 11 节陷阱 #7（CSP 缺 `media-src blob:` 导致 `<video>` 无法加载 blob 源）；修复为 `templates/base.html` CSP 加 `media-src 'self' blob:` | v1.0.0 |
 
 <!-- 🔄 下次更新 AGENTS.md 时，在上面表格末尾追加新一行，不要删除历史记录 -->
