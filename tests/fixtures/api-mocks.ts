@@ -320,25 +320,23 @@ export async function mockHistoryDeleteSuccess(page: Page): Promise<void> {
  * Also handles GET requests to return empty history after clearing.
  */
 export async function mockHistoryClearSuccess(page: Page): Promise<void> {
-  await page.route('**/api/system/history', async (route: Route) => {
+  // 注意：尾随 ** 是必须的——前端 DELETE 请求带查询串（?status=...），
+  // 没有尾随 ** 时 glob 匹配不到，请求会落到真实后端并清空真实数据库。
+  // 只拦截 DELETE；GET 继续走 list/statistics mock，避免抢走列表请求。
+  await page.route('**/api/system/history**', async (route: Route) => {
     if (route.request().method() === 'DELETE') {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ success: true, message: 'History cleared' }),
+        body: JSON.stringify({ success: true, message: 'History cleared', deleted_count: 4 }),
       });
-    } else if (route.request().method() === 'GET') {
-      // After clearing, return empty history list
+    } else if (route.request().method() === 'GET' && !route.request().url().includes('/statistics')) {
+      // 注意：不能 route.continue() 期望落到 list mock——Playwright 的 continue
+      // 不会继续匹配后续同名 route，会直接放行到真实后端（空库时页面无数据）。
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({
-          records: [],
-          total: 0,
-          page: 1,
-          page_size: 20,
-          total_pages: 1,
-        }),
+        body: JSON.stringify(mockHistoryResponse()),
       });
     } else {
       await route.continue();

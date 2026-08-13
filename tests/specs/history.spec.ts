@@ -159,7 +159,10 @@ test.describe('History Records', () => {
       // Click next page
       if (await historyPage.btnNextPage.isEnabled()) {
         await historyPage.btnNextPage.click();
-        await page.waitForLoadState('networkidle');
+
+        // Wait until the page indicator actually shows page 2 (auto-retrying,
+        // avoids a race between the networkidle state and the async re-render)
+        await expect(historyPage.pageInfo).toHaveText(/^2\s*\//);
 
         // Verify we're on page 2
         const pageNum = await historyPage.getCurrentPage();
@@ -545,8 +548,8 @@ test.describe('History Records', () => {
     test('clicking clear button shows confirmation dialog', async ({ page }) => {
       await historyPage.btnClearHistory.click();
 
-      // A confirmation modal should appear
-      await expect(historyPage.confirmModal).toBeVisible();
+      // The clear-history options modal (dynamically created) should appear
+      await expect(historyPage.clearHistoryModal).toBeVisible();
     });
 
     test('confirming clear history removes all records', async ({ page }) => {

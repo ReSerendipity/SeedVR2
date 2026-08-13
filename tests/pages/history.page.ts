@@ -22,6 +22,9 @@ export class HistoryPage extends BasePage {
   // Empty state
   readonly emptyState: Locator;
 
+  // Clear-history options modal (dynamically created by app.js)
+  readonly clearHistoryModal: Locator;
+
   readonly path = '/history';
 
   constructor(page: Page) {
@@ -41,7 +44,8 @@ export class HistoryPage extends BasePage {
     this.btnNextPage = page.locator('#btnNextPage');
     this.pageInfo = page.locator('#pageInfo');
 
-    this.emptyState = page.locator('.sv-empty-state');
+    this.emptyState = page.locator('#historyBody .sv-empty-state');
+    this.clearHistoryModal = page.locator('#clearHistoryModal');
   }
 
   async goto(): Promise<void> {
@@ -72,10 +76,10 @@ export class HistoryPage extends BasePage {
 
   async clearHistory(): Promise<void> {
     await this.btnClearHistory.click();
-    // Wait for the confirm modal to appear
-    await this.confirmModal.waitFor({ state: 'visible', timeout: 5000 });
+    // Wait for the clear-history options modal (dynamically created, id #clearHistoryModal)
+    await this.clearHistoryModal.waitFor({ state: 'visible', timeout: 5000 });
     // Confirm in the modal
-    const confirmBtn = this.page.locator('#confirmAction');
+    const confirmBtn = this.page.locator('#btnDoClearHistory');
     await confirmBtn.click();
     await this.page.waitForLoadState('networkidle');
   }
