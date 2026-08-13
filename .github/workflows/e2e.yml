@@ -69,7 +69,7 @@ jobs:
 
       - name: Generate test assets (test-assets ignored by git, regenerated on CI)
         run: |
-          python tests/generate-test-assets.py
+          python tests/generate_test_assets.py
 
       - name: Start app server in background
         run: |
