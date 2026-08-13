@@ -347,7 +347,7 @@ export function mockVideoResultResponse(
  * Generate a mock image restore task response.
  */
 export function mockImageRestoreResponse(
-  taskId = 'test-img-001',
+  taskId = 'test-task-001',
   overrides?: Partial<ImageRestoreResponse>,
 ): ImageRestoreResponse {
   return {
@@ -362,7 +362,7 @@ export function mockImageRestoreResponse(
  * Generate a mock image result response.
  */
 export function mockImageResultResponse(
-  taskId = 'test-img-001',
+  taskId = 'test-task-001',
   overrides?: Partial<ImageResultResponse>,
 ): ImageResultResponse {
   return {
@@ -533,7 +533,7 @@ export function mockBrowseDirResponse(overrides?: Partial<BrowseDirResponse>): B
 export function mockScanFolderResponse(overrides?: Partial<ScanFolderResponse>): ScanFolderResponse {
   return {
     path: 'C:\\Users\\test\\Images',
-    images: [
+    files: [
       { name: 'photo1.jpg', path: 'C:\\Users\\test\\Images\\photo1.jpg', size: 524288 },
       { name: 'photo2.png', path: 'C:\\Users\\test\\Images\\photo2.png', size: 1048576 },
     ],
@@ -761,7 +761,7 @@ export interface BrowseDirResponse {
 
 export interface ScanFolderResponse {
   path: string;
-  images: Array<{
+  files: Array<{
     name: string;
     path: string;
     size: number;

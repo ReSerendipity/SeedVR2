@@ -165,9 +165,7 @@ test.describe('Internationalization', () => {
     const settingsPage = new SettingsPage(page);
     await settingsPage.goto();
 
-    // Switch to the language tab
-    await settingsPage.switchTab('language');
-
+    // 设置页改版后语言下拉直接展示在设置面板中（无需切换 tab）
     // Verify the locale dropdown is visible
     await expect(settingsPage.locale).toBeVisible();
 

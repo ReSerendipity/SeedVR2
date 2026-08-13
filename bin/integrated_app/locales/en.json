@@ -532,7 +532,7 @@
     "manual_res_hint": "Resolution can be edited freely (auto-2× is off)",
     "double_res": "Auto 2× Mode",
     "double_res_tip": "When on, resolution and tile parameters are auto-set to short-edge × 2 after upload; manual input is ignored",
-    "double_res_hint_default": "After uploading an image, resolution will be auto-computed as short-edge × 2 (manual edit disabled in this mode)",
+    "double_res_hint_default": "After uploading an image or video, resolution will be auto-computed as short-edge × 2 (manual edit disabled in this mode)",
     "double_res_applied": "Resolution and tile parameters auto-filled at short-edge × 2"
   }
 }

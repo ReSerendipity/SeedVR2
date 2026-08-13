@@ -38,7 +38,7 @@ export class SystemStatusPage extends BasePage {
   readonly pythonVer: Locator;
   readonly serviceStatus: Locator;
 
-  readonly path = '/';
+  readonly path = '/system-status';
 
   constructor(page: Page) {
     super(page);
@@ -144,3 +144,4 @@ export class SystemStatusPage extends BasePage {
     }, { timeout: 30000 });
   }
 }
+

@@ -532,7 +532,7 @@
     "manual_res_hint": "La résolution est modifiable librement (auto 2× désactivé)",
     "double_res": "Mode Auto 2×",
     "double_res_tip": "Si activé, la résolution et les paramètres de tuile sont calculés automatiquement en petit-côté × 2 après envoi ; la saisie manuelle est ignorée",
-    "double_res_hint_default": "Après envoi d'une image, la résolution est calculée automatiquement en petit-côté × 2 (modification manuelle désactivée dans ce mode)",
+    "double_res_hint_default": "Après envoi d'une image ou d'une vidéo, la résolution est calculée automatiquement en petit-côté × 2 (modification manuelle désactivée dans ce mode)",
     "double_res_applied": "Résolution et paramètres de tuile pré-remplis à petit-côté × 2"
   }
 }

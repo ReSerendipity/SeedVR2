@@ -352,7 +352,7 @@ export async function mockHistoryClearSuccess(page: Page): Promise<void> {
  * Mock a successful video restore upload and task creation.
  */
 export async function mockVideoRestoreSuccess(page: Page): Promise<void> {
-  await page.route('**/api/restore/video', async (route: Route) => {
+  await page.route('**/api/restore', async (route: Route) => {
     if (route.request().method() === 'POST') {
       await route.fulfill({
         status: 200,
@@ -370,7 +370,7 @@ export async function mockVideoRestoreSuccess(page: Page): Promise<void> {
  * Progress values are percentages (0-100) to match the frontend JS expectations.
  */
 export async function mockVideoProgressComplete(page: Page): Promise<void> {
-  await page.route('**/api/restore/video/*/progress', async (route: Route) => {
+  await page.route('**/api/restore/*/progress', async (route: Route) => {
     const events = [
       mockVideoProgressPayload('test-task-001', 0),
       mockVideoProgressPayload('test-task-001', 25),
@@ -394,7 +394,7 @@ export async function mockVideoProgressInProgress(
   page: Page,
   progress = 50,
 ): Promise<void> {
-  await page.route('**/api/restore/video/*/progress', async (route: Route) => {
+  await page.route('**/api/restore/*/progress', async (route: Route) => {
     await route.fulfill({
       status: 200,
       contentType: 'text/event-stream',
@@ -436,7 +436,7 @@ export async function mockVideoDownloadSuccess(page: Page): Promise<void> {
  * Mock the batch video restore endpoint.
  */
 export async function mockBatchVideoRestoreSuccess(page: Page): Promise<void> {
-  await page.route('**/api/restore/video/batch', async (route: Route) => {
+  await page.route('**/api/restore/batch', async (route: Route) => {
     if (route.request().method() === 'POST') {
       await route.fulfill({
         status: 200,
@@ -453,7 +453,7 @@ export async function mockBatchVideoRestoreSuccess(page: Page): Promise<void> {
  * Mock the batch video progress endpoint.
  */
 export async function mockBatchVideoProgressSuccess(page: Page): Promise<void> {
-  await page.route('**/api/restore/video/batch/*/progress', async (route: Route) => {
+  await page.route('**/api/restore/batch/*/progress', async (route: Route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -483,7 +483,7 @@ export async function mockBatchVideoRetrySuccess(page: Page): Promise<void> {
  * Mock the scan folder endpoint for image restore.
  */
 export async function mockScanFolderSuccess(page: Page): Promise<void> {
-  await page.route('**/api/restore/image/scan-folder**', async (route: Route) => {
+  await page.route('**/api/restore/scan-folder**', async (route: Route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -496,7 +496,7 @@ export async function mockScanFolderSuccess(page: Page): Promise<void> {
  * Mock a successful image restore upload and task creation.
  */
 export async function mockImageRestoreSuccess(page: Page): Promise<void> {
-  await page.route('**/api/restore/image', async (route: Route) => {
+  await page.route('**/api/restore', async (route: Route) => {
     if (route.request().method() === 'POST') {
       await route.fulfill({
         status: 200,
@@ -542,7 +542,7 @@ export async function mockImageDownloadSuccess(page: Page): Promise<void> {
  * Mock the batch image restore endpoint.
  */
 export async function mockBatchImageRestoreSuccess(page: Page): Promise<void> {
-  await page.route('**/api/restore/image/batch', async (route: Route) => {
+  await page.route('**/api/restore/batch', async (route: Route) => {
     if (route.request().method() === 'POST') {
       await route.fulfill({
         status: 200,
@@ -559,7 +559,7 @@ export async function mockBatchImageRestoreSuccess(page: Page): Promise<void> {
  * Mock the batch image progress endpoint.
  */
 export async function mockBatchImageProgressSuccess(page: Page): Promise<void> {
-  await page.route('**/api/restore/image/batch/*/progress', async (route: Route) => {
+  await page.route('**/api/restore/batch/*/progress', async (route: Route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -603,6 +603,29 @@ export async function mockSseEvents(page: Page): Promise<void> {
       status: 200,
       contentType: 'text/event-stream',
       body,
+    });
+  });
+}
+
+
+/**
+ * Mock the unified restore task SSE progress stream.
+ * Frontend opens EventSource('/api/restore/{taskId}/progress') and uses
+ * es.onmessage (unnamed events only), so the body must NOT carry "event:" lines.
+ * Progress values are percentages (0-100) to match frontend expectations.
+ */
+export async function mockRestoreProgressComplete(page: Page): Promise<void> {
+  await page.route('**/api/restore/*/progress', async (route: Route) => {
+    const events = [
+      { task_id: 'test-task-001', progress: 0, status: 'processing', message: 'Queued' },
+      { task_id: 'test-task-001', progress: 25, status: 'processing', message: 'Restoring frames' },
+      { task_id: 'test-task-001', progress: 60, status: 'processing', message: 'Restoring frames' },
+      { task_id: 'test-task-001', progress: 100, status: 'completed' },
+    ];
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/event-stream',
+      body: buildSseBody(events),
     });
   });
 }
