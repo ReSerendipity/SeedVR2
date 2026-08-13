@@ -537,29 +537,74 @@ def _kill_port_process(port: int) -> bool:
     return False
 
 
+def find_available_port(start_port: int, max_attempts: int = 200) -> int:
+    """从 start_port 开始向上查找第一个可用的端口。
+
+    通过临时绑定 socket 探测端口是否空闲，避免死守单个端口导致
+    启动时因端口被占用而失败 (Errno 10048 / Address already in use)。
+
+    Args:
+        start_port: 起始端口号（含）。
+        max_attempts: 最多向上探测的端口数量。
+
+    Returns:
+        int: 第一个可用的端口号。
+
+    Raises:
+        OSError: 在给定范围内未找到可用端口时抛出。
+    """
+    import socket
+
+    for offset in range(max_attempts):
+        candidate = start_port + offset
+        if candidate > 65535:
+            break
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind(("127.0.0.1", candidate))
+                return candidate
+            except OSError:
+                continue
+    raise OSError(f"在 {start_port}~{start_port + max_attempts} 范围内未找到可用端口")
+
+
 def main() -> None:
     """启动 SeedVR2 FastAPI 应用服务器。
 
     完整启动流程：
     1. 加载配置文件
-    2. 创建 FastAPI 应用实例
-    3. 配置日志级别和格式
-    4. 尝试启动 Uvicorn 服务器
-    5. 如果端口被占用（OSError 10048），自动尝试终止占用进程后重试
+    2. 自动寻找可用端口（配置端口被占用时向上顺延，不再死守单一端口）
+    3. 创建 FastAPI 应用实例
+    4. 配置日志级别和格式
+    5. 启动 Uvicorn 服务器
 
     服务器配置：
     - 默认监听地址：127.0.0.1
-    - 默认端口：7870
+    - 默认端口：config.yaml 中的 server.port（默认 7870）
     - debug 模式下启用热重载（从配置读取）
 
     Raises:
-        OSError: 端口被占用且自动释放失败时重新抛出异常。
+        OSError: 找不到任何可用端口时抛出。
         SystemExit: Uvicorn 运行出错时可能触发。
     """
     import uvicorn
 
     config = load_config()
-    app = create_app(config)
+    host = config.get("server", {}).get("host", "127.0.0.1")
+    base_port = config.get("server", {}).get("port", 7870)
+    debug = config.get("server", {}).get("debug", False)
+
+    # 自动寻找可用端口：配置端口被占用时向上顺延，避免启动失败
+    port = find_available_port(base_port)
+    if port != base_port:
+        logger.warning(f"端口 {base_port} 已被占用，自动切换到可用端口 {port}")
+        # 同步更新配置，让 lifespan 打开浏览器 / 输出日志时使用正确端口
+        config["server"]["port"] = port
+        # 将动态端口加入 CORS 白名单，避免跨域访问受限
+        origins = config["server"].setdefault("allowed_origins", [])
+        origin = f"http://{host}:{port}"
+        if origin not in origins:
+            origins.append(origin)
 
     log_level = config.get("logging", {}).get("level", "INFO")
     logging.basicConfig(
@@ -567,9 +612,7 @@ def main() -> None:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
 
-    host = config.get("server", {}).get("host", "127.0.0.1")
-    port = config.get("server", {}).get("port", 7870)
-    debug = config.get("server", {}).get("debug", False)
+    app = create_app(config)
 
     logger.info(f"SeedVR2启动中... http://{host}:{port}")
     try:

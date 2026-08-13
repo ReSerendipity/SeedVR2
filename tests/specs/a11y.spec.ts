@@ -192,7 +192,7 @@ test.describe('Accessibility - Keyboard Navigation', () => {
   test.beforeEach(async ({ page }) => {
     // 禁用首次访问引导弹窗：onboarding modal 有焦点陷阱，webkit/firefox 下 Tab 顺序测试会被困住
     await page.addInitScript(() => {
-      try { sessionStorage.setItem('sv_onboarding_seen_v2', '1'); } catch (e) { /* ignore */ }
+      try { localStorage.setItem('sv_onboarding_seen_v2', '1'); } catch (e) { /* ignore */ }
     });
     await setupAllMocks(page);
   });

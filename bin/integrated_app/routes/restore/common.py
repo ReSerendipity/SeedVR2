@@ -222,32 +222,22 @@ def enforce_double_resolution_if_enabled(
         logger.warning("[double_res] 开关开启但输入路径无效，跳过强制覆写: %s", input_path)
         return
 
-    if detected_type != "image":
+    if detected_type not in ("image", "video"):
         logger.info(
-            "[double_res] 开关开启但当前文件非图片类型 (%s)，保留原分辨率 %d (path=%s)",
+            "[double_res] 开关开启但当前文件类型 (%s) 不支持两倍检测，保留原分辨率 %d (path=%s)",
             detected_type,
             raw_params.resolution,
             input_path,
         )
         return
 
-    try:
-        # 延迟导入 — 只有开关打开时才触发，避免极少数环境缺失 Pillow
-        from PIL import Image  # type: ignore
-    except ImportError as e:
-        logger.warning("[double_res] 开关开启但 Pillow 不可用，无法读取真实宽高: %s", e)
-        return
-
-    try:
-        with Image.open(input_path) as im:  # noqa: S311 — 魔数校验已在上游 validate_upload_magic 完成
-            width, height = im.size
-    except Exception as e:  # noqa: BLE001 — 任何解码失败都 fail-safe
-        logger.warning("[double_res] 图片解析失败，保留原分辨率: path=%s error=%s", input_path, e)
+    width, height = _read_media_dimensions(detected_type, input_path, raw_params.resolution)
+    if width is None or height is None:
         return
 
     if width <= 0 or height <= 0:
         logger.warning(
-            "[double_res] 图片宽高非法 (%dx%d)，保留原分辨率 %d (path=%s)",
+            "[double_res] 媒体宽高非法 (%dx%d)，保留原分辨率 %d (path=%s)",
             width,
             height,
             raw_params.resolution,
@@ -293,6 +283,61 @@ def enforce_double_resolution_if_enabled(
         original_decode_tile_size,
         original_decode_tile_overlap,
     )
+
+
+def _read_media_dimensions(
+    detected_type: str,
+    input_path: str,
+    current_resolution: int,
+) -> tuple[int | None, int | None]:
+    """按媒体类型读取真实宽高（两倍模式专用）。
+
+    - image: 用 Pillow 读取图片尺寸。
+    - video: 用 FFmpegWrapper.ffprobe 读取视频分辨率。
+
+    任何读取失败都返回 (None, None)，由调用方 fail-safe 保留原分辨率。
+
+    Args:
+        detected_type: 媒体类型，"image"/"video"。
+        input_path: 已保存到磁盘的媒体文件路径。
+        current_resolution: 当前分辨率（仅用于日志）。
+
+    Returns:
+        (width, height)，读取失败返回 (None, None)。
+    """
+    if detected_type == "image":
+        try:
+            # 延迟导入 — 只有开关打开时才触发，避免极少数环境缺失 Pillow
+            from PIL import Image  # type: ignore
+        except ImportError as e:
+            logger.warning("[double_res] 开关开启但 Pillow 不可用，无法读取图片宽高: %s", e)
+            return None, None
+
+        try:
+            with Image.open(input_path) as im:  # noqa: S311 — 魔数校验已在上游 validate_upload_magic 完成
+                return im.size
+        except Exception as e:  # noqa: BLE001 — 任何解码失败都 fail-safe
+            logger.warning("[double_res] 图片解析失败，保留原分辨率 %d: path=%s error=%s", current_resolution, input_path, e)
+            return None, None
+
+    if detected_type == "video":
+        try:
+            from bin.integrated_app.video_processor import FFmpegWrapper
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[double_res] 开关开启但无法初始化 FFmpeg，无法读取视频宽高: %s", e)
+            return None, None
+
+        try:
+            info = FFmpegWrapper().get_video_info(input_path)
+            if info is None or info.width <= 0 or info.height <= 0:
+                logger.warning("[double_res] 视频解析失败，保留原分辨率 %d: path=%s", current_resolution, input_path)
+                return None, None
+            return info.width, info.height
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[double_res] 视频解析失败，保留原分辨率 %d: path=%s error=%s", current_resolution, input_path, e)
+            return None, None
+
+    return None, None
 
 
 async def create_task_state(task_id: str, record_id: int, history_db: HistoryDB, task_type: str = "single") -> dict:

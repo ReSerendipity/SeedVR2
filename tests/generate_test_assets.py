@@ -48,13 +48,9 @@ MINIMAL_JPEG = bytes.fromhex(
 
 def make_png(width: int = 1, height: int = 1, rgba: tuple = (255, 0, 0, 255)) -> bytes:
     """构造最小合法 PNG（IHDR + IDAT + IEND）。"""
+
     def chunk(tag: bytes, data: bytes) -> bytes:
-        return (
-            struct.pack(">I", len(data))
-            + tag
-            + data
-            + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
-        )
+        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
 
     sig = b"\x89PNG\r\n\x1a\n"
     ihdr = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)  # 8-bit RGBA

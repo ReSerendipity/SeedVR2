@@ -225,7 +225,7 @@
         <div class="sv-param-group">
             <label class="sv-param-label" for="resolution">{{ t('restore.resolution') }}
                 <span class="sv-param-help" data-tooltip="{{ t('restore.tip_resolution') }}"><i class="bi bi-info-circle"></i></span>
-                <label class="sv-res-auto-toggle" title="{{ '开启后上传图片自动按短边×2设置分辨率' if t('restore.double_res_tip') == 'restore.double_res_tip' else t('restore.double_res_tip') }}">
+                <label class="sv-res-auto-toggle" title="{{ '开启后上传图片或视频自动按短边×2设置分辨率' if t('restore.double_res_tip') == 'restore.double_res_tip' else t('restore.double_res_tip') }}">
                     <input type="checkbox" id="doubleResToggle" name="double_res" value="true" checked>
                     <span class="sv-res-auto-track"><span class="sv-res-auto-thumb"></span></span>
                     <span class="sv-res-auto-label">{{ '两倍模式' if t('restore.double_res') == 'restore.double_res' else t('restore.double_res') }}</span>
@@ -559,7 +559,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     .replace('{v}', String(target));
         } else if (autoOn) {
             hint.classList.add('is-auto');
-            hint.textContent = I['restore.double_res_hint_default'] || '上传图片后将按短边×2自动计算（两倍模式下不可手动修改）';
+            hint.textContent = I['restore.double_res_hint_default'] || '上传图片或视频后将按短边×2自动计算（两倍模式下不可手动修改）';
         } else {
             hint.classList.remove('is-auto');
             hint.textContent = I['manual_res_hint'] || '自定义模式：可手动输入任意分辨率';
@@ -624,6 +624,89 @@ document.addEventListener('DOMContentLoaded', () => {
                     img.src = URL.createObjectURL(file);
                 }
             } catch (e) {
+                syncResolutionUI({});
+                cleanResolve(null);
+            }
+        });
+    }
+
+    /**
+     * 读取视频真实宽高，若两倍模式开启则自动设置分辨率 = 较短边 × 2
+     * @param {File} file
+     * @returns {Promise<Object|null>} 解析成功返回 {width,height,shortEdge,resolution}，失败返回 null
+     */
+    function autoSetResolutionFromVideo(file) {
+        return new Promise((resolve) => {
+            const toggle = /** @type {HTMLInputElement} */ (document.getElementById('doubleResToggle'));
+            const input = /** @type {HTMLInputElement} */ (document.getElementById('resolution'));
+            if (!toggle || !input) { resolve(null); return; }
+
+            const cleanResolve = (result) => resolve(result);
+            let done = false;
+
+            const video = document.createElement('video');
+            video.preload = 'metadata';
+            video.muted = true;
+
+            const applyDims = () => {
+                const w = video.videoWidth;
+                const h = video.videoHeight;
+                // 部分浏览器 loadedmetadata 阶段宽高仍为 0，等待 loadeddata 再取
+                if (w <= 0 || h <= 0) return;
+                if (done) return;
+                done = true;
+                URL.revokeObjectURL(video.src);
+                const shortEdge = Math.min(w, h);
+                const target = shortEdge * 2;
+                _resolutionLastSource = `${w}×${h}`;
+                if (toggle.checked) {
+                    // 分辨率: short_edge × 2
+                    input.value = String(target);
+                    _resolutionLastAutoValue = target;
+                    // 四个 tile 参数与短边分辨率联动：
+                    // tile_size = short_edge × 100%
+                    // tile_overlap = short_edge × 50%  →  天然满足 size = 2 × overlap
+                    const tileSize = Math.round(shortEdge);
+                    const tileOverlap = Math.round(shortEdge * 0.5);
+                    const ets = document.getElementById('encodeTileSize');
+                    const dts = document.getElementById('decodeTileSize');
+                    const eto = document.getElementById('encodeTileOverlap');
+                    const dto = document.getElementById('decodeTileOverlap');
+                    if (ets) ets.value = String(tileSize);
+                    if (dts) dts.value = String(tileSize);
+                    if (eto) eto.value = String(tileOverlap);
+                    if (dto) dto.value = String(tileOverlap);
+                }
+                syncResolutionUI({ width: w, height: h, shortEdge });
+                cleanResolve({ width: w, height: h, shortEdge, resolution: target });
+            };
+            video.onloadedmetadata = applyDims;
+            video.onloadeddata = applyDims;
+            video.onerror = () => {
+                if (done) return;
+                done = true;
+                URL.revokeObjectURL(video.src);
+                syncResolutionUI({});
+                cleanResolve(null);
+            };
+            // 安全兜底：最多等 8s，避免不可解码视频永远不触发事件导致 promise 悬挂
+            setTimeout(() => {
+                if (!done) {
+                    done = true;
+                    URL.revokeObjectURL(video.src);
+                    syncResolutionUI({});
+                    cleanResolve(null);
+                }
+            }, 8000);
+
+            // 用 file 新建独立 objectURL，避免复用 previewObjectUrl（它会被时长检测的
+            // tempVideo 提前 revokeObjectURL 撤销，导致无法读取视频宽高）
+            let srcUrl = null;
+            try {
+                srcUrl = URL.createObjectURL(file);
+                video.src = srcUrl;
+            } catch (e) {
+                if (srcUrl) URL.revokeObjectURL(srcUrl);
                 syncResolutionUI({});
                 cleanResolve(null);
             }
@@ -883,14 +966,14 @@ document.addEventListener('DOMContentLoaded', () => {
     (function() {
         var modal = document.getElementById('onboardingModal');
         var closeBtn = document.getElementById('onboardingClose');
-        var hasSeen = sessionStorage.getItem('sv_onboarding_seen_v2');
+        var hasSeen = localStorage.getItem('sv_onboarding_seen_v2');
 
         if (modal && !hasSeen) {
             modal.style.display = 'flex';
             requestAnimationFrame(function() {
                 modal.classList.add('show');
             });
-            sessionStorage.setItem('sv_onboarding_seen_v2', '1');
+            localStorage.setItem('sv_onboarding_seen_v2', '1');
         }
 
         if (closeBtn && modal) {
@@ -978,8 +1061,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 autoSetResolutionFromImage(file).catch(() => { /* 忽略非致命错误 */ });
             } else {
                 els.imagePreview.style.display = 'none';
-                // 视频文件：暂不自动设置（不同视频分辨率语义不同），仅刷新提示
-                syncResolutionUI({});
+                // 两倍模式：自动根据视频宽高短边 × 2 填分辨率
+                autoSetResolutionFromVideo(file).catch(() => { /* 忽略非致命错误 */ });
             }
             // 保存文件元信息到持久化会话，切页回来可恢复
             try {
@@ -1429,11 +1512,15 @@ document.addEventListener('DOMContentLoaded', () => {
         // 用户切换开关
         toggle.addEventListener('change', () => {
             const autoOn = toggle.checked;
-            // 切回两倍模式 + 当前已有图片文件 → 立即自动填入
+            // 切回两倍模式 + 当前已有媒体文件 → 立即自动填入
             if (autoOn && els.fileInput && els.fileInput.files && els.fileInput.files[0]) {
                 const f = els.fileInput.files[0];
                 if (f.type && f.type.startsWith('image/')) {
                     autoSetResolutionFromImage(f).catch(() => {});
+                    return;
+                }
+                if (f.type && f.type.startsWith('video/')) {
+                    autoSetResolutionFromVideo(f).catch(() => {});
                     return;
                 }
             }

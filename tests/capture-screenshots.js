@@ -275,14 +275,14 @@ async function captureAllViewports(page, viewports, themes) {
   const page = await context.newPage();
 
   // Suppress the first-visit onboarding modal on the restore page. The modal
-  // (restore.html #onboardingModal) shows when sessionStorage key
+  // (restore.html #onboardingModal) shows when localStorage key
   // 'sv_onboarding_seen_v2' is unset and would intercept all pointer events.
   // addInitScript runs before any page script on every navigation.
   await page.addInitScript(() => {
     try {
-      sessionStorage.setItem('sv_onboarding_seen_v2', '1');
+      localStorage.setItem('sv_onboarding_seen_v2', '1');
     } catch (e) {
-      // sessionStorage may be unavailable on some pages (e.g. health JSON) - ignore
+      // localStorage may be unavailable on some pages (e.g. health JSON) - ignore
     }
   });
 
