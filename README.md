@@ -139,41 +139,136 @@ runtime:
 - 三层回退机制：指定语言 → 英文（en）回退 → key 本身（兜底）
 - 支持扁平键优先查找（含点号的键不会被误判为嵌套结构）
 
-### 快速启动
+### 🚀 快速上手：从零开始（新手保姆式教程，约 5 分钟）
 
-#### 方式一：使用系统 Python（推荐，节省磁盘空间）
+> 目标：一台 Windows 电脑，从空白到打开网页完成第一次修复。全程跟着做即可，
+> 不需要任何编程基础。
 
-1. 安装 [Python 3.12+](https://www.python.org/downloads/)，安装时勾选 **"Add Python to PATH"**
-2. 验证安装：打开命令提示符，运行 `python --version` 应显示 3.12.x
-3. 双击运行 `install.bat`（会自动检测系统 Python 并安装依赖）
-4. 将预训练模型放入 `pretrained_models/` 目录
-5. 双击运行：
+**第 1 步 · 安装 Python 3.12**（已装过可跳过）
 
-```bat
-start.bat
+1. 打开 <https://www.python.org/downloads/> 下载 Python 3.12+ 安装包
+2. 双击安装，**务必勾选底部 "Add python.exe to PATH"**，然后点 `Install Now`
+3. 验证：按 `Win + R` 输入 `cmd` 回车，输入 `python --version`，看到 `Python 3.12.x` 即成功
+
+**第 2 步 · 获取本项目代码**
+
+```bash
+git clone https://github.com/ReSerendipity/SeedVR2.git
+cd SeedVR2
 ```
 
-6. 浏览器自动打开 `http://127.0.0.1:7870`
+> 没装 Git？打开仓库主页点绿色 `Code` → `Download ZIP`，解压到本地即可（Git 非必须）。
 
-> 💡 **优势**：多个项目共享一套 Python 和依赖，避免每个项目都有几百 MB 到几 GB 的重复 Python 环境。
+**第 3 步 · 安装依赖**
+
+- Windows：双击运行 `install.bat`；Linux/macOS：运行 `./install.sh`
+- 脚本会自动：检测 Python → 安装 PyTorch（CUDA 版）→ 安装其余依赖
+- 看到 `Installation complete!` 即完成
+- 若安装报错，见下方「常见问题 FAQ」
+
+**第 4 步 · 下载模型权重**（最关键的一步）
+
+```bash
+python scripts/download_model.py --size 3b
+```
+
+- 这是「3B 模型 + VAE + 文本嵌入」的完整最小集合，约 20 GB
+- 想用更强的 7B / 7B-Sharp，把 `--size` 换成 `7b` / `7b_sharp`
+- 下载慢 / 想手动下，见下方「模型权重下载（保姆级）」
+
+**第 5 步 · 启动**
+
+- 双击运行 `start.bat`
+- 浏览器会自动打开 <http://127.0.0.1:7870>，看到界面即成功
+- 没自动打开？手动访问这个地址即可
+
+**第 6 步 · 开始修复**
+
+- 点击「修复工作台」→ 上传一张图片或一个视频 → 点「开始修复」
+- 「系统状态」页可实时查看 GPU 占用与任务进度
 
 ---
 
-#### 方式二：使用内置 WinPython（完全隔离，无需系统 Python）
+### 📦 模型权重下载（保姆级）
 
-1. 下载并解压 [WinPython 3.12](https://github.com/winpython/winpython/releases) 到项目根目录，确保 `WPy64-312101/python/python.exe` 存在
-   - 或运行 `scripts\setup_winpython.py` 自动下载配置
-2. 双击运行 `install.bat`（会检测 WinPython 并安装依赖到 WinPython 内部）
-3. 将预训练模型放入 `pretrained_models/` 目录
-4. 双击运行：
+> 权重文件较大（3B 约 20 GB / 7B 约 40 GB），且**文件名必须与下表完全一致**、
+> 必须直接放在 `pretrained_models/` **根目录**（不要建子文件夹，否则应用识别不到）。
 
-```bat
-start.bat
+**你需要的最小文件集合**（以 3B 为例）：
+
+| 文件 | 用途 | 必须 |
+|---|---|---|
+| `seedvr2_ema_3b_fp16.safetensors` | DiT 主模型（FP16 全精度，画质最好） | 二选一（推荐 FP16） |
+| `seedvr2_ema_3b_fp8_e4m3fn.safetensors` | DiT 主模型（FP8 量化，省显存） | 二选一 |
+| `ema_vae_fp16.safetensors` | 视频 VAE（解码输出） | ✅ |
+| `pos_emb.pt` | 正向文本嵌入 | ✅ |
+| `neg_emb.pt` | 负向文本嵌入 | ✅ |
+
+> 7B：`seedvr2_ema_7b_fp16.safetensors` / `seedvr2_ema_7b_fp8_e4m3fn.safetensors`
+> 7B-Sharp：`seedvr2_ema_7b_sharp_fp16.safetensors` / `seedvr2_ema_7b_sharp_fp8_e4m3fn.safetensors`
+
+**方式 A：自动下载（推荐）**
+
+```bash
+python scripts/download_model.py --size 3b        # 3B + VAE + 嵌入（默认）
+python scripts/download_model.py --size 7b        # 7B + VAE + 嵌入
+python scripts/download_model.py --size 7b_sharp  # 7B-Sharp + VAE + 嵌入
 ```
 
-5. 浏览器自动打开 `http://127.0.0.1:7870`
+- 已存在的文件会自动跳过，可随时重跑补全，支持断点续传
+- 大陆网络慢：先执行 `set HF_ENDPOINT=https://hf-mirror.com` 再重跑脚本
 
-> 💡 **提示**：`start.bat` 和 `install.bat` 会**优先使用系统 Python**，若找不到系统 Python 才回退到 WinPython。如果你只想用 WinPython，请确保没有安装系统 Python，或手动修改脚本的检测顺序。
+**方式 B：手动下载（网络更稳时）**
+
+1. 打开任一模型仓库页面：`huggingface.co/numz/SeedVR2_comfyUI`（社区整理）或
+   `huggingface.co/ByteDance-Seed/SeedVR2-3B` / `SeedVR2-7B`（官方，文件名可能略异）
+2. 把上表文件下载到 `pretrained_models/` 根目录，**文件名不要改**
+3. 大陆用户可把 `huggingface.co` 换成 `hf-mirror.com` 加速
+
+**验证放对位置**：最终 `pretrained_models/` 根目录下应直接看到这些文件（以 3B 为例）：
+
+```text
+pretrained_models/
+├── seedvr2_ema_3b_fp16.safetensors
+├── seedvr2_ema_3b_fp8_e4m3fn.safetensors
+├── ema_vae_fp16.safetensors
+├── pos_emb.pt
+└── neg_emb.pt
+```
+
+> 💡 多项目共用一套模型？把 `config.yaml` 的 `model.model_source_mode` 改为 `shared`
+> 并指定 `model.shared_models_root` 指向共享目录即可（见「模型共享模式」章节）。
+
+---
+
+### ❓ 常见问题（FAQ）
+
+1. **启动报错模型文件未找到（`FileNotFoundError`）** → 核对文件名与位置，见「模型权重下载（保姆级）」。
+   最常见的坑是：把权重放进了 `pretrained_models/SeedVR2-3B/` 这样的子文件夹里——必须放在根目录。
+2. **`install.bat` 装 PyTorch 失败** → 手动执行
+   `pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128`
+   （把 `cu128` 换成你驱动支持的 CUDA 版本，`nvidia-smi` 可查看），再重跑 `install.bat`。
+3. **端口被占用** → 应用会自动寻找下一个可用端口并在日志打印实际地址，以日志为准即可。
+4. **显存不足（OOM）** → 改用 FP8 模型 / 开启 BlockSwap / 降低输出分辨率。
+5. **HuggingFace 下载慢** → `set HF_ENDPOINT=https://hf-mirror.com`（Windows）
+   或 `export HF_ENDPOINT=https://hf-mirror.com`（Linux/macOS）后重跑下载脚本。
+
+---
+
+### 备选运行方式
+
+**方式一 · 使用系统 Python（推荐，节省磁盘空间）**
+
+`start.bat` 与 `install.bat` 会优先使用系统 Python，找不到才回退到内置 WinPython。
+无需其他操作，直接按上面第 3/5 步即可。
+
+**方式二 · 使用内置 WinPython（完全隔离，无需系统 Python）**
+
+1. 下载并解压 [WinPython 3.12](https://github.com/winpython/winpython/releases) 到项目根目录，
+   确保 `WPy64-312101/python/python.exe` 存在；或运行 `scripts\setup_winpython.py` 自动配置
+2. 之后流程与上方第 3/5 步完全一致
+
+> 💡 若你只装了 WinPython 不想装系统 Python，直接运行 `install.bat` / `start.bat` 会自动回退使用它。
 
 ### Docker
 

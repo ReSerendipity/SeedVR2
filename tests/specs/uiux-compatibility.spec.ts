@@ -197,7 +197,7 @@ test.describe('Responsive layout - Desktop (1920x1080)', () => {
   test('sidebar is visible on all pages', async ({ page }) => {
     for (const { name, path } of ALL_PAGES) {
       await page.goto(path);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       // The navbar (sidebar) should be visible at desktop width
       const navBar = page.locator('.sv-navbar');
@@ -211,7 +211,7 @@ test.describe('Responsive layout - Desktop (1920x1080)', () => {
   test('content area fills remaining space beside the sidebar', async ({ page }) => {
     for (const { name, path } of ALL_PAGES) {
       await page.goto(path);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       // The main content area should be visible and take up the remaining space
       const mainContent = page.locator('.sv-main');
@@ -237,7 +237,7 @@ test.describe('Responsive layout - Desktop (1920x1080)', () => {
   test('no horizontal scrollbar on any page', async ({ page }) => {
     for (const { name, path } of ALL_PAGES) {
       await page.goto(path);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       const hasHorizontalScroll = await page.evaluate(() => {
         return document.documentElement.scrollWidth > document.documentElement.clientWidth + 1;
@@ -346,7 +346,7 @@ test.describe('Responsive layout - Laptop (1366x768)', () => {
   test('layout still works and no content overflow on any page', async ({ page }) => {
     for (const { name, path } of ALL_PAGES) {
       await page.goto(path);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       // Verify the page renders without errors
       const navBar = page.locator('.sv-navbar');
@@ -369,7 +369,7 @@ test.describe('Responsive layout - Laptop (1366x768)', () => {
   test('cards and tables fit within the viewport', async ({ page }) => {
     // Check the home page cards
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const quickCards = page.locator('.sv-quick-card');
     const cardCount = await quickCards.count();
@@ -385,7 +385,7 @@ test.describe('Responsive layout - Laptop (1366x768)', () => {
 
     // Check the history page table
     await page.goto('/history');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const tables = page.locator('table, .sv-table, .sv-history-table');
     const tableCount = await tables.count();
@@ -402,7 +402,7 @@ test.describe('Responsive layout - Laptop (1366x768)', () => {
 
   test('navbar remains accessible at laptop width', async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // The navbar should still be fully visible and usable
     const navBar = page.locator('.sv-navbar');
@@ -431,7 +431,7 @@ test.describe('Responsive layout - Tablet (768x1024)', () => {
 
   test('sidebar may collapse or adapt at tablet width', async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // At tablet width, the sidebar may be collapsed (hidden) or adapted
     // (e.g., icons-only mode). Verify the page is still usable.
@@ -475,7 +475,7 @@ test.describe('Responsive layout - Tablet (768x1024)', () => {
 
   test('touch targets are at least 44x44px on tablet', async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const interactiveRects = await getInteractiveElementRects(page);
     const smallTargets = interactiveRects.filter(
@@ -522,7 +522,7 @@ test.describe('Responsive layout - Mobile (375x812)', () => {
 
   test('sidebar collapses to hamburger menu or bottom nav', async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // At mobile width, the full sidebar should not be visible.
     // Instead, there should be a hamburger toggle or bottom navigation.
@@ -563,7 +563,7 @@ test.describe('Responsive layout - Mobile (375x812)', () => {
   test('content fills full width on mobile', async ({ page }) => {
     for (const { name, path } of ALL_PAGES) {
       await page.goto(path);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       const mainContent = page.locator('.sv-main');
       if (await mainContent.count() > 0) {
@@ -583,7 +583,7 @@ test.describe('Responsive layout - Mobile (375x812)', () => {
   test('all interactive elements are at least 44x44px touch targets', async ({ page }) => {
     // Test on the video restore page which has many interactive elements
     await page.goto('/restore');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const interactiveRects = await getInteractiveElementRects(page);
     const smallTargets = interactiveRects.filter(
@@ -622,7 +622,7 @@ test.describe('Responsive layout - Mobile (375x812)', () => {
   test('no horizontal overflow on mobile', async ({ page }) => {
     for (const { name, path } of ALL_PAGES) {
       await page.goto(path);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       const hasHorizontalScroll = await page.evaluate(() => {
         return document.documentElement.scrollWidth > document.documentElement.clientWidth + 1;
@@ -638,7 +638,7 @@ test.describe('Responsive layout - Mobile (375x812)', () => {
   test('tables are scrollable or adapted for small screens', async ({ page }) => {
     // Check the history page which has a data table
     await page.goto('/history');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const tables = page.locator('table');
     const tableCount = await tables.count();
@@ -689,7 +689,7 @@ test.describe('Cross-browser rendering', () => {
       consoleErrors.length = 0;
 
       await page.goto(path);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       // Filter out benign errors (e.g., favicon, network interception, font loading, SRI integrity)
       const significantErrors = consoleErrors.filter(
@@ -717,7 +717,7 @@ test.describe('Cross-browser rendering', () => {
 
   test('CSS custom properties work correctly across browsers', async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Verify that key CSS custom properties are defined and have valid values.
     // CSS custom properties (var()) should work in all modern browsers,
@@ -969,7 +969,7 @@ test.describe('Touch target compliance', () => {
    */
   test('all buttons have minimum 44x44px clickable area on mobile', async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const buttons = await page.evaluate(() => {
       const btns = document.querySelectorAll('button, [role="button"]');
@@ -1019,7 +1019,7 @@ test.describe('Touch target compliance', () => {
 
   test('all links have minimum 44x44px clickable area on mobile', async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const links = await page.evaluate(() => {
       const anchors = document.querySelectorAll('a[href]');
@@ -1067,7 +1067,7 @@ test.describe('Touch target compliance', () => {
   test('all switches and toggle controls have minimum 44x44px clickable area', async ({ page }) => {
     // Navigate to settings page which has toggle switches
     await page.goto('/settings');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const switches = await page.evaluate(() => {
       const switchEls = document.querySelectorAll(
@@ -1117,7 +1117,7 @@ test.describe('Touch target compliance', () => {
 
   test('touch target compliance on video restore page', async ({ page }) => {
     await page.goto('/restore');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const interactiveRects = await getInteractiveElementRects(page);
     const smallTargets = interactiveRects.filter(
@@ -1154,7 +1154,7 @@ test.describe('Touch target compliance', () => {
 
   test('touch target compliance on settings page', async ({ page }) => {
     await page.goto('/settings');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const interactiveRects = await getInteractiveElementRects(page);
     const smallTargets = interactiveRects.filter(
@@ -1218,7 +1218,7 @@ test.describe('Content overflow check', () => {
       test('no element exceeds viewport width on any page', async ({ page }) => {
         for (const { name, path } of ALL_PAGES) {
           await page.goto(path);
-          await page.waitForLoadState('networkidle');
+          await page.waitForLoadState('domcontentloaded');
 
           // Check the document-level scroll width vs client width
           const documentOverflow = await page.evaluate(() => {
@@ -1268,7 +1268,7 @@ test.describe('Content overflow check', () => {
       test('no fixed-position elements extend beyond viewport', async ({ page }) => {
         for (const { name, path } of ALL_PAGES) {
           await page.goto(path);
-          await page.waitForLoadState('networkidle');
+          await page.waitForLoadState('domcontentloaded');
 
           // Check for fixed-position elements that might extend beyond the viewport
           const fixedOverflow = await page.evaluate((viewportWidth) => {

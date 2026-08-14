@@ -8,7 +8,7 @@ export class BasePage {
     'Home': '首页',
     'Restore': '修复',
     'History': '历史记录',
-    'Settings': '设置',
+    'Settings': '关于',
   };
 
   // Reverse mapping: Chinese → English
@@ -38,13 +38,12 @@ export class BasePage {
   }
 
   async navigate(path: string): Promise<void> {
-    await this.page.goto(path);
+    await this.page.goto(path, { waitUntil: 'domcontentloaded' });
     await this.waitForPageLoad();
   }
 
   async waitForPageLoad(): Promise<void> {
     await this.page.waitForLoadState('domcontentloaded');
-    await this.page.waitForLoadState('networkidle');
   }
 
   async getPageTitle(): Promise<string> {

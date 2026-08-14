@@ -722,7 +722,15 @@ export async function mockNetworkTimeout(
  *
  * @param page - The Playwright page instance
  */
+/** Abort remote font requests (Google Fonts) — page load would otherwise hang
+ *  in networks without access to fonts.googleapis.com (incl. some CI/locale). */
+export async function abortRemoteFonts(page: Page): Promise<void> {
+  await page.route('**fonts.googleapis.com/**', (route) => route.abort());
+  await page.route('**fonts.gstatic.com/**', (route) => route.abort());
+}
+
 export async function setupAllMocks(page: Page): Promise<void> {
+  await abortRemoteFonts(page);
   // System API mocks
   await mockHealthSuccess(page);
   await mockGpuInfoSuccess(page);

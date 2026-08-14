@@ -326,7 +326,7 @@ test.describe('System Status', () => {
 
       // After clicking, the icon may briefly show a spinning state
       // We verify the button is still functional after the refresh completes
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
       await expect(statusPage.btnRefreshStatus).toBeVisible();
     });
   });

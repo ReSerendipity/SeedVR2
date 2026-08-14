@@ -24,6 +24,18 @@ import { test, expect, Page, Route } from '@playwright/test';
 import { setupAllMocks } from '@fixtures/api-mocks';
 import { mockBrowseDirResponse } from '@fixtures/test-data';
 
+// Dismiss the first-run onboarding modal: a fresh Playwright context has empty
+// localStorage (sv_onboarding_seen_v2), so the modal would show and intercept
+// all pointer events in every test.
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    try { localStorage.setItem('sv_onboarding_seen_v2', '1'); } catch (e) { /* ignore */ }
+    const style = document.createElement('style');
+    style.textContent = '#onboardingModal{display:none !important;}';
+    document.head.appendChild(style);
+  });
+});
+
 // ============================================================
 // Test suite: Cross-Site Scripting (XSS)
 // ============================================================
@@ -34,9 +46,11 @@ test.describe('Security - XSS Prevention', () => {
   });
 
   test('XSS in toast notifications: script tags in error messages are not executed', async ({ page }) => {
-    // Mock the settings save API to return an error message containing XSS payload
+    // Mock the restore submit API to return an error message containing XSS payload.
+    // (The settings page no longer has a save-paths button; restore submit is
+    // the canonical POST that surfaces server `detail` in an error toast.)
     const xssPayload = '<script>alert("xss")</script>';
-    await page.route('**/api/system/settings', async (route: Route) => {
+    await page.route('**/api/restore', async (route: Route) => {
       if (route.request().method() === 'POST') {
         await route.fulfill({
           status: 400,
@@ -51,8 +65,8 @@ test.describe('Security - XSS Prevention', () => {
       }
     });
 
-    await page.goto('/settings');
-    await page.waitForLoadState('networkidle');
+    await page.goto('/restore');
+    await page.waitForLoadState('domcontentloaded');
 
     // Set up an alert listener to detect if the XSS script executes
     let alertFired = false;
@@ -71,10 +85,16 @@ test.describe('Security - XSS Prevention', () => {
       };
     });
 
-    // Trigger the error by saving settings (the mock will return the XSS payload)
-    const saveBtn = page.locator('#btnSavePaths');
-    await expect(saveBtn).toBeVisible({ timeout: 5000 });
-    await saveBtn.click();
+    // Upload a file so the start button is enabled, then trigger the error.
+    await page.locator('#restoreFileInput').setInputFiles({
+      name: 'xss-test.mp4',
+      mimeType: 'video/mp4',
+      buffer: Buffer.from('fake-mp4-bytes'),
+    });
+    await expect(page.locator('#restoreFileInfo')).toBeVisible({ timeout: 10000 });
+    const startBtn = page.locator('#btnStartRestore');
+    await expect(startBtn).toBeVisible({ timeout: 10000 });
+    await startBtn.click();
 
     // Wait for the toast to appear — use waitForSelector instead of hardcoded timeout
     const toastContainer = page.locator('#toastContainer, .toast, [role="alert"]');
@@ -99,17 +119,18 @@ test.describe('Security - XSS Prevention', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          path: 'C:\\Users\\test',
-          entries: [
-            { name: xssFilename, path: `C:\\Users\\test\\${xssFilename}`, is_dir: false },
-            { name: 'normal_file.mp4', path: 'C:\\Users\\test\\normal_file.mp4', is_dir: false },
+          current_path: 'C:\\Users\\test',
+          parent_path: 'C:\\Users',
+          items: [
+            { name: xssFilename, path: `C:\\Users\\test\\${xssFilename}`, type: 'file' },
+            { name: 'normal_file.mp4', path: 'C:\\Users\\test\\normal_file.mp4', type: 'file' },
           ],
         }),
       });
     });
 
     await page.goto('/restore');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Set up XSS detection
     await page.evaluate(() => {
@@ -121,12 +142,15 @@ test.describe('Security - XSS Prevention', () => {
       };
     });
 
-    // Trigger the directory browser
-    const browseBtn = page.locator('#btnPickVideoFolder, .btn-browse-dir');
-    await expect(browseBtn.first()).toBeVisible({ timeout: 5000 });
-    await browseBtn.first().click();
-    // Wait for directory listing to render
-    await page.waitForLoadState('networkidle');
+    // Trigger the directory browser: switch to batch mode (the browse button
+    // lives in the batch toolbar) and open the dir browser modal.
+    await page.locator('[data-mode="batch"]').first().click();
+    const browseBtn = page.locator('#btnBrowseFolder');
+    await expect(browseBtn).toBeVisible({ timeout: 10000 });
+    await browseBtn.click();
+    await expect(page.locator('#dirBrowserModal')).toBeVisible({ timeout: 10000 });
+    // Wait for the mocked directory listing to render
+    await expect(page.locator('#dirBrowserList')).toContainText('normal_file.mp4', { timeout: 10000 });
 
     // Verify XSS was not executed
     const xssFired = await page.evaluate(() => (window as any).__xssDirFired === true);
@@ -152,13 +176,14 @@ test.describe('Security - XSS Prevention', () => {
 
   test('XSS in file info display: HTML in uploaded filename is displayed as text', async ({ page }) => {
     await page.goto('/restore');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Upload a file with HTML in the filename
     const xssFilename = '<script>alert("xss-file")</script>.mp4';
-    const fileInput = page.locator('#videoFileInput');
-
-    await expect(fileInput).toBeVisible({ timeout: 5000 });
+    const fileInput = page.locator('#restoreFileInput');
+    // The file input is visually hidden (custom dropzone on top); it only
+    // needs to be attached for setInputFiles.
+    await expect(fileInput).toBeAttached({ timeout: 10000 });
     await fileInput.setInputFiles({
       name: xssFilename,
       mimeType: 'video/mp4',
@@ -166,8 +191,8 @@ test.describe('Security - XSS Prevention', () => {
     });
 
     // Wait for file info to render — use waitForSelector instead of hardcoded timeout
-    const fileInfo = page.locator('#videoFileInfo');
-    await expect(fileInfo).toBeVisible({ timeout: 5000 });
+    const fileInfo = page.locator('#restoreFileInfo');
+    await expect(fileInfo).toBeVisible({ timeout: 10000 });
 
     // Set up XSS detection
     await page.evaluate(() => {
@@ -201,28 +226,43 @@ test.describe('Security - CSRF Protection', () => {
     // Capture request headers to verify CSRF token
     const requestHeaders: Record<string, string>[] = [];
 
-    await page.route('**/api/system/settings', async (route: Route) => {
+    await page.route('**/api/restore', async (route: Route) => {
       if (route.request().method() === 'POST') {
         requestHeaders.push(route.request().headers());
       }
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ success: true, message: 'Settings updated' }),
+        body: JSON.stringify({
+          task_id: 'csrf-task-001',
+          task_type: 'video',
+          status: 'processing',
+          message: 'Restore started',
+        }),
       });
     });
 
-    await page.goto('/settings');
-    await page.waitForLoadState('networkidle');
+    await page.goto('/restore');
+    await page.waitForLoadState('domcontentloaded');
 
-    // Trigger a POST request by saving settings
-    const saveBtn = page.locator('#btnSavePaths');
-    await expect(saveBtn).toBeVisible({ timeout: 5000 });
-    await saveBtn.click();
+    // Trigger a POST request by starting a restore (the app sends
+    // X-CSRF-Token from the csrf_token cookie on every api.post).
+    await page.locator('#restoreFileInput').setInputFiles({
+      name: 'csrf-test.mp4',
+      mimeType: 'video/mp4',
+      buffer: Buffer.from('fake-mp4-bytes'),
+    });
+    await expect(page.locator('#restoreFileInfo')).toBeVisible({ timeout: 10000 });
+    // The start button is disabled while the page runs its GPU probe; wait
+    // until it is enabled (probe finished) before clicking.
+    const startBtn = page.locator('#btnStartRestore');
+    await expect(startBtn).toBeVisible({ timeout: 10000 });
+    await expect(startBtn).toBeEnabled({ timeout: 15000 });
+    await startBtn.click();
     // Wait for POST request to be sent
     await page.waitForResponse(
-      (resp) => resp.url().includes('/api/system/settings') && resp.request().method() === 'POST',
-      { timeout: 5000 },
+      (resp) => resp.url().includes('/api/restore') && resp.request().method() === 'POST',
+      { timeout: 10000 },
     );
 
     // Verify that at least one POST request was made and check for CSRF token
@@ -272,7 +312,7 @@ test.describe('Security - Path Traversal Prevention', () => {
     });
 
     await page.goto('/restore');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Attempt to make a browse-dir request with path traversal
     const response = await page.evaluate(async () => {
@@ -326,7 +366,7 @@ test.describe('Security - Path Traversal Prevention', () => {
     });
 
     await page.goto('/settings');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Attempt to make an open-explorer request with path traversal
     const response = await page.evaluate(async () => {
@@ -357,7 +397,7 @@ test.describe('Security - Sensitive Data', () => {
   test('localStorage does not contain passwords, tokens, or API keys', async ({ page }) => {
     await setupAllMocks(page);
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Check localStorage for sensitive data patterns
     const sensitiveData = await page.evaluate(() => {
@@ -414,7 +454,7 @@ test.describe('Security - Content Security Policy', () => {
     });
 
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Check for CSP in HTTP headers
     if (cspHeader) {
@@ -463,7 +503,7 @@ test.describe('Security - Inline Event Handlers', () => {
 
     for (const { path, name } of pages) {
       await page.goto(path);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       // Scan for inline event handler attributes in the rendered HTML
       const inlineHandlers = await page.evaluate((attributes) => {
@@ -500,7 +540,7 @@ test.describe('Security - Secure Cookies', () => {
     await setupAllMocks(page);
 
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Check cookies set by the application
     const cookies = await page.context().cookies();
@@ -553,8 +593,14 @@ test.describe('Security - Input Sanitization', () => {
   test('Form inputs sanitize special characters', async ({ page }) => {
     await setupAllMocks(page);
 
-    await page.goto('/settings');
-    await page.waitForLoadState('networkidle');
+    await page.goto('/restore');
+    await page.waitForLoadState('domcontentloaded');
+
+    // The batch folder path input is the app's free-text input (the settings
+    // page no longer has editable path fields).
+    await page.locator('[data-mode="batch"]').first().click();
+    const textInput = page.locator('#folderPath');
+    await expect(textInput).toBeVisible({ timeout: 10000 });
 
     // Test special characters in text input fields
     const maliciousInputs = [
@@ -564,15 +610,13 @@ test.describe('Security - Input Sanitization', () => {
       { input: 'javascript:alert(1)', description: 'javascript protocol injection' },
     ];
 
-    const pretrainedDir = page.locator('#pretrainedDir');
-    await expect(pretrainedDir).toBeVisible({ timeout: 5000 });
     for (const { input, description } of maliciousInputs) {
-        await pretrainedDir.clear();
-        await pretrainedDir.fill(input);
+        await textInput.clear();
+        await textInput.fill(input);
 
         // Verify the input value is what was typed (not stripped by the browser)
         // The sanitization should happen on the server side or before submission
-        const inputValue = await pretrainedDir.inputValue();
+        const inputValue = await textInput.inputValue();
 
         // The input field should accept the text (browser input fields accept all text)
         // but the application should sanitize it before display or submission
@@ -596,7 +640,7 @@ test.describe('Security - Input Sanitization', () => {
         ).toBe(false);
 
         // Clear the field for the next test
-        await pretrainedDir.clear();
+        await textInput.clear();
       }
   });
 });

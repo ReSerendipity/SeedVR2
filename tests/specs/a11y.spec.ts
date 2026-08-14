@@ -58,7 +58,14 @@ async function runAxeAuditWithOptions(
   // Stabilize rendering before auditing: wait for fonts and layout settle
   // (axe contrast calculation is sensitive to mid-render states).
   await page.evaluate(() => document.fonts.ready);
-  await page.waitForTimeout(300);
+  // Freeze CSS transitions/animations: entrance animations (e.g.
+  // .sv-anim-rise) fade opacity from 0, and axe sampling mid-animation
+  // blends text with the backdrop and reports false contrast violations.
+  // Same guard as wcag-contrast.spec (286/286 green with it).
+  await page.addStyleTag({
+    content: '* { transition: none !important; animation: none !important; }',
+  });
+  await page.waitForTimeout(200);
   await page.addScriptTag({ path: require.resolve('axe-core') });
   const results = await page.evaluate((opts) => {
     return (window as any).axe.run(document, opts);
@@ -95,7 +102,7 @@ test.describe('Accessibility - Page Scans', () => {
 
   test('Home page has no critical accessibility violations', async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const results = await runAxeAudit(page);
     const criticalViolations = results.violations.filter(
@@ -110,7 +117,7 @@ test.describe('Accessibility - Page Scans', () => {
 
   test('Video restore page has no critical accessibility violations', async ({ page }) => {
     await page.goto('/restore');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const results = await runAxeAudit(page);
     const criticalViolations = results.violations.filter(
@@ -125,7 +132,7 @@ test.describe('Accessibility - Page Scans', () => {
 
   test('Image restore page has no critical accessibility violations', async ({ page }) => {
     await page.goto('/restore');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const results = await runAxeAudit(page);
     const criticalViolations = results.violations.filter(
@@ -140,7 +147,7 @@ test.describe('Accessibility - Page Scans', () => {
 
   test('Settings page has no critical accessibility violations', async ({ page }) => {
     await page.goto('/settings');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const results = await runAxeAudit(page);
     const criticalViolations = results.violations.filter(
@@ -155,7 +162,7 @@ test.describe('Accessibility - Page Scans', () => {
 
   test('History page has no critical accessibility violations', async ({ page }) => {
     await page.goto('/history');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const results = await runAxeAudit(page);
     const criticalViolations = results.violations.filter(
@@ -170,7 +177,7 @@ test.describe('Accessibility - Page Scans', () => {
 
   test('System status page has no critical accessibility violations', async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const results = await runAxeAudit(page);
     const criticalViolations = results.violations.filter(
@@ -199,7 +206,7 @@ test.describe('Accessibility - Keyboard Navigation', () => {
 
   test('Tab through interactive elements on video restore page maintains logical focus order', async ({ page }) => {
     await page.goto('/restore');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Click the page body to establish a starting focus point
     await page.click('body');
@@ -247,7 +254,7 @@ test.describe('Accessibility - Keyboard Navigation', () => {
 
   test('Focus indicators are visible on all interactive elements', async ({ page }) => {
     await page.goto('/restore');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Click body to establish starting focus point
     await page.click('body');
@@ -285,7 +292,7 @@ test.describe('Accessibility - ARIA Roles', () => {
 
   test('Settings page menus have correct ARIA menu/menuitem roles and active state', async ({ page }) => {
     await page.goto('/settings');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // The settings page uses menu/menuitem widgets (font + locale pickers)
     // rather than tabs; verify their ARIA structure instead of stale tablist roles.
@@ -329,7 +336,7 @@ test.describe('Accessibility - ARIA Roles', () => {
   test('Progress bars have correct ARIA progressbar role and value attributes', async ({ page }) => {
     // Navigate to video restore and trigger a task to show progress
     await page.goto('/restore');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Check for any progress bar elements on the page
     const progressBars = await page.evaluate(() => {
@@ -379,7 +386,7 @@ test.describe('Accessibility - Image Alt Text', () => {
 
   test('All images have meaningful alt attributes', async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Check all <img> elements for alt attributes
     const imgInfo = await page.evaluate(() => {
@@ -427,7 +434,7 @@ test.describe('Accessibility - Form Labels', () => {
 
   test('All form controls have associated labels (for/id or aria-labelledby)', async ({ page }) => {
     await page.goto('/restore');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Check all form controls for label associations
     const formControls = await page.evaluate(() => {
@@ -485,7 +492,7 @@ test.describe('Accessibility - Color Contrast', () => {
 
   test('Pages pass WCAG 2.1 AA color contrast requirements', async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Run axe with only wcag2aa rules to focus on color contrast
     const results = await runAxeAuditWithOptions(page, {
@@ -544,7 +551,7 @@ test.describe('Accessibility - Color Contrast', () => {
 
   test('Video restore page passes WCAG 2.1 AA color contrast', async ({ page }) => {
     await page.goto('/restore');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const results = await runAxeAuditWithOptions(page, {
       runOnly: {
@@ -601,7 +608,7 @@ test.describe('Accessibility - Color Contrast', () => {
 
   test('Settings page passes WCAG 2.1 AA color contrast', async ({ page }) => {
     await page.goto('/settings');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const results = await runAxeAuditWithOptions(page, {
       runOnly: {
