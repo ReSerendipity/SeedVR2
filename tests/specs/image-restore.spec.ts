@@ -154,8 +154,8 @@ test.describe('Image Restore Flow', () => {
       await imagePage.folderPath.fill('C:\\Users\\test\\Images');
       await imagePage.btnScanFolder.click();
 
-      const resultText = await imagePage.folderScanResults.textContent();
-      expect(resultText).toMatch(/\d+/);
+      // Use expect auto-retry: the scan is async and shows a "Scanning..." placeholder first
+      await expect(imagePage.folderScanResults).toContainText(/\d+/, { timeout: 10000 });
     });
   });
 

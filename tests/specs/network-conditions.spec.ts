@@ -10,7 +10,7 @@
  * loading states and error messages.
  */
 import { test, expect, Page, Route } from '@playwright/test';
-import { setupAllMocks } from '@fixtures/api-mocks';
+import { setupAllMocks, abortRemoteFonts } from '@fixtures/api-mocks';
 
 // ============================================================
 // Test suite: Slow network conditions
@@ -18,6 +18,8 @@ import { setupAllMocks } from '@fixtures/api-mocks';
 
 test.describe('Network Conditions - Slow 3G', () => {
   test.beforeEach(async ({ page }) => {
+    // Abort remote fonts — page load would otherwise hang on fonts.googleapis.com
+    await abortRemoteFonts(page);
     // Set up mocks with artificial delay to simulate slow network
     await page.route('**/api/system/health', async (route: Route) => {
       await new Promise((resolve) => setTimeout(resolve, 2000)); // 2s delay
@@ -49,7 +51,7 @@ test.describe('Network Conditions - Slow 3G', () => {
   });
 
   test('Page loads and renders despite slow network', async ({ page }) => {
-    await page.goto('/', { timeout: 30000 });
+    await page.goto('/', { timeout: 30000, waitUntil: 'domcontentloaded' });
     await page.waitForLoadState('domcontentloaded');
 
     // The navbar should eventually render
@@ -58,11 +60,11 @@ test.describe('Network Conditions - Slow 3G', () => {
   });
 
   test('Application shows loading state during slow API calls', async ({ page }) => {
-    await page.goto('/', { timeout: 30000 });
+    await page.goto('/', { timeout: 30000, waitUntil: 'domcontentloaded' });
     await page.waitForLoadState('domcontentloaded');
 
     // Wait for content to load — use waitForSelector for body content instead of timeout
-    await page.waitForSelector('body *', { timeout: 15000 });
+    await page.waitForSelector('body *', { state: 'attached', timeout: 15000 });
 
     // After loading, the page should show content (not a blank screen)
     const body = page.locator('body');
@@ -86,7 +88,7 @@ test.describe('Network Conditions - Offline', () => {
 
     // The page should not crash — it should show some content or error
     // Use waitForSelector to wait for body content instead of hardcoded timeout
-    await page.waitForSelector('body *', { timeout: 10000 }).catch(() => null);
+    await page.waitForSelector('body *', { state: 'attached', timeout: 10000 }).catch(() => null);
 
     // Check that the page rendered something (even if it's an error message)
     const body = page.locator('body');
@@ -125,7 +127,7 @@ test.describe('Network Conditions - Intermittent', () => {
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
     // Use waitForSelector to wait for body content instead of hardcoded timeout
-    await page.waitForSelector('body *', { timeout: 10000 }).catch(() => null);
+    await page.waitForSelector('body *', { state: 'attached', timeout: 10000 }).catch(() => null);
 
     // The page should still render despite intermittent failures
     const body = page.locator('body');

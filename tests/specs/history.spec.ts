@@ -109,7 +109,7 @@ test.describe('History Records', () => {
 
       // Reload the page to pick up the new mock
       await page.reload();
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       // Pagination should be visible
       await expect(historyPage.pagination).toBeVisible();
@@ -154,7 +154,7 @@ test.describe('History Records', () => {
       });
 
       await page.reload();
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       // Click next page
       if (await historyPage.btnNextPage.isEnabled()) {
@@ -529,7 +529,7 @@ test.describe('History Records', () => {
         await confirmBtn.click();
 
         // Wait for the deletion to complete
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('domcontentloaded');
 
         // Verify success toast
         const toast = await historyPage.waitForToast('deleted', 'success', 10000).catch(() =>
@@ -559,7 +559,7 @@ test.describe('History Records', () => {
       await historyPage.clearHistory();
 
       // Wait for the clearing to complete
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       // Verify success toast appears (message is in Chinese: "历史记录已清空")
       const toast = await historyPage.waitForToast(undefined, 'success', 10000);

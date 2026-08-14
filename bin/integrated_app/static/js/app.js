@@ -373,10 +373,14 @@ const SeedVR2 = (() => {
          * @throws {Error} 请求失败时抛出包含错误消息的Error对象
          */
         async post(url, data) {
+            const isFormData = typeof FormData !== 'undefined' && data instanceof FormData;
+            const headers = isFormData
+                ? { ...csrfHeaders() }
+                : { 'Content-Type': 'application/json', ...csrfHeaders() };
             const response = await fetch(url, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
-                body: JSON.stringify(data),
+                headers,
+                body: isFormData ? data : JSON.stringify(data),
             });
             if (!response.ok) {
                 const errData = await response.json().catch(() => ({}));

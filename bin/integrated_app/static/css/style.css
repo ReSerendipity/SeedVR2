@@ -81,7 +81,7 @@
     /* 文字（保持充足对比度但不过于刺眼） */
     --sv-text-primary: #e8e4de;
     --sv-text-secondary: #c8c1b9;
-    --sv-text-muted: #9e958c;
+    --sv-text-muted: #a89f96;
     --sv-text-inverse: #1e1c19;
     --sv-text-placeholder: #756d66;
 
@@ -3415,13 +3415,17 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
 }
 
 @keyframes toastIn {
-    from { opacity: 0; transform: translateX(20px) scale(0.96); }
-    to { opacity: 1; transform: translateX(0) scale(1); }
+    /* Opacity stays 1 throughout: the toast background is translucent
+       (rgba(42,38,34,0.96)), so a 0->1 opacity sweep would blend the text
+       with the backdrop mid-animation and fail WCAG contrast sampling
+       (axe measured #87837f on #272421 = 4.1:1 while fading in). */
+    from { transform: translateX(20px) scale(0.96); }
+    to { transform: translateX(0) scale(1); }
 }
 
 @keyframes toastOut {
-    from { opacity: 1; transform: translateX(0) scale(1); }
-    to { opacity: 0; transform: translateX(20px) scale(0.96); }
+    from { transform: translateX(0) scale(1); }
+    to { transform: translateX(20px) scale(0.96); }
 }
 
 /* ===== 加载动画 ===== */
@@ -5198,7 +5202,9 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
 .sv-dropzone-formats {
     font-size: 0.72rem;
     color: var(--sv-text-muted);
-    opacity: 0.7;
+    /* No opacity here: muted is already a de-emphasised colour, and a 0.7
+       opacity multiplier blends the text with the dropzone background
+       (#272421) down to ~3.6:1 at 0.72rem, failing WCAG AA 4.5:1. */
     margin-top: 6px;
     letter-spacing: 0.02em;
 }

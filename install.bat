@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 title SeedVR2 Toolbox - Setup
 
 echo ============================================
@@ -153,18 +154,49 @@ if errorlevel 1 (
     echo [OK] VC++ Runtime installed
 )
 
-:: Install PyTorch with CUDA support first (CUDA 13.2)
+:: Install PyTorch with CUDA support (auto-detect CUDA version)
 echo.
-echo [Install] Installing PyTorch with CUDA 13.2 support...
-echo          If download is too slow, download the .whl files manually:
-echo          torch-2.13.0+cu132: https://download-r2.pytorch.org/whl/cu132/torch-2.13.0%%2Bcu132-cp312-cp312-win_amd64.whl
-echo          torchvision-0.28.0+cu132: https://download-r2.pytorch.org/whl/cu132/torchvision-0.28.0%%2Bcu132-cp312-cp312-win_amd64.whl
-echo          Then install locally: pip install torch-*.whl torchvision-*.whl torchaudio
-echo          NOTE: torchaudio displays "+cpu" tag - this is NORMAL. Official cu132
-echo          index has no Windows cp312 torchaudio build. GPU support comes from
-echo          the underlying torch+cu132 and has been verified working.
+echo [Check] Detecting CUDA version to pick a matching PyTorch build...
+set "TORCH_INDEX=https://download.pytorch.org/whl/cu128"
+set "CUDA_VER="
+for /f "tokens=9" %%v in ('nvidia-smi 2^>nul ^| findstr /i "CUDA Version"') do set "CUDA_VER=%%v"
+:: 新驱动格式 "CUDA UMD Version: 13.3" → token 9 是 "Version:"，要取 token 10
+echo !CUDA_VER! | findstr /i "Version" >nul 2>&1
+if not errorlevel 1 (
+    for /f "tokens=10" %%v in ('nvidia-smi 2^>nul ^| findstr /i "CUDA Version"') do set "CUDA_VER=%%v"
+)
+if defined CUDA_VER (
+    set "CUDA_MAJOR=0"
+    set "CUDA_MINOR=0"
+    for /f "tokens=1 delims=." %%m in ("!CUDA_VER!") do set "CUDA_MAJOR=%%m"
+    for /f "tokens=2 delims=." %%n in ("!CUDA_VER!") do set "CUDA_MINOR=%%n"
+    echo [OK] Detected CUDA Version: !CUDA_VER!
+    if !CUDA_MAJOR! GEQ 13 (
+        set "TORCH_INDEX=https://download.pytorch.org/whl/cu132"
+    ) else if !CUDA_MAJOR! GEQ 12 (
+        if !CUDA_MINOR! GEQ 8 (
+            set "TORCH_INDEX=https://download.pytorch.org/whl/cu128"
+        ) else (
+            set "TORCH_INDEX=https://download.pytorch.org/whl/cu121"
+        )
+    ) else if !CUDA_MAJOR! EQU 11 (
+        set "TORCH_INDEX=https://download.pytorch.org/whl/cu118"
+    )
+) else (
+    echo [!] nvidia-smi not found - an NVIDIA GPU and driver are REQUIRED.
+    echo     Defaulting to the cu128 PyTorch build. If install fails, please check
+    echo     your GPU driver, then install manually from https://pytorch.org/get-started/locally/
+)
+echo [Install] Installing PyTorch from: %TORCH_INDEX%
+echo          If download is too slow, install manually from https://pytorch.org/get-started/locally/
+echo          Or download the matching wheels and run: pip install torch-*.whl torchvision-*.whl torchaudio
 echo.
-"%PYTHON_CMD%" -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu132 --timeout 1200 --retries 10
+"%PYTHON_CMD%" -m pip install torch torchvision torchaudio --index-url %TORCH_INDEX% --timeout 1200 --retries 10
+if errorlevel 1 (
+    echo [WARN] PyTorch install failed from %TORCH_INDEX%
+    echo         Try installing manually, then re-run install.bat:
+    echo         "%PYTHON_CMD%" -m pip install torch torchvision torchaudio
+)
 
 :: Install other dependencies
 echo.

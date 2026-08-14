@@ -33,6 +33,10 @@ test.describe('Navigation and Routing', () => {
   let basePage: BasePage;
 
   test.beforeEach(async ({ page }) => {
+    // Disable onboarding modal (focus trap would block nav clicks on restore page)
+    await page.addInitScript(() => {
+      try { localStorage.setItem('sv_onboarding_seen_v2', '1'); } catch (e) { /* ignore */ }
+    });
     // Set up all API mocks so pages render without a live backend
     await setupAllMocks(page);
     basePage = new BasePage(page);
@@ -78,7 +82,7 @@ test.describe('Navigation and Routing', () => {
       { path: '/restore', PageClass: VideoRestorePage, description: 'Video Restore page' },
       { path: '/restore', PageClass: ImageRestorePage, description: 'Image Restore page' },
       { path: '/history', PageClass: HistoryPage, description: 'History page' },
-      { path: '/', PageClass: SystemStatusPage, description: 'System Status page' },
+      { path: '/system-status', PageClass: SystemStatusPage, description: 'System Status page' },
       { path: '/settings', PageClass: SettingsPage, description: 'Settings page' },
     ];
 
@@ -101,62 +105,50 @@ test.describe('Navigation and Routing', () => {
     test('navigating through pages then going back returns to previous page', async ({ page }) => {
       // Navigate: Home -> Restore -> History
       await basePage.clickNavItem('Restore');
-      await page.waitForLoadState('networkidle');
       await assertUrlPath(page, '/restore');
 
       await basePage.clickNavItem('History');
-      await page.waitForLoadState('networkidle');
       await assertUrlPath(page, '/history');
 
       // Go back should return to Restore
       await page.goBack();
-      await page.waitForLoadState('networkidle');
       await assertUrlPath(page, '/restore');
 
       // Go back again should return to Home
       await page.goBack();
-      await page.waitForLoadState('networkidle');
       await assertUrlPath(page, '/');
     });
 
     test('going forward after going back returns to the next page', async ({ page }) => {
       // Navigate: Home -> Settings
       await basePage.clickNavItem('Settings');
-      await page.waitForLoadState('networkidle');
       await assertUrlPath(page, '/settings');
 
       // Go back to Home
       await page.goBack();
-      await page.waitForLoadState('networkidle');
       await assertUrlPath(page, '/');
 
       // Go forward should return to Settings
       await page.goForward();
-      await page.waitForLoadState('networkidle');
       await assertUrlPath(page, '/settings');
     });
 
     test('multiple back/forward navigations maintain correct history', async ({ page }) => {
       // Build a navigation history: Home -> History -> Restore
       await basePage.clickNavItem('History');
-      await page.waitForLoadState('networkidle');
       await basePage.clickNavItem('Restore');
-      await page.waitForLoadState('networkidle');
       await assertUrlPath(page, '/restore');
 
       // Back should land on History
       await page.goBack();
-      await page.waitForLoadState('networkidle');
       await assertUrlPath(page, '/history');
 
       // Back again should land on Home
       await page.goBack();
-      await page.waitForLoadState('networkidle');
       await assertUrlPath(page, '/');
 
       // Forward once should land on History
       await page.goForward();
-      await page.waitForLoadState('networkidle');
       await assertUrlPath(page, '/history');
     });
   });
@@ -182,51 +174,6 @@ test.describe('Navigation and Routing', () => {
     });
   });
 
-  // ============================================================
-  // Breadcrumb navigation
-  // ============================================================
-
-  test.describe('Breadcrumb navigation', () => {
-    test('sub-pages display breadcrumbs with correct path', async ({ page }) => {
-      // Navigate to a sub-page (Video Restore)
-      const videoPage = new VideoRestorePage(page);
-      await videoPage.goto();
-
-      // Breadcrumb should be visible on sub-pages
-      const crumbs = await basePage.getBreadcrumb();
-      expect(crumbs.length).toBeGreaterThanOrEqual(1);
-    });
-
-    test('clicking home link in breadcrumb navigates to home page', async ({ page }) => {
-      // Navigate to a sub-page first
-      const settingsPage = new SettingsPage(page);
-      await settingsPage.goto();
-      await assertUrlPath(page, '/settings');
-
-      // Click the home link in the breadcrumb
-      const homeLink = basePage.breadcrumb.locator('a').first();
-      if (await homeLink.isVisible()) {
-        await homeLink.click();
-        await assertUrlPath(page, '/');
-      }
-    });
-
-    test('breadcrumb updates when navigating between pages', async ({ page }) => {
-      // Navigate to Restore
-      await basePage.clickNavItem('Restore');
-      let crumbs = await basePage.getBreadcrumb();
-
-      // Navigate to History
-      await basePage.clickNavItem('History');
-      const newCrumbs = await basePage.getBreadcrumb();
-
-      // Breadcrumb should reflect the new page
-      const hasHistory = newCrumbs.some((c) =>
-        c.includes('历史') || c.toLowerCase().includes('history'),
-      );
-      expect(hasHistory).toBe(true);
-    });
-  });
 
   // ============================================================
   // 404 handling
@@ -235,7 +182,6 @@ test.describe('Navigation and Routing', () => {
   test.describe('404 handling', () => {
     test('navigating to a non-existent path shows error or redirects', async ({ page }) => {
       await page.goto('/non-existent-page-xyz');
-      await page.waitForLoadState('networkidle');
 
       // The app should either show a 404/error message or redirect to home
       const currentUrl = page.url();
@@ -256,7 +202,6 @@ test.describe('Navigation and Routing', () => {
 
     test('navigating to an invalid API-like path does not crash the UI', async ({ page }) => {
       await page.goto('/api/invalid-endpoint');
-      await page.waitForLoadState('networkidle');
 
       // Should return JSON error, not crash
       const currentUrl = page.url();

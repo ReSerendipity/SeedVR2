@@ -133,7 +133,7 @@ test.describe('WCAG 2.1 AA Contrast Compliance', () => {
       for (const pageInfo of PAGES) {
         test(`${pageInfo.name} page meets WCAG 2.1 AA contrast requirements`, async ({ page }) => {
           await page.goto(pageInfo.path);
-          await page.waitForLoadState('networkidle');
+          await page.waitForLoadState('domcontentloaded');
 
           // 稳定化：等待字体与渲染稳定，避免对比度检查时元素样式仍在变化导致 flaky
           await page.evaluate(() => document.fonts.ready);

@@ -1,7 +1,7 @@
 # Seedvr2 AGENTS.md — AI 辅助开发指南
 
-> 🧬 **自进化协议版本**：v1.3  
-> 📅 **最后更新日期**：2026-08-13  
+> 🧬 **自进化协议版本**：v1.5  
+> 📅 **最后更新日期**：2026-08-14  
 > 🎯 **对应项目版本**：v1.0.0（Apache-2.0 开源协议）
 
 ---
@@ -33,8 +33,18 @@ AI Agent 打开本文件后的 **第一件事** 是执行下面的「🧪 自进
 > 定位：高性能、安全合规的 AI 推理网关，支持本地多种模型引擎的统一 API 接入。  
 > 开源协议：**Apache-2.0**  
 > 技术栈：**Python 3.11+ + FastAPI 0.115+ + Uvicorn + Pydantic v2 + SQLAlchemy 2.0 + AioSQLite + PyYAML** + 自研安全模块（PathGuard + CSRF + 完整性校验 + 水印嵌入）  
-> 入口文件：`api/clean_launch.py`（推荐）或 `uvicorn api.main:app`  
+> 入口文件：`api/clean_launch.py`（推荐）或 `uvicorn api.main:app`
 > 默认监听：`http://127.0.0.1:7860`（禁止 `host="0.0.0.0"`，见第 11 节常见陷阱 #3）
+
+> ⚠️ **实际结构修正（2026-08-14）**：以上目录结构（`api/`、`core/`、`engines/`、`configs/`）
+> 为本仓库早期规划的目标结构，与当前实际实现不符。**当前实际入口与结构**：
+> - 实际入口：`bin/clean_launch.py`（推荐）或 `python -m uvicorn bin.integrated_app.app_server:app`
+> - 实际应用代码：`bin/integrated_app/`（app_server.py + routes/ + engines/ + optimization/ + security/ 等）
+> - 实际配置文件：**项目根目录 `config.yaml`**（无 `configs/` 目录；`configs_3b/`、`configs_7b/` 是模型架构配置）
+> - 实际配置加载：`bin/integrated_app/config.py`（`get_app_config()`）+ `config_models.py`（Pydantic）
+> - 实际监听：`http://127.0.0.1:7870`
+> 第 3 节「模块边界」、第 7 节「启动命令」、第 13 节「API 响应规范」仍以实际结构为准，
+> 遇到不一致时以代码为准、并更新本文件。
 
 ---
 
@@ -321,6 +331,9 @@ Scope 建议：`core` / `security` / `engines` / `routes` / `i18n` / `ci`
 | 5 | 修改核心模块后忘记重新生成完整性清单 | 改动 `app_server.py` / `model_manager.py` / `security/` 下文件 / `engines/seedvr2_engine.py` 等被完整性自检覆盖的核心模块 | 启动时报 `[SECURITY WARNING] 核心模块完整性校验失败: xxx.py`，期望/实际 SHA256 不一致，误以为被篡改 | 这是合法代码改动导致的清单过期，改完核心模块后必须运行 `python scripts/generate_integrity_manifest.py` 重新生成 `bin/integrated_app/security/integrity_manifest.json`（见 SOP-4） | 2026-08-13 |
 | 6 | `bin/models` 常规包遮蔽项目根 `models` 命名空间包 | 应用经 `python bin/clean_launch.py` 启动（`bin/` 进入 sys.path），同时存在项目根 `models/`（无 `__init__.py`，命名空间包）与 `bin/models/`（有 `__init__.py`，常规包） | 视频修复时报 `ModuleNotFoundError: No module named 'models.video_vae_v3'`（`import models` 解析到了 `bin/models/`），但图片修复正常 | 给项目根 `models/` 补 `__init__.py` 使其成为常规包，确保在 sys.path 首位（项目根）优先解析；注意 `bin/models/` 仅被 `perf/benchmark/test_suite.py` 以全限定名 `bin.models.*` 引用 | 2026-08-13 |
 | 7 | CSP 缺 `media-src blob:` 导致 `<video>` 无法加载 blob 源 | 前端用 `<video src="blob:...">` 读取视频宽高（两倍模式自动填分辨率/预览） | 控制台报 `MEDIA_ELEMENT_ERROR: Media load rejected by URL safety check`，`videoWidth` 恒为 0，两倍检测失效（图片正常，因为 `img-src` 已含 blob:） | 在 `templates/base.html` 的 Content-Security-Policy 加 `media-src 'self' blob:`；`<video>`/`<audio>` 回退到 `default-src`，不会继承 `img-src` 的 blob: | 2026-08-13 |
+| 8 | `api.post` 硬编码 JSON 头导致 FormData 提交被 422 | `startBatch` 调用 `SeedVR2.api.post('/api/restore/batch', params)` 传 FormData，但 `api.post` 在 `static/js/app.js` 硬编码 `'Content-Type': 'application/json'` + `JSON.stringify(data)` | 后端收到空 body → `parse_unified_params`（Depends）所有 Form 字段缺失 → FastAPI 422 Unprocessable Entity；浏览器控制台看到 `POST /api/restore/batch 422` | `api.post` 自动检测 `data instanceof FormData`，是 FormData 时移除 `Content-Type: application/json` 头并直接传 `body: data`（让浏览器自动加 boundary）。任何新增 `api.post(..., formData)` 调用都不需要改 | 2026-08-13 |
+| 9 | 模型下载脚本落盘路径与 config 引用不一致 | 用 `scripts/download_model.py`（旧版）下载权重 | 旧脚本把文件下到 `pretrained_models/SeedVR2-3B/` 子目录，但 `model_manager.check_model_exists` / `seedvr2_engine.py` 用 `os.path.join(pretrained_dir, checkpoint_name)` 只在 `pretrained_models/` **根目录**找 `seedvr2_ema_3b_fp16.safetensors` 等 → 报「模型文件未找到」/ `FileNotFoundError` | 权重文件**必须直接放 `pretrained_models/` 根目录**，文件名与 `config.yaml` 的 `model.models.<size>` 引用完全一致（`seedvr2_ema_*_fp16/fp8.safetensors`、`ema_vae_fp16.safetensors`、`pos_emb.pt`、`neg_emb.pt`）；下载脚本已改为 `hf_hub_download` 逐文件写入根目录（幂等跳过） | 2026-08-14 |
+| 10 | 新版 nvidia-smi 输出格式变化导致 CUDA 版本解析偏移 | 新版驱动（如 NVIDIA-SMI 610.x / CUDA UMD 13.x）的 `nvidia-smi` 头部从 `CUDA Version: 13.2` 变为 `CUDA UMD Version: 13.3` | 按旧格式 `tokens=9` 提取到的是 `Version:` 而非版本号 → `install.bat` 自动探测 CUDA 版本失败 | 批处理里先取 `tokens=9` 判断是否含 `Version` 字样，若命中再用 `tokens=10` 重取版本号；版本号落入 13.x → 选 `cu132` index | 2026-08-14 |
 
 ---
 
@@ -453,5 +466,7 @@ if scene_id not in db:
 | v1.1 | 2026-08-13 | 修改核心模块后完整性清单过期 | 新增第 11 节陷阱 #5（修改核心模块后忘记重新生成完整性清单）+ 新增 SOP-4（修改核心模块后重新生成完整性清单，含被覆盖模块清单、步骤、验证命令） | v1.0.0 |
 | v1.2 | 2026-08-13 | 视频修复报 No module named 'models.video_vae_v3' | 新增第 11 节陷阱 #6（`bin/models` 常规包遮蔽项目根 `models` 命名空间包）；修复为给项目根 `models/` 补 `__init__.py` | v1.0.0 |
 | v1.3 | 2026-08-13 | 视频两倍检测失败（CSP 拦截 blob 媒体） | 新增第 11 节陷阱 #7（CSP 缺 `media-src blob:` 导致 `<video>` 无法加载 blob 源）；修复为 `templates/base.html` CSP 加 `media-src 'self' blob:` | v1.0.0 |
+| v1.4 | 2026-08-13 | 批量修复接口 422（api.post 硬编码 JSON 头） | 新增第 11 节陷阱 #8（`api.post` 硬编码 JSON 头导致 FormData 提交被 422）；修复为 `static/js/app.js` 的 `api.post` 自动检测 FormData 跳过 JSON 转换 | v1.0.0 |
+| v1.5 | 2026-08-14 | 仓库「克隆即用」审计 + 新手保姆式引导 | ① 第 1 节补充「实际结构修正」块（实际入口 `bin/clean_launch.py`、根目录 `config.yaml`、监听 7870，与早期规划结构漂移的说明）；② 新增陷阱 #9（模型下载脚本落盘路径与 config 引用不一致，需放 `pretrained_models/` 根目录）与 #10（新版 nvidia-smi `CUDA UMD Version` 格式导致 tokens 偏移）；③ README 升级为保姆式新手教程 + 模型权重下载保姆级说明；`scripts/download_model.py` 改为逐文件下载到根目录（幂等）；`install.bat` 自动探测 CUDA 版本选择 PyTorch index | v1.0.0 |
 
 <!-- 🔄 下次更新 AGENTS.md 时，在上面表格末尾追加新一行，不要删除历史记录 -->
