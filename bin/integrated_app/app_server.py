@@ -24,6 +24,7 @@ SeedVR2 - 应用服务器入口模块
 
 import asyncio
 import logging
+import logging.handlers
 import os
 import sys
 import webbrowser
@@ -32,6 +33,69 @@ from contextlib import asynccontextmanager, suppress
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, PROJECT_ROOT)
 os.chdir(PROJECT_ROOT)
+
+# 统一日志格式：时间戳 + 级别 + 进程/线程 + 模块位置 + 请求ID + 消息
+LOG_FORMAT = "[%(asctime)s] [%(levelname)s] [PID:%(process)d TID:%(thread)d] [%(name)s:%(filename)s:%(lineno)d] [req=%(request_id)s] %(message)s"  # noqa: E501
+
+
+class RequestIDLogFilter(logging.Filter):
+    """为日志记录注入请求ID字段，缺失时使用 '-' 兜底，避免格式化报错。"""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        request_id = getattr(record, "request_id", None)
+        record.request_id = str(request_id) if request_id else "-"
+        return True
+
+
+def setup_logging(config: dict | None = None) -> None:
+    """集中配置日志：控制台 + 按大小轮转的文件双通道输出。
+
+    从 config.yaml 的 ``logging`` 段读取 level / file / max_size_mb / backup_count，
+    与配置文件定义保持一致，修复此前仅 basicConfig 输出到 stderr、日志不落盘的问题。
+    日志级别与路径支持环境变量覆盖（优先级高于配置）：
+    - ``LOG_LEVEL``：DEBUG / INFO / WARNING / ERROR
+    - ``LOG_PATH``：日志文件路径，默认 ``<项目根>/logs/app.log``
+
+    Args:
+        config: 应用配置字典，可为 None（使用默认值）。
+    """
+    log_cfg = (config or {}).get("logging", {}) or {}
+    level_name = str(os.environ.get("LOG_LEVEL", log_cfg.get("level", "INFO"))).upper()
+    log_level = getattr(logging, level_name, logging.INFO)
+    log_file = str(os.environ.get("LOG_PATH", log_cfg.get("file", "logs/app.log")))
+    max_bytes = int(log_cfg.get("max_size_mb", 50)) * 1024 * 1024
+    backup_count = int(log_cfg.get("backup_count", 3))
+
+    handlers: list[logging.Handler | None] = [
+        logging.StreamHandler(sys.stdout),
+    ]
+    if max_bytes > 0:
+        try:
+            log_path = os.path.join(PROJECT_ROOT, log_file)
+            os.makedirs(os.path.dirname(log_path), exist_ok=True)
+            handlers.append(
+                logging.handlers.RotatingFileHandler(
+                    log_path,
+                    maxBytes=max_bytes,
+                    backupCount=backup_count,
+                    encoding="utf-8",
+                )
+            )
+        except (OSError, ValueError) as exc:  # 文件路径不可写时降级为仅控制台
+            handlers[0].setLevel(logging.WARNING)
+            logging.getLogger("seedvr2").warning(f"文件日志初始化失败，降级为仅控制台输出: {exc}")
+
+    formatter = logging.Formatter(LOG_FORMAT, datefmt="%Y-%m-%d %H:%M:%S")
+    for handler in handlers:
+        if handler is not None:
+            handler.setFormatter(formatter)
+            handler.addFilter(RequestIDLogFilter())
+
+    logging.basicConfig(
+        level=log_level,
+        handlers=[h for h in handlers if h is not None],
+        force=True,
+    )
 
 from fastapi import FastAPI  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
@@ -44,6 +108,7 @@ from bin.integrated_app.gpu_backend import gpu_manager  # noqa: E402
 from bin.integrated_app.history_db import HistoryDB  # noqa: E402
 from bin.integrated_app.i18n import I18n  # noqa: E402
 from bin.integrated_app.middleware.csrf import CSRFMiddleware  # noqa: E402
+from bin.integrated_app.middleware.request_id import RequestIDLogFilter, RequestIDMiddleware  # noqa: E402
 from bin.integrated_app.model_manager import ModelManager  # noqa: E402
 from bin.integrated_app.model_registry import model_registry  # noqa: E402
 from bin.integrated_app.routes.system.sse import event_bus  # noqa: E402
@@ -493,6 +558,14 @@ def create_app(config: dict | None = None) -> FastAPI:
         _settings_persistence = None
         logger.debug(f"WebUI Enhancement not available: {e}")
 
+    # 注册 request_id 中间件（add_middleware 为 LIFO，最后添加最先生效，
+    # 确保 request_id 在 CSRF/Auth/路由 handler 之前注入日志上下文）
+    app.add_middleware(RequestIDMiddleware)
+    # 为根 logger 补充 RequestIDLogFilter，使全链路日志自动携带 request_id
+    root_logger = logging.getLogger()
+    if not any(isinstance(f, RequestIDLogFilter) for f in root_logger.filters):
+        root_logger.addFilter(RequestIDLogFilter())
+
     return app
 
 
@@ -607,10 +680,7 @@ def main() -> None:
             origins.append(origin)
 
     log_level = config.get("logging", {}).get("level", "INFO")
-    logging.basicConfig(
-        level=getattr(logging, log_level, logging.INFO),
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    )
+    setup_logging(config)
 
     app = create_app(config)
 
