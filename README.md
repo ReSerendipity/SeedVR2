@@ -242,13 +242,6 @@ SeedVR2 的 Web UI **默认仅绑定 `127.0.0.1`**（`config.yaml` 中 `server.h
 
 如需局域网共享，请在反向代理（Nginx/Caddy）后增加 Basic Auth，并启用 HTTPS。
 
-### 🔒 模型文件与完整性
-
-- 所有模型权重请从官方可信来源下载（ByteDance-Seed HuggingFace 组织）
-- 切勿加载来源不明的 `.safetensors`、`.pt`、`.bin` 文件
-- pickle 格式的 `.pt`  checkpoint 存在任意代码执行风险（CWE-502），
-  本项目框架层已通过 `weights_only=True` 优先加载，并在必要回退时打印严重安全告警
-
 ### ©️ 归属权与版权
 
 - **版权所有**: Copyright 2024-2026 ReSerendipity
@@ -262,39 +255,11 @@ SeedVR2 的 Web UI **默认仅绑定 `127.0.0.1`**（`config.yaml` 中 `server.h
 1. 保留本项目的版权声明与 LICENSE 文件副本
 2. 标注修改过的文件（声明已变更）
 3. 保留所有 NOTICE 文件中的归属信息（如有）
-4. 不得移除 UI 设置页、启动日志中展示的 "SeedVR2" 品牌名与 "ReSerendipity" 版权归属
-
-### ™️ 商标保护
-
-"SeedVR2" 文字标识及 Logo 是 ReSerendipity 的品牌商标，计划/已申请商标注册。
-未经授权，不得在以下场景中使用 "SeedVR2" 品牌标识：
-- 第三方产品或服务的命名、宣传
-- 应用商店、PyPI、Docker Hub 等平台的仿冒包名
-- 融资材料、项目申报、商业宣传
-
-如发现商标侵权行为，可通过输出图像中嵌入的数字水印（DCT 频域）作为技术举证手段。
-
-### 🔐 完整性验证
-
-本项目提供多层完整性保护：
-- **模型权重 SHA256 校验**: 在 `config.yaml` 中配置 `sha256_*` 字段，加载前自动验证
-- **核心模块启动自检**: `integrity_manifest.json` 记录核心安全模块哈希，启动时自动比对
-- **输出数字水印**: 推理输出图像/视频自动嵌入不可感知 DCT 频域水印，可溯源到 SeedVR2
-- **Release GPG 签名**: GitHub Release 自动生成 SHA256SUMS + GPG 签名，下载后可验证
-- **依赖版本锁定**: `requirements-lock.txt` 固定所有依赖版本，支持 `--require-hashes` 哈希验证
-
----
-
+4. 不得移除 UI 设置页、启动日志中展示的 "ReSerendipity" 版权归属
 
 ## 合规说明
 
 使用本项目请遵守 [USER_AGREEMENT.md](USER_AGREEMENT.md)。模型权重（SeedVR/SeedVR2）为 Apache 2.0；FFmpeg 为本地开发依赖，不随仓库分发，由用户自行安装（详见 NOTICE）。
-
-### AI 生成内容标识
-
-- 输出图像/视频默认嵌入**不可感知 DCT 频域数字水印**（v2 签名版：载荷 = 品牌标识 + 时间戳 + HMAC-SHA256 签名），属隐式溯源标识，**仅持有签名密钥者可验证真伪，他人无法伪造可通过验证的水印**（实现见 `bin/integrated_app/security/watermark.py`，可用 `config.yaml -> security.watermark.enable` 开关）；密钥通过 `python scripts/init_watermark_key.py` 生成，存于项目根 `.watermark_key`（已 gitignore，**打包分发时必须排除**，请离线备份，密钥遗失后旧水印将无法验证）；
-- 根据《人工智能生成合成内容标识办法》（2025-09-01 施行），对外提供 AI 生成合成内容服务时应在文件元数据中写入标识字段并按规定添加显式标识；当前版本已具备溯源水印，元数据字段标识为后续增强项；
-- 请勿移除或篡改输出内容中的水印/标识，并遵守所在司法辖区对 AI 生成内容的标识义务。
 
 ## 许可证
 
