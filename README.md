@@ -356,6 +356,12 @@ SeedVR2 的 Web UI **默认仅绑定 `127.0.0.1`**（`config.yaml` 中 `server.h
 
 使用本项目请遵守 [USER_AGREEMENT.md](USER_AGREEMENT.md)。模型权重（SeedVR/SeedVR2）为 Apache 2.0；FFmpeg 为本地开发依赖，不随仓库分发，由用户自行安装（详见 NOTICE）。
 
+
+### ⚖️ 独立第三方声明
+
+- 本项目是**独立的第三方社区工具**，基于字节跳动 Seed 团队与南洋理工大学 S-Lab 联合开源的 **SeedVR2** 模型（Apache-2.0）构建，与字节跳动及其 Seed 团队**无隶属、赞助或官方合作关系**；对 "SeedVR2" 名称的使用仅为描述性引用，该名称与模型权重的知识产权归原作者所有。
+- 本项目与 seedvr2.com / seedvr2.net / seedvr2.ai / seedvr2.app 等**付费商业站点无任何关系**；本项目完全免费开源，不提供积分、订阅等任何付费模式。
+- 模型权重仅从官方来源下载：Hugging Face 官方仓库 `ByteDance-Seed/SeedVR2-3B` 与 `ByteDance-Seed/SeedVR2-7B`（7B-Sharp 亦取自该官方 7B 仓库），请勿从未知来源获取权重。
 ## 许可证
 
 本项目采用 [Apache License 2.0](LICENSE) 开源协议。
