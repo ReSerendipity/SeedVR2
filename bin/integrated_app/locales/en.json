@@ -410,7 +410,7 @@
     "hero_tagline": "Video & image super-resolution restoration toolkit",
     "hero_desc": "A standalone web application powered by SeedVR2 diffusion models. One-click restoration for video and image super-resolution, no ComfyUI dependency required.",
     "github_label": "Repository",
-    "github_url": "https://github.com/ReSerendipity/seedvr2",
+    "github_url": "https://github.com/ReSerendipity/SeedVR2-Toolkit",
     "github_button": "Go to GitHub",
     "repo_desc": "ReSerendipity / seedvr2",
     "view_repo": "View on GitHub",

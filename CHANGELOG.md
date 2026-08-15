@@ -67,4 +67,4 @@ _后续版本变更记录将在此添加。_
 
 ---
 
-[1.0.0]: https://github.com/ReSerendipity/SeedVR2/releases/tag/v1.0.0
+[1.0.0]: https://github.com/ReSerendipity/SeedVR2-Toolkit/releases/tag/v1.0.0

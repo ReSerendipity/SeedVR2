@@ -54,7 +54,7 @@ nvidia-smi  # 确认 GPU 可见且驱动正常
 
 ```bash
 # 克隆仓库
-git clone https://github.com/ReSerendipity/SeedVR2.git
+git clone https://github.com/ReSerendipity/SeedVR2-Toolkit.git
 cd SeedVR2
 
 # 方式一：使用安装脚本（推荐）
@@ -109,7 +109,7 @@ python scripts/verify_engine.py
 sudo tee /etc/systemd/system/seedvr2.service << 'EOF'
 [Unit]
 Description=SeedVR2 Video & Image Super-Resolution Toolkit
-Documentation=https://github.com/ReSerendipity/SeedVR2
+Documentation=https://github.com/ReSerendipity/SeedVR2-Toolkit
 After=network.target
 
 [Service]
@@ -297,7 +297,7 @@ sudo certbot renew --dry-run
 ### 5.1 构建镜像
 
 ```bash
-docker build -t seedvr2:latest .
+docker build -t seedvr2-toolkit:latest .
 ```
 
 ### 5.2 运行容器
