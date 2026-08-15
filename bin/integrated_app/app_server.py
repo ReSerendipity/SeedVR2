@@ -9,7 +9,7 @@ SeedVR2 - 应用服务器入口模块
     - FastAPI 应用创建与配置
     - 应用生命周期管理（启动初始化、优雅关闭）
     - 核心组件初始化与依赖注入
-    - 中间件注册（CORS、CSRF、错误处理）
+    - 中间件注册（CORS、CSRF、Basic Auth、速率限制、错误处理）
     - 静态文件服务与模板引擎配置
     - 路由自动发现与注册
     - 端口冲突自动处理与服务器启动
@@ -391,6 +391,17 @@ def create_app(config: dict | None = None) -> FastAPI:
             realm=auth_cfg.get("realm", "SeedVR2"),
         )
         logger.info("Basic Auth 中间件已注册")
+
+    # 请求速率限制中间件 (上传/推理端点防护, CWE-770 防御)
+    # 上限取自 config.yaml runtime.security.rate_limit_per_minute (默认 30 次/分钟)
+    from bin.integrated_app.middleware.rate_limit import RateLimitMiddleware
+
+    _rate_limit_per_minute = int(
+        config.get("runtime", {}).get("security", {}).get("rate_limit_per_minute", 30)
+    )
+    if _rate_limit_per_minute >= 1:
+        app.add_middleware(RateLimitMiddleware, rate_limit_per_minute=_rate_limit_per_minute)
+        logger.info(f"Rate Limit 中间件已注册 (limit={_rate_limit_per_minute}/min)")
 
     from bin.integrated_app.middleware.error_handler import register_error_handlers
 
