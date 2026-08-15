@@ -1,15 +1,15 @@
-# SeedVR2
+# SeedVR2-Toolkit
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue?style=for-the-badge) ![License](https://img.shields.io/badge/license-Apache%202.0-green?style=for-the-badge) ![Python](https://img.shields.io/badge/python-3.12+-yellow?style=for-the-badge&logo=python&logoColor=white) ![GPU](https://img.shields.io/badge/GPU-NVIDIA%20CUDA-76B900?style=for-the-badge&logo=nvidia&logoColor=white) ![Models](https://img.shields.io/badge/model-3B%20%7C%207B%20%7C%207B--Sharp-ff69b4?style=for-the-badge) [![CI](https://github.com/ReSerendipity/SeedVR2/actions/workflows/ci.yml/badge.svg)](https://github.com/ReSerendipity/SeedVR2/actions)
+![Version](https://img.shields.io/badge/version-1.0.0-blue?style=for-the-badge) ![License](https://img.shields.io/badge/license-Apache%202.0-green?style=for-the-badge) ![Python](https://img.shields.io/badge/python-3.12+-yellow?style=for-the-badge&logo=python&logoColor=white) ![GPU](https://img.shields.io/badge/GPU-NVIDIA%20CUDA-76B900?style=for-the-badge&logo=nvidia&logoColor=white) ![Models](https://img.shields.io/badge/model-3B%20%7C%207B%20%7C%207B--Sharp-ff69b4?style=for-the-badge) [![CI](https://github.com/ReSerendipity/SeedVR2-Toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/ReSerendipity/SeedVR2-Toolkit/actions)
 
 **基于 SeedVR2 扩散模型的视频与图像超分辨率修复工具箱 — 独立运行的 Web UI，一键修复，无需 ComfyUI**
 
-> **SeedVR2** — A standalone video & image super-resolution toolkit powered by SeedVR2 diffusion models. One-click restoration via Web UI, no ComfyUI dependency required.
+> **SeedVR2-Toolkit** — A standalone video & image super-resolution toolkit powered by SeedVR2 diffusion models. One-click restoration via Web UI, no ComfyUI dependency required.
 ## 🧪 在线模拟演示（GitHub Pages）
 
 无需 GPU / Python / 模型权重，纯前端仿真环境即可体验完整界面与流程模拟：
 
-**<https://reserendipity.github.io/SeedVR2/>** （由 `.github/workflows/pages-deploy.yml` 自动部署 `demo/` 目录，详见 [demo/README.md](demo/README.md)）
+**<https://reserendipity.github.io/SeedVR2-Toolkit/>** （由 `.github/workflows/pages-deploy.yml` 自动部署 `demo/` 目录，详见 [demo/README.md](demo/README.md)）
 
 ---
 
@@ -153,8 +153,8 @@ runtime:
 **第 2 步 · 获取本项目代码**
 
 ```bash
-git clone https://github.com/ReSerendipity/SeedVR2.git
-cd SeedVR2
+git clone https://github.com/ReSerendipity/SeedVR2-Toolkit.git
+cd SeedVR2-Toolkit
 ```
 
 > 没装 Git？打开仓库主页点绿色 `Code` → `Download ZIP`，解压到本地即可（Git 非必须）。

@@ -7,7 +7,7 @@ Quick Start
 1. Fork the repo and clone
 
 ```bash
-git clone https://github.com/ReSerendipity/seedvr2.git
+git clone https://github.com/ReSerendipity/SeedVR2-Toolkit.git
 cd seedvr2
 ```
 
