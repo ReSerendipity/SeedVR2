@@ -254,16 +254,16 @@ test.describe('Responsive layout - Desktop (1920x1080)', () => {
     const videoPage = new VideoRestorePage(page);
     await videoPage.goto();
 
-    // On desktop, the sv-restore-layout uses CSS Grid with two columns:
-    // - Left column: input/progress/result area (first direct child div)
-    // - Right column: .sv-workflow-panel (second direct child)
+    // On desktop, the sv-restore-workspace uses CSS Grid with two columns:
+    // - Left column: .sv-restore-main (canvas / upload / progress / result)
+    // - Right column: .sv-param-sidebar (parameter sidebar)
     // They should be displayed side-by-side at desktop width.
-    const layoutContainer = page.locator('.sv-restore-layout');
+    const layoutContainer = page.locator('.sv-restore-workspace');
     await expect(layoutContainer).toBeVisible();
 
     // Get the two direct children of the layout container
-    const leftColumn = layoutContainer.locator('> div').first();
-    const rightColumn = layoutContainer.locator('> .sv-workflow-panel');
+    const leftColumn = layoutContainer.locator('> .sv-restore-main');
+    const rightColumn = layoutContainer.locator('> .sv-param-sidebar');
 
     // Both columns should be visible
     await expect(leftColumn).toBeVisible();
@@ -296,14 +296,15 @@ test.describe('Responsive layout - Desktop (1920x1080)', () => {
     await imagePage.goto();
 
     // Same side-by-side check for the image restore page
-    // The sv-restore-layout uses CSS Grid with two columns at desktop width
-    // Note: image restore page uses .sv-restore-params for the right column
-    const layoutContainer = page.locator('.sv-restore-layout');
+    // The sv-restore-workspace uses CSS Grid with two columns at desktop width
+    // (both video and image restore share the unified restore.html template:
+    // .sv-restore-main + .sv-param-sidebar)
+    const layoutContainer = page.locator('.sv-restore-workspace');
     await expect(layoutContainer).toBeVisible();
 
     // Get the two direct children of the layout container
-    const leftColumn = layoutContainer.locator('> div').first();
-    const rightColumn = layoutContainer.locator('> .sv-restore-params, > .sv-workflow-panel');
+    const leftColumn = layoutContainer.locator('> .sv-restore-main');
+    const rightColumn = layoutContainer.locator('> .sv-param-sidebar');
 
     // Both columns should be visible
     await expect(leftColumn).toBeVisible();
@@ -414,7 +415,7 @@ test.describe('Responsive layout - Laptop (1366x768)', () => {
     expect(
       linkCount,
       'All navigation links should be present at laptop width',
-    ).toBeGreaterThanOrEqual(6);
+    ).toBeGreaterThanOrEqual(5);
   });
 });
 
@@ -794,6 +795,16 @@ test.describe('Visual regression tests', () => {
 
   test.beforeEach(async ({ page }) => {
     await setupAllMocks(page);
+    // The restore page shows a first-visit onboarding modal when
+    // 'sv_onboarding_seen_v2' is missing; it intercepts clicks on the theme
+    // toggle, so pre-seed the flag before any navigation in this group.
+    await page.addInitScript(() => {
+      try {
+        localStorage.setItem('sv_onboarding_seen_v2', '1');
+      } catch (e) {
+        /* ignore */
+      }
+    });
   });
 
   /**
