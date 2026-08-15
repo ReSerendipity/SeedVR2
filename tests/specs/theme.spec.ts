@@ -126,20 +126,23 @@ test.describe('Theme Switching', () => {
   // System preference detection
   // ----------------------------------------------------------
 
-  test('should detect system preference when localStorage is cleared', async ({ page, context }) => {
-    // Emulate prefers-color-scheme: light at the browser level
+  test('should fall back to dark theme when localStorage is cleared', async ({ page, context }) => {
+    // The product intentionally does NOT follow prefers-color-scheme: initTheme
+    // defaults to dark when no saved preference exists (see app.js initTheme:
+    // "默认暗色主题，不使用 prefers-color-scheme 自动切换，避免与用户手动选择冲突").
+    // Emulate light system preference to prove it is ignored.
     await page.emulateMedia({ colorScheme: 'light' });
 
-    // Clear the stored theme preference to force system detection
+    // Clear the stored theme preference
     await page.evaluate(() => localStorage.removeItem('sv-theme'));
 
-    // Reload the page so the app re-evaluates the system preference
+    // Reload the page so the app re-evaluates the theme
     await page.reload();
     await basePage.waitForPageLoad();
 
-    // The page should now use the light theme matching the system preference
+    // The page should use the dark fallback (system preference is ignored by design)
     const theme = await basePage.getCurrentTheme();
-    expect(theme).toBe('light');
+    expect(theme).toBe('dark');
   });
 
   // ----------------------------------------------------------
@@ -181,6 +184,18 @@ test.describe('Theme Switching', () => {
 
     for (const config of pageConfigs) {
       test(`should toggle theme on ${config.name} page`, async ({ page }) => {
+        // The restore page shows a first-visit onboarding modal when
+        // 'sv_onboarding_seen_v2' is missing; it overlays the theme toggle
+        // button, so pre-seed the flag before navigating.
+        if (config.path === '/restore') {
+          await page.addInitScript(() => {
+            try {
+              localStorage.setItem('sv_onboarding_seen_v2', '1');
+            } catch (e) {
+              /* ignore */
+            }
+          });
+        }
         // Navigate to the specific page
         const pageObj = new config.PageObject(page);
         await pageObj.goto();
