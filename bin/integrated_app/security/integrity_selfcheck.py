@@ -46,6 +46,7 @@ _CORE_MODULES = [
     "security/integrity_selfcheck.py",
     "middleware/csrf.py",
     "middleware/basic_auth.py",
+    "middleware/rate_limit.py",
     "engines/seedvr2_engine.py",
 ]
 
