@@ -500,6 +500,7 @@
     "copyright_desc": "SeedVR2 は Apache License 2.0 のオープンソースプロジェクトです。",
     "copyright_notice": "Copyright 2024-2026 ReSerendipity. All rights reserved.",
     "copyright_license": "Apache License, Version 2.0 の下でライセンスされています。ライセンスに準拠しない限り、本ファイルを使用することはできません。",
+    "third_party_notice": "本アプリは独立した第三者のツールであり、ByteDance の Seed チームがオープンソースとして公開した SeedVR2 モデル（Apache-2.0）に基づいて構築されています。ByteDance およびその Seed チームとの所属・スポンサー・公式な協力関係は一切なく、SeedVR2 の名称は記述的な参照にのみ使用しており、seedvr2.com などの有料サイトとは無関係です。",
     "social_title": "SNS",
     "social_xiaohongshu": "Xiaohongshu（小紅書）",
     "social_douyin": "Douyin（TikTok）",

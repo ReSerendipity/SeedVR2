@@ -500,6 +500,7 @@
     "copyright_desc": "SeedVR2 is an open-source project licensed under Apache License 2.0.",
     "copyright_notice": "Copyright 2024-2026 ReSerendipity. All rights reserved.",
     "copyright_license": "Licensed under the Apache License, Version 2.0. You may not use this file except in compliance with the License.",
+    "third_party_notice": "This application is an independent third-party tool built on the SeedVR2 model (Apache-2.0), open-sourced by ByteDance's Seed team. It has no affiliation, sponsorship, or official cooperation with ByteDance or its Seed team - the name SeedVR2 is used only as a descriptive reference - and is unrelated to paid websites such as seedvr2.com.",
     "social_title": "Social",
     "social_xiaohongshu": "Xiaohongshu (RedNote)",
     "social_douyin": "Douyin (TikTok)",

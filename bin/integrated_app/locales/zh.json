@@ -500,6 +500,7 @@
     "copyright_desc": "SeedVR2 是一个基于 Apache License 2.0 的开源项目。",
     "copyright_notice": "Copyright 2024-2026 ReSerendipity. 保留所有权利。",
     "copyright_license": "根据 Apache License, Version 2.0 授权。除遵守许可外，不得使用本文件。",
+    "third_party_notice": "本应用为独立的第三方工具，基于字节跳动 Seed 团队开源的 SeedVR2 模型（Apache-2.0）构建。本应用与字节跳动及其 Seed 团队无隶属、赞助或官方合作关系，对 SeedVR2 名称的使用仅为描述性引用，并与 seedvr2.com 等付费商业站点无任何关联。",
     "social_title": "社交平台",
     "social_xiaohongshu": "小红书",
     "social_douyin": "抖音",
