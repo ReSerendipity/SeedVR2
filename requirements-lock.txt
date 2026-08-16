@@ -122,8 +122,8 @@ networkx==3.6.1
 numpy==2.4.4
 # NO HASH (run generate_lock.py with network): omegaconf==2.3.1
 omegaconf==2.3.1
-# NO HASH (run generate_lock.py with network): opencv-python==4.13.0.92
-opencv-python==4.13.0.92
+# NO HASH (run generate_lock.py with network): opencv-python==5.0.0.93
+opencv-python==5.0.0.93
 # NO HASH (run generate_lock.py with network): packaging==25.0
 packaging==25.0
 # NO HASH (run generate_lock.py with network): parso==0.8.7

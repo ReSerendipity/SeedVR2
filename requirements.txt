@@ -25,7 +25,7 @@ mediapy>=1.1.0
 rotary-embedding-torch>=0.5.0
 
 # Video Processing
-opencv-python>=4.10.0
+opencv-python>=5.0.0.93
 imageio>=2.35.0
 imageio-ffmpeg>=0.5.0
 pillow>=10.4.0
