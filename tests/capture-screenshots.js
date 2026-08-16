@@ -274,6 +274,17 @@ async function captureAllViewports(page, viewports, themes) {
   const context = await browser.newContext();
   const page = await context.newPage();
 
+  // 拦截外部字体/CDN 请求（如 fonts.googleapis.com / fonts.gstatic.com）。
+  // base.html 的 Google Fonts 样式表是 render-blocking 的，在无外网环境下会挂起
+  // 并导致 domcontentloaded 永不触发；本地资源（127.0.0.1）照常放行。
+  await context.route('**/*', (route) => {
+    const url = route.request().url();
+    if (url.startsWith('http://fonts.') || url.startsWith('https://fonts.')) {
+      return route.abort();
+    }
+    return route.continue();
+  });
+
   // Suppress the first-visit onboarding modal on the restore page. The modal
   // (restore.html #onboardingModal) shows when localStorage key
   // 'sv_onboarding_seen_v2' is unset and would intercept all pointer events.
