@@ -25,6 +25,7 @@ WinPython/
 .coverage.xml
 htmlcov/
 .benchmarks/
+.torch_cache/
 prof/
 *.prof
 .trae/

@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 SeedVR2 - 清理缓存启动脚本
 
@@ -20,6 +20,14 @@ import sys
 from pathlib import Path
 
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+
+# 让 torch.compile(inductor) 的编译产物持久化到项目目录，避免每次重启都重新编译
+# （默认 ~/.cache/torch/inductor 在本环境未生效，导致首次推理每次都慢 ~70s）
+os.environ.setdefault(
+    "TORCHINDUCTOR_CACHE_DIR",
+    str(Path(__file__).resolve().parent.parent / ".torch_cache" / "inductor"),
+)
+os.environ.setdefault("TORCH_COMPILE_DEBUG", "0")
 
 
 def find_winpython_python() -> str | None:
