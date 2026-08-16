@@ -110,8 +110,8 @@ matplotlib==3.11.0
 mdurl==0.1.2
 # NO HASH (run generate_lock.py with network): mediapy==1.2.6
 mediapy==1.2.6
-# NO HASH (run generate_lock.py with network): mpmath==1.3.0
-mpmath==1.3.0
+# NO HASH (run generate_lock.py with network): mpmath==1.4.1
+mpmath==1.4.1
 # NO HASH (run generate_lock.py with network): mypy==2.1.0
 mypy==2.1.0
 # NO HASH (run generate_lock.py with network): mypy_extensions==1.1.0
