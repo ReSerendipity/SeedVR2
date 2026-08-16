@@ -282,6 +282,7 @@
     "tip_resolution": "Target output resolution (height in pixels), recommended 2160 (4K)",
     "tip_seed": "Random seed controls inference randomness. Same seed + same input = same output",
     "tip_color_correction": "LAB color matching preserves original tones. Disable for model-native colors",
+    "tip_blockswap": "Swap some Transformer blocks to CPU to reduce VRAM usage; 0 disables it. On 12GB GPUs use 16-32; lower it for speed when VRAM is plentiful",
     "batch_confirm_title": "Confirm Batch Restore",
     "batch_confirm_msg": "About to process {count} files. This may take a while. Confirm?",
     "please_select_file": "Please select a file to restore first",

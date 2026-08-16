@@ -287,6 +287,7 @@
     "tip_resolution": "输出目标分辨率（像素高度），推荐 2160（4K）",
     "tip_seed": "随机种子控制推理随机性，相同种子+相同输入=相同输出",
     "tip_color_correction": "LAB 色彩匹配可保持原图色调，关闭则输出模型原生色调",
+    "tip_blockswap": "将部分 Transformer 块换出到 CPU 以降低显存占用，0 表示不启用；12GB 显存建议 16-32，显存充足可调小提升速度",
     "batch_confirm_title": "确认批量修复",
     "batch_confirm_msg": "即将处理 {count} 个文件，预计耗时较长。确认开始？",
     "gpu_required": "需要 NVIDIA CUDA GPU 才能执行修复",

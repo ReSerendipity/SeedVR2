@@ -287,6 +287,7 @@
     "tip_resolution": "輸出目標解析度（像素高度），推薦 2160（4K）",
     "tip_seed": "隨機種子控制推理隨機性，相同種子+相同輸入=相同輸出",
     "tip_color_correction": "LAB 色彩匹配可保持原圖色調，關閉則輸出模型原生色調",
+    "tip_blockswap": "將部分 Transformer 區塊換出到 CPU 以降低顯示卡記憶體占用，0 表示不啟用；12GB 顯示卡建議 16-32，顯示卡記憶體充足可調小提升速度",
     "batch_confirm_title": "確認批次修復",
     "batch_confirm_msg": "即將處理 {count} 個檔案，預計耗時較長。確認開始？",
     "gpu_required": "需要 NVIDIA CUDA GPU 才能執行修復",

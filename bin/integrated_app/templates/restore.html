@@ -2,204 +2,161 @@
 
 {% block title %}SeedVR2 - {{ t('restore.title') }}{% endblock %}
 
-{% block content %}
-<div class="sv-page-head">
-    <span class="sv-eyebrow sv-anim-rise">{{ t('restore.subtitle') }}</span>
-    <h1 class="sv-serif-title sv-anim-rise sv-anim-d1">{{ t('restore.title') }}</h1>
-</div>
+{% block content %}<div class="sv2-workbench">
+    <!-- 页头：单行化（标题 + 模式分段） -->
+    <div class="sv2-header">
+        <div class="sv2-title-wrap">
+            <h1 class="sv2-title">{{ t('restore.title') }}</h1>
+            <p class="sv2-sub">{{ t('restore.subtitle') }}</p>
+        </div>
+        <div class="sv-mode-tabs sv2-mode-seg" role="tablist">
+            <button class="sv-mode-tab active" data-mode="single" type="button" role="tab" aria-selected="true">
+                <i class="bi bi-file-earmark"></i> {{ t('restore.single_mode') }}
+            </button>
+            <button class="sv-mode-tab" data-mode="batch" type="button" role="tab" aria-selected="false">
+                <i class="bi bi-folder2-open"></i> {{ t('restore.batch_mode') }}
+            </button>
+        </div>
+    </div>
 
-<div class="sv-restore-workspace sv-anim-rise sv-anim-d2">
-    <!-- ===== 画布区（Canvas · v3.1） ===== -->
-    <main class="sv-restore-main">
-        <!-- 工作台顶部工具条：模式切换 + 批量路径行（布局稳定，不随模式替换主区） -->
-        <div class="sv-workbench-toolbar" id="workbenchToolbar">
-            <div class="sv-mode-tabs" role="tablist">
-                <button class="sv-mode-tab active" data-mode="single" type="button" role="tab" aria-selected="true">
-                    <i class="bi bi-file-earmark"></i> {{ t('restore.single_mode') }}
-                </button>
-                <button class="sv-mode-tab" data-mode="batch" type="button" role="tab" aria-selected="false">
-                    <i class="bi bi-folder2-open"></i> {{ t('restore.batch_mode') }}
-                </button>
+    <div class="sv2-body" id="sv2Body">
+    <main class="sv2-main">
+        <!-- 批量路径工具条（批量模式显示） -->
+        <div class="sv2-batch-toolbar" id="batchToolbar" style="display:none;">
+            <input type="text" class="sv-batch-input" id="folderPath" name="folder_path"
+                   placeholder="{{ t('restore.folder_path_placeholder') }}" aria-label="{{ t('restore.folder_path') }}">
+            <button type="button" class="sv-btn sv-btn-outline sv-btn-sm" id="btnBrowseFolder"
+                    data-tooltip="{{ t('restore.browse') }}" aria-label="{{ t('restore.browse') }}">
+                <i class="bi bi-folder2-open"></i>
+            </button>
+            <button type="button" class="sv-btn sv-btn-secondary sv-btn-sm" id="btnScanFolder">
+                <i class="bi bi-search"></i> {{ t('restore.scan') }}
+            </button>
+            <button type="button" class="sv-btn sv-btn-primary sv-btn-sm" id="btnStartBatch">
+                <i class="bi bi-collection"></i> {{ t('restore.batch_from_folder') }}
+            </button>
+        </div>
+
+        <!-- 一体化画布工具条 -->
+        <div class="sv2-toolbar" id="canvasToolbar">
+            <span class="sv2-badge" id="canvasStateLabel">{{ t('restore.empty_state') or '未上传' }}</span>
+            <span class="sv2-filename" id="tbFileName" style="display:none"></span>
+            <span class="sv2-flex"></span>
+            <div class="sv2-tb-group">
+                <button type="button" class="sv2-tb-btn" id="btnCanvasClear" disabled><i class="bi bi-x-lg"></i> 清除</button>
+                <button type="button" class="sv2-tb-btn" id="btnCanvasReplace" disabled><i class="bi bi-arrow-repeat"></i> 替换</button>
             </div>
-            <div class="sv-batch-toolbar" id="batchToolbar" style="display:none;">
-                <input type="text" class="sv-batch-input" id="folderPath" name="folder_path"
-                       placeholder="{{ t('restore.folder_path_placeholder') }}" aria-label="{{ t('restore.folder_path') }}">
-                <button type="button" class="sv-btn sv-btn-outline sv-btn-sm" id="btnBrowseFolder"
-                        data-tooltip="{{ t('restore.browse') }}" aria-label="{{ t('restore.browse') }}">
-                    <i class="bi bi-folder2-open"></i>
-                </button>
-                <button type="button" class="sv-btn sv-btn-secondary sv-btn-sm" id="btnScanFolder">
-                    <i class="bi bi-search"></i> {{ t('restore.scan') }}
-                </button>
-                <button type="button" class="sv-btn sv-btn-primary sv-btn-sm" id="btnStartBatch">
-                    <i class="bi bi-collection"></i> {{ t('restore.batch_from_folder') }}
-                </button>
+            <span class="sv2-tb-sep"></span>
+            <div class="sv2-tb-group">
+                <button type="button" class="sv2-tb-btn sv2-toggle" id="btnCanvasCompare" disabled><i class="bi bi-columns-gap"></i> {{ t('restore.compare_mode') or '对比模式' }}</button>
+                <button type="button" class="sv2-tb-btn sv2-ico active" id="btnCompareHorizontal" disabled title="{{ t('restore.compare_horizontal') or '水平' }}"><i class="bi bi-arrows-left-right"></i></button>
+                <button type="button" class="sv2-tb-btn sv2-ico" id="btnCompareVertical" disabled title="{{ t('restore.compare_vertical') or '垂直' }}"><i class="bi bi-arrows-up-down"></i></button>
+                <button type="button" class="sv2-tb-btn sv2-ico" id="btnCompareZoomIn" disabled title="{{ t('restore.zoom_in') or '放大' }}"><i class="bi bi-zoom-in"></i></button>
+                <span class="sv2-zoomlabel" id="compareZoomLabel" title="点击回到 1:1">—</span>
+                <button type="button" class="sv2-tb-btn sv2-ico" id="btnCompareZoomOut" disabled title="{{ t('restore.zoom_out') or '缩小' }}"><i class="bi bi-zoom-out"></i></button>
+                <button type="button" class="sv2-tb-btn sv2-ico" id="btnCompareFit" disabled title="{{ t('restore.fit_window') or '适配窗口' }}"><i class="bi bi-arrows-angle-expand"></i></button>
+                <button type="button" class="sv2-tb-btn sv2-ico" id="btnCompareReset" disabled title="{{ t('restore.reset') or '重置' }}"><i class="bi bi-arrow-counterclockwise"></i></button>
             </div>
-            <div class="sv-canvas-toolbar" id="canvasToolbar">
-                <span class="sv-badge sv-badge-secondary" id="canvasStateLabel">{{ t('restore.empty_state') or '未上传' }}</span>
-                <div class="sv-flex sv-gap-2">
-                    <button type="button" class="sv-btn sv-btn-outline sv-btn-sm" id="btnCanvasCompare" disabled>
-                        <i class="bi bi-columns-gap"></i> {{ t('restore.compare_mode') or '对比模式' }}
-                    </button>
-                    <button type="button" class="sv-btn sv-btn-outline sv-btn-sm" id="btnCanvasZoom" disabled>
-                        <i class="bi bi-zoom-in"></i> {{ t('restore.zoom') or '缩放' }}
-                    </button>
-                    <button type="button" class="sv-btn sv-btn-outline sv-btn-sm" id="btnCanvasDownload" disabled>
-                        <i class="bi bi-download"></i> {{ t('common.download') }}
-                    </button>
-                </div>
+            <span class="sv2-tb-sep"></span>
+            <div class="sv2-tb-group">
+                <a class="sv2-tb-btn sv2-dl" id="btnDownload" href="#" download disabled><i class="bi bi-download"></i> {{ t('common.download') }}</a>
+                <button type="button" class="sv2-tb-btn sv2-primary" id="btnRestoreAgain" disabled><i class="bi bi-arrow-counterclockwise"></i> {{ t('video.restore_again') }}</button>
             </div>
         </div>
 
-        <!-- 单文件模式：对比/预览区 -->
-        <div class="sv-compare-area sv-mode-tab-pane active" id="previewArea" data-mode-pane="single">
-            <!-- 空状态占位：包含上传拖拽区 -->
-            <div class="sv-compare-placeholder" id="workflowGuide" data-auto-hide="true">
-                <div class="sv-dropzone" id="restoreUploadZone" style="max-width:340px;">
-                    <div class="sv-dropzone-icon"><i class="bi bi-cloud-arrow-up"></i></div>
-                    <div class="sv-dropzone-title">{{ t('restore.upload_hint') }}</div>
-                    <div class="sv-dropzone-hint">{{ t('restore.upload_single_hint') }}</div>
-                    <div class="sv-dropzone-formats">{{ t('restore.supported_formats') }}</div>
-                    <div class="sv-dropzone-fileinfo" id="restoreFileInfo" style="display:none;"></div>
+        <!-- 画布舞台（单文件） -->
+        <div class="sv2-stage sv-mode-tab-pane active" id="previewArea" data-mode-pane="single">
+            <!-- 上传空态 -->
+            <div class="sv2-pane" id="workflowGuide" data-auto-hide="true">
+                <div class="sv2-dropzone" id="restoreUploadZone">
+                    <div class="sv2-dropzone-icon"><i class="bi bi-cloud-arrow-up"></i></div>
+                    <div class="sv2-dropzone-title">{{ t('restore.upload_hint') }}</div>
+                    <div class="sv2-dropzone-hint">{{ t('restore.upload_single_hint') }}</div>
+                    <div class="sv2-dropzone-formats">{{ t('restore.supported_formats') }}</div>
+                    <div class="sv2-dropzone-fileinfo" id="restoreFileInfo" style="display:none;"></div>
                     <input type="file" id="restoreFileInput" style="display:none;"
                            accept="image/png,image/jpeg,image/jpg,image/bmp,image/webp,video/mp4,video/avi,video/quicktime,video/x-matroska,video/webm,video/x-flv">
                 </div>
             </div>
 
             <!-- 图片预览 -->
-            <div class="sv-preview-container" id="imagePreviewContainer" style="display:none;">
-                <img id="imagePreview" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:var(--sv-radius);" alt="{{ t('restore.before') }}">
-                <button type="button" class="sv-preview-clear-btn" id="btnClearImage" title="{{ t('restore.clear_image') or '清除图片' }}">
-                    <i class="bi bi-x-lg"></i>
-                </button>
+            <div class="sv2-pane" id="imagePreviewContainer" style="display:none;">
+                <img id="imagePreview" alt="{{ t('restore.before') }}">
+                <button type="button" class="sv2-clear-btn" id="btnClearImage" title="{{ t('restore.clear_image') or '清除图片' }}"><i class="bi bi-x-lg"></i></button>
             </div>
 
             <!-- 进度 -->
-            <div class="sv-preview-progress" id="progressCard" style="display:none;">
-                <div class="sv-card" style="width:100%;max-width:500px;">
-                    <div class="sv-card-header sv-flex sv-items-center sv-justify-between">
-                        <h3><i class="bi bi-activity"></i> {{ t('restore.processing') }}</h3>
-                        <div class="sv-flex sv-items-center sv-gap-2">
-                            <span id="taskStatus" class="sv-badge sv-badge-processing">{{ t('status.processing') }}</span>
-                            <button type="button" class="sv-progress-cancel" id="btnCancelRestore" aria-label="{{ t('common.cancel') }}" title="{{ t('restore.cancel_task') }}">
-                                <i class="bi bi-x-lg"></i>
-                            </button>
-                        </div>
+            <div class="sv2-pane" id="progressCard" style="display:none;">
+                <div class="sv2-progress-card">
+                    <div class="sv2-progress-head">
+                        <span class="sv2-progress-stage" id="taskStatus">{{ t('status.processing') }}</span>
+                        <span class="sv2-progress-eta" id="progressEta"></span>
+                        <button type="button" class="sv2-cancel" id="btnCancelRestore" aria-label="{{ t('common.cancel') }}" title="{{ t('restore.cancel_task') }}"><i class="bi bi-x-lg"></i></button>
                     </div>
-                    <div class="sv-card-body">
-                        <div class="sv-progress" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                            <div class="sv-progress-bar bg-primary animated" id="progressBar" style="transform:scaleX(0);"></div>
-                        </div>
-                        <div class="sv-progress-label">
-                            <span id="progressText">{{ t('status.pending') }}</span>
-                            <span>
-                                <span id="progressPct">0%</span>
-                                <span id="progressFrames"></span>
-                                <span id="progressEta"></span>
-                            </span>
-                        </div>
-                        <div class="sv-progress-detail" id="progressDetail" style="display:none;">
-                            <span id="progressFps"></span>
-                            <span id="progressStage"></span>
-                        </div>
+                    <div class="sv2-progress-track"><div class="sv2-progress-bar" id="progressBar"></div></div>
+                    <div class="sv2-progress-meta">
+                        <span class="sv2-progress-pct" id="progressPct">0%</span>
+                        <span class="sv2-progress-detail" id="progressText">{{ t('status.pending') }}</span>
+                        <span class="sv2-progress-frames" id="progressFrames"></span>
+                    </div>
+                    <div class="sv2-progress-sub" id="progressDetail" style="display:none;">
+                        <span id="progressFps"></span>
+                        <span id="progressStage"></span>
                     </div>
                 </div>
             </div>
 
-            <!-- 结果对比 -->
-            <div class="sv-preview-result" id="resultCard" style="display:none;">
-                <div class="sv-result-toolbar">
-                    <span class="sv-badge sv-badge-completed" id="resultStatus">{{ t('status.completed') }}</span>
-                    <div class="sv-flex sv-gap-2">
-                        <a id="btnDownload" class="sv-btn sv-btn-primary sv-btn-sm" href="#" download>
-                            <i class="bi bi-download"></i> {{ t('common.download') }}
-                        </a>
-                        <button type="button" class="sv-btn sv-btn-secondary sv-btn-sm" id="btnRestoreAgain">
-                            <i class="bi bi-arrow-counterclockwise"></i> {{ t('video.restore_again') }}
-                        </button>
-                    </div>
+            <!-- 结果：视频 / 单图 / 前后对比 -->
+            <div class="sv2-pane sv2-result" id="resultCard" style="display:none;">
+                <video id="resultVideo" controls style="display:none;max-width:calc(100% - 40px);max-height:calc(100% - 40px);border-radius:var(--sv-radius);box-shadow:0 10px 40px rgba(0,0,0,.3);"></video>
+                <div id="plainViewer" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;width:100%;height:100%;">
+                    <img id="plainImg" alt="{{ t('restore.after') }}" style="max-width:calc(100% - 40px);max-height:calc(100% - 40px);object-fit:contain;border-radius:var(--sv-radius);box-shadow:0 10px 40px rgba(0,0,0,.3);">
                 </div>
-                <div class="sv-compare-wrapper">
-                    <video id="resultVideo" controls style="display:none;width:100%;max-height:100%;border-radius:var(--sv-radius);"></video>
-                    <div id="compareCard" style="display:none;width:100%;height:100%;">
-                        <div class="sv-compare-toolbar" id="compareToolbar">
-                            <button type="button" class="sv-compare-tool-btn active" id="btnCompareHorizontal" title="{{ t('restore.compare_horizontal') or 'Horizontal' }}">
-                                <i class="bi bi-arrows-left-right"></i>
-                            </button>
-                            <button type="button" class="sv-compare-tool-btn" id="btnCompareVertical" title="{{ t('restore.compare_vertical') or 'Vertical' }}">
-                                <i class="bi bi-arrows-up-down"></i>
-                            </button>
-                            <span class="sv-compare-separator"></span>
-                            <button type="button" class="sv-compare-tool-btn" id="btnCompareZoomIn" title="{{ t('restore.zoom_in') or 'Zoom In' }}">
-                                <i class="bi bi-zoom-in"></i>
-                            </button>
-                            <span class="sv-compare-zoom-label" id="compareZoomLabel">100%</span>
-                            <button type="button" class="sv-compare-tool-btn" id="btnCompareZoomOut" title="{{ t('restore.zoom_out') or 'Zoom Out' }}">
-                                <i class="bi bi-zoom-out"></i>
-                            </button>
-                            <button type="button" class="sv-compare-tool-btn" id="btnCompareFit" title="{{ t('restore.fit_window') or 'Fit' }}">
-                                <i class="bi bi-arrows-angle-expand"></i>
-                            </button>
-                            <button type="button" class="sv-compare-tool-btn" id="btnCompareReset" title="{{ t('restore.reset') or 'Reset' }}">
-                                <i class="bi bi-arrow-counterclockwise"></i>
-                            </button>
-                        </div>
-                        <div class="sv-compare-viewport" id="compareViewport" tabindex="0">
-                            <div class="sv-compare-container" id="compareContainer">
-                                <img id="compareBefore" alt="{{ t('restore.before') }}">
-                                <span class="sv-compare-label sv-compare-label-before">{{ t('restore.before') or 'Before' }}</span>
-                                <div class="sv-compare-after" id="compareAfter">
-                                    <img id="compareAfterImg" alt="{{ t('restore.after') }}">
-                                    <span class="sv-compare-label sv-compare-label-after">{{ t('restore.after') or 'After' }}</span>
-                                </div>
-                                <div class="sv-compare-slider" id="compareSlider">
-                                    <i class="bi bi-arrows-expand-horizontal"></i>
-                                </div>
+                <div id="compareCard" style="display:none;position:absolute;inset:0;width:100%;height:100%;">
+                    <div class="sv-compare-viewport sv2-viewport" id="compareViewport" tabindex="0">
+                        <div class="sv-compare-container" id="compareContainer">
+                            <img id="compareBefore" alt="{{ t('restore.before') }}">
+                            <span class="sv-compare-label sv-compare-label-before">{{ t('restore.before') or 'Before' }}</span>
+                            <div class="sv-compare-after" id="compareAfter">
+                                <img id="compareAfterImg" alt="{{ t('restore.after') }}">
+                                <span class="sv-compare-label sv-compare-label-after">{{ t('restore.after') or 'After' }}</span>
                             </div>
+                            <div class="sv-compare-slider" id="compareSlider"><i class="bi bi-arrows-expand-horizontal"></i></div>
                         </div>
+                        <span class="sv2-hud" id="compareHud">—</span>
+                        <span class="sv2-hint"><kbd>滚轮</kbd> 缩放 · <kbd>拖动</kbd> 平移 · <kbd>双击</kbd> 适配/1:1</span>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- 批量模式：结果列表 + 批量进度（路径行已内嵌顶部工具条） -->
-        <div class="sv-batch-section sv-mode-tab-pane" data-mode-pane="batch">
-            <div class="sv-batch-header">
-                <span class="sv-batch-title">{{ t('restore.batch_title') }}</span>
+        <!-- 批量面板 -->
+        <div class="sv2-batch-pane sv-mode-tab-pane" data-mode-pane="batch">
+            <div class="sv2-batch-head">
+                <span class="sv2-batch-title">{{ t('restore.batch_title') }}</span>
                 <span class="sv-badge sv-badge-info">{{ t('restore.folder_mode') }}</span>
             </div>
-            <div id="folderScanResults" class="sv-mt-2"></div>
-
-            <!-- 批量进度 -->
-            <div class="sv-batch-progress" id="batchProgressCard" style="display:none;">
-                <div class="sv-batch-progress-head">
+            <div id="folderScanResults" class="sv2-scan-results"></div>
+            <div class="sv2-batch-progress" id="batchProgressCard" style="display:none;">
+                <div class="sv2-batch-progress-head">
                     <span id="batchProgressTitle">{{ t('video.batch_progress') }}</span>
-                    <div class="sv-flex sv-items-center sv-gap-2">
-                        <span id="batchPercentText" class="sv-text-xs sv-text-muted">0%</span>
-                        <span id="batchStatus" class="sv-badge sv-badge-processing">{{ t('status.processing') }}</span>
-                        <button type="button" class="sv-progress-cancel" id="btnCancelBatch" aria-label="{{ t('common.cancel') }}" title="{{ t('restore.cancel_batch_task') }}">
-                            <i class="bi bi-x-lg"></i>
-                        </button>
-                    </div>
+                    <span class="sv2-batch-pct" id="batchPercentText">0%</span>
+                    <span id="batchStatus" class="sv-badge sv-badge-processing">{{ t('status.processing') }}</span>
+                    <button type="button" class="sv2-cancel" id="btnCancelBatch" aria-label="{{ t('common.cancel') }}" title="{{ t('restore.cancel_batch_task') }}"><i class="bi bi-x-lg"></i></button>
                 </div>
-                <div class="sv-progress" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                    <div class="sv-progress-bar bg-primary animated" id="batchProgressBar" style="transform:scaleX(0);"></div>
-                </div>
-                <div id="batchCurrentFile" class="sv-text-xs sv-text-muted sv-mt-1 sv-truncate" style="display:none;">
-                    <i class="bi bi-file-earmark-play"></i> <span></span>
-                </div>
-                <div class="sv-batch-stats">
+                <div class="sv2-progress-track"><div class="sv2-progress-bar" id="batchProgressBar"></div></div>
+                <div id="batchCurrentFile" class="sv2-batch-cur" style="display:none;"><i class="bi bi-file-earmark-play"></i> <span></span></div>
+                <div class="sv2-batch-stats">
                     <span id="batchProgressText">--</span>
-                    <span class="sv-text-success"><span id="batchCompleted">0</span> {{ t('video.batch_success') }}</span>
-                    <span class="sv-text-danger"><span id="batchFailed">0</span> {{ t('video.batch_failed') }}</span>
-                    <span id="batchEta" class="sv-text-xs sv-text-muted sv-ml-auto"></span>
+                    <span class="sv2-batch-ok">完成 <span id="batchCompleted">0</span></span>
+                    <span class="sv2-batch-fail">失败 <span id="batchFailed">0</span></span>
+                    <span id="batchEta" class="sv2-batch-eta"></span>
                 </div>
             </div>
         </div>
     </main>
 
-        <!-- ===== 右侧参数边栏 ===== -->
-    <aside class="sv-param-sidebar" id="paramsSidebar">
+<aside class="sv-param-sidebar sv2-sidebar" id="paramsSidebar">
         <div class="sv-param-sidebar-row">
             <div class="sv-param-sidebar-title">{{ t('restore.param_config') }}</div>
             <button type="button" class="sv-param-collapse-btn" id="btnToggleParams"
@@ -241,6 +198,12 @@
                 <option value="ema_vae_fp8">EMA VAE FP8</option>
             </select>
         </div>
+        <div class="sv-param-group">
+            <label class="sv-param-label" for="blocksToSwap">{{ t('video.blocks_to_swap') }}
+                <span class="sv-param-help" data-tooltip="{{ t('restore.tip_blockswap') }}"><i class="bi bi-info-circle"></i></span>
+            </label>
+            <input type="number" class="sv-param-input" id="blocksToSwap" name="blocks_to_swap" value="32" min="0" max="36">
+        </div>
         <input type="hidden" name="seed" value="1373201197">
 
         <button type="button" class="sv-advanced-toggle" id="advToggle" aria-expanded="false" aria-controls="advParams">
@@ -264,10 +227,6 @@
                         <option value="lab" selected>LAB</option>
                         <option value="none">{{ t('video.none') }}</option>
                     </select>
-                </div>
-                <div class="sv-param-group">
-                    <label class="sv-param-label" for="blocksToSwap">{{ t('video.blocks_to_swap') }}</label>
-                    <input type="number" class="sv-param-input" id="blocksToSwap" name="blocks_to_swap" value="32" min="0" max="36">
                 </div>
                 <div class="sv-param-group">
                     <label class="sv-param-label" for="batchSize">{{ t('video.batch_size') }}</label>
@@ -405,6 +364,7 @@
             </button>
         </div>
     </aside>
+    </div>
 </div>
 
 <!-- 浮动帮助 -->
@@ -460,6 +420,9 @@
         </div>
     </div>
 </div>
+
+
+<button type="button" class="sv2-sb-restore" id="btnRestoreSidebar" style="display:none;" title="展开参数面板"><i class="bi bi-sliders"></i> 参数</button>
 {% endblock %}
 
 {% block scripts %}
@@ -2050,39 +2013,83 @@ document.addEventListener('DOMContentLoaded', () => {
         history.replaceState(null, '', '#' + mode);
     }
 
-    // 参数面板折叠（桌面端）
+    // 参数面板折叠（桌面端）：折叠后保留右侧「参数」恢复入口，操作可逆
     var btnToggleParams = document.getElementById('btnToggleParams');
     var paramsSidebarEl = document.getElementById('paramsSidebar');
+    var sv2BodyEl = document.getElementById('sv2Body');
+    var sbRestoreBtn = document.getElementById('btnRestoreSidebar');
+    function setParamsCollapsed(collapsed) {
+        if (sv2BodyEl) sv2BodyEl.classList.toggle('sv2-sb-collapsed', collapsed);
+        if (paramsSidebarEl) paramsSidebarEl.classList.toggle('collapsed', collapsed);
+        if (sbRestoreBtn) sbRestoreBtn.style.display = collapsed ? 'flex' : 'none';
+        var label = collapsed
+            ? (I['restore.expand_params'] || 'Expand params')
+            : (I['restore.collapse_params'] || 'Collapse params');
+        if (btnToggleParams) { btnToggleParams.setAttribute('aria-label', label); btnToggleParams.setAttribute('title', label); }
+        var icon = document.getElementById('paramCollapseIcon');
+        if (icon) icon.className = collapsed ? 'bi bi-chevron-double-right' : 'bi bi-chevron-double-left';
+    }
     if (btnToggleParams && paramsSidebarEl) {
         btnToggleParams.addEventListener('click', function () {
-            var collapsed = paramsSidebarEl.classList.toggle('collapsed');
-            var label = collapsed
-                ? (I['restore.expand_params'] || 'Expand params')
-                : (I['restore.collapse_params'] || 'Collapse params');
-            btnToggleParams.setAttribute('aria-label', label);
-            btnToggleParams.setAttribute('title', label);
-            var icon = document.getElementById('paramCollapseIcon');
-            if (icon) icon.className = collapsed ? 'bi bi-chevron-double-right' : 'bi bi-chevron-double-left';
+            setParamsCollapsed(!(sv2BodyEl ? sv2BodyEl.classList.contains('sv2-sb-collapsed') : paramsSidebarEl.classList.contains('collapsed')));
         });
     }
+    if (sbRestoreBtn) {
+        sbRestoreBtn.addEventListener('click', function () { setParamsCollapsed(false); });
+    }
 
-    // 画布工具条：委托到结果区的真实功能（结果显示后由 app.js 启用）
+    // 画布工具条：一体化操作（对比模式切换 / 清除 / 替换 / 下载兜底 / 文件名显示）
     function bindCanvasToolbar() {
-        var dl = document.getElementById('btnCanvasDownload');
-        if (dl) dl.addEventListener('click', function () {
+        var dl = document.getElementById('btnDownload');
+        if (dl) dl.addEventListener('click', function (e) {
+            if (dl.hasAttribute('disabled')) { e.preventDefault(); return; }
             var b = document.getElementById('btnDownload');
-            if (b) b.click();
+            if (b && b.href && b.href !== '#') return; // href 已由 app.js 绑定产物地址
         });
+
+        // 对比模式开关：图片结果在「对比查看器」与「单图结果」之间切换
         var cmp = document.getElementById('btnCanvasCompare');
-        if (cmp) cmp.addEventListener('click', function () {
-            var b = document.getElementById('btnCompareHorizontal');
-            if (b) b.click();
-        });
-        var zm = document.getElementById('btnCanvasZoom');
-        if (zm) zm.addEventListener('click', function () {
-            var b = document.getElementById('btnCompareZoomIn');
-            if (b) b.click();
-        });
+        var compareCard = document.getElementById('compareCard');
+        var plainViewer = document.getElementById('plainViewer');
+        var compareModeOn = true;
+        if (cmp && compareCard && plainViewer) {
+            cmp.addEventListener('click', function () {
+                if (cmp.hasAttribute('disabled')) return;
+                compareModeOn = !compareModeOn;
+                compareCard.style.display = compareModeOn ? 'block' : 'none';
+                plainViewer.style.display = compareModeOn ? 'none' : 'flex';
+                cmp.classList.toggle('active', compareModeOn);
+            });
+        }
+
+        // 清除：委托到预览区清除按钮
+        var clearBtn = document.getElementById('btnCanvasClear');
+        var clearImg = document.getElementById('btnClearImage');
+        if (clearBtn && clearImg) {
+            clearBtn.addEventListener('click', function () {
+                clearImg.click();
+                var tbf = document.getElementById('tbFileName');
+                if (tbf) { tbf.style.display = 'none'; tbf.textContent = ''; }
+            });
+        }
+
+        // 替换：直接唤起文件选择（走既有 onFileSelected 流程）
+        var repBtn = document.getElementById('btnCanvasReplace');
+        var fileInputEl = document.getElementById('restoreFileInput');
+        if (repBtn && fileInputEl) {
+            repBtn.addEventListener('click', function () { fileInputEl.click(); });
+        }
+
+        // 文件名显示：选择文件后更新工具条文件名
+        if (fileInputEl) {
+            fileInputEl.addEventListener('change', function () {
+                var tbf = document.getElementById('tbFileName');
+                if (tbf && fileInputEl.files && fileInputEl.files[0]) {
+                    tbf.textContent = fileInputEl.files[0].name;
+                    tbf.style.display = '';
+                }
+            });
+        }
     }
     bindCanvasToolbar();
 

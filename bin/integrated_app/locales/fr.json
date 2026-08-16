@@ -282,6 +282,7 @@
     "tip_resolution": "Résolution cible de sortie (hauteur en pixels), recommandé 2160 (4K)",
     "tip_seed": "La graine aléatoire contrôle l'aléatoire d'inférence. Même graine + même entrée = même sortie",
     "tip_color_correction": "La correspondance LAB préserve les tons originaux. Désactivez pour les couleurs natives du modèle",
+    "tip_blockswap": "Déplace certains blocs Transformer vers le CPU pour réduire l'utilisation de la VRAM ; 0 le désactive. Sur GPU 12 Go, utilisez 16-32 ; réduisez pour plus de vitesse si la VRAM est abondante",
     "batch_confirm_title": "Confirmer la Restauration par Lots",
     "batch_confirm_msg": "Environ {count} fichiers à traiter. Cela peut prendre du temps. Confirmer ?",
     "please_select_file": "Veuillez d'abord sélectionner un fichier à restaurer",

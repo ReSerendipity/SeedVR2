@@ -53,7 +53,7 @@ logging:
   level: INFO
   max_size_mb: 50
 model:
-  auto_load: true
+  auto_load: false
   default_precision: fp16
   default_size: 3b
   device: auto

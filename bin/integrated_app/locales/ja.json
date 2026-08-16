@@ -282,6 +282,7 @@
     "tip_resolution": "出力ターゲット解像度（ピクセル高さ）、推奨 2160（4K）",
     "tip_seed": "ランダムシードは推論のランダム性を制御します。同じシード＋同じ入力＝同じ出力",
     "tip_color_correction": "LAB カラーマッチングは元の色調を保持します。無効にするとモデルネイティブの色調になります",
+    "tip_blockswap": "Transformer ブロックの一部を CPU に退避して VRAM 使用量を削減します。0 で無効。12GB GPU では 16-32 推奨、VRAM に余裕があれば小さくして高速化できます",
     "batch_confirm_title": "一括修復の確認",
     "batch_confirm_msg": "{count} 個のファイルを処理します。時間がかかる場合があります。開始しますか？",
     "please_select_file": "修復するファイルを先に選択してください",
