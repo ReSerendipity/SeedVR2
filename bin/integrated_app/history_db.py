@@ -136,7 +136,7 @@ class HistoryDB:
         await db.execute("PRAGMA journal_mode=WAL")
         await db.execute("PRAGMA synchronous=NORMAL")
         # 与连接 timeout 对齐：锁竞争时在超时窗口内忙等重试（毫秒）
-        await db.execute(f"PRAGMA busy_timeout={int(self.timeout * 1000)}")
+        await db.execute(f"PRAGMA busy_timeout={int(self.timeout * 1000)}")  # nosemgrep: sqlalchemy-execute-raw-query - int 转型的配置常量（timeout 恒为默认值），无注入面
 
         await db.execute("""
             CREATE TABLE IF NOT EXISTS history (

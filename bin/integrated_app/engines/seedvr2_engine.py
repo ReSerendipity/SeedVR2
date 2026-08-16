@@ -341,8 +341,8 @@ class SeedVR2Engine(
 
             if pos_path.exists() and neg_path.exists():
                 logger.info(f"加载文本嵌入: {pos_path}, {neg_path}")
-                self.pos_emb = torch.load(str(pos_path), map_location="cpu", weights_only=True)
-                self.neg_emb = torch.load(str(neg_path), map_location="cpu", weights_only=True)
+                self.pos_emb = torch.load(str(pos_path), map_location="cpu", weights_only=True)  # nosemgrep: pickles-in-pytorch - torch.load(weights_only=True) 已启用安全模式，加载本地 pos 嵌入
+                self.neg_emb = torch.load(str(neg_path), map_location="cpu", weights_only=True)  # nosemgrep: pickles-in-pytorch - torch.load(weights_only=True) 已启用安全模式，加载本地 neg 嵌入
             else:
                 logger.warning("文本嵌入文件未找到，将使用零嵌入")
                 self.pos_emb = None

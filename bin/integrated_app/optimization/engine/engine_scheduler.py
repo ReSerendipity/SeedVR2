@@ -1200,7 +1200,7 @@ class SubprocessEngineWrapper:
 
         for attempt in range(self.config.max_retries + 1):
             try:
-                process = subprocess.Popen(
+                process = subprocess.Popen(  # nosemgrep: python36-compatibility-Popen2 - 项目目标 Python 3.10+，py3.6 兼容规则误触发
                     cmd,
                     stdin=subprocess.PIPE,
                     stdout=subprocess.PIPE,
