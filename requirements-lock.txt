@@ -186,8 +186,8 @@ six==1.17.0
 sqlite_bro==0.13.1
 # NO HASH (run generate_lock.py with network): stack-data==0.6.3
 stack-data==0.6.3
-# NO HASH (run generate_lock.py with network): starlette==1.3.1
-starlette==1.3.1
+# NO HASH (run generate_lock.py with network): starlette==1.6.0
+starlette==1.6.0
 # NO HASH (run generate_lock.py with network): sv-ttk==2.6.0
 sv-ttk==2.6.0
 # NO HASH (run generate_lock.py with network): sympy==1.14.0
