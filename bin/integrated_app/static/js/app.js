@@ -1384,17 +1384,26 @@ const SeedVR2 = (() => {
 
         if (progressCard) progressCard.style.display = 'none';
         if (resultCard) resultCard.style.display = 'block';
-        if (btnDownload) btnDownload.href = `/api/restore/${taskId}/download`;
+        if (btnDownload) {
+            btnDownload.href = `/api/restore/${taskId}/download`;
+            btnDownload.removeAttribute('disabled');
+        }
 
-        // 画布工具条：结果显示后启用；图片任务开放对比/缩放/下载，视频任务仅下载
+        // 画布工具条：结果显示后按任务类型启用对应操作组
         const canvasStateLabel = document.getElementById('canvasStateLabel');
         if (canvasStateLabel) canvasStateLabel.textContent = t('status.completed');
-        const enableCanvasBtn = (id) => { const b = document.getElementById(id); if (b) b.disabled = false; };
-        enableCanvasBtn('btnCanvasDownload');
-        if (taskType !== 'video') {
-            enableCanvasBtn('btnCanvasCompare');
-            enableCanvasBtn('btnCanvasZoom');
-        }
+        const setBtn = (id, enabled) => {
+            const b = document.getElementById(id);
+            if (b) { enabled ? b.removeAttribute('disabled') : b.setAttribute('disabled', ''); }
+        };
+        setBtn('btnRestoreAgain', true);
+        setBtn('btnCanvasClear', true);
+        setBtn('btnCanvasReplace', true);
+        const tbFileName = document.getElementById('tbFileName');
+        if (tbFileName) tbFileName.style.display = '';
+
+        const compareCard = document.getElementById('compareCard');
+        const plainViewer = document.getElementById('plainViewer');
 
         // 持久化结果状态到 sessionStorage，切页返回时可恢复
         const beforeSrc = document.getElementById('imagePreview')?.src || '';
@@ -1405,20 +1414,32 @@ const SeedVR2 = (() => {
         } catch (e) { /* ignore quota errors */ }
 
         if (taskType === 'video') {
-            // 视频任务显示视频播放器
+            // 视频任务显示播放器；对比/缩放组保持禁用
             if (resultVideo) { resultVideo.src = `/api/restore/${taskId}/download`; resultVideo.style.display = 'block'; }
-        } else {
-            // 图片任务显示前后对比滑块
-            const compareCard = document.getElementById('compareCard');
-            const beforeSrc = document.getElementById('imagePreview')?.src || '';
-            const afterSrc = `/api/restore/${taskId}/download`;
-            if (compareCard) compareCard.style.display = 'block';
-            const compareBefore = document.getElementById('compareBefore');
-            const compareAfterImg = document.getElementById('compareAfterImg');
-            if (compareBefore) compareBefore.src = beforeSrc;
-            if (compareAfterImg) compareAfterImg.src = afterSrc;
-            initCompareSlider('compareContainer', 'compareSlider', 'compareAfter');
+            if (compareCard) compareCard.style.display = 'none';
+            if (plainViewer) plainViewer.style.display = 'none';
+            setBtn('btnCanvasCompare', false);
+            ['btnCompareHorizontal', 'btnCompareVertical', 'btnCompareZoomIn', 'btnCompareZoomOut', 'btnCompareFit', 'btnCompareReset']
+                .forEach(id => setBtn(id, false));
+            return;
         }
+
+        // 图片任务：默认进入前后对比查看器
+        const afterSrc = `/api/restore/${taskId}/download`;
+        if (compareCard) compareCard.style.display = 'block';
+        if (plainViewer) plainViewer.style.display = 'none';
+        setBtn('btnCanvasCompare', true);
+        const cmpToggle = document.getElementById('btnCanvasCompare');
+        if (cmpToggle) cmpToggle.classList.add('active');
+        ['btnCompareHorizontal', 'btnCompareVertical', 'btnCompareZoomIn', 'btnCompareZoomOut', 'btnCompareFit', 'btnCompareReset']
+            .forEach(id => setBtn(id, true));
+        const compareBefore = document.getElementById('compareBefore');
+        const compareAfterImg = document.getElementById('compareAfterImg');
+        const plainImg = document.getElementById('plainImg');
+        if (compareBefore) compareBefore.src = beforeSrc;
+        if (compareAfterImg) compareAfterImg.src = afterSrc;
+        if (plainImg) plainImg.src = afterSrc;
+        initCompareSlider('compareContainer', 'compareSlider', 'compareAfter');
     }
 
     /**
