@@ -40,8 +40,8 @@ asttokens==3.0.1
 black==26.5.1
 # NO HASH (run generate_lock.py with network): build==1.2.2.post1
 build==1.2.2.post1
-# NO HASH (run generate_lock.py with network): certifi==2026.5.20
-certifi==2026.5.20
+# NO HASH (run generate_lock.py with network): certifi==2026.7.22
+certifi==2026.7.22
 # NO HASH (run generate_lock.py with network): charset-normalizer==3.4.7
 charset-normalizer==3.4.7
 # NO HASH (run generate_lock.py with network): click==8.4.1
