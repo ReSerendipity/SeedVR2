@@ -68,8 +68,8 @@ fastapi==0.137.0
 filelock==3.29.0
 # NO HASH (run generate_lock.py with network): fonttools==4.63.0
 fonttools==4.63.0
-# NO HASH (run generate_lock.py with network): fsspec==2026.4.0
-fsspec==2026.4.0
+# NO HASH (run generate_lock.py with network): fsspec==2026.7.0
+fsspec==2026.7.0
 # NO HASH (run generate_lock.py with network): h11==0.16.0
 h11==0.16.0
 # NO HASH (run generate_lock.py with network): hf-xet==1.5.1
