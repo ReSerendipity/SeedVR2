@@ -204,8 +204,8 @@ torchvision==0.26.0+cu128
 tqdm==4.68.2
 # NO HASH (run generate_lock.py with network): traitlets==5.15.1
 traitlets==5.15.1
-# NO HASH (run generate_lock.py with network): transformers==5.12.0
-transformers==5.12.0
+# NO HASH (run generate_lock.py with network): transformers==5.15.0
+transformers==5.15.0
 # NO HASH (run generate_lock.py with network): typer==0.25.1
 typer==0.25.1
 # NO HASH (run generate_lock.py with network): typing-inspection==0.4.2
