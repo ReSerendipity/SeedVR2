@@ -164,8 +164,8 @@ python-dotenv==1.2.2
 python-multipart==0.0.32
 # NO HASH (run generate_lock.py with network): pytokens==0.4.1
 pytokens==0.4.1
-# NO HASH (run generate_lock.py with network): regex==2026.5.9
-regex==2026.5.9
+# NO HASH (run generate_lock.py with network): regex==2026.7.19
+regex==2026.7.19
 # NO HASH (run generate_lock.py with network): requests==2.34.2
 requests==2.34.2
 # NO HASH (run generate_lock.py with network): rich==15.0.0
