@@ -176,8 +176,8 @@ rotary-embedding-torch==0.9.1
 ruff==0.15.17
 # NO HASH (run generate_lock.py with network): safetensors==0.8.0
 safetensors==0.8.0
-# NO HASH (run generate_lock.py with network): setuptools==79.0.1
-setuptools==79.0.1
+# NO HASH (run generate_lock.py with network): setuptools==84.0.0
+setuptools==84.0.0
 # NO HASH (run generate_lock.py with network): shellingham==1.5.4
 shellingham==1.5.4
 # NO HASH (run generate_lock.py with network): six==1.17.0
