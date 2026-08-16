@@ -1483,16 +1483,18 @@ const SeedVR2 = (() => {
             if (!this.container || !this.slider || !this.afterEl) return;
 
             this.viewport = this.container.parentElement;
-            this.mode = 'horizontal'; // 'horizontal' | 'vertical'
-            this.position = 0.5;      // 0-1 归一化位置
-            this.zoom = 1;
-            this.minZoom = 0.5;
-            this.maxZoom = 5;
+            this.mode = 'horizontal';   // 'horizontal' | 'vertical'
+            this.position = 0.5;        // 0-1 归一化分割线位置
+            this.fitMag = 1;            // 适配窗口 = 1（容器尺寸即适配尺寸）
+            this.mag = 1;               // 当前放大倍率（1 = 适配窗口）
+            this.oneToOneMag = 4;       // 1:1 原像素所需倍率（对齐后计算）
+            this.tx = 0; this.ty = 0;   // 平移（屏幕像素，相对 viewport）
             this.isDragging = false;
+            this.dragMode = null;       // 'div' 分割线 | 'pan' 平移
             this.dragAbort = null;
-            this.snapThreshold = 0.03; // 50% 吸附阈值
+            this.snapThreshold = 0.03;
             this.rafId = null;
-            this._alignCleanup = null; // resize/observer 清理句柄
+            this._alignCleanup = null;
 
             this._initState();
             this._bindDrag();
@@ -1509,16 +1511,68 @@ const SeedVR2 = (() => {
             this._updateSliderUI(0.5);
         }
 
+        // ── 视图变换（平移 + 缩放，transform-origin 0 0） ──
+
+        _applyTransform() {
+            const cw = this.container.offsetWidth, ch = this.container.offsetHeight;
+            const vpW = this.viewport.clientWidth, vpH = this.viewport.clientHeight;
+            const baseL = this.container.offsetLeft, baseT = this.container.offsetTop;
+            const contentW = cw * this.mag, contentH = ch * this.mag;
+            if (contentW <= vpW) this.tx = (vpW - contentW) / 2 - baseL;
+            else this.tx = Math.min(0, Math.max(vpW - contentW - baseL, this.tx));
+            if (contentH <= vpH) this.ty = (vpH - contentH) / 2 - baseT;
+            else this.ty = Math.min(0, Math.max(vpH - contentH - baseT, this.ty));
+            this.container.style.transform = `translate(${this.tx}px, ${this.ty}px) scale(${this.mag})`;
+            this._syncLabel();
+        }
+
+        _syncLabel() {
+            const pct = Math.round(this.mag / this.oneToOneMag * 100);
+            const label = document.getElementById('compareZoomLabel');
+            if (label) label.textContent = pct + '%';
+            const hud = document.getElementById('compareHud');
+            if (hud) hud.textContent = pct + '%';
+        }
+
+        _fit() {
+            this.mag = this.fitMag;
+            this.tx = 0; this.ty = 0;
+            this._applyTransform();
+        }
+
+        _oneToOne() {
+            this.mag = this.oneToOneMag;
+            this._applyTransform();
+        }
+
+        _applyMag(newMag, cx, cy) {
+            const vp = this.viewport.getBoundingClientRect();
+            const oldS = this.mag;
+            if (cx === undefined) { cx = vp.left + vp.width / 2; cy = vp.top + vp.height / 2; }
+            // 保持光标下的图像点不动（以光标为中心缩放）
+            const px = (cx - vp.left - this.container.offsetLeft - this.tx) / oldS;
+            const py = (cy - vp.top - this.container.offsetTop - this.ty) / oldS;
+            this.mag = Math.min(8, Math.max(Math.min(this.fitMag * 0.4, 0.5), newMag));
+            this.tx = (cx - vp.left) - px * this.mag - this.container.offsetLeft;
+            this.ty = (cy - vp.top) - py * this.mag - this.container.offsetTop;
+            this._applyTransform();
+        }
+
+        _resetView() {
+            this._fit();
+            this._updateSliderUI(0.5);
+        }
+
         // ── 滑块位置 ──
 
         _updateSliderUI(pos) {
             this.position = Math.max(0, Math.min(1, pos));
             if (this.mode === 'horizontal') {
-                const w = this.container.getBoundingClientRect().width;
+                const w = this.container.offsetWidth;
                 this.slider.style.transform = `translateX(${this.position * w}px)`;
                 this.afterEl.style.clipPath = `inset(0 0 0 ${this.position * 100}%)`;
             } else {
-                const h = this.container.getBoundingClientRect().height;
+                const h = this.container.offsetHeight;
                 this.slider.style.transform = `translateY(${this.position * h}px)`;
                 this.afterEl.style.clipPath = `inset(0 0 ${this.position * 100}% 0)`;
             }
@@ -1528,26 +1582,28 @@ const SeedVR2 = (() => {
             const rect = this.container.getBoundingClientRect();
             let pos;
             if (this.mode === 'horizontal') {
-                pos = (clientX - rect.left) / rect.width;
+                pos = (clientX - rect.left) / Math.max(1, rect.width);
             } else {
-                pos = (clientY - rect.top) / rect.height;
+                pos = (clientY - rect.top) / Math.max(1, rect.height);
             }
-            // 50% 吸附
             if (Math.abs(pos - 0.5) < this.snapThreshold) pos = 0.5;
             this._updateSliderUI(pos);
         }
 
-        // ── 拖拽 ──
+        // ── 拖拽：分割线拖动 / 放大后平移 ──
 
         _bindDrag() {
-            const onStart = (clientX, clientY) => {
+            const onStart = (clientX, clientY, mode) => {
                 this.isDragging = true;
+                this.dragMode = mode;
                 this.container.classList.add('no-transition');
                 this.slider.classList.remove('snapping');
                 this.slider.classList.add('is-dragging');
+                if (mode === 'pan') this.container.classList.add('panning');
                 if (this.dragAbort) this.dragAbort.abort();
                 this.dragAbort = new AbortController();
                 const sig = this.dragAbort.signal;
+                const startTx = this.tx, startTy = this.ty;
 
                 const onMove = (e) => {
                     if (!this.isDragging) return;
@@ -1556,7 +1612,12 @@ const SeedVR2 = (() => {
                     const cy = e.touches ? e.touches[0].clientY : e.clientY;
                     if (!this.rafId) {
                         this.rafId = requestAnimationFrame(() => {
-                            this._setPositionFromEvent(cx, cy);
+                            if (this.dragMode === 'div') this._setPositionFromEvent(cx, cy);
+                            else {
+                                this.tx = startTx + (cx - clientX);
+                                this.ty = startTy + (cy - clientY);
+                                this._applyTransform();
+                            }
                             this.rafId = null;
                         });
                     }
@@ -1564,7 +1625,9 @@ const SeedVR2 = (() => {
 
                 const onEnd = () => {
                     this.isDragging = false;
+                    this.dragMode = null;
                     this.container.classList.remove('no-transition');
+                    this.container.classList.remove('panning');
                     this.slider.classList.remove('is-dragging');
                     if (this.dragAbort) { this.dragAbort.abort(); this.dragAbort = null; }
                     if (this.rafId) { cancelAnimationFrame(this.rafId); this.rafId = null; }
@@ -1575,39 +1638,38 @@ const SeedVR2 = (() => {
                 document.addEventListener('touchmove', onMove, { signal: sig, passive: false });
                 document.addEventListener('touchend', onEnd, { signal: sig });
 
-                this._setPositionFromEvent(clientX, clientY);
+                if (mode === 'div') this._setPositionFromEvent(clientX, clientY);
             };
 
+            // 分割线手柄拖动
+            this.slider.addEventListener('mousedown', (e) => {
+                e.preventDefault(); e.stopPropagation();
+                onStart(e.clientX, e.clientY, 'div');
+            });
+            this.slider.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) { e.stopPropagation(); onStart(e.touches[0].clientX, e.touches[0].clientY, 'div'); }
+            }, { passive: true });
+
+            // 画布拖动：放大后平移，未放大时拖动分割线
             this.container.addEventListener('mousedown', (e) => {
                 e.preventDefault();
-                onStart(e.clientX, e.clientY);
+                onStart(e.clientX, e.clientY, this.mag > this.fitMag * 1.02 ? 'pan' : 'div');
             });
             this.container.addEventListener('touchstart', (e) => {
                 if (e.touches.length === 1) {
-                    onStart(e.touches[0].clientX, e.touches[0].clientY);
+                    onStart(e.touches[0].clientX, e.touches[0].clientY, this.mag > this.fitMag * 1.02 ? 'pan' : 'div');
                 }
             }, { passive: true });
         }
 
-        // ── 缩放 ──
-
-        _applyZoom(newZoom, cx, cy) {
-            const oldZoom = this.zoom;
-            this.zoom = Math.max(this.minZoom, Math.min(this.maxZoom, newZoom));
-            this.container.style.transform = `scale(${this.zoom})`;
-            const label = document.getElementById('compareZoomLabel');
-            if (label) label.textContent = Math.round(this.zoom * 100) + '%';
-        }
+        // ── 缩放（滚轮以光标为中心 / 双指捏合） ──
 
         _bindZoom() {
-            // 鼠标滚轮缩放
             this.viewport.addEventListener('wheel', (e) => {
                 e.preventDefault();
-                const delta = e.deltaY > 0 ? -0.1 : 0.1;
-                this._applyZoom(this.zoom + delta);
+                this._applyMag(this.mag * (e.deltaY < 0 ? 1.18 : 1 / 1.18), e.clientX, e.clientY);
             }, { passive: false });
 
-            // 触摸 pinch-to-zoom
             let lastTouchDist = 0;
             this.viewport.addEventListener('touchstart', (e) => {
                 if (e.touches.length === 2) {
@@ -1622,70 +1684,42 @@ const SeedVR2 = (() => {
                     const dx = e.touches[0].clientX - e.touches[1].clientX;
                     const dy = e.touches[0].clientY - e.touches[1].clientY;
                     const dist = Math.sqrt(dx * dx + dy * dy);
-                    if (lastTouchDist > 0) {
-                        const scale = dist / lastTouchDist;
-                        this._applyZoom(this.zoom * scale);
-                    }
+                    if (lastTouchDist > 0) this._applyMag(this.mag * (dist / lastTouchDist));
                     lastTouchDist = dist;
                 }
             }, { passive: false });
             this.viewport.addEventListener('touchend', () => { lastTouchDist = 0; }, { passive: true });
         }
 
-        // ── 键盘 ──
+        // ── 键盘（固定 60px 屏幕步长平移 / +/- 缩放 / F 适配 / Home 重置 / 0 1:1 / H·V 方向） ──
 
         _bindKeyboard() {
             this.viewport.addEventListener('keydown', (e) => {
-                const step = 0.02;
+                const STEP = 60;
                 switch (e.key) {
-                    case 'ArrowLeft':
-                    case 'ArrowUp':
-                        e.preventDefault();
-                        this._updateSliderUI(this.position - step);
-                        break;
-                    case 'ArrowRight':
-                    case 'ArrowDown':
-                        e.preventDefault();
-                        this._updateSliderUI(this.position + step);
-                        break;
-                    case 'Home':
-                        e.preventDefault();
-                        this._updateSliderUI(0);
-                        break;
-                    case 'End':
-                        e.preventDefault();
-                        this._updateSliderUI(1);
-                        break;
-                    case '0':
-                        e.preventDefault();
-                        this._resetToCenter();
-                        break;
+                    case 'ArrowLeft': e.preventDefault(); this.tx += STEP; this._applyTransform(); break;
+                    case 'ArrowRight': e.preventDefault(); this.tx -= STEP; this._applyTransform(); break;
+                    case 'ArrowUp': e.preventDefault(); this.ty += STEP; this._applyTransform(); break;
+                    case 'ArrowDown': e.preventDefault(); this.ty -= STEP; this._applyTransform(); break;
+                    case '+': case '=': e.preventDefault(); this._applyMag(this.mag * 1.18); break;
+                    case '-': case '_': e.preventDefault(); this._applyMag(this.mag / 1.18); break;
+                    case 'f': case 'F': e.preventDefault(); this._fit(); break;
+                    case 'Home': e.preventDefault(); this._resetView(); break;
+                    case '0': e.preventDefault(); this._oneToOne(); break;
+                    case 'h': case 'H': e.preventDefault(); this.setMode('horizontal'); break;
+                    case 'v': case 'V': e.preventDefault(); this.setMode('vertical'); break;
+                    case 'End': e.preventDefault(); this._updateSliderUI(1); break;
                 }
             });
         }
 
-        // ── 双击重置 ──
+        // ── 双击：适配 ↔ 1:1 ──
 
         _bindDoubleClick() {
             this.viewport.addEventListener('dblclick', () => {
-                this._resetToCenter();
+                if (this.mag > this.fitMag * 1.02) this._fit();
+                else this._oneToOne();
             });
-        }
-
-        _resetToCenter() {
-            this.zoom = 1;
-            this.container.style.transition = 'transform 0.3s ease-out';
-            this.container.style.transform = 'scale(1)';
-            this.slider.classList.add('snapping');
-            this.slider.style.transition = 'transform 0.3s ease-out';
-            this._updateSliderUI(0.5);
-            const label = document.getElementById('compareZoomLabel');
-            if (label) label.textContent = '100%';
-            setTimeout(() => {
-                this.container.style.transition = '';
-                this.slider.style.transition = '';
-                this.slider.classList.remove('snapping');
-            }, 320);
         }
 
         // ── 工具栏 ──
@@ -1697,13 +1731,15 @@ const SeedVR2 = (() => {
             const btnZoomOut = document.getElementById('btnCompareZoomOut');
             const btnFit = document.getElementById('btnCompareFit');
             const btnReset = document.getElementById('btnCompareReset');
+            const label = document.getElementById('compareZoomLabel');
 
             if (btnH) btnH.addEventListener('click', () => this.setMode('horizontal'));
             if (btnV) btnV.addEventListener('click', () => this.setMode('vertical'));
-            if (btnZoomIn) btnZoomIn.addEventListener('click', () => this._applyZoom(this.zoom + 0.25));
-            if (btnZoomOut) btnZoomOut.addEventListener('click', () => this._applyZoom(this.zoom - 0.25));
-            if (btnFit) btnFit.addEventListener('click', () => this._resetToCenter());
-            if (btnReset) btnReset.addEventListener('click', () => this._resetToCenter());
+            if (btnZoomIn) btnZoomIn.addEventListener('click', () => this._applyMag(this.mag * 1.18));
+            if (btnZoomOut) btnZoomOut.addEventListener('click', () => this._applyMag(this.mag / 1.18));
+            if (btnFit) btnFit.addEventListener('click', () => this._fit());
+            if (btnReset) btnReset.addEventListener('click', () => this._resetView());
+            if (label) label.addEventListener('click', () => this._oneToOne());
         }
 
         setMode(mode) {
@@ -1730,58 +1766,52 @@ const SeedVR2 = (() => {
         _bindImageLoad() {
             const beforeImg = document.getElementById('compareBefore');
             const afterImg = document.getElementById('compareAfterImg');
-            // 每次初始化先回退到文档流模式，保证图片可见（防止上次is-aligned残留导致容器塌陷）
+            // 每次初始化先回退到文档流模式，保证图片可见
             this.container.classList.remove('is-aligned');
             this.container.style.aspectRatio = '';
             this.container.style.width = '';
             this.container.style.height = '';
             this.container.style.minHeight = '';
+            this.container.style.transform = '';
 
             this._tryAlign = () => {
                 const bOK = beforeImg && beforeImg.complete && beforeImg.naturalWidth > 0;
                 const aOK = afterImg && afterImg.complete && afterImg.naturalWidth > 0;
-                // 必须两张图都加载完成后才计算精确对齐尺寸
                 if (!bOK || !aOK) return;
 
-                // ── 1. 确定宽高比（优先以原图作为锚点） ──
                 const ref = beforeImg;
                 const ratio = ref.naturalWidth / ref.naturalHeight;
                 if (!ratio || !isFinite(ratio)) return;
 
-                // ── 2. 取父级 viewport 的真实像素尺寸作为最大可用区域（避免 parseFloat("100%") === 100 的坑） ──
-                const vp = this.viewport; // compareViewport，flex:1 已自动扣除顶部工具栏高度
+                const vp = this.viewport;
                 const vpRect = vp.getBoundingClientRect();
-                // 预留 8px 安全边距，避免 1px 溢出
                 const maxW = Math.max(200, vpRect.width - 8);
                 const maxH = Math.max(200, vpRect.height - 8);
 
-                // ── 3. 计算受约束下的最终容器尺寸（宽度优先，超限则按高度反推） ──
                 let w = maxW;
                 let h = w / ratio;
-                if (h > maxH) {
-                    h = maxH;
-                    w = h * ratio;
-                }
+                if (h > maxH) { h = maxH; w = h * ratio; }
 
-                // ── 4. 应用容器尺寸，并切换到两张图共享坐标系的 absolute 对齐模式 ──
                 this.container.style.aspectRatio = `${ratio}`;
                 this.container.style.width = `${w}px`;
                 this.container.classList.add('is-aligned');
 
-                // ── 5. 刷新滑块位置，确保分割线与新尺寸同步 ──
-                requestAnimationFrame(() => this._updateSliderUI(this.position));
+                // 1:1 原像素所需倍率（适配尺寸 → 自然像素）
+                this.fitMag = 1;
+                this.oneToOneMag = Math.max(1, ref.naturalWidth / w);
+                this._fit();
+
+                requestAnimationFrame(() => {
+                    this._updateSliderUI(this.position);
+                    this._applyTransform();
+                });
             };
 
-            // 首次：图片加载时触发
             [beforeImg, afterImg].forEach((img) => {
                 if (!img) return;
                 const onReady = () => this._tryAlign && this._tryAlign();
-                if (img.complete && img.naturalWidth > 0) {
-                    onReady();
-                } else {
-                    img.addEventListener('load', onReady);
-                    img.addEventListener('error', onReady);
-                }
+                if (img.complete && img.naturalWidth > 0) onReady();
+                else { img.addEventListener('load', onReady); img.addEventListener('error', onReady); }
             });
 
             // 响应式：窗口尺寸 / 侧边栏折叠 导致 viewport 尺寸变化时重新计算
@@ -2030,6 +2060,8 @@ const SeedVR2 = (() => {
         if (progressCard) progressCard.style.display = 'none';
         if (resultCard) resultCard.style.display = 'none';
         if (compareCard) compareCard.style.display = 'none';
+        const plainViewer = document.getElementById('plainViewer');
+        if (plainViewer) plainViewer.style.display = 'none';
         if (batchProgressCard) batchProgressCard.style.display = 'none';
         if (uploadZone) uploadZone.classList.remove('has-file');
         if (fileInput) fileInput.value = '';
@@ -2063,6 +2095,22 @@ const SeedVR2 = (() => {
             currentRestoreEventSource.close();
             currentRestoreEventSource = null;
         }
+
+        // 重置一体化工具条：全部操作组回到禁用态
+        ['btnDownload', 'btnRestoreAgain', 'btnCanvasClear', 'btnCanvasReplace', 'btnCanvasCompare',
+         'btnCompareHorizontal', 'btnCompareVertical', 'btnCompareZoomIn', 'btnCompareZoomOut', 'btnCompareFit', 'btnCompareReset']
+            .forEach((id) => {
+                const b = document.getElementById(id);
+                if (b) b.setAttribute('disabled', '');
+            });
+        const cmpToggle = document.getElementById('btnCanvasCompare');
+        if (cmpToggle) cmpToggle.classList.remove('active');
+        const zoomLabel = document.getElementById('compareZoomLabel');
+        if (zoomLabel) zoomLabel.textContent = '—';
+        const hud = document.getElementById('compareHud');
+        if (hud) hud.textContent = '—';
+        const tbFileName = document.getElementById('tbFileName');
+        if (tbFileName) { tbFileName.style.display = 'none'; tbFileName.textContent = ''; }
 
         // 清除持久化的修复会话
         try { localStorage.removeItem('sv_restore_session'); } catch(e) {}
