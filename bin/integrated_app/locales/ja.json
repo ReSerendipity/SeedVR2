@@ -411,7 +411,7 @@
     "hero_tagline": "動画・画像の超解像修復ツールボックス",
     "hero_desc": "SeedVR2 拡散モデルを基盤とする独立実行の Web アプリ。動画と画像の超解像修復をワンクリックで実行でき、ComfyUI への依存は不要です。",
     "github_label": "リポジトリ",
-    "github_url": "https://github.com/ReSerendipity/SeedVR2-Toolkit",
+    "github_url": "https://github.com/ReSerendipity/SeedVR2-lite",
     "github_button": "GitHub へ",
     "repo_desc": "ReSerendipity / seedvr2",
     "view_repo": "GitHub で見る",

@@ -411,7 +411,7 @@
     "hero_tagline": "Boîte à outils de restauration super-résolution vidéo & image",
     "hero_desc": "Une application Web autonome alimentée par les modèles de diffusion SeedVR2. Restauration en un clic de la super-résolution pour les vidéos et les images, sans dépendance à ComfyUI.",
     "github_label": "Dépôt",
-    "github_url": "https://github.com/ReSerendipity/SeedVR2-Toolkit",
+    "github_url": "https://github.com/ReSerendipity/SeedVR2-lite",
     "github_button": "Aller sur GitHub",
     "repo_desc": "ReSerendipity / seedvr2",
     "view_repo": "Voir sur GitHub",

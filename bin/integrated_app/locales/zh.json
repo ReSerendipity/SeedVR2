@@ -411,7 +411,7 @@
     "hero_tagline": "视频与图像超分辨率修复工具箱",
     "hero_desc": "基于 SeedVR2 扩散模型，独立运行的 Web 应用。一键完成视频与图像的超分辨率修复，无需依赖 ComfyUI。",
     "github_label": "开源仓库",
-    "github_url": "https://github.com/ReSerendipity/SeedVR2-Toolkit",
+    "github_url": "https://github.com/ReSerendipity/SeedVR2-lite",
     "github_button": "前往 GitHub",
     "repo_desc": "ReSerendipity / seedvr2",
     "view_repo": "查看 GitHub 仓库",

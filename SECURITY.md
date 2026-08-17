@@ -16,7 +16,7 @@ SeedVR2 当前处于 v1.0.0 初始发布阶段。安全修复仅适用于以下�
 ### 报告渠道
 
 - **邮箱**：请发送邮件至 `security@reserendipity.dev`（加密通信优先）
-- **GitHub Security Advisory**：推荐使用 GitHub 的 [私密漏洞报告功能](https://github.com/ReSerendipity/SeedVR2-Toolkit/security/advisories/new)
+- **GitHub Security Advisory**：推荐使用 GitHub 的 [私密漏洞报告功能](https://github.com/ReSerendipity/SeedVR2-lite/security/advisories/new)
 - **邮件主题**：`[SECURITY] SeedVR2 - <简短描述>`
 
 ### 报告内容
