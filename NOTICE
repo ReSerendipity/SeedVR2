@@ -1,0 +1,32 @@
+SeedVR2 - AI-powered video & image super-resolution toolkit
+Copyright 2024-2026 ReSerendipity
+
+This product includes software developed at
+ReSerendipity (https://github.com/ReSerendipity/SeedVR2).
+
+------------------------------------------------------------
+Third-party attributions (required by upstream licenses):
+
+1. NaDiT (Native Resolution Diffusion Transformer)
+   Copyright (c) 2025 Bytedance Ltd. and/or its affiliates
+   Licensed under Apache License 2.0
+   Files: models/dit/*
+
+2. Stable Diffusion 3 Video VAE (Causal Video AutoencoderKL)
+   Copyright (c) 2023 HuggingFace Team
+   Copyright (c) 2025 ByteDance Ltd. and/or its affiliates
+   Licensed under Apache License 2.0
+   Files: models/video_vae_v3/*
+
+3. waifu2x concepts (model self-descriptor attributes)
+   Reference: https://github.com/nagadomi/waifu2x
+   Licensed under MIT License
+   See: repo/waifu2x/NOTICE
+
+4. FFmpeg (bin/ffmpeg.exe, bin/ffprobe.exe) — 本地开发依赖，不随分发
+   Copyright (c) 2000-2026 the FFmpeg developers
+   来源: https://www.gyan.dev/ffmpeg/builds/ (full build, 2026-01-29)
+   许可: 构建配置含 --enable-gpl，适用 GPLv3: https://www.gnu.org/licenses/gpl-3.0.html
+   分发策略: ffmpeg/ffprobe 仅作为本地开发运行依赖，未随 GitHub 仓库或便携包分发；
+   最终用户自行安装 FFmpeg（置于 PATH 即可，FFmpegWrapper 自动查找）。
+   如需未来随包分发 FFmpeg，须改用 LGPL 构建或履行 GPL 源码提供义务。
