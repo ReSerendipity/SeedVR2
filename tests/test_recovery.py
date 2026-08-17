@@ -4,13 +4,15 @@
 使用 AsyncMock 模拟数据库和任务队列，不依赖真实数据库或 GPU。
 """
 
+import asyncio
 from dataclasses import dataclass
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from bin.integrated_app.config_models import ImageRestoreParams, VideoRestoreParams
-from bin.integrated_app.routes.restore.recovery import recover_tasks
+from bin.integrated_app.routes.restore.common import create_db_progress_persister
+from bin.integrated_app.routes.restore.recovery import cleanup_stale_tasks, recover_tasks
 
 
 @dataclass
@@ -410,3 +412,147 @@ class TestRecoverMultipleTasks:
 
         count = await recover_tasks(mock_history_db, mock_task_queue, mock_config)
         assert count == 0
+
+
+# ---------------------------------------------------------------------------
+# cleanup_stale_tasks
+# ---------------------------------------------------------------------------
+
+
+def _stale_mock_db(tasks: list) -> AsyncMock:
+    """构造返回指定 processing 任务的 mock 数据库"""
+    db = AsyncMock()
+    db.get_tasks_by_status = AsyncMock(return_value=tasks)
+    db.update_record = AsyncMock(return_value=True)
+    return db
+
+
+def _queue_with_current(current_id: str | None) -> AsyncMock:
+    """构造 current_task_id 返回指定值的 mock 任务队列"""
+    queue = AsyncMock()
+    queue.current_task_id = MagicMock(return_value=current_id)
+    return queue
+
+
+class TestCleanupStaleTasks:
+    @pytest.mark.asyncio
+    async def test_skips_currently_running_long_task(self):
+        """当前正被 worker 执行的长视频任务（DB updated_at 陈旧）不应被当作卡死清理"""
+        stale = MockTaskRecord(
+            task_id="running-video",
+            status="processing",
+            updated_at="2020-01-01T00:00:00",  # DB 时间戳长期未刷新
+        )
+        db = _stale_mock_db([stale])
+        queue = _queue_with_current("running-video")
+
+        with patch(
+            "bin.integrated_app.routes.restore.recovery.common.update_task_state",
+            new=AsyncMock(),
+        ) as upd:
+            count = await cleanup_stale_tasks(db, task_queue=queue)
+
+        assert count == 0
+        upd.assert_not_awaited()
+        db.update_record.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_cleans_stale_non_running_task(self):
+        """未被 worker 执行且超时的 processing 任务仍应被清理"""
+        stale = MockTaskRecord(
+            task_id="orphan-task",
+            status="processing",
+            updated_at="2020-01-01T00:00:00",
+        )
+        db = _stale_mock_db([stale])
+        queue = _queue_with_current("some-other-running-task")
+
+        with patch(
+            "bin.integrated_app.routes.restore.recovery.common.update_task_state",
+            new=AsyncMock(),
+        ) as upd:
+            count = await cleanup_stale_tasks(
+                db,
+                threshold_minutes=30,
+                task_queue=queue,
+            )
+
+        assert count == 1
+        upd.assert_awaited_once()
+        args, kwargs = upd.call_args
+        assert args[0] == "orphan-task"
+        assert kwargs["status"] == "failed"
+
+    @pytest.mark.asyncio
+    async def test_cleans_stale_without_task_queue(self):
+        """未提供 task_queue 时行为不变（仍按 updated_at 清理）"""
+        stale = MockTaskRecord(
+            task_id="orphan-no-queue",
+            status="processing",
+            updated_at="2020-01-01T00:00:00",
+        )
+        db = _stale_mock_db([stale])
+
+        with patch(
+            "bin.integrated_app.routes.restore.recovery.common.update_task_state",
+            new=AsyncMock(),
+        ) as upd:
+            count = await cleanup_stale_tasks(db)
+
+        assert count == 1
+        upd.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# create_db_progress_persister（进度心跳持久化）
+# ---------------------------------------------------------------------------
+
+
+class TestCreateDbProgressPersister:
+    @pytest.mark.asyncio
+    async def test_throttles_db_persist(self):
+        """节流写库：间隔内多次回调只写一次 DB（刷新 updated_at）"""
+        db = AsyncMock()
+        db.update_task = AsyncMock(return_value=True)
+
+        persist = create_db_progress_persister("heartbeat-task", db, interval_seconds=60)
+        persist(25.0)
+        persist(30.0)  # 60s 内第二次，应被节流跳过
+        persist(35.0)
+
+        await asyncio.sleep(0.2)  # 等待调度到主循环的写库协程执行
+
+        assert db.update_task.await_count == 1
+        args, kwargs = db.update_task.call_args
+        assert args[0] == "heartbeat-task"
+        assert kwargs["progress"] == 25.0
+
+    @pytest.mark.asyncio
+    async def test_persists_after_interval_elapses(self):
+        """超过间隔后再次写库"""
+        db = AsyncMock()
+        db.update_task = AsyncMock(return_value=True)
+
+        persist = create_db_progress_persister("t", db, interval_seconds=0.01)
+        persist(10.0)
+        await asyncio.sleep(0.05)
+        persist(20.0)
+        await asyncio.sleep(0.05)
+
+        assert db.update_task.await_count >= 2
+
+    @pytest.mark.asyncio
+    async def test_last_progress_wins(self):
+        """同一批次最后写入的进度是最后一次（用于断点续传进度刷新）"""
+        db = AsyncMock()
+        db.update_task = AsyncMock(return_value=True)
+
+        persist = create_db_progress_persister("t", db, interval_seconds=0.01)
+        persist(10.0)
+        await asyncio.sleep(0.05)
+        persist(66.6)
+        await asyncio.sleep(0.05)
+
+        # 最后一次（66.6）应已被写入
+        progresses = [c.kwargs.get("progress") for c in db.update_task.call_args_list]
+        assert 66.6 in progresses
