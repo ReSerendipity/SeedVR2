@@ -63,6 +63,16 @@ class ServerConfig(BaseModel):
     debug: bool = False
     auto_open_browser: bool = True
     allowed_origins: list[str] = Field(default_factory=lambda: ["http://127.0.0.1:7870", "http://localhost:7870"])
+    @field_validator("host")
+    @classmethod
+    def host_must_be_loopback(cls, v: str) -> str:
+        """安全强制：host 只允许回环地址，禁止 0.0.0.0 公网暴露。"""
+        allowed = {"127.0.0.1", "localhost", "::1"}
+        if v not in allowed:
+            raise ValueError(
+                f"host must be loopback (127.0.0.1 / localhost / ::1), got: {v}"
+            )
+        return v
 
     @field_validator("port")
     @classmethod
