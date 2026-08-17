@@ -56,8 +56,8 @@ coverage==7.15.2
 cycler==0.12.1
 # NO HASH (run generate_lock.py with network): decorator==5.3.1
 decorator==5.3.1
-# NO HASH (run generate_lock.py with network): diffusers==0.38.0
-diffusers==0.38.0
+# NO HASH (run generate_lock.py with network): diffusers==0.39.0
+diffusers==0.39.0
 # NO HASH (run generate_lock.py with network): einops==0.8.2
 einops==0.8.2
 # NO HASH (run generate_lock.py with network): executing==2.2.1
