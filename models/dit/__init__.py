@@ -50,6 +50,9 @@ NaDiT 架构改进:
     2. RoPE 位置编码根据实际 t/h/w 动态生成
     3. Patch 嵌入/恢复支持不同尺寸，通过累积长度索引
     4. 窗口划分通过索引映射而非 reshape 实现，支持非均匀尺寸
+
+架构说明：本树为 DiT v1（NaDiT 基线）。与 dit_v2 并行维护——v2 在 nadit/na/rope/window 上采用不同实现
+（原生分辨率窗口与位置编码方案不同，核心模块相似度 <0.2）。修改本树时请评估是否需要同步 v2。
 """
 
 from .blocks import get_block

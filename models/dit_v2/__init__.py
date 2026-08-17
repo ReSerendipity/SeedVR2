@@ -37,6 +37,9 @@
     - nadit.py: NaDiT v2 主模型定义
     - patch/: Patch 嵌入/还原（支持因果时序 padding）
     - nablocks/: NaDiT v2 Transformer block（全局注意力、窗口注意力）
+
+架构说明：本树为 DiT v2（独立架构变体，非 v1 拷贝）。与 dit 并行维护——nadit/na/rope/window
+采用不同实现。修改本树时请评估是否需要回灌 v1。
 """
 
 from .nablocks import get_nablock
