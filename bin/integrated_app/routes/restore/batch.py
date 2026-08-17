@@ -219,6 +219,10 @@ async def _process_batch_background(
     if task_state is None:
         return
 
+    # 心跳持久化器：在批量处理期间定期把进度写入 DB（刷新 updated_at + 断点续传），
+    # 避免长视频被「卡死清理」因 DB 时间戳陈旧而误杀。
+    db_persist = common.create_db_progress_persister(batch_id, history_db)
+
     # 初始化断点续跑管理器
     task_cfg = app_config.get("runtime", {}).get("task", {})
     checkpoint_dir = task_cfg.get("checkpoint_dir", "data/checkpoints")
@@ -353,6 +357,8 @@ async def _process_batch_background(
                             current_index=_i,
                             current_progress=round(progress, 1),
                         )
+                        # 定期把进度写 DB，保证批处理内长视频期间 updated_at 保持新鲜
+                        db_persist(progress)
 
                     engine.set_progress_callback(progress_callback)
                     result = await engine.infer_video(

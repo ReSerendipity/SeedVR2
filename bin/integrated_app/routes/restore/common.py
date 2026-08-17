@@ -17,8 +17,11 @@ API 路由前缀：/api/restore（由子模块注册）
 所属项目：SeedVR2 (SeedVR2 视频/图像修复工具)
 """
 
+import asyncio
+import contextlib
 import logging
 import os
+import time
 
 from fastapi import Form, HTTPException
 
@@ -81,6 +84,53 @@ async def ensure_model_loaded(model_manager, dit_model: str = "") -> None:
     except Exception as e:
         logger.error(f"自动加载模型失败: {e}")
         raise HTTPException(status_code=503, detail=f"模型自动加载失败: {e}") from e
+
+
+def create_db_progress_persister(
+    task_id: str,
+    history_db: HistoryDB,
+    interval_seconds: float = 30.0,
+):
+    """创建「定期写数据库进度」的同步持久化器（断点续传 / 心跳）。
+
+    引擎的进度回调运行在 `asyncio.to_thread` 的工作线程、且为同步函数，无法直接
+    await 写数据库。此工厂在异步上下文调用时捕获主事件循环，返回一个同步 `persist(progress)`
+    函数：按 `interval_seconds` 节流，通过 `asyncio.run_coroutine_threadsafe` 把进度
+    写回数据库。
+
+    好处：
+    1. 定期同步 DB 的 `progress` 与 `updated_at` → 长视频工作期间 DB 时间戳保持新鲜，
+       卡死清理不会因时间戳陈旧而误杀正常任务；
+    2. 进度落盘 → 服务重启后 `recover_tasks`/断点续传能拿到更接近实时的进度。
+
+    Args:
+        task_id: 任务 ID。
+        history_db: 历史数据库实例。
+        interval_seconds: 两次写库的最小间隔秒数，默认 30 秒。
+
+    Returns:
+        `Callable[[float], None]`：同步进度持久化函数。
+    """
+    loop = asyncio.get_running_loop()
+    last_persist = [0.0]
+
+    def _consume(_fut) -> None:
+        # 消费 future 结果，避免「异常未被获取」告警；忽略写库失败
+        with contextlib.suppress(Exception):
+            _fut.exception()
+
+    def persist(progress: float) -> None:
+        now = time.monotonic()
+        if now - last_persist[0] < interval_seconds:
+            return
+        last_persist[0] = now
+        fut = asyncio.run_coroutine_threadsafe(
+            update_task_state(task_id, history_db, progress=float(progress)),
+            loop,
+        )
+        fut.add_done_callback(_consume)
+
+    return persist
 
 
 def detect_media_type(file_ext: str) -> str | None:

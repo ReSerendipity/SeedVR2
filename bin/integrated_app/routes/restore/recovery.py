@@ -108,15 +108,22 @@ async def recover_tasks(
 async def cleanup_stale_tasks(
     history_db: HistoryDB,
     threshold_minutes: int = STALE_TASK_THRESHOLD_MINUTES,
+    task_queue: TaskQueue | None = None,
 ) -> int:
     """清理卡死的 processing 任务。
 
     检查数据库中所有 processing 状态的任务，如果更新时间超过阈值，
     则标记为 failed 并清除任务状态缓存。这防止了卡死任务永久占用资源。
 
+    重要：长视频/长批次任务的处理进度回调只更新内存缓存、不写数据库，
+    其 DB `updated_at` 可能长时间不变，若仅按 DB 时间戳判断会被误判为卡死。
+    因此当 `task_queue` 提供时，会跳过「当前正在被 worker 执行」的任务——
+    processing 任务中唯一合法的是运行中的那个，其余才是真正卡死的。
+
     Args:
         history_db: 历史记录数据库实例。
         threshold_minutes: 卡死阈值（分钟），默认 30 分钟。
+        task_queue: 任务队列实例（可选）。提供时用于跳过正在运行的任务。
 
     Returns:
         清理的任务数量。
@@ -126,11 +133,15 @@ async def cleanup_stale_tasks(
         if not processing_tasks:
             return 0
 
+        running_task_id = task_queue.current_task_id() if task_queue is not None else None
         cutoff_time = datetime.now() - timedelta(minutes=threshold_minutes)
         cleaned = 0
 
         for task_record in processing_tasks:
             try:
+                if task_record.task_id == running_task_id:
+                    # 该任务当前正被 worker 执行（长视频/长任务），并非卡死
+                    continue
                 updated_at = datetime.fromisoformat(task_record.updated_at)
                 if updated_at < cutoff_time:
                     logger.warning(

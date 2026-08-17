@@ -262,7 +262,9 @@ async def lifespan(app: FastAPI):
         while True:
             try:
                 await asyncio.sleep(300)  # 每5分钟
-                cleaned = await unified_routes.cleanup_stale_tasks(history_db)
+                cleaned = await unified_routes.cleanup_stale_tasks(
+                    history_db, task_queue=app.state.task_queue
+                )
                 if cleaned:
                     logger.info(f"定期清理：已清理 {cleaned} 个卡死的 processing 任务")
             except asyncio.CancelledError:

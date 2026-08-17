@@ -332,6 +332,9 @@ async def _process_image_task(
     # infer_image 在 asyncio.to_thread 中同步执行，回调被同步调用；
     # 若此处注册 async 函数，其函数体不会被执行（仅产生未 await 的 coroutine），
     # 导致进度永远停留在 0%。
+    # db_persist: 定期把进度写入 DB（刷新 updated_at + 断点续传），在异步上下文创建。
+    db_persist = common.create_db_progress_persister(task_id, history_db)
+
     def _progress_callback(current_frame: int, total_frames: int, progress: float, **kwargs):
         # 仅更新内存缓存（同步），DB 持久化由 _run_task_with_state 在终态时统一写
         common.get_task_cache().update(
@@ -341,6 +344,8 @@ async def _process_image_task(
             progress=round(progress, 1),
             message=kwargs.get("message", ""),
         )
+        # 定期把进度同步到 DB，保证长任务工作期间 updated_at 保持新鲜
+        db_persist(progress)
 
     async def _do_infer(engine):
         engine.set_progress_callback(_progress_callback)
@@ -385,6 +390,9 @@ async def _process_video_task(
         # infer_video 在 asyncio.to_thread 中同步执行，回调被同步调用；
         # 若此处注册 async 函数，其函数体不会被执行（仅产生未 await 的 coroutine），
         # 导致进度永远停留在 0%。
+        # db_persist: 定期把进度写入 DB（刷新 updated_at + 断点续传）。
+        db_persist = common.create_db_progress_persister(task_id, history_db)
+
         def progress_callback(current_frame: int, total_frames: int, progress: float, **kwargs):
             common.get_task_cache().update(
                 task_id,
@@ -392,6 +400,8 @@ async def _process_video_task(
                 total_frames=total_frames,
                 progress=round(progress, 1),
             )
+            # 定期把进度同步到 DB，保证长视频工作期间 updated_at 保持新鲜
+            db_persist(progress)
 
         engine.set_progress_callback(progress_callback)
 
