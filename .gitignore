@@ -232,3 +232,16 @@ bin/ffprobe.exe
 
 # Local management rules (owner-only, not on remote)
 LOCAL_RULES.md
+
+# ── 统一模板 v0.1 补充段（2026-08-17，与其余三仓对齐；不含删除性修改）──────────────────
+.venv/
+venv/
+env/
+ENV/
+WinPython*/
+python/
+pretrained_models/*.ckpt
+*.safetensors
+tests/frontend/_rendered/
+.qoder/
+.catpaw/
