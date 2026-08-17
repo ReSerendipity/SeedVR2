@@ -30,8 +30,8 @@ annotated-doc==0.0.4
 annotated-types==0.7.0
 # NO HASH (run generate_lock.py with network): antlr4-python3-runtime==4.9.3
 antlr4-python3-runtime==4.9.3
-# NO HASH (run generate_lock.py with network): anyio==4.13.0
-anyio==4.13.0
+# NO HASH (run generate_lock.py with network): anyio==4.14.2
+anyio==4.14.2
 # NO HASH (run generate_lock.py with network): ast_serialize==0.5.0
 ast_serialize==0.5.0
 # NO HASH (run generate_lock.py with network): asttokens==3.0.1
