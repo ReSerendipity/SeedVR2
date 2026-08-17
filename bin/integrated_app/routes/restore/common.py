@@ -20,7 +20,7 @@ API 路由前缀：/api/restore（由子模块注册）
 import logging
 import os
 
-from fastapi import Form
+from fastapi import Form, HTTPException
 
 from bin.integrated_app.config_models import UnifiedRestoreParams
 from bin.integrated_app.history_db import HistoryDB
@@ -59,6 +59,28 @@ def model_size_from_dit_model(dit_model: str) -> str:
             return f"{parts[0]}_{parts[1]}"
         return parts[0]
     return model_registry.current_model_size or "3b"
+
+
+async def ensure_model_loaded(model_manager, dit_model: str = "") -> None:
+    """模型未就绪时自动加载（幂等），加载完成后再执行修复。
+
+    `model_manager.load_model` 内部会短路：当前已加载同尺寸/精度模型时直接跳过，
+    否则加载所请求尺寸的模型，因此每次上传前调用是安全的。
+
+    Args:
+        model_manager: ModelManager 实例。
+        dit_model: DiT 模型名（如 "3b_fp16"），用于确定要加载的模型尺寸。
+
+    Raises:
+        HTTPException: 模型自动加载失败时抛出 503。
+    """
+    try:
+        await model_manager.load_model(model_size=model_size_from_dit_model(dit_model))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"自动加载模型失败: {e}")
+        raise HTTPException(status_code=503, detail=f"模型自动加载失败: {e}") from e
 
 
 def detect_media_type(file_ext: str) -> str | None:

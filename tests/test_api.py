@@ -10,6 +10,7 @@
 """
 
 import io
+
 import pytest
 
 from tests.conftest import csrf_post
@@ -108,9 +109,8 @@ class TestUnifiedRestoreAPI:
         data = response.json()
         assert "detail" in data
 
-    def test_restore_without_model_returns_503(self, test_app):
-        """模型未加载时 POST /api/restore/ 应返回 503"""
-        # 提供一个有效的图片文件名但无文件内容 — 应因 GPU/模型不可用返回 503
+    def test_restore_auto_loads_model_when_not_loaded(self, test_app):
+        """模型未加载时 POST /api/restore/ 应自动加载模型，而非以 503 拒绝"""
         response = csrf_post(
             test_app,
             "/api/restore/",
@@ -120,7 +120,11 @@ class TestUnifiedRestoreAPI:
             },
             files={"file": ("test.png", io.BytesIO(b"\x89PNG\r\n\x1a\n"), "image/png")},
         )
-        assert response.status_code == 503
+        # 不再以「模型未加载」拒绝
+        assert "模型未加载" not in response.text
+        # 触发自动加载：mock 的 model_manager.load_model 被 await
+        mock_manager = test_app.app.state.model_manager
+        mock_manager.load_model.assert_awaited()
 
 
 class TestHealthAPI:

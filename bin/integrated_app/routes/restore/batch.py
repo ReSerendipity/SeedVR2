@@ -30,11 +30,13 @@ from bin.integrated_app.config_models import (
 from bin.integrated_app.dependencies import (
     get_config,
     get_history_db,
+    get_model_manager,
     get_task_queue,
 )
 from bin.integrated_app.engines.seedvr2_engine import ImageInferenceConfig
 from bin.integrated_app.gpu_backend import gpu_manager
 from bin.integrated_app.history_db import HistoryDB, HistoryRecord
+from bin.integrated_app.model_manager import ModelManager
 from bin.integrated_app.model_registry import model_registry
 from bin.integrated_app.routes.restore import common
 from bin.integrated_app.task_queue import TaskQueue
@@ -53,6 +55,7 @@ async def batch_restore_from_folder(
     config: dict = Depends(get_config),
     history_db: HistoryDB = Depends(get_history_db),
     task_queue: TaskQueue = Depends(get_task_queue),
+    model_manager: ModelManager = Depends(get_model_manager),
 ):
     """批量处理文件夹中的媒体文件（后台异步，逐个顺序执行）。
 
@@ -76,7 +79,7 @@ async def batch_restore_from_folder(
 
     错误响应：
     - 400: 参数错误（文件夹不存在、无可处理文件等）
-    - 503: GPU 不可用或模型未加载
+    - 503: GPU 不可用，或模型自动加载失败
 
     Args:
         folder_path: 目标文件夹路径。
@@ -98,8 +101,8 @@ async def batch_restore_from_folder(
             detail="SeedVR2 仅支持 NVIDIA GPU 推理，当前未检测到 NVIDIA GPU。请安装 NVIDIA GPU 并配置 CUDA 驱动。",
         )
 
-    if not model_registry.model_loaded:
-        raise HTTPException(status_code=503, detail="模型未加载，请先加载模型")
+    # 自动加载模型：未加载（或尺寸不符）时先加载再修复
+    await common.ensure_model_loaded(model_manager, raw_params.dit_model)
 
     folder = Path(folder_path.strip())
     if not await asyncio.to_thread(folder.exists) or not await asyncio.to_thread(folder.is_dir):

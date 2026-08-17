@@ -30,11 +30,13 @@ from bin.integrated_app.dependencies import (
     get_config,
     get_file_cache,
     get_history_db,
+    get_model_manager,
     get_task_queue,
 )
 from bin.integrated_app.engines.seedvr2_engine import ImageInferenceConfig
 from bin.integrated_app.gpu_backend import gpu_manager
 from bin.integrated_app.history_db import HistoryDB, HistoryRecord
+from bin.integrated_app.model_manager import ModelManager
 from bin.integrated_app.model_registry import model_registry
 from bin.integrated_app.routes.restore import common
 from bin.integrated_app.security.magic_check import validate_upload_magic
@@ -55,6 +57,7 @@ async def upload_and_restore(
     file_cache: FileCache = Depends(get_file_cache),
     task_queue: TaskQueue = Depends(get_task_queue),
     config: dict = Depends(get_config),
+    model_manager: ModelManager = Depends(get_model_manager),
 ):
     """上传文件或指定本地文件夹，创建修复任务并加入后台队列。
 
@@ -82,7 +85,7 @@ async def upload_and_restore(
 
     错误响应：
     - 400: 参数错误（未提供文件/路径、格式不支持、文件过大等）
-    - 503: GPU 不可用或模型未加载
+    - 503: GPU 不可用，或模型自动加载失败
 
     Args:
         request: FastAPI 请求对象。
@@ -109,8 +112,8 @@ async def upload_and_restore(
             detail="SeedVR2 仅支持 NVIDIA GPU 推理，当前未检测到 NVIDIA GPU。请安装 NVIDIA GPU 并配置 CUDA 驱动。",
         )
 
-    if not model_registry.model_loaded:
-        raise HTTPException(status_code=503, detail="模型未加载，请先加载模型")
+    # 自动加载模型：未加载（或尺寸不符）时先加载再修复，避免用户手动预加载
+    await common.ensure_model_loaded(model_manager, raw_params.dit_model)
 
     input_path: str
     detected_type: str | None = None
