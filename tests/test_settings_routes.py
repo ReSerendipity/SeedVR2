@@ -5,6 +5,8 @@ from fastapi import HTTPException
 
 from bin.integrated_app.routes.system.settings import validate_path
 
+pytestmark = pytest.mark.integration
+
 # ---------- validate_path ----------
 
 

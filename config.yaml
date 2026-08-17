@@ -159,5 +159,5 @@ user_preferences:
   restore_unlock_state: {}
   slider_comparison_enabled: true
   step_execution_enabled: false
-  vae_tile_size: 1024
+  vae_tile_size: 512
   vae_tiling_enabled: false

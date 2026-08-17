@@ -1,12 +1,16 @@
 """SSE (Server-Sent Events) 真实连接集成测试
 
 验证 SSE 相关端点的错误处理和路由行为。
-注意: FastAPI TestClient 不适合测试长连接 SSE 流（会阻塞），
+注意：FastAPI TestClient 不适合测试长连接 SSE 流（会阻塞），
 因此仅测试非流式端点的错误响应。
 真实的 SSE 流测试由 Playwright E2E 的 sse.spec.ts 覆盖。
 """
 
 from __future__ import annotations
+
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 class TestSSEEndpointErrorHandling:

@@ -10,8 +10,11 @@
 """
 
 import io
+import pytest
 
 from tests.conftest import csrf_post
+
+pytestmark = pytest.mark.integration
 
 
 class TestIndexPage:

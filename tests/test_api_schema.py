@@ -6,6 +6,10 @@
 
 from __future__ import annotations
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
 
 class TestOpenAPISchema:
     """OpenAPI Schema 完整性测试"""

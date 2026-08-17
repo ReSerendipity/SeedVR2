@@ -119,6 +119,35 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         signature = hmac.new(secret, nonce.encode(), hashlib.sha256).hexdigest()
         return f"{nonce}.{signature}"
 
+    def _set_csrf_cookie(self, response: Response, request: Request) -> None:
+        """在响应上补发（或修复）一个有效的 csrf_token cookie。
+
+        关键自愈点：只要请求携带的 cookie 缺失或签名无效，就在响应里重种一个
+        有效 token。这样浏览器中残留的「旧/坏」token 会被替换，避免因某个失效
+        cookie 存在而永久 403 自锁（正常 GET 只会种一次，不会因误判断跳过修复）。
+        """
+        token = self._generate_signed_token()
+        response.set_cookie(
+            self.CSRF_COOKIE_NAME,
+            token,
+            httponly=False,
+            samesite="strict",
+            secure=self._is_secure_request(request),
+            path="/",
+        )
+
+    def _has_valid_cookie(self, request: Request) -> bool:
+        """判断请求携带的 csrf_token cookie 是否存在且签名合法。
+
+        Args:
+            request: Starlette 请求对象
+
+        Returns:
+            bool: cookie 存在且签名有效时返回 True。
+        """
+        cookie_token = request.cookies.get(self.CSRF_COOKIE_NAME)
+        return bool(cookie_token) and self._verify_signed_token(cookie_token)
+
     @staticmethod
     def _verify_signed_token(token: str) -> bool:
         """验证 HMAC 签名的 CSRF token 是否合法。
@@ -157,16 +186,9 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         """
         if request.method in self.SAFE_METHODS:
             response: Response = await call_next(request)
-            if self.CSRF_COOKIE_NAME not in request.cookies:
-                token = self._generate_signed_token()
-                response.set_cookie(
-                    self.CSRF_COOKIE_NAME,
-                    token,
-                    httponly=False,
-                    samesite="strict",
-                    secure=self._is_secure_request(request),
-                    path="/",
-                )
+            if not self._has_valid_cookie(request):
+                # cookie 缺失或签名过期时补发有效 token，自愈浏览器里的坏 cookie
+                self._set_csrf_cookie(response, request)
             return response
 
         if any(request.url.path.startswith(prefix) for prefix in self.SKIP_PATHS):
@@ -181,15 +203,17 @@ class CSRFMiddleware(BaseHTTPMiddleware):
 
         # 先验证 cookie 中的 token 签名合法（服务端签名）
         if (
-            cookie_token
+            self._has_valid_cookie(request)
             and header_token
-            and self._verify_signed_token(cookie_token)
             and secrets.compare_digest(cookie_token, header_token)
         ):
             return await call_next(request)
 
         logger.warning(f"CSRF 验证失败: {request.method} {request.url.path}")
-        return JSONResponse(
+        response = JSONResponse(
             status_code=403,
             content={"error": "CSRF token 验证失败"},
         )
+        # 失败也补发有效 token：替换浏览器里的失效 cookie，下一次请求即可自愈
+        self._set_csrf_cookie(response, request)
+        return response

@@ -1,6 +1,10 @@
 """HTMX 历史表格片段测试"""
 
+import pytest
+
 from bin.integrated_app.history_db import HistoryRecord
+
+pytestmark = pytest.mark.integration
 
 
 class TestHistoryHtmxFragment:

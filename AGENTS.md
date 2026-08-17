@@ -1,6 +1,6 @@
 # Seedvr2 AGENTS.md — AI 辅助开发指南
 
-> 🧬 **自进化协议版本**：v1.14  
+> 🧬 **自进化协议版本**：v1.15  
 > 📅 **最后更新日期**：2026-08-17  
 > 🎯 **对应项目版本**：v1.0.0（Apache-2.0 开源协议）
 
@@ -337,6 +337,7 @@ Scope 建议：`core` / `security` / `engines` / `routes` / `i18n` / `ci`
 | 11 | Blackwell(sm_120) 上 PyTorch SDPA 的 FLASH_ATTENTION/cuDNN 内核不可用 | RTX 50 系（如 5070 Ti）且 `attention_mode: sdpa` 时实测 `F.scaled_dot_product_attention`，或想装 flash-attn 之前排查 | SDPA 调用在强制 flash/cudnn 后端时报 `RuntimeError: No available kernel. Aborting execution.`，只有 `EFFICIENT_ATTENTION`/`MATH` 可用 → 当前 sdpa 实际走的是 memory-efficient 后端，并未用上 flash | Blackwell 仅支持预编译 SASS（无 PTX JIT），torch 官方 SDPA flash 内核未覆盖 sm_120。想真正用 flash 需装 `flash-attn`（若有匹配轮子）或 `sageattn`，并用 `torch.compile`(inductor) 加速；估算提速收益前先确认瓶颈是注意力还是显存/CPU 换页（12GB 下 `blocks_to_swap`/`fp8` 更关键） | 2026-08-16 |
 | 12 | torch.compile 首次推理慢且重启后重复编译（inductor 缓存未持久化） | 开启 `torch_compile.enabled: true` 后跑推理 | 首次推理 ~70-110s（含编译），且**重启服务后仍要 ~100s 重新编译**；`~/.cache/torch/inductor` 目录为空，说明编译产物没落盘 | 启用 `torch.compile` 前**必须**在启动入口（`bin/clean_launch.py`）设 `os.environ.setdefault("TORCHINDUCTOR_CACHE_DIR", <项目根>/.torch_cache/inductor)` 让编译产物持久化，否则每次重启都重编译。实测持久化后重启首次从 ~113s 降到 ~76s（仍非稳态 ~30s，说明部分图仍会重编译）。注意 `.torch_cache/` 已加 .gitignore | 2026-08-16 |
 | 13 | 外部 Google Fonts 同步样式表阻塞 DOMContentLoaded，导致整页 JS 初始化失效 | `base.html` 里 `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?...">` 同步加载；弱网/无外网环境（或被代理/镜像重定向到 `gstatic.font.im` 被 CSP 拦截） | `document.readyState` 长期卡在 `loading`，DOMContentLoaded 不触发 → 页面内容可见但**所有交互无效**（如「高级设置」点不开、上传无响应），且无任何 JS 报错，极难排查 | 字体样式改为**异步加载**：`<link ... media="print" onload="this.media='all'">` + `<noscript>` 兜底；外部字体只是装饰，不应阻塞页面初始化（`base.html` 已改，2026-08-16） | 2026-08-16 |
+| 16 | 失效/陈旧的 csrf_token cookie 被永久 403 自锁 | 用户浏览器里残留一个**签名失效的 `csrf_token` cookie**（如密钥曾变动、非会话 cookie 长期残留、跨环境拷贝）。原中间件只在「cookie 缺失」时才重种、有 cookie 就跳过 | 首次上传 `POST /api/restore` 返回「`没有权限执行此操作`」（`error.403`），后端日志 `CSRF 验证失败: POST /api/restore`；关键是**反复刷新/重启都不恢复**，因为中间件见「有 cookie」就不再补发，坏 cookie 永远淘汰不掉 | 服务端：中间件对安全方法响应与 403 失败响应**一律补发有效 token**（`_set_csrf_cookie`，判断改为 `_has_valid_cookie` 而不是「cookie 不存在」），坏 cookie 会被自动替换自愈；前端：非安全请求统一走 `csrfSafeFetch(url,opts)`，403 时自动重试一次（解读新版 `csrf_token` 后再发）。改动 `csrf.py` 后需 `python scripts/generate_integrity_manifest.py`（SOP-4） | 2026-08-17 |
 
 ---
 
@@ -529,3 +530,4 @@ if scene_id not in db:
 
 <!-- 🔄 下次更新 AGENTS.md 时，在上面表格末尾追加新一行，不要删除历史记录 -->
 | v1.14 | 2026-08-17 | 测试体系审计修复：门禁虚设/marker 失效/零覆盖模块/文档漂移同步 | ① e2e.yml：移除 `--update-snapshots` bootstrap（视觉回归改为 `--ignore-snapshots`，本地 win32 基线强制）+ ci.yml 删除空转的 `-m "not integration"`；② T2：9 个 TestClient 集成文件打标 `pytest.mark.integration`（test_api/schema/history_htmx/settings_routes/sse_integration/ui_routes + conftest）；③ T5：同步 AGENTS.md §4 实际测试布局（扁平 tests/ 非 unit/integration 分层）、marker 真实使用情况（integration/benchmark 注册 + 零使用 markers 说明）、缺失依赖说明；新增陷阱 #14（视觉门禁虚设）+ #15（marker 配置与执行策略脱节），CI/CD 章节注释修正为单 OS 触发与 pytest-cov 覆盖；版本递增 v1.14 | v1.0.0 |
+| v1.15 | 2026-08-17 | 修复视频上传 `POST /api/restore` 被 403 永久拦截（CSRF 坏 cookie 自锁） | 根因：浏览器残留签名失效的 `csrf_token` cookie，原中间件仅在「cookie 缺失」时重种、有 cookie 就跳过 → 坏 cookie 永不淘汰，每次上传都 403「没有权限执行此操作」，与前端 `error.403` 文案对应。修复：① `middleware/csrf.py` 改为 `_has_valid_cookie()` 判定，对**安全方法响应与 403 失败响应一律补发有效 token**（`_set_csrf_cookie`），坏 cookie 自动替换自愈，并已 `scripts/generate_integrity_manifest.py` 重新生成清单（SOP-4）；② `static/js/app.js` 新增 `csrfSafeFetch`，非安全请求（`api.post/delete/uploadRestore`）统一携带 token，403 时自动重试一次。Playwright 实测：注入坏 cookie → 首次 403 → 服务端补发 → 重试 → 通过 CSRF 进入业务（503 模型未加载）。新增陷阱 #16 | v1.0.0 |
