@@ -229,3 +229,6 @@ docs/测试体系完整性评估报告.md
 docs/项目健康度评估报告.md
 # ffprobe runtime binary (local only, keep out of repo)
 bin/ffprobe.exe
+
+# Local management rules (owner-only, not on remote)
+LOCAL_RULES.md
