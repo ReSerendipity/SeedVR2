@@ -1,5 +1,5 @@
 [project]
-name = "SeedVR2-lite"
+name = "seedvr2-lite"
 version = "1.0.0"
 description = "SeedVR2 - AI-powered video & image super-resolution toolkit"
 readme = "README.md"
