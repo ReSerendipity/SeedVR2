@@ -1,6 +1,6 @@
 # Core
 fastapi>=0.115.0
-uvicorn[standard]>=0.32.0
+uvicorn[standard]>=0.52.3
 gunicorn>=23.0
 pydantic>=2.9.0
 pyyaml>=6.0
