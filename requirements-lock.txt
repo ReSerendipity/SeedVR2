@@ -130,8 +130,8 @@ packaging==25.0
 parso==0.8.7
 # NO HASH (run generate_lock.py with network): pathspec==1.1.1
 pathspec==1.1.1
-# NO HASH (run generate_lock.py with network): pillow==12.2.0
-pillow==12.2.0
+# NO HASH (run generate_lock.py with network): pillow==12.3.0
+pillow==12.3.0
 # NO HASH (run generate_lock.py with network): platformdirs==4.10.0
 platformdirs==4.10.0
 # NO HASH (run generate_lock.py with network): pluggy==1.6.0
