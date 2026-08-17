@@ -1,6 +1,6 @@
 # Seedvr2 AGENTS.md — AI 辅助开发指南
 
-> 🧬 **自进化协议版本**：v1.15  
+> 🧬 **自进化协议版本**：v1.19  
 > 📅 **最后更新日期**：2026-08-17  
 > 🎯 **对应项目版本**：v1.0.0（Apache-2.0 开源协议）
 
@@ -33,8 +33,8 @@ AI Agent 打开本文件后的 **第一件事** 是执行下面的「🧪 自进
 > 定位：高性能、安全合规的 AI 推理网关，支持本地多种模型引擎的统一 API 接入。  
 > 开源协议：**Apache-2.0**  
 > 技术栈：**Python 3.11+ + FastAPI 0.115+ + Uvicorn + Pydantic v2 + SQLAlchemy 2.0 + AioSQLite + PyYAML** + 自研安全模块（PathGuard + CSRF + 完整性校验 + 水印嵌入）  
-> 入口文件：`api/clean_launch.py`（推荐）或 `uvicorn api.main:app`
-> 默认监听：`http://127.0.0.1:7860`（禁止 `host="0.0.0.0"`，见第 11 节常见陷阱 #3）
+> 入口文件：`bin/clean_launch.py`（推荐）或 `python -m uvicorn bin.integrated_app.app_server:app`
+> 默认监听：`http://127.0.0.1:7870`（禁止 `host="0.0.0.0"`，见第 11 节常见陷阱 #3）
 
 > ⚠️ **实际结构修正（2026-08-14）**：以上目录结构（`api/`、`core/`、`engines/`、`configs/`）
 > 为本仓库早期规划的目标结构，与当前实际实现不符。**当前实际入口与结构**：
@@ -218,26 +218,26 @@ pytest tests/unit --cov=core --cov=engines --cov-fail-under=65 -q
 ### 7.1 一键启动脚本（推荐）
 | 平台 | 安装依赖（首次） | 启动服务 |
 |------|:---------------:|---------|
-| **Windows** | 双击 / 终端执行 `install.bat` | 执行 `start.bat` → 自动打开 `http://127.0.0.1:7860/docs` |
+| **Windows** | 双击 / 终端执行 `install.bat` | 执行 `start.bat` → 自动打开 `http://127.0.0.1:7870/docs` |
 | **Linux/macOS** | `chmod +x install.sh && ./install.sh` | `chmod +x start.sh && ./start.sh` |
 
 ### 7.2 手动启动命令（调试时使用）
 ```bash
 # 方式 A（推荐，含环境自检 + 健康检查输出）
-python api/clean_launch.py
-# → 监听 http://127.0.0.1:7860
+python bin/clean_launch.py
+# → 监听 http://127.0.0.1:7870
 
 # 方式 B（纯 Uvicorn，适合前台调试）
-uvicorn api.main:app --host 127.0.0.1 --port 7860 --reload
+python -m uvicorn bin.integrated_app.app_server:app --host 127.0.0.1 --port 7870 --reload
 # ⚠️ --reload 仅限开发！生产严禁使用 --reload（会重复加载引擎导致 GPU OOM）
 
 # 生产启动（守护进程模式，建议用 systemd）
-uvicorn api.main:app --host 127.0.0.1 --port 7860 --workers 1
+python -m uvicorn bin.integrated_app.app_server:app --host 127.0.0.1 --port 7870 --workers 1
 # ⚠️ workers 只能 1！模型引擎是单例全局的，多 worker 会重复加载模型到 GPU，直接 OOM
 ```
 
 ### 7.3 启动后验证
-浏览器打开 `http://127.0.0.1:7860/docs` 能看到 Swagger UI → 点「GET /api/v1/health」→ Try it out → Execute → 返回 200 OK，JSON 里有 `{"status": "ok", "engines_loaded": 3}` 之类的字段即启动成功。
+浏览器打开 `http://127.0.0.1:7870/docs` 能看到 Swagger UI → 点「GET /api/v1/health」→ Try it out → Execute → 返回 200 OK，JSON 里有 `{"status": "ok", "engines_loaded": 3}` 之类的字段即启动成功。
 
 ---
 
@@ -326,7 +326,7 @@ Scope 建议：`core` / `security` / `engines` / `routes` / `i18n` / `ci`
 |---|---------|---------|---------|---------|------------|
 | 1 | SSE 流式响应回调禁止 async def | 在 `StreamingResponse` 的 generator 里直接 `async def generate()` 并 `await engine.generate()` | Uvicorn 事件循环卡死 → `RuntimeError: async generator ignored StopAsyncIteration`，进度推送卡死 | 用普通函数 `def generate():`，内部 `asyncio.run_coroutine_threadsafe(coro, loop).result(timeout=xx)` 或提前把 chunk 全部收集到 deque 再 yield | 2026-05-10 |
 | 2 | 多个 router 前缀（prefix）不能重复 | 新写的 `scene_router_v2.py` 也用了 `prefix="/scene"`，老的 `scene_router.py` 还在 | FastAPI 启动不报错，但 Swagger UI 路径重复 → 实际调用时返回 404 / 或随机命中一个，排查极难 | 命名前缀必须语义化且唯一：v2 的话用 `prefix="/scene/v2"` 或直接改名替换老的（老的移到 `_deprecated/`） | 2026-05-20 |
-| 3 | 严禁监听 `host="0.0.0.0"` | 为了局域网访问方便，直接在代码或启动脚本写 `uvicorn.run(app, host="0.0.0.0", port=7860)` | 所有接口直接暴露公网（如果机器公网 IP）→ 未授权用户可以直接调用生成接口消耗 GPU / 上传任意文件（路径穿越风险） | 永远 `host="127.0.0.1"`，局域网访问用 `ssh -L 7860:127.0.0.1:7860 user@server` 端口转发，或服务器上套 Nginx（带 Basic Auth + IP 白名单） | 2026-06-01 |
+| 3 | 严禁监听 `host="0.0.0.0"` | 为了局域网访问方便，直接在代码或启动脚本写 `uvicorn.run(app, host="0.0.0.0", port=7870)` | 所有接口直接暴露公网（如果机器公网 IP）→ 未授权用户可以直接调用生成接口消耗 GPU / 上传任意文件（路径穿越风险） | 永远 `host="127.0.0.1"`，局域网访问用 `ssh -L 7870:127.0.0.1:7870 user@server` 端口转发，或服务器上套 Nginx（带 Basic Auth + IP 白名单） | 2026-06-01 |
 | 4 | 依赖注入用 `Depends(get_settings)`，不要直接 `from common.config import settings` | 在路由函数里直接读全局 settings | 单测 mock 配置时极其痛苦（要 import 后 patch 变量），且容易出现「模块导入时 settings 还没初始化」的竞态 | 所有路由 / service 一律用 FastAPI Depends：`async def route(settings: Settings = Depends(get_settings))`，测试时 override_dependency 一行就能替换 | 2026-06-15 |
 | 5 | 修改核心模块后忘记重新生成完整性清单 | 改动 `app_server.py` / `model_manager.py` / `security/` 下文件 / `engines/seedvr2_engine.py` 等被完整性自检覆盖的核心模块 | 启动时报 `[SECURITY WARNING] 核心模块完整性校验失败: xxx.py`，期望/实际 SHA256 不一致，误以为被篡改 | 这是合法代码改动导致的清单过期，改完核心模块后必须运行 `python scripts/generate_integrity_manifest.py` 重新生成 `bin/integrated_app/security/integrity_manifest.json`（见 SOP-4） | 2026-08-13 |
 | 6 | `bin/models` 常规包遮蔽项目根 `models` 命名空间包 | 应用经 `python bin/clean_launch.py` 启动（`bin/` 进入 sys.path），同时存在项目根 `models/`（无 `__init__.py`，命名空间包）与 `bin/models/`（有 `__init__.py`，常规包） | 视频修复时报 `ModuleNotFoundError: No module named 'models.video_vae_v3'`（`import models` 解析到了 `bin/models/`），但图片修复正常 | 给项目根 `models/` 补 `__init__.py` 使其成为常规包，确保在 sys.path 首位（项目根）优先解析；注意 `bin/models/` 仅被 `perf/benchmark/test_suite.py` 以全限定名 `bin.models.*` 引用 | 2026-08-13 |
@@ -338,6 +338,7 @@ Scope 建议：`core` / `security` / `engines` / `routes` / `i18n` / `ci`
 | 12 | torch.compile 首次推理慢且重启后重复编译（inductor 缓存未持久化） | 开启 `torch_compile.enabled: true` 后跑推理 | 首次推理 ~70-110s（含编译），且**重启服务后仍要 ~100s 重新编译**；`~/.cache/torch/inductor` 目录为空，说明编译产物没落盘 | 启用 `torch.compile` 前**必须**在启动入口（`bin/clean_launch.py`）设 `os.environ.setdefault("TORCHINDUCTOR_CACHE_DIR", <项目根>/.torch_cache/inductor)` 让编译产物持久化，否则每次重启都重编译。实测持久化后重启首次从 ~113s 降到 ~76s（仍非稳态 ~30s，说明部分图仍会重编译）。注意 `.torch_cache/` 已加 .gitignore | 2026-08-16 |
 | 13 | 外部 Google Fonts 同步样式表阻塞 DOMContentLoaded，导致整页 JS 初始化失效 | `base.html` 里 `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?...">` 同步加载；弱网/无外网环境（或被代理/镜像重定向到 `gstatic.font.im` 被 CSP 拦截） | `document.readyState` 长期卡在 `loading`，DOMContentLoaded 不触发 → 页面内容可见但**所有交互无效**（如「高级设置」点不开、上传无响应），且无任何 JS 报错，极难排查 | 字体样式改为**异步加载**：`<link ... media="print" onload="this.media='all'">` + `<noscript>` 兜底；外部字体只是装饰，不应阻塞页面初始化（`base.html` 已改，2026-08-16） | 2026-08-16 |
 | 16 | 失效/陈旧的 csrf_token cookie 被永久 403 自锁 | 用户浏览器里残留一个**签名失效的 `csrf_token` cookie**（如密钥曾变动、非会话 cookie 长期残留、跨环境拷贝）。原中间件只在「cookie 缺失」时才重种、有 cookie 就跳过 | 首次上传 `POST /api/restore` 返回「`没有权限执行此操作`」（`error.403`），后端日志 `CSRF 验证失败: POST /api/restore`；关键是**反复刷新/重启都不恢复**，因为中间件见「有 cookie」就不再补发，坏 cookie 永远淘汰不掉 | 服务端：中间件对安全方法响应与 403 失败响应**一律补发有效 token**（`_set_csrf_cookie`，判断改为 `_has_valid_cookie` 而不是「cookie 不存在」），坏 cookie 会被自动替换自愈；前端：非安全请求统一走 `csrfSafeFetch(url,opts)`，403 时自动重试一次（解读新版 `csrf_token` 后再发）。改动 `csrf.py` 后需 `python scripts/generate_integrity_manifest.py`（SOP-4） | 2026-08-17 |
+| 17 | 长视频/长批次任务被「卡死清理」误杀（进度清零、GPU 白跑） | 视频/图片的 `progress_callback`（在 `infer_video/image` 的 `asyncio.to_thread` 中同步执行）只调 `common.get_task_cache().update(...)`——**只写内存缓存、不写 DB**；`tasks.updated_at` 仅由异步 `update_task_state`（唯一白名单字段 `status/progress/output_path/error_message` 写 DB）在任务启动/结束等里程碑刷新 | 长视频处理中 `tasks.updated_at` 停在任务启动时刻，`cleanup_stale_tasks`（每 5 分钟）按 DB `updated_at` 判卡死 → 一个**正在正常推理的**任务被标记 failed、进度清零；但底层推理协程仍跑完，白白浪费 GPU 算力。日志报错「清理卡死任务 … 超过 30 分钟」，随后日志却显示 `处理段 30/39`、VAE/扩散仍在跑 | 清理器不能只信 DB `updated_at`：给 `cleanup_stale_tasks` 增加 `task_queue` 参数，跳过 `task_queue.current_task_id()`（当前正被 worker 执行）的任务——processing 里唯一合法的是运行中的那个，其余才真卡死。改完后 `app_server.py` 的 `_periodic_stale_cleanup` 调用处传入 `app.state.task_queue` | 2026-08-17 |
 
 ---
 
@@ -369,7 +370,7 @@ Scope 建议：`core` / `security` / `engines` / `routes` / `i18n` / `ci`
        return {"data": []}
    ```
 3. 路由文件完成后，**不需要** 去 `api/main.py` 手动 include_router（auto_register 自动扫）
-4. 启动 `python api/clean_launch.py` → 打开 `/docs` 验证新路由是否在 Swagger UI 中
+4. 启动 `python bin/clean_launch.py` → 打开 `/docs` 验证新路由是否在 Swagger UI 中
 5. 如果路由需要权限，加上 `dependencies=[Depends(require_csrf_token)]` 或 `Depends(require_bearer_token)`
 
 #### SOP-2: 新增一种模型引擎实现
@@ -531,3 +532,7 @@ if scene_id not in db:
 <!-- 🔄 下次更新 AGENTS.md 时，在上面表格末尾追加新一行，不要删除历史记录 -->
 | v1.14 | 2026-08-17 | 测试体系审计修复：门禁虚设/marker 失效/零覆盖模块/文档漂移同步 | ① e2e.yml：移除 `--update-snapshots` bootstrap（视觉回归改为 `--ignore-snapshots`，本地 win32 基线强制）+ ci.yml 删除空转的 `-m "not integration"`；② T2：9 个 TestClient 集成文件打标 `pytest.mark.integration`（test_api/schema/history_htmx/settings_routes/sse_integration/ui_routes + conftest）；③ T5：同步 AGENTS.md §4 实际测试布局（扁平 tests/ 非 unit/integration 分层）、marker 真实使用情况（integration/benchmark 注册 + 零使用 markers 说明）、缺失依赖说明；新增陷阱 #14（视觉门禁虚设）+ #15（marker 配置与执行策略脱节），CI/CD 章节注释修正为单 OS 触发与 pytest-cov 覆盖；版本递增 v1.14 | v1.0.0 |
 | v1.15 | 2026-08-17 | 修复视频上传 `POST /api/restore` 被 403 永久拦截（CSRF 坏 cookie 自锁） | 根因：浏览器残留签名失效的 `csrf_token` cookie，原中间件仅在「cookie 缺失」时重种、有 cookie 就跳过 → 坏 cookie 永不淘汰，每次上传都 403「没有权限执行此操作」，与前端 `error.403` 文案对应。修复：① `middleware/csrf.py` 改为 `_has_valid_cookie()` 判定，对**安全方法响应与 403 失败响应一律补发有效 token**（`_set_csrf_cookie`），坏 cookie 自动替换自愈，并已 `scripts/generate_integrity_manifest.py` 重新生成清单（SOP-4）；② `static/js/app.js` 新增 `csrfSafeFetch`，非安全请求（`api.post/delete/uploadRestore`）统一携带 token，403 时自动重试一次。Playwright 实测：注入坏 cookie → 首次 403 → 服务端补发 → 重试 → 通过 CSRF 进入业务（503 模型未加载）。新增陷阱 #16 | v1.0.0 |
+| v1.16 | 2026-08-17 | 点击「开始修复」自动加载模型再修复 | 需求：点开始修复时若模型未加载，自动加载模型后直接执行，无需手动预加载。实现：① `routes/restore/common.py` 新增 `ensure_model_loaded(model_manager, dit_model)`——调幂等的 `model_manager.load_model`（同模型已加载则短路，否则加载 dit_model 对应尺寸），失败抛 503「模型自动加载失败」；② `upload.py` 的 `POST /api/restore/` 与 `batch.py` 的 `POST /api/restore/batch` 移除原「`if not model_registry.model_loaded: 503 模型未加载`」守卫，改为 `await common.ensure_model_loaded(...)`（同时把模型尺寸与 dit_model 参数对齐，解决「已加载 3b 但选了 7b」的尺寸不符问题）；③ 两侧路由注入 `model_manager: ModelManager = Depends(get_model_manager)`；④ 更新 `tests/test_api.py` 的 `test_restore_without_model_returns_503` → `test_restore_auto_loads_model_when_not_loaded`（断言自动 await load_model 且不再以模型未加载 503 拒绝）。注意：`POST /api/restore/` 与 `/batch` 的错误响应 503 语义由「模型未加载」改为「GPU 不可用，或模型自动加载失败」 | v1.0.0 |
+| v1.17 | 2026-08-17 | 修复长视频被「卡死清理」误杀（进度清零、GPU 白跑） | 根因：视频/图片 `progress_callback` 只更新内存缓存不写 DB，`tasks.updated_at` 停在上次异步状态更新（任务启动时）；`cleanup_stale_tasks` 仅按 DB `updated_at` 判卡死 → 正常推理的长视频任务被标记 failed、进度清零，底层推理仍跑完浪费 GPU。修复：给 `cleanup_stale_tasks(history_db, threshold_minutes, task_queue)` 增加可选 `task_queue` 参数，跳过 `task_queue.current_task_id()` 正在执行的任务（processing 里唯一合法的是运行中的那个），`app_server.py` 的 `_periodic_stale_cleanup` 调用处传 `app.state.task_queue`；新增 `tests/test_recovery.py::TestCleanupStaleTasks`（跳过运行中长任务 / 清理真卡死任务 / 无 task_queue 兼容）。新增陷阱 #17 | v1.0.0 |
+| v1.18 | 2026-08-17 | 断点续传进度增强 + 双保险防误杀 | ① `routes/restore/common.py` 新增 `create_db_progress_persister(task_id, history_db, interval_seconds=30)`——捕获主事件循环，返回同步 `persist(progress)`，按间隔通过 `asyncio.run_coroutine_threadsafe` 把 `progress` 写 DB（同时刷新 `updated_at`），future 用 `contextlib.suppress` 消费避免「异常未获取」告警；② 接入三处进度回调：`upload.py` 单图 `_process_image_task`、`upload.py` 单视频 `_process_video_task`、`batch.py` 批量视频——长任务工作期间 DB `updated_at` 保持新鲜（配合 v1.17 的 skip-running 形成双保险：即使 `current_task_id` 瞬时为空也不会误杀），且进度落盘可在服务重启后由 `recover_tasks` 拿到更接近实时的进度；③ 新增 `tests/test_recovery.py::TestCreateDbProgressPersister`（节流只写一次 / 过间隔再写 / 最后进度生效） | v1.0.0 |
+| v1.19 | 2026-08-17 | **AGENTS.md 自检：同步实际入口 + 端口** | 自检消除陈旧引用：第 1 节「入口文件」/ 默认监听、第 7 节「启动命令」、第 11 节陷阱 #3、**SOP-1 启动步骤**中原 `api/clean_launch.py` / `uvicorn api.main:app` 与 `7860` 均改与实际一致——入口统一为 `bin/clean_launch.py`（推荐）与 `python -m uvicorn bin.integrated_app.app_server:app`，监听端口统一 `7870` | v1.0.0 |
