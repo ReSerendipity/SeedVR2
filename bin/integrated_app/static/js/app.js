@@ -344,6 +344,48 @@ const SeedVR2 = (() => {
     }
 
     /**
+     * @function ensureCsrfToken
+     * @description 确保拿到 CSRF Token 后再发非安全请求。若 cookie 中尚无
+     * csrf_token（如新会话 / 跨来源预览 / cookie 分区未同步等场景），先请求一个
+     * 安全 GET，服务端 CSRF 中间件会在响应中 Set-Cookie 种下 token，避免上传时
+     * token 缺失被 403 拦截。依旧是 Double-Submit Cookie，不降级安全性。
+     * @returns {Promise<string|null>} 引导后的 CSRF Token 值
+     */
+    async function ensureCsrfToken() {
+        let token = getCsrfToken();
+        if (token) {
+            return token;
+        }
+        // 安全方法 (GET) 会触发中间件种下 csrf_token cookie；用 no-store 防止拿到缓存页
+        await fetch('/', { method: 'GET', credentials: 'same-origin', cache: 'no-store' });
+        return getCsrfToken();
+    }
+
+    /**
+     * @function csrfSafeFetch
+     * @description 非安全请求的统一封装：自动携带 CSRF token 头；若被 403 拦截
+     * （典型原因是浏览器里残留了一个失效的 csrf_token cookie），服务端会在 403
+     * 响应里补发一个新 token，此处重新引导读取后自动重试一次，实现自愈。
+     * @param {string} url - 请求 URL
+     * @param {Object} [options] - fetch 选项（method/headers/body）
+     * @returns {Promise<Response>} fetch 返回的 Response 对象
+     */
+    async function csrfSafeFetch(url, options = {}) {
+        await ensureCsrfToken();
+        for (let attempt = 0; attempt < 2; attempt++) {
+            const headers = { ...(options.headers || {}), ...csrfHeaders() };
+            const response = await fetch(url, { ...options, headers });
+            if (response.status !== 403 || attempt === 1) {
+                return response;
+            }
+            // 排空并关闭 403 响应体，释放连接；随后读取服务端补发的新 token 重试
+            response.text().catch(() => {});
+            await ensureCsrfToken();
+        }
+        return new Response(JSON.stringify({ error: 'CSRF token 验证失败' }), { status: 403 });
+    }
+
+    /**
      * @namespace api
      * @description HTTP API请求封装对象，提供统一的请求方法和错误处理
      */
@@ -374,10 +416,8 @@ const SeedVR2 = (() => {
          */
         async post(url, data) {
             const isFormData = typeof FormData !== 'undefined' && data instanceof FormData;
-            const headers = isFormData
-                ? { ...csrfHeaders() }
-                : { 'Content-Type': 'application/json', ...csrfHeaders() };
-            const response = await fetch(url, {
+            const headers = isFormData ? {} : { 'Content-Type': 'application/json' };
+            const response = await csrfSafeFetch(url, {
                 method: 'POST',
                 headers,
                 body: isFormData ? data : JSON.stringify(data),
@@ -397,10 +437,7 @@ const SeedVR2 = (() => {
          * @throws {Error} 请求失败时抛出包含错误消息的Error对象
          */
         async delete(url) {
-            const response = await fetch(url, {
-                method: 'DELETE',
-                headers: csrfHeaders(),
-            });
+            const response = await csrfSafeFetch(url, { method: 'DELETE' });
             if (!response.ok) {
                 const data = await response.json().catch(() => ({}));
                 throw new Error(parseApiError(response, data));
@@ -416,11 +453,8 @@ const SeedVR2 = (() => {
          * @throws {Error} 请求失败时抛出包含错误消息的Error对象
          */
         async uploadRestore(formData) {
-            const token = getCsrfToken();
-            const headers = token ? { 'X-CSRF-Token': token } : {};
-            const response = await fetch('/api/restore', {
+            const response = await csrfSafeFetch('/api/restore', {
                 method: 'POST',
-                headers,
                 body: formData,
             });
             if (!response.ok) {
