@@ -82,19 +82,12 @@ jobs:
           curl --retry 30 --retry-delay 2 --retry-connrefused \
             http://127.0.0.1:7870/api/system/health
 
-      # One-time bootstrap: generate visual regression baselines on Linux CI.
-      # Baselines are committed to the repo after download; this step is then removed.
-      # continue-on-error is intentional: the FIRST run has no baselines, so the
-      # snapshot tests fail while generating them (Playwright semantics).
-      - name: Bootstrap visual regression baselines
-        if: ${{ !cancelled() }}
-        continue-on-error: true
-        run: |
-          cd tests
-          npx playwright test specs/uiux-compatibility.spec.ts --project=${{ matrix.project }} --update-snapshots --reporter=line
-
+      # Visual regression baselines are platform-specific (committed ones are
+      # win32). CI runs linux, so snapshot assertions are skipped here (--ignore-snapshots);
+      # visual regression is enforced on Windows dev machines via local runs or via
+      # the manual update-baselines.yml workflow to regenerate/commit linux baselines.
       - name: Run Playwright tests
-        run: cd tests && npx playwright test --project=${{ matrix.project }} --reporter=github,list
+        run: cd tests && npx playwright test --project=${{ matrix.project }} --ignore-snapshots --reporter=github,list
 
       - name: Upload HTML report
         if: always()
