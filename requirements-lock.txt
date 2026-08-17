@@ -222,8 +222,8 @@ watchfiles==1.2.0
 wcwidth==0.8.1
 # NO HASH (run generate_lock.py with network): websockets==16.0
 websockets==16.0
-# NO HASH (run generate_lock.py with network): wheel==0.45.1
-wheel==0.45.1
+# NO HASH (run generate_lock.py with network): wheel==0.48.0
+wheel==0.48.0
 # NO HASH (run generate_lock.py with network): winpython==16.5.20250614
 winpython==16.5.20250614
 # NO HASH (run generate_lock.py with network): zipp==4.1.0
