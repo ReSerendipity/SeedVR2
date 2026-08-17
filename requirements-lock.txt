@@ -198,8 +198,8 @@ tokenizers==0.22.2
 torch==2.11.0+cu128
 # NO HASH (run generate_lock.py with network): torchaudio==2.11.0+cu128
 torchaudio==2.11.0+cu128
-# NO HASH (run generate_lock.py with network): torchvision==0.26.0+cu128
-torchvision==0.26.0+cu128
+# NO HASH (run generate_lock.py with network): torchvision==0.28.0
+torchvision==0.28.0
 # NO HASH (run generate_lock.py with network): tqdm==4.68.2
 tqdm==4.68.2
 # NO HASH (run generate_lock.py with network): traitlets==5.15.1
