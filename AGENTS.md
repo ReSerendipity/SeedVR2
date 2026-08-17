@@ -1,7 +1,7 @@
 # Seedvr2 AGENTS.md — AI 辅助开发指南
 
-> 🧬 **自进化协议版本**：v1.5  
-> 📅 **最后更新日期**：2026-08-14  
+> 🧬 **自进化协议版本**：v1.13  
+> 📅 **最后更新日期**：2026-08-16  
 > 🎯 **对应项目版本**：v1.0.0（Apache-2.0 开源协议）
 
 ---
@@ -334,6 +334,9 @@ Scope 建议：`core` / `security` / `engines` / `routes` / `i18n` / `ci`
 | 8 | `api.post` 硬编码 JSON 头导致 FormData 提交被 422 | `startBatch` 调用 `SeedVR2.api.post('/api/restore/batch', params)` 传 FormData，但 `api.post` 在 `static/js/app.js` 硬编码 `'Content-Type': 'application/json'` + `JSON.stringify(data)` | 后端收到空 body → `parse_unified_params`（Depends）所有 Form 字段缺失 → FastAPI 422 Unprocessable Entity；浏览器控制台看到 `POST /api/restore/batch 422` | `api.post` 自动检测 `data instanceof FormData`，是 FormData 时移除 `Content-Type: application/json` 头并直接传 `body: data`（让浏览器自动加 boundary）。任何新增 `api.post(..., formData)` 调用都不需要改 | 2026-08-13 |
 | 9 | 模型下载脚本落盘路径与 config 引用不一致 | 用 `scripts/download_model.py`（旧版）下载权重 | 旧脚本把文件下到 `pretrained_models/SeedVR2-3B/` 子目录，但 `model_manager.check_model_exists` / `seedvr2_engine.py` 用 `os.path.join(pretrained_dir, checkpoint_name)` 只在 `pretrained_models/` **根目录**找 `seedvr2_ema_3b_fp16.safetensors` 等 → 报「模型文件未找到」/ `FileNotFoundError` | 权重文件**必须直接放 `pretrained_models/` 根目录**，文件名与 `config.yaml` 的 `model.models.<size>` 引用完全一致（`seedvr2_ema_*_fp16/fp8.safetensors`、`ema_vae_fp16.safetensors`、`pos_emb.pt`、`neg_emb.pt`）；下载脚本已改为 `hf_hub_download` 逐文件写入根目录（幂等跳过） | 2026-08-14 |
 | 10 | 新版 nvidia-smi 输出格式变化导致 CUDA 版本解析偏移 | 新版驱动（如 NVIDIA-SMI 610.x / CUDA UMD 13.x）的 `nvidia-smi` 头部从 `CUDA Version: 13.2` 变为 `CUDA UMD Version: 13.3` | 按旧格式 `tokens=9` 提取到的是 `Version:` 而非版本号 → `install.bat` 自动探测 CUDA 版本失败 | 批处理里先取 `tokens=9` 判断是否含 `Version` 字样，若命中再用 `tokens=10` 重取版本号；版本号落入 13.x → 选 `cu132` index | 2026-08-14 |
+| 11 | Blackwell(sm_120) 上 PyTorch SDPA 的 FLASH_ATTENTION/cuDNN 内核不可用 | RTX 50 系（如 5070 Ti）且 `attention_mode: sdpa` 时实测 `F.scaled_dot_product_attention`，或想装 flash-attn 之前排查 | SDPA 调用在强制 flash/cudnn 后端时报 `RuntimeError: No available kernel. Aborting execution.`，只有 `EFFICIENT_ATTENTION`/`MATH` 可用 → 当前 sdpa 实际走的是 memory-efficient 后端，并未用上 flash | Blackwell 仅支持预编译 SASS（无 PTX JIT），torch 官方 SDPA flash 内核未覆盖 sm_120。想真正用 flash 需装 `flash-attn`（若有匹配轮子）或 `sageattn`，并用 `torch.compile`(inductor) 加速；估算提速收益前先确认瓶颈是注意力还是显存/CPU 换页（12GB 下 `blocks_to_swap`/`fp8` 更关键） | 2026-08-16 |
+| 12 | torch.compile 首次推理慢且重启后重复编译（inductor 缓存未持久化） | 开启 `torch_compile.enabled: true` 后跑推理 | 首次推理 ~70-110s（含编译），且**重启服务后仍要 ~100s 重新编译**；`~/.cache/torch/inductor` 目录为空，说明编译产物没落盘 | 启用 `torch.compile` 前**必须**在启动入口（`bin/clean_launch.py`）设 `os.environ.setdefault("TORCHINDUCTOR_CACHE_DIR", <项目根>/.torch_cache/inductor)` 让编译产物持久化，否则每次重启都重编译。实测持久化后重启首次从 ~113s 降到 ~76s（仍非稳态 ~30s，说明部分图仍会重编译）。注意 `.torch_cache/` 已加 .gitignore | 2026-08-16 |
+| 13 | 外部 Google Fonts 同步样式表阻塞 DOMContentLoaded，导致整页 JS 初始化失效 | `base.html` 里 `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?...">` 同步加载；弱网/无外网环境（或被代理/镜像重定向到 `gstatic.font.im` 被 CSP 拦截） | `document.readyState` 长期卡在 `loading`，DOMContentLoaded 不触发 → 页面内容可见但**所有交互无效**（如「高级设置」点不开、上传无响应），且无任何 JS 报错，极难排查 | 字体样式改为**异步加载**：`<link ... media="print" onload="this.media='all'">` + `<noscript>` 兜底；外部字体只是装饰，不应阻塞页面初始化（`base.html` 已改，2026-08-16） | 2026-08-16 |
 
 ---
 
@@ -412,6 +415,53 @@ python -c "from bin.integrated_app.security.integrity_selfcheck import run_start
 - bin/integrated_app/security/integrity_selfcheck.py
 - bin/integrated_app/security/integrity_manifest.json
 
+#### SOP-5: 安装 Triton 并启用 torch.compile 加速（Blackwell/Windows）
+**适用条件**：在 RTX 50 系（Blackwell sm_120）+ Windows 上，想给模型推理开 torch.compile(inductor) 提速。
+**背景**：Windows 上 torch 不自带 triton，必须装社区版 `triton-windows`；装上后 inductor 才能编译自定义内核。
+**步骤**：
+1. 确认环境：`python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.get_device_capability(0))"`（Blackwell 需 triton>=3.3 / torch>=2.7 / CUDA>=12.8）
+2. 安装匹配的 triton-windows：`pip install triton-windows`（挑选与 torch 版本兼容的版本，如 torch 2.13 用 3.7.x）
+3. 冒烟验证：对一个小函数 `@torch.compile` 跑一次 forward，确认 inductor 在 sm_120 上能编译通过、无 `No available kernel`
+4. 接入项目：`config.yaml` → `inference.torch_compile.enabled` 改为 `true`（`backend: inductor`）。引擎代码已有 try/except 回退，编译失败会自动回到未编译，不会崩
+5. 启动 `bin/clean_launch.py`，确认服务正常启动、模型加载无误；首次推理会触发 DiT/VAE 编译（较慢属正常）
+**注意**：torch.compile 只消除了算子融合/调度开销，**不能解决显存不足导致的 CPU 换页**（12GB 下瓶颈更多来自 `blocks_to_swap` / `fp8_enabled`）。提速收益要在确认瓶颈不是换页后才明显。
+**关联文件**：
+- config.yaml（`inference.torch_compile` 段）
+- bin/integrated_app/engines/seedvr2_engine.py（DiT/VAE 编译应用点）
+
+#### SOP-6: 修复工作台页面 v2 重构（结构布局 + 对比查看器升级）
+**适用条件**：修改 `templates/restore.html` 结构布局、`static/js/app.js` 的对比查看器（CompareSlider）、或新增 `sv2-*` 样式时，必须遵守本 SOP，否则会静默破坏既有功能。
+**背景**：2026-08-16 将修复页重构为「工作台」布局（页头单行化 + 一体化画布工具条 + 画布舞台 + 参数侧栏），对比查看器升级为真实放大倍率语义（1:1 = 原像素 100%）。
+**硬性约束（ID 契约）**：
+- `app.js` 与 restore.html 内联脚本**硬编码大量 id**：`progressCard/resultCard/compareCard/compareViewport/compareContainer/compareSlider/compareBefore/compareAfterImg/resultVideo/btnDownload/canvasStateLabel/btnCanvas*/restoreFileInfo/restoreFileInput/restoreUploadZone/imagePreview/batchProgressCard/folderPath/btnScanFolder/btnStartBatch/btnBrowseFolder/folderScanResults` 及全部参数 id（`ditModel/resolution/doubleResToggle/vaeModel/blocksToSwap/maxResolution/colorCorrection/batchSize/encodeTileSize/encodeTileOverlap/decodeTileSize/decodeTileOverlap/btnVramRecommend/btnStartRestore/btnResetRestore/advParams/btnToggleParams`）——**改结构只能换 class，不能改 id/name**。
+- `collectParams()` 遍历 `#paramsSidebar` 内 input/select（跳过 `#advParams`），再遍历 `#advParams`；`_collectRestoreFormValues` 依赖 `#paramsSidebar [name]`。所有参数字段必须留在侧栏内，含 hidden 字段（`seed/attention_mode/dit_cache_model/vae_cache_model/temporal_overlap/prepend_frames/input_noise_scale/latent_noise_scale/dit_device/offload_device` 等）。
+- 上传区依赖 `setupUploadZone(zone, fileInput, {onFileSelected, onFileCleared})` 与内联脚本的 `restoreFileInfo/imagePreview/imagePreviewContainer/workflowGuide/previewArea` 显示切换，保留 `sv-dropzone-*` 类名可白嫖既有样式。
+**SV2 结构**：`.sv2-workbench`（列布局）> `.sv2-header`（标题+`.sv2-mode-seg` 分段控件）+ `.sv2-body`（grid: 主区 + 324px 侧栏）> `.sv2-main`（批量工具条 `#batchToolbar` + 一体化工具条 `#canvasToolbar` + 画布舞台 `#previewArea[data-mode-pane=single]` + 批量面板 `[data-mode-pane=batch]`）。模式切换仍走 `switchMode()`（toggle `.sv-mode-tab` active + `[data-mode-pane].active` + batchToolbar display）。
+**对比查看器 v2（CompareSlider）**：构造签名不变（`initCompareSlider(containerId, sliderId, afterId)`）；状态改为 `mag`（1=适配）/`oneToOneMag`/`tx,ty` 平移；transform = `translate(tx,ty) scale(mag)` 且 **transform-origin:0 0**（`.sv2-workbench .sv-compare-container`）；分割线位置用 `offsetWidth/Height` 而非 getBoundingClientRect（有 transform 时会算错）；滚轮以光标为中心缩放、拖拽在放大态平移、双击 适配↔1:1、键盘固定 60px 步长平移；HUD 元素 `#compareHud` 与 `#compareZoomLabel` 显示真实倍率。**新增 id**（`tbFileName/plainViewer/plainImg/compareHud/btnCanvasClear/btnCanvasReplace/btnCanvasCompare/btnRestoreSidebar/sv2Body`）在 `showRestoreResult`/`resetRestore`/内联 `bindCanvasToolbar` 中同步维护。
+**验证命令**：
+```bash
+node --check bin/integrated_app/static/js/app.js
+# 模板全量渲染冒烟：
+python - <<'EOF'
+import json; from jinja2 import Environment, FileSystemLoader
+loc=json.load(open('bin/integrated_app/locales/zh.json',encoding='utf-8'))
+env=Environment(loader=FileSystemLoader('bin/integrated_app/templates'))
+env.globals['t']=lambda k,**kw: loc.get(k,k); env.globals['current_locale']='zh'
+html=env.get_template('restore.html').render(); print(len(html))
+EOF
+```
+**注意**：SV2 样式全部追加在 `style.css` 末尾并派生自 `--sv-*` 令牌（明暗主题自动适配，勿硬编码色值）；对比查看器改造后**不要**再用 `btnCanvasZoom`（已删除），缩放走 `btnCompareZoomIn/Out`。
+**2026-08-16 增量（预览查看器 / 放大镜 / 右键平移）**：
+- 上传后图片预览支持缩放/拖动/双击适配/放大镜：`PreviewViewer` 类（app.js，工厂 `initPreviewViewer('previewStage','previewImgWrap','imagePreview')`，`destroyPreviewViewer()` 清理），结构在 `#imagePreviewContainer` 内（`.sv2-preview-stage` > `.sv2-preview-img` > `#imagePreview`）。
+- 放大镜：`#btnMagnifier` 工具条按钮（预览/结果共用，按当前阶段路由到 PreviewViewer 或 CompareSlider 的 `setMagnifier(on)`）；镜片 `.sv2-magnifier`（`#previewMagnifier`/`#compareMagnifier`）内 `.mg-before`/`.mg-after` 两层，经 `setLoupeLayer()` 按「主视图当前倍率 ×2」渲染背景，对比模式下镜片内也保持前后分割（clip-path 跟随 `position`）。
+- 平移交互：CompareSlider「左键」承担——未放大时拖分割线、放大后拖平移；预览无分割线，左键平移；右键不拦截（`e.button !== 0` 直接 return），避免与浏览器/鼠标手势冲突（2026-08-16 由「右键平移」按用户反馈改为「左键平移」）。
+- 新增导出：`initPreviewViewer/destroyPreviewViewer/getActiveCompareSlider/getActivePreviewViewer`；`initCompareSlider` 现会记录实例到模块变量 `activeCompareSlider`。
+**2026-08-16 增量（体验增强 ×4）**：
+- 完成/失败反馈：`showRestoreResult(taskId, taskType, meta)` 新增 meta.elapsedSec（SSE completed 时由本地 `Date.now()-startTime` 传入），工具条显示「耗时 XX」；新增 `showRestoreError(msg)`——失败时结果区显示错误卡 `#errorCard` + `#btnRetry`，重试走内联注入的 `window.__retryRestore = startRestore`（文件与参数不变直接重跑）。
+- 参数方案预设：侧栏顶部 `#presetSelect` + `#btnPresetSave/#btnPresetDelete`，复用内联 `_collectRestoreFormValues/_applyRestoreFormValues`（注意应用后需手动 `syncResolutionUI()` 同步两倍模式联动），存 localStorage `sv_restore_presets`。
+- 批量拖拽文件夹：`#restoreUploadZone` 的 **capture 阶段** drop 监听检测 `webkitGetAsEntry().isDirectory`，命中则 `stopImmediatePropagation` 阻断单文件流程 → `switchMode('batch')` + `openDirBrowser` 弹目录选择（浏览器安全限制拿不到拖入文件夹的绝对路径，只能引导选择）。
+- 记住查看偏好：localStorage `sv_view_prefs` = {dir, magnifier, compare}；CompareSlider.setMode/setMagnifier、PreviewViewer.setMagnifier、内联对比模式切换均写入；`showRestoreResult`（方向/放大镜/对比模式）与预览加载（放大镜）时恢复。
+
 ---
 
 ## 13. API 响应规范（保持所有路由一致）
@@ -468,5 +518,13 @@ if scene_id not in db:
 | v1.3 | 2026-08-13 | 视频两倍检测失败（CSP 拦截 blob 媒体） | 新增第 11 节陷阱 #7（CSP 缺 `media-src blob:` 导致 `<video>` 无法加载 blob 源）；修复为 `templates/base.html` CSP 加 `media-src 'self' blob:` | v1.0.0 |
 | v1.4 | 2026-08-13 | 批量修复接口 422（api.post 硬编码 JSON 头） | 新增第 11 节陷阱 #8（`api.post` 硬编码 JSON 头导致 FormData 提交被 422）；修复为 `static/js/app.js` 的 `api.post` 自动检测 FormData 跳过 JSON 转换 | v1.0.0 |
 | v1.5 | 2026-08-14 | 仓库「克隆即用」审计 + 新手保姆式引导 | ① 第 1 节补充「实际结构修正」块（实际入口 `bin/clean_launch.py`、根目录 `config.yaml`、监听 7870，与早期规划结构漂移的说明）；② 新增陷阱 #9（模型下载脚本落盘路径与 config 引用不一致，需放 `pretrained_models/` 根目录）与 #10（新版 nvidia-smi `CUDA UMD Version` 格式导致 tokens 偏移）；③ README 升级为保姆式新手教程 + 模型权重下载保姆级说明；`scripts/download_model.py` 改为逐文件下载到根目录（幂等）；`install.bat` 自动探测 CUDA 版本选择 PyTorch index | v1.0.0 |
+| v1.6 | 2026-08-16 | Blackwell 上安装 Triton 加速 + 排查三加速库可用性 | ① 新增陷阱 #11（Blackwell sm_120 上 PyTorch SDPA 的 FLASH/cuDNN 内核 `No available kernel`，实测只有 EFFICIENT/MATH 可用）；② 新增 SOP-5（安装 triton-windows 并开启 `torch_compile.enabled=true` 加速，含冒烟验证与「compiler 不治 CPU 换页」的警告）；③ 结论：flash-attn 无 torch2.13/cu132/py3.12 匹配轮子、sageattention 为训练向且量化损伤修复画质，均未接入 | v1.0.0 |
+| v1.7 | 2026-08-16 | torch.compile 首次慢/重启重复编译 | ① 新增陷阱 #12（torch.compile 首次推理慢且重启后重复编译：inductor 默认缓存目录 `~/.cache/torch/inductor` 未生效，需在 `bin/clean_launch.py` 设 `TORCHINDUCTOR_CACHE_DIR` 到项目 `.torch_cache/inductor` 持久化，实测重启首次从 ~113s→~76s，`.torch_cache/` 已加 .gitignore）；② 实测结论：torch_compile 对视频稳态提速 ~22%（30.2 vs 38.8），对图片反而慢 ~27%；FP8 小图比 FP16 慢，视频 FP8 仅比 FP16 快 ~7%；最终配置定为 `default_precision: fp16` + `torch_compile.enabled: true`；③ 新增可复用基准脚本 `perf/benchmark/bench_restore_api.py` | v1.0.0 |
+| v1.8 | 2026-08-16 | 修复工作台页面 v2 重构（结构布局 + 对比查看器升级） | ① restore.html 重构为工作台布局：页头单行化（`.sv2-header` + `.sv2-mode-seg`）、一体化画布工具条 `#canvasToolbar`（清除/替换/对比模式/方向/缩放/适配/重置/下载/再次修复）、画布舞台（上传/预览/进度/结果 四态）、参数侧栏收窄 + 折叠后右侧「参数」恢复入口；所有既有 id/name 保留（app.js 与 collectParams 硬编码依赖）；② app.js CompareSlider 升级为真实放大倍率语义：mag/oneToOneMag/tx,ty 平移、滚轮以光标为中心缩放、拖拽在放大态平移、双击 适配↔1:1、键盘固定 60px 步长、`#compareHud` 显示真实倍率；showRestoreResult/resetRestore 同步新工具条状态；③ style.css 追加 `sv2-*` 作用域样式（派生自 `--sv-*` 令牌，明暗主题自动适配）；④ 新增 SOP-6（修复页 v2 的 ID 契约 + 查看器语义 + 验证命令）；原文件备份于工作区 `outputs/migration-backup/` | v1.0.0 |
+| v1.9 | 2026-08-16 | 修复页图片功能增量（预览查看器/放大镜/平移） | ① 上传图片后预览支持滚轮缩放、拖动平移、双击 适配/1:1、HUD 倍率：新增 `PreviewViewer` 类 + `initPreviewViewer/destroyPreviewViewer` 导出，结构 `#previewStage > #previewImgWrap > #imagePreview`；② 放大镜工具 `#btnMagnifier`（预览/结果共用，路由到 PreviewViewer/CompareSlider.setMagnifier），镜片 `.sv2-magnifier` 内 before/after 双层，`setLoupeLayer()` 按主视图倍率×2 渲染，对比模式下镜片内保持前后分割；③ 拖拽平移统一为左键（对比：左键未放大拖分割线/放大拖平移；预览：左键平移），右键不拦截避免与浏览器手势冲突；④ `initCompareSlider` 记录实例 + 新增 `getActiveCompareSlider/getActivePreviewViewer` 导出；SOP-6 补充增量说明 | v1.0.0 |
+| v1.10 | 2026-08-16 | 用户反馈修正：平移改回左键 | 对比查看器与预览的拖动平移由「右键」改为「左键」（`e.button !== 0` 直接忽略），移除右键分支与 `contextmenu preventDefault`，右键完全归还浏览器/手势；同步更新查看器内提示文案与 SOP-6 增量说明 | v1.0.0 |
+| v1.11 | 2026-08-16 | 修复页体验增强 ×4 | ① 完成/失败反馈：`showRestoreResult` 增加 meta.elapsedSec 显示「耗时」，失败显示错误卡 + 一键重试（`window.__retryRestore` 复用 startRestore）；② 参数方案预设：侧栏 `#presetSelect` + 保存/删除，复用 `_collectRestoreFormValues/_applyRestoreFormValues` 存 localStorage；③ 批量拖拽文件夹：dropzone capture 阶段检测目录 → 切批量模式 + 弹目录选择（浏览器限制无法读绝对路径）；④ 记住查看偏好：`sv_view_prefs`（方向/放大镜/对比模式）保存与恢复；SOP-6 补充增量说明 | v1.0.0 |
+| v1.12 | 2026-08-16 | 高级设置无法滚动 + 参数无讲解 | ① 侧栏滚动修复：旧 `.sv-param-sidebar` 为 `overflow:visible` + `> *` `flex-shrink:0` + 固定 `max-height`，被 `.sv2-sidebar` 覆盖为 `overflow:hidden` 后展开的高级设置被裁剪且无法滚动；修复为侧栏内容包 `.sv2-sidebar-scroll`（`flex:1; overflow-y:auto`），`.sv-param-actions` 移出滚动区固定底部，并覆盖 `padding/max-height/position/flex-shrink`；② 高级设置全部参数补详细中文 `data-tooltip`（13 处，含 maxResolution/colorCorrection/batchSize/swap_io/编码解码 tile 与重叠/分块开关/tile_debug/uniform_batch/debug_mode），advParams 顶部加 `.sv-adv-intro` 总览说明（含隐藏参数由系统自动优化的提示）；tooltip 为纯 CSS `[data-tooltip]::after` 实现，直接加属性即可 | v1.0.0 |
+| v1.13 | 2026-08-16 | 高级设置无法打开/展开区被压缩（二轮，Playwright 实测定位） | ① 根因一：`base.html` Google Fonts 样式表**同步阻塞 DOMContentLoaded**（弱网/被 CSP 拦截时 `readyState` 长期 `loading`）→ 页面内容可见但内联脚本（含高级设置点击）从未初始化；修复为 `media="print" onload="this.media='all'"` 异步加载 + noscript 兜底，新增陷阱 #13；② 根因二：旧规则 `.sv-param-sidebar .sv-advanced-params.open{flex-shrink:1;min-height:0}`（specificity 0,2,0）把展开后的 advParams 在 flex 容器里压缩到 12px，且 `overflow-y:visible` 与旧 `overflow-x:hidden` 混用被浏览器强制计算为 `auto`；修复为 `.sv2-sidebar .sv2-sidebar-scroll .sv-advanced-params.open{flex-shrink:0;min-height:auto;max-height:none;overflow:visible}`（0,3,0）并去掉 700px 展开限高，交由外层滚动容器统一滚动；③ 用 `tests/` Playwright 写临时诊断脚本（`_adv_check*.js`）实测：修复前 readyState=loading/advOpen=false/adv h=12px → 修复后 complete/advOpen=true/adv h=1276px/外层可滚，截图复查通过 | v1.0.0 |
 
 <!-- 🔄 下次更新 AGENTS.md 时，在上面表格末尾追加新一行，不要删除历史记录 -->

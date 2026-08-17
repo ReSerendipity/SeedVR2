@@ -8452,3 +8452,619 @@ input[type="number"].sv-form-control::-webkit-outer-spin-button {
     min-width: 44px;
     min-height: 44px;
 }
+
+/* ============================================================
+   SV2 修复工作台（重构 v2 · 2026-08-16）
+   作用域：仅 restore 页 .sv2-workbench 相关；颜色全部派生自 --sv-* 令牌，
+   明暗主题（html[data-theme]）自动适配，无需单独写暗色块。
+   ============================================================ */
+.sv2-workbench {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - var(--sv-navbar-height) - 80px);
+    overflow: hidden;
+    max-width: none;
+    margin: 0;
+}
+
+/* ── 页头（单行化） ── */
+.sv2-header {
+    flex: none;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 2px 2px 14px;
+}
+.sv2-title-wrap { min-width: 0; }
+.sv2-title {
+    margin: 0;
+    font-family: var(--sv-font-display);
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    line-height: 1.2;
+    color: var(--sv-text-primary);
+}
+.sv2-sub { margin: 3px 0 0; font-size: 12.5px; color: var(--sv-text-muted); }
+.sv2-mode-seg {
+    display: inline-flex;
+    background: var(--sv-surface-2);
+    border: 1px solid var(--sv-border);
+    border-radius: 999px;
+    padding: 3px;
+    gap: 2px;
+    flex: none;
+}
+.sv2-mode-seg .sv-mode-tab {
+    border: 0;
+    background: transparent;
+    color: var(--sv-text-muted);
+    padding: 7px 16px;
+    border-radius: 999px;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    transition: color 0.16s, background 0.16s;
+}
+.sv2-mode-seg .sv-mode-tab:hover { color: var(--sv-text-primary); }
+.sv2-mode-seg .sv-mode-tab.active { background: var(--sv-surface-1); color: var(--sv-primary); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); }
+
+/* ── 主体分栏 ── */
+.sv2-body {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 324px;
+    transition: grid-template-columns 0.25s ease;
+}
+.sv2-body.sv2-sb-collapsed { grid-template-columns: minmax(0, 1fr); }
+.sv2-body.sv2-sb-collapsed .sv2-sidebar { display: none; }
+.sv2-main {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 0 2px 2px 0;
+}
+
+/* ── 批量路径工具条 ── */
+.sv2-batch-toolbar { display: flex; gap: 8px; align-items: center; flex: none; }
+.sv2-batch-toolbar .sv-batch-input {
+    flex: 1;
+    height: 38px;
+    border: 1px solid var(--sv-border);
+    border-radius: 10px;
+    background: var(--sv-surface-1);
+    color: var(--sv-text-primary);
+    padding: 0 12px;
+    font-size: 13px;
+    font-family: inherit;
+}
+.sv2-batch-toolbar .sv-batch-input:focus { outline: none; border-color: var(--sv-primary); }
+
+/* ── 一体化画布工具条 ── */
+.sv2-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: none;
+    padding: 8px 12px;
+    background: var(--sv-surface-1);
+    border: 1px solid var(--sv-border);
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    min-height: 50px;
+}
+.sv2-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--sv-surface-2);
+    color: var(--sv-text-muted);
+    border: 1px solid var(--sv-border);
+    white-space: nowrap;
+}
+.sv2-filename {
+    font-size: 12.5px;
+    color: var(--sv-text-muted);
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: none;
+}
+.sv2-flex { flex: 1; }
+.sv2-tb-group { display: inline-flex; align-items: center; gap: 4px; }
+.sv2-tb-sep { width: 1px; height: 20px; background: var(--sv-border); margin: 0 6px; }
+.sv2-tb-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 11px;
+    border-radius: 9px;
+    border: 1px solid var(--sv-border);
+    background: var(--sv-surface-1);
+    color: var(--sv-text-muted);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    white-space: nowrap;
+    text-decoration: none;
+}
+.sv2-tb-btn i { font-size: 13px; }
+.sv2-tb-btn:hover:not(:disabled) { color: var(--sv-text-primary); border-color: var(--sv-border-hover); background: var(--sv-surface-2); }
+.sv2-tb-btn.active { color: var(--sv-primary); background: var(--sv-primary-light); border-color: var(--sv-primary); }
+.sv2-tb-btn[disabled] { opacity: 0.42; pointer-events: none; }
+.sv2-tb-btn.sv2-ico { padding: 0; width: 32px; justify-content: center; }
+.sv2-tb-btn.sv2-primary { background: var(--sv-primary); color: #fff; border-color: transparent; }
+.sv2-tb-btn.sv2-primary:hover:not(:disabled) { filter: brightness(1.08); }
+.sv2-tb-btn.sv2-dl { color: var(--sv-text-primary); }
+.sv2-zoomlabel {
+    min-width: 46px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--sv-text-muted);
+    font-variant-numeric: tabular-nums;
+    font-family: var(--sv-font-mono, ui-monospace, Consolas, monospace);
+    cursor: pointer;
+    user-select: none;
+}
+.sv2-zoomlabel:hover { color: var(--sv-primary); }
+
+/* ── 画布舞台 ── */
+.sv2-stage.sv-mode-tab-pane {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    background: var(--sv-surface-0);
+    border: 1px solid var(--sv-border-light);
+    border-radius: 16px;
+    overflow: hidden;
+    display: flex;
+}
+.sv2-stage.sv-mode-tab-pane:not(.active) { display: none; }
+.sv2-pane {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 26px;
+}
+.sv2-result { padding: 0; }
+
+/* 上传区（复用 sv-dropzone 基础样式，微调布局） */
+.sv2-stage .sv-dropzone {
+    width: 100%;
+    max-width: 430px;
+    min-height: 236px;
+    border-width: 1.6px;
+    border-style: dashed;
+    border-color: var(--sv-border-hover);
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--sv-surface-1) 72%, transparent);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 30px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.18s, background 0.18s, transform 0.18s;
+}
+.sv2-stage .sv-dropzone:hover { border-color: var(--sv-primary); background: var(--sv-primary-light); }
+.sv2-stage .sv-dropzone.drag-over { border-color: var(--sv-primary); background: var(--sv-primary-light); transform: scale(1.012); }
+.sv2-stage .sv-dropzone.has-file { border-color: var(--sv-primary); }
+.sv2-stage .sv-dropzone-icon i { font-size: 2.1rem; color: var(--sv-primary); opacity: 1; filter: none; }
+.sv2-stage .sv-dropzone-title { font-size: 15.5px; font-weight: 600; color: var(--sv-text-primary); }
+.sv2-stage .sv-dropzone-hint { font-size: 12.5px; color: var(--sv-text-muted); }
+.sv2-stage .sv-dropzone-formats { font-size: 11px; color: var(--sv-text-muted); opacity: 0.85; }
+.sv2-stage .sv-dropzone-fileinfo { margin-top: 6px; }
+
+/* 预览 */
+.sv2-pane #imagePreview { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: var(--sv-radius); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18); }
+.sv2-clear-btn {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    border: 1px solid var(--sv-border);
+    background: var(--sv-surface-1);
+    color: var(--sv-text-muted);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    z-index: 5;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+.sv2-clear-btn:hover { color: var(--sv-danger, #c0563f); border-color: var(--sv-border-hover); }
+
+/* 进度卡片 */
+.sv2-progress-card {
+    width: 100%;
+    max-width: 460px;
+    background: var(--sv-surface-1);
+    border: 1px solid var(--sv-border);
+    border-radius: 16px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14);
+    padding: 22px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.sv2-progress-head { display: flex; align-items: center; gap: 10px; }
+.sv2-progress-stage { font-size: 13px; font-weight: 600; color: var(--sv-primary); }
+.sv2-progress-eta { margin-left: auto; font-size: 12px; color: var(--sv-text-muted); font-family: var(--sv-font-mono, ui-monospace, Consolas, monospace); font-variant-numeric: tabular-nums; }
+.sv2-cancel {
+    margin-left: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--sv-border);
+    background: var(--sv-surface-1);
+    color: var(--sv-text-muted);
+    font-size: 13px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+.sv2-cancel:hover { color: var(--sv-danger, #c0563f); border-color: color-mix(in srgb, var(--sv-danger, #c0563f) 40%, transparent); }
+.sv2-progress-track { height: 8px; border-radius: 999px; background: var(--sv-surface-2); overflow: hidden; }
+.sv2-progress-bar {
+    height: 100%;
+    width: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--sv-primary), color-mix(in srgb, var(--sv-primary) 70%, #fff));
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 0.3s ease;
+}
+.sv2-progress-meta { display: flex; align-items: center; gap: 10px; }
+.sv2-progress-pct { font-size: 13px; font-weight: 700; font-family: var(--sv-font-mono, ui-monospace, Consolas, monospace); font-variant-numeric: tabular-nums; color: var(--sv-text-primary); }
+.sv2-progress-detail { font-size: 12.5px; color: var(--sv-text-muted); }
+.sv2-progress-frames { font-size: 12px; color: var(--sv-text-muted); margin-left: auto; font-family: var(--sv-font-mono, ui-monospace, Consolas, monospace); }
+.sv2-progress-sub { display: flex; gap: 14px; font-size: 11.5px; color: var(--sv-text-muted); }
+
+/* 结果区 */
+.sv2-result video { max-width: calc(100% - 40px); max-height: calc(100% - 40px); }
+
+/* 对比查看器 v2：真实放大倍率 + 平移 */
+.sv2-viewport { position: relative; width: 100%; height: 100%; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.sv2-workbench .sv-compare-container {
+    transform-origin: 0 0;
+    will-change: transform;
+    cursor: grab;
+    background: transparent;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.24);
+}
+.sv2-workbench .sv-compare-container.panning { cursor: grabbing; }
+.sv2-workbench .sv-compare-container.vertical { cursor: ns-resize; }
+.sv2-workbench .sv-compare-slider { cursor: ew-resize; }
+.sv2-workbench .sv-compare-container.vertical .sv-compare-slider { cursor: ns-resize; }
+.sv2-workbench .sv-compare-container.no-transition { transition: none !important; }
+.sv2-hud {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    z-index: 6;
+    min-width: 56px;
+    text-align: center;
+    font-family: var(--sv-font-mono, ui-monospace, Consolas, monospace);
+    font-size: 12.5px;
+    color: #fff;
+    background: rgba(20, 22, 16, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+}
+.sv2-hint {
+    position: absolute;
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+    z-index: 6;
+    font-size: 11.5px;
+    color: rgba(255, 255, 255, 0.88);
+    background: rgba(20, 22, 16, 0.45);
+    border-radius: 999px;
+    padding: 4px 12px;
+    pointer-events: none;
+    white-space: nowrap;
+}
+.sv2-hint kbd { font-family: var(--sv-font-mono, ui-monospace, Consolas, monospace); background: rgba(255, 255, 255, 0.16); border-radius: 4px; padding: 0 5px; font-size: 10.5px; }
+
+/* ── 批量面板 ── */
+.sv2-batch-pane.sv-mode-tab-pane {
+    flex: 1;
+    min-height: 0;
+    display: none;
+    flex-direction: column;
+    gap: 14px;
+    overflow-y: auto;
+    padding: 20px;
+    background: var(--sv-surface-0);
+    border: 1px solid var(--sv-border-light);
+    border-radius: 16px;
+}
+.sv2-batch-pane.sv-mode-tab-pane.active { display: flex; }
+.sv2-batch-head { display: flex; align-items: center; gap: 10px; }
+.sv2-batch-title { font-size: 14px; font-weight: 700; color: var(--sv-text-primary); }
+.sv2-batch-progress {
+    background: var(--sv-surface-1);
+    border: 1px solid var(--sv-border);
+    border-radius: 14px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+.sv2-batch-progress-head { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; }
+.sv2-batch-pct { font-family: var(--sv-font-mono, ui-monospace, Consolas, monospace); font-size: 12px; color: var(--sv-text-muted); margin-left: auto; }
+.sv2-batch-cur { font-size: 12px; color: var(--sv-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sv2-batch-stats { display: flex; align-items: center; gap: 14px; font-size: 12px; }
+.sv2-batch-ok { color: var(--sv-success, #4e8a5a); font-weight: 600; }
+.sv2-batch-fail { color: var(--sv-danger, #c0563f); font-weight: 600; }
+.sv2-batch-eta { margin-left: auto; font-family: var(--sv-font-mono, ui-monospace, Consolas, monospace); color: var(--sv-text-muted); }
+
+/* ── 参数侧栏（v2 收窄 + 内边距微调） ── */
+.sv2-sidebar {
+    width: 100%;
+    min-width: 0;
+    border-left: 1px solid var(--sv-border);
+    background: color-mix(in srgb, var(--sv-surface-0) 60%, var(--sv-surface-1));
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+.sv2-sidebar .sv-param-actions {
+    margin-top: auto;
+    position: sticky;
+    bottom: 0;
+    background: color-mix(in srgb, var(--sv-surface-1) 88%, var(--sv-surface-0));
+    border-top: 1px solid var(--sv-border);
+    padding: 14px 18px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.sv2-sidebar .sv-param-actions .sv-btn { width: 100%; }
+.sv2-sidebar .sv-param-section-title { padding-top: 4px; }
+
+/* 折叠后右侧恢复入口 */
+.sv2-sb-restore {
+    position: fixed;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 45;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 11px 9px 11px 12px;
+    border: 0;
+    border-radius: 12px 0 0 12px;
+    background: var(--sv-primary);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+}
+.sv2-sb-restore:hover { filter: brightness(1.08); }
+
+/* 主题切换过渡时避免闪烁 */
+html[data-theme] .sv2-workbench,
+html[data-theme] .sv2-toolbar,
+html[data-theme] .sv2-stage,
+html[data-theme] .sv2-sidebar {
+    transition: background 0.25s ease, border-color 0.25s ease, color 0.25s ease;
+}
+
+/* ============================================================
+   SV2 图片预览查看器 + 放大镜（2026-08-16 增量）
+   ============================================================ */
+/* 预览查看器：上传后图片支持滚轮缩放 / 拖动平移 / 双击适配 / 放大镜 */
+.sv2-preview-stage {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    cursor: grab;
+    touch-action: none;
+}
+.sv2-preview-stage.grabbing { cursor: grabbing; }
+.sv2-preview-img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: 0 0;
+    will-change: transform;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+}
+.sv2-preview-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+.sv2-preview-stage #imagePreview {
+    max-width: none;
+    max-height: none;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+/* 放大镜（预览与对比共用） */
+.sv2-magnifier {
+    position: absolute;
+    z-index: 9;
+    width: 190px;
+    height: 190px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+    overflow: hidden;
+    pointer-events: none;
+    background: #fff;
+}
+.sv2-magnifier[hidden] { display: none; }
+.sv2-magnifier::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+.sv2-magnifier .mg-layer {
+    position: absolute;
+    inset: 0;
+    background-repeat: no-repeat;
+}
+.sv2-magnifier .mg-after { clip-path: inset(0 0 0 50%); }
+
+/* 对比查看器：左键分割线 / 右键平移 提示由 restore.html 内联文案承载 */
+
+/* ============================================================
+   SV2 体验增强（2026-08-16）：方案预设 / 错误卡 / 结果 meta
+   ============================================================ */
+/* 参数方案预设 */
+.sv2-presets {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+.sv2-preset-select { flex: 1; min-width: 0; height: 34px; font-size: 12.5px; }
+.sv2-presets .sv2-tb-btn { height: 34px; }
+
+/* 结果 meta（工具条内，如耗时） */
+.sv2-meta {
+    font-size: 12px;
+    color: var(--sv-text-muted);
+    background: var(--sv-surface-2);
+    border: 1px solid var(--sv-border-light);
+    border-radius: 999px;
+    padding: 2px 10px;
+    white-space: nowrap;
+    flex: none;
+}
+
+/* 失败错误卡 */
+.sv2-error-card {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 30px;
+    text-align: center;
+    background: color-mix(in srgb, var(--sv-surface-0) 88%, transparent);
+}
+.sv2-error-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 18px;
+    background: color-mix(in srgb, var(--sv-danger, #c0563f) 14%, var(--sv-surface-1));
+    color: var(--sv-danger, #c0563f);
+    display: grid;
+    place-items: center;
+    font-size: 26px;
+}
+.sv2-error-title { font-size: 16px; font-weight: 700; color: var(--sv-text-primary); }
+.sv2-error-msg {
+    font-size: 12.5px;
+    color: var(--sv-text-muted);
+    max-width: 480px;
+    line-height: 1.55;
+    word-break: break-word;
+}
+
+/* ============================================================
+   SV2 侧栏滚动修复（2026-08-16）：高级设置展开后可滚动，操作区固定
+   ============================================================ */
+.sv2-sidebar {
+    padding: 0;
+    max-height: none;
+    position: static;
+    align-self: stretch;
+    box-shadow: none;
+    overflow: hidden;
+}
+.sv2-sidebar > * { flex-shrink: 1; }
+.sv2-sidebar-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 14px 18px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.sv2-sidebar .sv-param-actions {
+    flex: none;
+    margin-top: 0;
+    position: static;
+    padding: 14px 18px 16px;
+    background: color-mix(in srgb, var(--sv-surface-1) 88%, var(--sv-surface-0));
+    border-top: 1px solid var(--sv-border);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.sv2-sidebar .sv-param-actions .sv-btn { width: 100%; }
+.sv2-sidebar .sv-param-section-title { padding-top: 2px; }
+
+/* ============================================================
+   SV2 高级设置说明块（2026-08-16）
+   ============================================================ */
+.sv-adv-intro {
+    font-size: 11.5px;
+    line-height: 1.6;
+    color: var(--sv-text-muted);
+    background: var(--sv-surface-2);
+    border: 1px solid var(--sv-border-light);
+    border-radius: 10px;
+    padding: 9px 11px;
+    margin-bottom: 4px;
+}
+.sv-adv-intro i { font-size: 11px; color: var(--sv-text-muted); }
+
+/* ============================================================
+   SV2 高级设置展开修复（2026-08-16 二轮）：
+   ① scroll 容器内子项不收缩（flex-shrink:0），防止 advParams 展开后被压缩；
+   ② 展开不再受 700px max-height 限制，交由外层滚动容器统一滚动。
+   ============================================================ */
+.sv2-sidebar-scroll > * { flex-shrink: 0; }
+/* 高优先级覆盖旧规则 .sv-param-sidebar .sv-advanced-params.open{flex-shrink:1;min-height:0}
+   与展开限高 700px 的问题：展开后完全展开，由外层滚动容器统一滚动 */
+.sv2-sidebar .sv2-sidebar-scroll .sv-advanced-params.open {
+    flex-shrink: 0;
+    min-height: auto;
+    max-height: none;
+    overflow: visible;
+}

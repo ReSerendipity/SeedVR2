@@ -1294,8 +1294,8 @@ const SeedVR2 = (() => {
                         taskStatus.className = 'sv-badge sv-badge-completed';
                     }
 
-                    // 显示结果区域
-                    showRestoreResult(taskId, taskType || data.task_type);
+                    // 显示结果区域（附带耗时等元信息）
+                    showRestoreResult(taskId, taskType || data.task_type, { elapsedSec: (Date.now() - startTime) / 1000 });
                     toast(`${typeLabel}: ${_I['restore.completed'] || t('restore.completed')}`, 'success');
                 }
 
@@ -1312,7 +1312,8 @@ const SeedVR2 = (() => {
                         taskStatus.textContent = _I['status.failed'] || t('status.failed');
                         taskStatus.className = 'sv-badge sv-badge-failed';
                     }
-                    toast(`${typeLabel}: ${_I['restore.failed'] || t('restore.failed')}`, 'error');
+                    showRestoreError(data.error || data.message || (_I['restore.failed'] || t('restore.failed')));
+                    return;
                 }
 
                 // 任务取消处理
@@ -1376,17 +1377,32 @@ const SeedVR2 = (() => {
      * @returns {void}
      * @private
      */
-    function showRestoreResult(taskId, taskType) {
+    function showRestoreResult(taskId, taskType, meta) {
+        meta = meta || {};
         const progressCard = document.getElementById('progressCard');
         const resultCard = document.getElementById('resultCard');
         const resultVideo = document.getElementById('resultVideo');
         const btnDownload = document.getElementById('btnDownload');
+
+        const errorCard = document.getElementById('errorCard');
+        if (errorCard) errorCard.style.display = 'none';
 
         if (progressCard) progressCard.style.display = 'none';
         if (resultCard) resultCard.style.display = 'block';
         if (btnDownload) {
             btnDownload.href = `/api/restore/${taskId}/download`;
             btnDownload.removeAttribute('disabled');
+        }
+
+        // 结果 meta 信息（耗时等）
+        const resultMetaText = document.getElementById('resultMetaText');
+        if (resultMetaText) {
+            if (meta.elapsedSec != null && isFinite(meta.elapsedSec) && meta.elapsedSec > 0) {
+                resultMetaText.textContent = `耗时 ${formatDuration(meta.elapsedSec)}`;
+                resultMetaText.style.display = '';
+            } else {
+                resultMetaText.style.display = 'none';
+            }
         }
 
         // 画布工具条：结果显示后按任务类型启用对应操作组
@@ -1414,11 +1430,12 @@ const SeedVR2 = (() => {
         } catch (e) { /* ignore quota errors */ }
 
         if (taskType === 'video') {
-            // 视频任务显示播放器；对比/缩放组保持禁用
+            // 视频任务显示播放器；对比/缩放/放大镜组保持禁用
             if (resultVideo) { resultVideo.src = `/api/restore/${taskId}/download`; resultVideo.style.display = 'block'; }
             if (compareCard) compareCard.style.display = 'none';
             if (plainViewer) plainViewer.style.display = 'none';
             setBtn('btnCanvasCompare', false);
+            setBtn('btnMagnifier', false);
             ['btnCompareHorizontal', 'btnCompareVertical', 'btnCompareZoomIn', 'btnCompareZoomOut', 'btnCompareFit', 'btnCompareReset']
                 .forEach(id => setBtn(id, false));
             return;
@@ -1429,6 +1446,7 @@ const SeedVR2 = (() => {
         if (compareCard) compareCard.style.display = 'block';
         if (plainViewer) plainViewer.style.display = 'none';
         setBtn('btnCanvasCompare', true);
+        setBtn('btnMagnifier', true);
         const cmpToggle = document.getElementById('btnCanvasCompare');
         if (cmpToggle) cmpToggle.classList.add('active');
         ['btnCompareHorizontal', 'btnCompareVertical', 'btnCompareZoomIn', 'btnCompareZoomOut', 'btnCompareFit', 'btnCompareReset']
@@ -1440,6 +1458,72 @@ const SeedVR2 = (() => {
         if (compareAfterImg) compareAfterImg.src = afterSrc;
         if (plainImg) plainImg.src = afterSrc;
         initCompareSlider('compareContainer', 'compareSlider', 'compareAfter');
+
+        // 记住查看偏好：对比方向 / 放大镜 / 对比模式
+        const vp = loadViewPrefs();
+        if (activeCompareSlider) {
+            if (vp.dir === 'horizontal' || vp.dir === 'vertical') activeCompareSlider.setMode(vp.dir);
+            if (vp.magnifier) {
+                activeCompareSlider.setMagnifier(true);
+                const mb = document.getElementById('btnMagnifier');
+                if (mb) mb.classList.add('active');
+            }
+        }
+        if (vp.compare === false && compareCard && plainViewer) {
+            compareCard.style.display = 'none';
+            plainViewer.style.display = 'flex';
+            if (cmpToggle) cmpToggle.classList.remove('active');
+        }
+    }
+
+    /**
+     * @function showRestoreError
+     * @description 修复失败：显示错误卡片 + 重试入口，工具条回到仅保留清除/替换
+     * @param {string} msg - 错误信息
+     * @returns {void}
+     * @private
+     */
+    function showRestoreError(msg) {
+        const progressCard = document.getElementById('progressCard');
+        const resultCard = document.getElementById('resultCard');
+        const errorCard = document.getElementById('errorCard');
+        const errorMsg = document.getElementById('errorMsg');
+        const compareCard = document.getElementById('compareCard');
+        const plainViewer = document.getElementById('plainViewer');
+        const resultVideo = document.getElementById('resultVideo');
+
+        if (progressCard) progressCard.style.display = 'none';
+        if (resultCard) resultCard.style.display = 'block';
+        if (compareCard) compareCard.style.display = 'none';
+        if (plainViewer) plainViewer.style.display = 'none';
+        if (resultVideo) { resultVideo.style.display = 'none'; resultVideo.src = ''; }
+        if (errorMsg) errorMsg.textContent = msg || (window.__I18N__ && window.__I18N__['restore.failed']) || '修复失败，请重试';
+        if (errorCard) errorCard.style.display = 'flex';
+
+        const canvasStateLabel = document.getElementById('canvasStateLabel');
+        if (canvasStateLabel) canvasStateLabel.textContent = (window.__I18N__ && window.__I18N__['status.failed']) || t('status.failed');
+        const setBtn = (id, enabled) => { const b = document.getElementById(id); if (b) { enabled ? b.removeAttribute('disabled') : b.setAttribute('disabled', ''); } };
+        setBtn('btnCanvasClear', true);
+        setBtn('btnCanvasReplace', true);
+        setBtn('btnDownload', false);
+        setBtn('btnRestoreAgain', false);
+        setBtn('btnCanvasCompare', false);
+        setBtn('btnMagnifier', false);
+        ['btnCompareHorizontal', 'btnCompareVertical', 'btnCompareZoomIn', 'btnCompareZoomOut', 'btnCompareFit', 'btnCompareReset']
+            .forEach(id => setBtn(id, false));
+        const resultMetaText = document.getElementById('resultMetaText');
+        if (resultMetaText) { resultMetaText.style.display = 'none'; resultMetaText.textContent = ''; }
+
+        // 重试：复用页面级 startRestore（由 restore.html 内联注入）
+        const btnRetry = document.getElementById('btnRetry');
+        if (btnRetry) {
+            btnRetry.onclick = () => {
+                if (typeof window.__retryRestore === 'function') {
+                    if (errorCard) errorCard.style.display = 'none';
+                    window.__retryRestore();
+                }
+            };
+        }
     }
 
     /**
@@ -1457,17 +1541,274 @@ const SeedVR2 = (() => {
         }
     }
 
-    // ===== 前后对比滑块 =====
+    // ===== 放大镜 / 预览查看器 / 对比滑块 =====
+    let activeCompareSlider = null;
+    let activePreviewViewer = null;
+
+    /**
+     * @function setLoupeLayer
+     * @description 设置放大镜单个图层：按「主视图当前倍率 × 2」渲染局部放大背景
+     */
+    function setLoupeLayer(layer, imgUrl, natW, natH, dispScale, nx, ny, lensW, lensH) {
+        if (!layer || !imgUrl) return;
+        layer.style.backgroundImage = `url("${imgUrl}")`;
+        layer.style.backgroundSize = `${natW * dispScale}px ${natH * dispScale}px`;
+        layer.style.backgroundPosition = `${lensW / 2 - nx * dispScale}px ${lensH / 2 - ny * dispScale}px`;
+    }
+
+    /**
+     * @function initPreviewViewer
+     * @description 初始化上传后图片预览查看器（缩放/拖动/双击适配/放大镜），图片类任务每次载入时调用
+     * @param {string} stageId - 预览舞台容器ID
+     * @param {string} wrapId - 图片包裹层ID（transform 作用在它上面）
+     * @param {string} imgId - 预览图片ID
+     * @returns {object} PreviewViewer 实例
+     */
+    function initPreviewViewer(stageId, wrapId, imgId) {
+        destroyPreviewViewer();
+        activePreviewViewer = new PreviewViewer(stageId, wrapId, imgId);
+        return activePreviewViewer;
+    }
+
+    function destroyPreviewViewer() {
+        if (activePreviewViewer) {
+            try { activePreviewViewer.destroy(); } catch (e) { /* ignore */ }
+            activePreviewViewer = null;
+        }
+    }
+
+    function getActiveCompareSlider() { return activeCompareSlider; }
+    function getActivePreviewViewer() { return activePreviewViewer; }
+
+    /**
+     * @function loadViewPrefs
+     * @description 读取查看偏好（对比方向 / 放大镜 / 对比模式）
+     */
+    function loadViewPrefs() {
+        try { return JSON.parse(localStorage.getItem('sv_view_prefs') || '{}'); } catch (e) { return {}; }
+    }
+    /**
+     * @function saveViewPrefs
+     * @description 合并保存查看偏好
+     */
+    function saveViewPrefs(patch) {
+        try {
+            const cur = loadViewPrefs();
+            Object.keys(patch).forEach((k) => { cur[k] = patch[k]; });
+            localStorage.setItem('sv_view_prefs', JSON.stringify(cur));
+        } catch (e) { /* ignore */ }
+    }
+
+    /**
+     * @class PreviewViewer
+     * @description 上传后图片预览查看器：滚轮以光标为中心缩放、左/右键拖动平移、
+     *              双击 适配/1:1、HUD 显示真实倍率、可选放大镜局部放大
+     */
+    class PreviewViewer {
+        constructor(stageId, wrapId, imgId) {
+            this.stage = document.getElementById(stageId);
+            this.wrap = document.getElementById(wrapId);
+            this.img = document.getElementById(imgId);
+            if (!this.stage || !this.wrap || !this.img) return;
+
+            this.mag = 1;            // 1 = 适配窗口
+            this.fitMag = 1;
+            this.oneToOneMag = 4;
+            this.tx = 0; this.ty = 0;
+            this.natW = 0; this.natH = 0;
+            this.dragging = false;
+            this.dragAbort = null;
+            this.rafId = null;
+            this.magnifierOn = false;
+            this.loupe = document.getElementById('previewMagnifier');
+            this.mgBefore = this.loupe ? this.loupe.querySelector('.mg-before') : null;
+            this.mgAfter = this.loupe ? this.loupe.querySelector('.mg-after') : null;
+            this._resizeCleanup = null;
+
+            this._bindWheel();
+            this._bindDrag();
+            this._bindDblClick();
+            this._bindMagnifier();
+            this._bindResize();
+            this._align();
+        }
+
+        _align() {
+            const img = this.img;
+            if (!img.complete || img.naturalWidth <= 0) {
+                img.addEventListener('load', () => this._align(), { once: true });
+                return;
+            }
+            this.natW = img.naturalWidth;
+            this.natH = img.naturalHeight;
+            const ratio = this.natW / this.natH;
+            const rect = this.stage.getBoundingClientRect();
+            const maxW = Math.max(200, rect.width - 16);
+            const maxH = Math.max(200, rect.height - 16);
+            let w = maxW, h = w / ratio;
+            if (h > maxH) { h = maxH; w = h * ratio; }
+            this.wrap.style.width = `${w}px`;
+            this.wrap.style.height = `${h}px`;
+            this.fitMag = 1;
+            this.oneToOneMag = Math.max(1, this.natW / w);
+            this._fit();
+        }
+
+        _applyTransform() {
+            const cw = this.wrap.offsetWidth, ch = this.wrap.offsetHeight;
+            const vpW = this.stage.clientWidth, vpH = this.stage.clientHeight;
+            const baseL = this.wrap.offsetLeft, baseT = this.wrap.offsetTop;
+            const contentW = cw * this.mag, contentH = ch * this.mag;
+            if (contentW <= vpW) this.tx = (vpW - contentW) / 2 - baseL;
+            else this.tx = Math.min(0, Math.max(vpW - contentW - baseL, this.tx));
+            if (contentH <= vpH) this.ty = (vpH - contentH) / 2 - baseT;
+            else this.ty = Math.min(0, Math.max(vpH - contentH - baseT, this.ty));
+            this.wrap.style.transform = `translate(${this.tx}px, ${this.ty}px) scale(${this.mag})`;
+            const pct = Math.round(this.mag / this.oneToOneMag * 100);
+            const hud = document.getElementById('previewHud');
+            if (hud) hud.textContent = pct + '%';
+        }
+
+        _fit() { this.mag = this.fitMag; this.tx = 0; this.ty = 0; this._applyTransform(); }
+        _oneToOne() { this.mag = this.oneToOneMag; this._applyTransform(); }
+
+        _setMag(m, cx, cy) {
+            const r = this.stage.getBoundingClientRect();
+            if (cx === undefined) { cx = r.width / 2; cy = r.height / 2; }
+            const oldS = this.mag;
+            const px = (cx - this.tx) / oldS, py = (cy - this.ty) / oldS;
+            this.mag = Math.min(8, Math.max(Math.min(this.fitMag * 0.4, 0.5), m));
+            this.tx = cx - px * this.mag;
+            this.ty = cy - py * this.mag;
+            this._applyTransform();
+        }
+
+        _bindWheel() {
+            this.stage.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const r = this.stage.getBoundingClientRect();
+                this._setMag(this.mag * (e.deltaY < 0 ? 1.18 : 1 / 1.18), e.clientX - r.left, e.clientY - r.top);
+            }, { passive: false });
+        }
+
+        _bindDrag() {
+            const onStart = (clientX, clientY) => {
+                this.dragging = true;
+                this.stage.classList.add('grabbing');
+                if (this.dragAbort) this.dragAbort.abort();
+                this.dragAbort = new AbortController();
+                const sig = this.dragAbort.signal;
+                const sx = this.tx, sy = this.ty;
+                const onMove = (e) => {
+                    if (!this.dragging) return;
+                    e.preventDefault();
+                    const cx = e.touches ? e.touches[0].clientX : e.clientX;
+                    const cy = e.touches ? e.touches[0].clientY : e.clientY;
+                    if (!this.rafId) {
+                        this.rafId = requestAnimationFrame(() => {
+                            this.tx = sx + (cx - clientX);
+                            this.ty = sy + (cy - clientY);
+                            this._applyTransform();
+                            this.rafId = null;
+                        });
+                    }
+                };
+                const onEnd = () => {
+                    this.dragging = false;
+                    this.stage.classList.remove('grabbing');
+                    if (this.dragAbort) { this.dragAbort.abort(); this.dragAbort = null; }
+                    if (this.rafId) { cancelAnimationFrame(this.rafId); this.rafId = null; }
+                };
+                document.addEventListener('mousemove', onMove, { signal: sig });
+                document.addEventListener('mouseup', onEnd, { signal: sig });
+                document.addEventListener('touchmove', onMove, { signal: sig, passive: false });
+                document.addEventListener('touchend', onEnd, { signal: sig });
+            };
+
+            // 仅左键平移（预览无分割线；右键交给浏览器/手势，避免冲突）
+            this.stage.addEventListener('mousedown', (e) => {
+                if (e.button !== 0) return;
+                e.preventDefault();
+                onStart(e.clientX, e.clientY);
+            });
+            this.stage.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) onStart(e.touches[0].clientX, e.touches[0].clientY);
+            }, { passive: true });
+        }
+
+        _bindDblClick() {
+            this.stage.addEventListener('dblclick', () => {
+                if (this.mag > this.fitMag * 1.02) this._fit();
+                else this._oneToOne();
+            });
+        }
+
+        _bindMagnifier() {
+            this.stage.addEventListener('mousemove', (e) => this._updateMagnifier(e));
+            this.stage.addEventListener('mouseleave', () => { if (this.loupe) this.loupe.hidden = true; });
+        }
+
+        _updateMagnifier(e) {
+            if (!this.magnifierOn || !this.loupe) return;
+            const r = this.stage.getBoundingClientRect();
+            const mx = e.clientX - r.left, my = e.clientY - r.top;
+            const lensW = this.loupe.clientWidth || 190, lensH = this.loupe.clientHeight || 190;
+            const imgX = (mx - this.tx) / this.mag;
+            const imgY = (my - this.ty) / this.mag;
+            const w = this.wrap.offsetWidth, h = this.wrap.offsetHeight;
+            const nx = imgX / w * this.natW, ny = imgY / h * this.natH;
+            const dispScale = (this.mag / this.oneToOneMag) * 2;
+            if (this.mgBefore) setLoupeLayer(this.mgBefore, this.img.src, this.natW, this.natH, dispScale, nx, ny, lensW, lensH);
+            this.loupe.style.left = `${mx - lensW / 2}px`;
+            this.loupe.style.top = `${my - lensH / 2}px`;
+            this.loupe.hidden = false;
+        }
+
+        setMagnifier(on) {
+            this.magnifierOn = !!on;
+            if (this.loupe) this.loupe.hidden = !on;
+            saveViewPrefs({ magnifier: !!on });
+        }
+
+        _bindResize() {
+            if (this._resizeCleanup) return;
+            let raf = 0;
+            const onResize = () => {
+                cancelAnimationFrame(raf);
+                raf = requestAnimationFrame(() => this._align());
+            };
+            window.addEventListener('resize', onResize);
+            let ro = null;
+            if (typeof ResizeObserver !== 'undefined') {
+                ro = new ResizeObserver(onResize);
+                ro.observe(this.stage);
+            }
+            this._resizeCleanup = () => {
+                cancelAnimationFrame(raf);
+                window.removeEventListener('resize', onResize);
+                if (ro) ro.disconnect();
+            };
+        }
+
+        destroy() {
+            if (this.dragAbort) this.dragAbort.abort();
+            if (this.rafId) cancelAnimationFrame(this.rafId);
+            if (this._resizeCleanup) { this._resizeCleanup(); this._resizeCleanup = null; }
+            this.setMagnifier(false);
+        }
+    }
+
     /**
      * @function initCompareSlider
-     * @description 初始化图片前后对比滑块，支持水平/垂直模式、缩放、键盘操作
+     * @description 初始化图片前后对比滑块，支持水平/垂直模式、缩放、平移、放大镜、键盘操作
      * @param {string} containerId - 对比容器元素ID
      * @param {string} sliderId - 滑块元素ID
      * @param {string} afterId - 修复后图片容器元素ID
      * @returns {object} CompareSlider 实例
      */
     function initCompareSlider(containerId, sliderId, afterId) {
-        return new CompareSlider(containerId, sliderId, afterId);
+        activeCompareSlider = new CompareSlider(containerId, sliderId, afterId);
+        return activeCompareSlider;
     }
 
     /**
@@ -1495,6 +1836,12 @@ const SeedVR2 = (() => {
             this.snapThreshold = 0.03;
             this.rafId = null;
             this._alignCleanup = null;
+            this.magnifierOn = false;
+            this.natW = 0; this.natH = 0;
+            this.beforeSrc = ''; this.afterSrc = '';
+            this.loupe = document.getElementById('compareMagnifier');
+            this.mgBefore = this.loupe ? this.loupe.querySelector('.mg-before') : null;
+            this.mgAfter = this.loupe ? this.loupe.querySelector('.mg-after') : null;
 
             this._initState();
             this._bindDrag();
@@ -1502,6 +1849,7 @@ const SeedVR2 = (() => {
             this._bindKeyboard();
             this._bindDoubleClick();
             this._bindToolbar();
+            this._bindMagnifier();
             this._bindImageLoad();
         }
 
@@ -1650,8 +1998,10 @@ const SeedVR2 = (() => {
                 if (e.touches.length === 1) { e.stopPropagation(); onStart(e.touches[0].clientX, e.touches[0].clientY, 'div'); }
             }, { passive: true });
 
-            // 画布拖动：放大后平移，未放大时拖动分割线
+            // 画布拖动：仅左键——未放大时拖分割线，放大后拖平移
+            //（右键不拦截，避免与浏览器/鼠标手势冲突）
             this.container.addEventListener('mousedown', (e) => {
+                if (e.button !== 0) return;
                 e.preventDefault();
                 onStart(e.clientX, e.clientY, this.mag > this.fitMag * 1.02 ? 'pan' : 'div');
             });
@@ -1759,6 +2109,43 @@ const SeedVR2 = (() => {
                 if (icon) { icon.className = 'bi bi-arrows-expand-horizontal'; }
             }
             this._updateSliderUI(this.position);
+            saveViewPrefs({ dir: mode });
+        }
+
+        // ── 放大镜（局部放大，跟随鼠标） ──
+
+        _bindMagnifier() {
+            this.viewport.addEventListener('mousemove', (e) => this._updateMagnifier(e));
+            this.viewport.addEventListener('mouseleave', () => { if (this.loupe) this.loupe.hidden = true; });
+        }
+
+        _updateMagnifier(e) {
+            if (!this.magnifierOn || !this.loupe) return;
+            const r = this.viewport.getBoundingClientRect();
+            const mx = e.clientX - r.left, my = e.clientY - r.top;
+            const lensW = this.loupe.clientWidth || 190, lensH = this.loupe.clientHeight || 190;
+            const baseL = this.container.offsetLeft, baseT = this.container.offsetTop;
+            const imgX = (mx - baseL - this.tx) / this.mag;
+            const imgY = (my - baseT - this.ty) / this.mag;
+            const w = this.container.offsetWidth, h = this.container.offsetHeight;
+            const nx = imgX / w * this.natW, ny = imgY / h * this.natH;
+            const dispScale = (this.mag / this.oneToOneMag) * 2;
+            if (this.mgBefore) setLoupeLayer(this.mgBefore, this.beforeSrc, this.natW, this.natH, dispScale, nx, ny, lensW, lensH);
+            if (this.mgAfter) {
+                setLoupeLayer(this.mgAfter, this.afterSrc, this.natW, this.natH, dispScale, nx, ny, lensW, lensH);
+                this.mgAfter.style.clipPath = this.mode === 'horizontal'
+                    ? `inset(0 0 0 ${this.position * 100}%)`
+                    : `inset(${this.position * 100}% 0 0 0)`;
+            }
+            this.loupe.style.left = `${mx - lensW / 2}px`;
+            this.loupe.style.top = `${my - lensH / 2}px`;
+            this.loupe.hidden = false;
+        }
+
+        setMagnifier(on) {
+            this.magnifierOn = !!on;
+            if (this.loupe) this.loupe.hidden = !on;
+            saveViewPrefs({ magnifier: !!on });
         }
 
         // ── 图片加载状态 & 对齐计算 ──
@@ -1799,6 +2186,10 @@ const SeedVR2 = (() => {
                 // 1:1 原像素所需倍率（适配尺寸 → 自然像素）
                 this.fitMag = 1;
                 this.oneToOneMag = Math.max(1, ref.naturalWidth / w);
+                this.natW = ref.naturalWidth;
+                this.natH = ref.naturalHeight;
+                this.beforeSrc = beforeImg.src;
+                this.afterSrc = afterImg ? afterImg.src : beforeImg.src;
                 this._fit();
 
                 requestAnimationFrame(() => {
@@ -2097,7 +2488,7 @@ const SeedVR2 = (() => {
         }
 
         // 重置一体化工具条：全部操作组回到禁用态
-        ['btnDownload', 'btnRestoreAgain', 'btnCanvasClear', 'btnCanvasReplace', 'btnCanvasCompare',
+        ['btnDownload', 'btnRestoreAgain', 'btnCanvasClear', 'btnCanvasReplace', 'btnCanvasCompare', 'btnMagnifier',
          'btnCompareHorizontal', 'btnCompareVertical', 'btnCompareZoomIn', 'btnCompareZoomOut', 'btnCompareFit', 'btnCompareReset']
             .forEach((id) => {
                 const b = document.getElementById(id);
@@ -2105,12 +2496,23 @@ const SeedVR2 = (() => {
             });
         const cmpToggle = document.getElementById('btnCanvasCompare');
         if (cmpToggle) cmpToggle.classList.remove('active');
+        const mgBtn = document.getElementById('btnMagnifier');
+        if (mgBtn) mgBtn.classList.remove('active');
         const zoomLabel = document.getElementById('compareZoomLabel');
         if (zoomLabel) zoomLabel.textContent = '—';
         const hud = document.getElementById('compareHud');
         if (hud) hud.textContent = '—';
+        const previewHud = document.getElementById('previewHud');
+        if (previewHud) previewHud.textContent = '—';
+        const errorCard = document.getElementById('errorCard');
+        if (errorCard) errorCard.style.display = 'none';
+        const resultMetaText = document.getElementById('resultMetaText');
+        if (resultMetaText) { resultMetaText.style.display = 'none'; resultMetaText.textContent = ''; }
         const tbFileName = document.getElementById('tbFileName');
         if (tbFileName) { tbFileName.style.display = 'none'; tbFileName.textContent = ''; }
+        // 关闭放大镜与预览查看器状态
+        if (activeCompareSlider) { try { activeCompareSlider.setMagnifier(false); } catch (e) { /* ignore */ } }
+        if (activePreviewViewer) { try { activePreviewViewer.setMagnifier(false); } catch (e) { /* ignore */ } }
 
         // 清除持久化的修复会话
         try { localStorage.removeItem('sv_restore_session'); } catch(e) {}
@@ -3178,6 +3580,14 @@ const SeedVR2 = (() => {
         resetRestore,
         /** @type {Function} 初始化对比滑块 */
         initCompareSlider,
+        /** @type {Function} 初始化图片预览查看器（缩放/拖动/放大镜） */
+        initPreviewViewer,
+        /** @type {Function} 销毁图片预览查看器 */
+        destroyPreviewViewer,
+        /** @type {Function} 获取当前对比滑块实例 */
+        getActiveCompareSlider,
+        /** @type {Function} 获取当前预览查看器实例 */
+        getActivePreviewViewer,
         /** @type {Function} 切换设置标签 */
         switchSettingsTab,
         /** @type {Function} 加载设置 */

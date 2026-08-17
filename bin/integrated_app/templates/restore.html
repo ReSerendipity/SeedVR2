@@ -41,6 +41,7 @@
         <div class="sv2-toolbar" id="canvasToolbar">
             <span class="sv2-badge" id="canvasStateLabel">{{ t('restore.empty_state') or '未上传' }}</span>
             <span class="sv2-filename" id="tbFileName" style="display:none"></span>
+            <span class="sv2-meta" id="resultMetaText" style="display:none"></span>
             <span class="sv2-flex"></span>
             <div class="sv2-tb-group">
                 <button type="button" class="sv2-tb-btn" id="btnCanvasClear" disabled><i class="bi bi-x-lg"></i> 清除</button>
@@ -48,6 +49,7 @@
             </div>
             <span class="sv2-tb-sep"></span>
             <div class="sv2-tb-group">
+                <button type="button" class="sv2-tb-btn sv2-ico" id="btnMagnifier" disabled title="放大镜（局部放大）"><i class="bi bi-search"></i></button>
                 <button type="button" class="sv2-tb-btn sv2-toggle" id="btnCanvasCompare" disabled><i class="bi bi-columns-gap"></i> {{ t('restore.compare_mode') or '对比模式' }}</button>
                 <button type="button" class="sv2-tb-btn sv2-ico active" id="btnCompareHorizontal" disabled title="{{ t('restore.compare_horizontal') or '水平' }}"><i class="bi bi-arrows-left-right"></i></button>
                 <button type="button" class="sv2-tb-btn sv2-ico" id="btnCompareVertical" disabled title="{{ t('restore.compare_vertical') or '垂直' }}"><i class="bi bi-arrows-up-down"></i></button>
@@ -68,20 +70,28 @@
         <div class="sv2-stage sv-mode-tab-pane active" id="previewArea" data-mode-pane="single">
             <!-- 上传空态 -->
             <div class="sv2-pane" id="workflowGuide" data-auto-hide="true">
-                <div class="sv2-dropzone" id="restoreUploadZone">
-                    <div class="sv2-dropzone-icon"><i class="bi bi-cloud-arrow-up"></i></div>
-                    <div class="sv2-dropzone-title">{{ t('restore.upload_hint') }}</div>
-                    <div class="sv2-dropzone-hint">{{ t('restore.upload_single_hint') }}</div>
-                    <div class="sv2-dropzone-formats">{{ t('restore.supported_formats') }}</div>
-                    <div class="sv2-dropzone-fileinfo" id="restoreFileInfo" style="display:none;"></div>
+                <div class="sv-dropzone" id="restoreUploadZone">
+                    <div class="sv-dropzone-icon"><i class="bi bi-cloud-arrow-up"></i></div>
+                    <div class="sv-dropzone-title">{{ t('restore.upload_hint') }}</div>
+                    <div class="sv-dropzone-hint">{{ t('restore.upload_single_hint') }}</div>
+                    <div class="sv-dropzone-formats">{{ t('restore.supported_formats') }}</div>
+                    <div class="sv-dropzone-fileinfo" id="restoreFileInfo" style="display:none;"></div>
                     <input type="file" id="restoreFileInput" style="display:none;"
                            accept="image/png,image/jpeg,image/jpg,image/bmp,image/webp,video/mp4,video/avi,video/quicktime,video/x-matroska,video/webm,video/x-flv">
                 </div>
             </div>
 
-            <!-- 图片预览 -->
+            <!-- 图片预览（支持缩放 / 拖动 / 双击适配 / 放大镜） -->
             <div class="sv2-pane" id="imagePreviewContainer" style="display:none;">
-                <img id="imagePreview" alt="{{ t('restore.before') }}">
+                <div class="sv2-preview-stage" id="previewStage">
+                    <div class="sv2-preview-img" id="previewImgWrap"><img id="imagePreview" alt="{{ t('restore.before') }}"></div>
+                    <span class="sv2-hud" id="previewHud">—</span>
+                    <span class="sv2-hint"><kbd>滚轮</kbd> 缩放 · <kbd>左键</kbd> 拖动平移 · <kbd>双击</kbd> 适配</span>
+                    <div class="sv2-magnifier" id="previewMagnifier" hidden>
+                        <div class="mg-layer mg-before"></div>
+                        <div class="mg-layer mg-after" style="display:none"></div>
+                    </div>
+                </div>
                 <button type="button" class="sv2-clear-btn" id="btnClearImage" title="{{ t('restore.clear_image') or '清除图片' }}"><i class="bi bi-x-lg"></i></button>
             </div>
 
@@ -106,8 +116,15 @@
                 </div>
             </div>
 
-            <!-- 结果：视频 / 单图 / 前后对比 -->
+            <!-- 结果：错误卡 / 视频 / 单图 / 前后对比 -->
             <div class="sv2-pane sv2-result" id="resultCard" style="display:none;">
+                <!-- 失败错误卡 -->
+                <div class="sv2-error-card" id="errorCard" style="display:none;">
+                    <div class="sv2-error-icon"><i class="bi bi-exclamation-triangle"></i></div>
+                    <div class="sv2-error-title">修复失败</div>
+                    <div class="sv2-error-msg" id="errorMsg"></div>
+                    <button type="button" class="sv2-tb-btn sv2-primary" id="btnRetry" style="height:38px;padding:0 18px"><i class="bi bi-arrow-counterclockwise"></i> 重试</button>
+                </div>
                 <video id="resultVideo" controls style="display:none;max-width:calc(100% - 40px);max-height:calc(100% - 40px);border-radius:var(--sv-radius);box-shadow:0 10px 40px rgba(0,0,0,.3);"></video>
                 <div id="plainViewer" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;width:100%;height:100%;">
                     <img id="plainImg" alt="{{ t('restore.after') }}" style="max-width:calc(100% - 40px);max-height:calc(100% - 40px);object-fit:contain;border-radius:var(--sv-radius);box-shadow:0 10px 40px rgba(0,0,0,.3);">
@@ -124,7 +141,11 @@
                             <div class="sv-compare-slider" id="compareSlider"><i class="bi bi-arrows-expand-horizontal"></i></div>
                         </div>
                         <span class="sv2-hud" id="compareHud">—</span>
-                        <span class="sv2-hint"><kbd>滚轮</kbd> 缩放 · <kbd>拖动</kbd> 平移 · <kbd>双击</kbd> 适配/1:1</span>
+                        <span class="sv2-hint"><kbd>滚轮</kbd> 缩放 · <kbd>左键</kbd> 分割线/平移 · <kbd>双击</kbd> 适配/1:1</span>
+                        <div class="sv2-magnifier" id="compareMagnifier" hidden>
+                            <div class="mg-layer mg-before"></div>
+                            <div class="mg-layer mg-after"></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -157,12 +178,22 @@
     </main>
 
 <aside class="sv-param-sidebar sv2-sidebar" id="paramsSidebar">
+        <div class="sv2-sidebar-scroll">
         <div class="sv-param-sidebar-row">
             <div class="sv-param-sidebar-title">{{ t('restore.param_config') }}</div>
             <button type="button" class="sv-param-collapse-btn" id="btnToggleParams"
                     aria-label="{{ t('restore.collapse_params') }}" title="{{ t('restore.collapse_params') }}">
                 <i class="bi bi-chevron-double-left" id="paramCollapseIcon"></i>
             </button>
+        </div>
+
+        <!-- 参数方案预设：保存/切换/删除整套参数 -->
+        <div class="sv2-presets">
+            <select class="select sv2-preset-select" id="presetSelect" aria-label="参数方案预设">
+                <option value="">方案预设</option>
+            </select>
+            <button type="button" class="sv2-tb-btn sv2-ico" id="btnPresetSave" title="将当前参数保存为方案"><i class="bi bi-plus-lg"></i></button>
+            <button type="button" class="sv2-tb-btn sv2-ico" id="btnPresetDelete" title="删除选中方案" disabled><i class="bi bi-trash"></i></button>
         </div>
 
         <div class="sv-param-section-title">{{ t('restore.basic_params') or '基础参数' }}</div>
@@ -212,16 +243,17 @@
         </button>
 
         <div class="sv-advanced-params" id="advParams">
+            <div class="sv-adv-intro">所有参数均可悬停 <i class="bi bi-info-circle"></i> 查看详细说明;带 <i class="bi bi-lock-fill"></i> 的为系统优化参数,点击锁图标解锁后可手动修改;其余隐藏参数(时域重叠、前置帧、噪声尺度、设备分配)由系统按显存自动优化,保持默认即可。</div>
             <div class="sv-adv-section">
                 <div class="sv-adv-section-title">{{ t('video.node_dit') }}</div>
                 <input type="hidden" name="attention_mode" value="sdpa">
                 <div class="sv-param-group">
-                    <label class="sv-param-label" for="maxResolution">{{ t('restore.max_resolution') }} (0=∞)</label>
+                    <label class="sv-param-label" for="maxResolution">{{ t('restore.max_resolution') }} (0=∞) <span class="sv-param-help" data-tooltip="单张图片或单帧视频的最大边长限制(像素)。输入超过该值时模型会自动分块处理,防止大图 OOM。设为 0 表示不限制,由显存自动决定。显存紧张(如 12GB)时建议设 1024~1536。"><i class="bi bi-info-circle"></i></span></label>
                     <input type="number" class="sv-param-input" id="maxResolution" name="max_resolution" value="0" min="0">
                 </div>
                 <div class="sv-param-group">
                     <label class="sv-param-label" for="colorCorrection">{{ t('video.color_correction') }}
-                        <span class="sv-param-help" data-tooltip="{{ t('restore.tip_color_correction') }}"><i class="bi bi-info-circle"></i></span>
+                        <span class="sv-param-help" data-tooltip="修复完成后是否做色彩校正。LAB(推荐):在 LAB 色彩空间进行颜色匹配,尽量保留原图的色调、白平衡与饱和度;无:不做校正,直接输出模型原始色彩,色调可能与原图有偏差。"><i class="bi bi-info-circle"></i></span>
                     </label>
                     <select class="sv-param-select" id="colorCorrection" name="color_correction">
                         <option value="lab" selected>LAB</option>
@@ -229,13 +261,13 @@
                     </select>
                 </div>
                 <div class="sv-param-group">
-                    <label class="sv-param-label" for="batchSize">{{ t('video.batch_size') }}</label>
+                    <label class="sv-param-label" for="batchSize">{{ t('video.batch_size') }} <span class="sv-param-help" data-tooltip="每次送入模型的图像块数量,取值必须为 4n+1(1、5、9、13…),这是 DiT 模型对批大小的硬性要求。批越大吞吐越高,但显存占用越大;遇到 OOM 时请调小。默认 5。"><i class="bi bi-info-circle"></i></span></label>
                     <input type="number" class="sv-param-input" id="batchSize" name="batch_size" value="5" min="1" step="4" data-rule-4n1>
                 </div>
                 <div class="sv-adv-locked-group">
                     <div class="sv-adv-locked-header">{{ t('restore.optimized_params') }}</div>
                     <div class="sv-param-group">
-                        <label class="sv-param-check" data-tooltip="{{ t('restore.tip_swap_io') }}">
+                        <label class="sv-param-check" data-tooltip="启用后,模型权重会按需在显存与内存之间交换,可显著降低峰值显存占用,换取少量速度损失。显存小于模型体积时强烈建议保持开启。">
                             <input type="checkbox" name="swap_io_components" checked disabled>
                             <input type="hidden" name="swap_io_components" value="true">
                             <span>{{ t('video.swap_io_components') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted" title="{{ '点击解锁，可手动修改' if t('restore.lock_hint_lock') == 'restore.lock_hint_lock' else t('restore.lock_hint_lock') }}"></i></span>
@@ -248,35 +280,35 @@
             <div class="sv-adv-section">
                 <div class="sv-adv-section-title">{{ t('video.node_vae') }}</div>
                 <div class="sv-param-group">
-                    <label class="sv-param-label" for="encodeTileSize">{{ t('video.encode_tile_size') }}</label>
+                    <label class="sv-param-label" for="encodeTileSize">{{ t('video.encode_tile_size') }} <span class="sv-param-help" data-tooltip="VAE 编码阶段的分块边长(像素)。输入会被切成该尺寸的块分别编码。块越小单次显存占用越低,但块间拼接可能出现接缝伪影。1024 是显存与质量的平衡点;OOM 时可降到 512。"><i class="bi bi-info-circle"></i></span></label>
                     <input type="number" class="sv-param-input" id="encodeTileSize" name="encode_tile_size" value="1024" min="64">
                 </div>
                 <div class="sv-param-group">
-                    <label class="sv-param-label" for="encodeTileOverlap">{{ t('video.encode_tile_overlap') }}</label>
+                    <label class="sv-param-label" for="encodeTileOverlap">{{ t('video.encode_tile_overlap') }} <span class="sv-param-help" data-tooltip="相邻编码块之间的重叠像素。重叠让块边界共享更多信息,减少接缝与条纹伪影。通常取 Tile 尺寸的一半(如 1024 对应 512)。设为 0 可省显存但可能出现接缝。"><i class="bi bi-info-circle"></i></span></label>
                     <input type="number" class="sv-param-input" id="encodeTileOverlap" name="encode_tile_overlap" value="512" min="0">
                 </div>
                 <div class="sv-param-group">
-                    <label class="sv-param-label" for="decodeTileSize">{{ t('video.decode_tile_size') }}</label>
+                    <label class="sv-param-label" for="decodeTileSize">{{ t('video.decode_tile_size') }} <span class="sv-param-help" data-tooltip="VAE 解码阶段的分块边长。规则与编码 Tile 相同:块越小越省显存,拼接伪影风险越高。默认 1024。"><i class="bi bi-info-circle"></i></span></label>
                     <input type="number" class="sv-param-input" id="decodeTileSize" name="decode_tile_size" value="1024" min="64">
                 </div>
                 <div class="sv-param-group">
-                    <label class="sv-param-label" for="decodeTileOverlap">{{ t('video.decode_tile_overlap') }}</label>
+                    <label class="sv-param-label" for="decodeTileOverlap">{{ t('video.decode_tile_overlap') }} <span class="sv-param-help" data-tooltip="相邻解码块之间的重叠像素,作用同编码重叠。默认取解码 Tile 的一半(512)。"><i class="bi bi-info-circle"></i></span></label>
                     <input type="number" class="sv-param-input" id="decodeTileOverlap" name="decode_tile_overlap" value="512" min="0">
                 </div>
                 <div class="sv-adv-locked-group">
                     <div class="sv-adv-locked-header">{{ t('restore.optimized_params') }}</div>
                     <div class="sv-param-group sv-param-checks-row">
-                        <label class="sv-param-check" data-tooltip="{{ t('restore.tip_tiled_encode') }}">
+                        <label class="sv-param-check" data-tooltip="开启分块编码:把大图切成小块再编码,避免单次显存占用过高。保持开启即可;仅在大分辨率且显存充裕时关闭可能略快。">
                             <input type="checkbox" name="encode_tiled" checked disabled>
                             <input type="hidden" name="encode_tiled" value="true">
                             <span>{{ t('video.encode_tiled') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted" title="{{ '点击解锁，可手动修改' if t('restore.lock_hint_lock') == 'restore.lock_hint_lock' else t('restore.lock_hint_lock') }}"></i></span>
                         </label>
-                        <label class="sv-param-check" data-tooltip="{{ t('restore.tip_tiled_decode') }}">
+                        <label class="sv-param-check" data-tooltip="开启分块解码:解码同样分块进行,降低显存峰值。保持开启。">
                             <input type="checkbox" name="decode_tiled" checked disabled>
                             <input type="hidden" name="decode_tiled" value="true">
                             <span>{{ t('video.decode_tiled') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted" title="{{ '点击解锁，可手动修改' if t('restore.lock_hint_lock') == 'restore.lock_hint_lock' else t('restore.lock_hint_lock') }}"></i></span>
                         </label>
-                        <label class="sv-param-check" data-tooltip="{{ t('restore.tip_tile_debug') }}">
+                        <label class="sv-param-check" data-tooltip="调试用:输出时叠加显示分块边界,便于观察接缝位置与块大小是否合适。正常使用请关闭。">
                             <input type="checkbox" name="tile_debug" value="true" disabled>
                             <input type="hidden" name="tile_debug" value="false">
                             <span>{{ t('video.tile_debug') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted" title="{{ '点击解锁，可手动修改' if t('restore.lock_hint_lock') == 'restore.lock_hint_lock' else t('restore.lock_hint_lock') }}"></i></span>
@@ -293,7 +325,7 @@
                 <div class="sv-adv-locked-group">
                     <div class="sv-adv-locked-header">{{ t('restore.optimized_params') }}</div>
                     <div class="sv-param-group">
-                        <label class="sv-param-check" data-tooltip="{{ t('restore.tip_uniform_batch') }}">
+                        <label class="sv-param-check" data-tooltip="视频修复时各帧使用统一的批大小,避免显存随帧内容波动导致 OOM。对图片任务无影响。保持开启。">
                             <input type="checkbox" name="uniform_batch_size" checked disabled>
                             <input type="hidden" name="uniform_batch_size" value="true">
                             <span>{{ t('video.uniform_batch_size') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted" title="{{ '点击解锁，可手动修改' if t('restore.lock_hint_lock') == 'restore.lock_hint_lock' else t('restore.lock_hint_lock') }}"></i></span>
@@ -313,7 +345,7 @@
                     <input type="hidden" name="latent_noise_scale" value="0.0">
                 </div>
                 <div class="sv-param-group">
-                    <label class="sv-param-check" data-tooltip="{{ t('restore.tip_debug_mode') }}">
+                    <label class="sv-param-check" data-tooltip="调试模式:输出中间过程的调试信息与日志,用于排查问题。日常使用请关闭。">
                         <input type="checkbox" name="enable_debug" disabled>
                         <input type="hidden" name="enable_debug" value="false">
                         <span>{{ t('video.debug_mode') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted" title="{{ '点击解锁，可手动修改' if t('restore.lock_hint_lock') == 'restore.lock_hint_lock' else t('restore.lock_hint_lock') }}"></i></span>
@@ -355,6 +387,7 @@
             </div>
         </div>
 
+        </div>
         <div class="sv-param-actions">
             <button type="button" class="sv-btn sv-btn-primary" id="btnStartRestore" data-disabled-reason="{{ t('restore.please_select') }}">
                 <i class="bi bi-play-fill"></i> {{ t('restore.upload_and_restore') }}
@@ -1018,6 +1051,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     const pa = document.getElementById('previewArea');
                     if (pa) pa.classList.add('has-content');
                 }
+                // 预览查看器：滚轮缩放 / 拖动平移 / 双击适配 / 放大镜
+                try { SeedVR2.initPreviewViewer('previewStage', 'previewImgWrap', 'imagePreview'); } catch(e) {}
+                const mgBtn = document.getElementById('btnMagnifier');
+                if (mgBtn) { mgBtn.removeAttribute('disabled'); mgBtn.classList.remove('active'); }
+                // 应用查看偏好：上次开启的放大镜自动恢复
+                try {
+                    const _vp = JSON.parse(localStorage.getItem('sv_view_prefs') || '{}');
+                    const _pv = SeedVR2.getActivePreviewViewer ? SeedVR2.getActivePreviewViewer() : null;
+                    if (_pv && _vp.magnifier) { _pv.setMagnifier(true); if (mgBtn) mgBtn.classList.add('active'); }
+                } catch(e) {}
                 const wg = document.getElementById('workflowGuide');
                 if (wg) wg.style.display = 'none';
                 // 两倍模式：自动根据图片短边 × 2 填分辨率
@@ -1048,6 +1091,10 @@ document.addEventListener('DOMContentLoaded', () => {
             els.imagePreview.style.display = 'none';
             els.imagePreview.src = '';
             if (els.imagePreviewContainer) els.imagePreviewContainer.style.display = 'none';
+            // 销毁预览查看器并禁用放大镜
+            try { SeedVR2.destroyPreviewViewer(); } catch(e) {}
+            const mgBtn = document.getElementById('btnMagnifier');
+            if (mgBtn) { mgBtn.setAttribute('disabled', ''); mgBtn.classList.remove('active'); }
             const wg = document.getElementById('workflowGuide');
             if (wg) wg.style.display = '';
             // 文件清除时也清理持久化会话
@@ -1074,6 +1121,10 @@ document.addEventListener('DOMContentLoaded', () => {
             els.imagePreview.style.display = 'none';
             els.imagePreview.src = '';
             if (els.imagePreviewContainer) els.imagePreviewContainer.style.display = 'none';
+            // 销毁预览查看器 / 关闭放大镜
+            try { SeedVR2.destroyPreviewViewer(); } catch(e) {}
+            const mgBtn = document.getElementById('btnMagnifier');
+            if (mgBtn) { mgBtn.setAttribute('disabled', ''); mgBtn.classList.remove('active'); }
             // 重置结果区域（对比滑块/视频播放器）
             const resultCard = document.getElementById('resultCard');
             const compareCard = document.getElementById('compareCard');
@@ -1081,6 +1132,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (resultCard) resultCard.style.display = 'none';
             if (compareCard) compareCard.style.display = 'none';
             if (resultVideo) { resultVideo.style.display = 'none'; resultVideo.src = ''; }
+            if (SeedVR2.getActiveCompareSlider) {
+                const cs = SeedVR2.getActiveCompareSlider();
+                if (cs && cs.setMagnifier) cs.setMagnifier(false);
+            }
             // 清除 sessionStorage 中的结果缓存
             try { sessionStorage.removeItem('sv_restore_result'); } catch(e) {}
             // 显示上传区域
@@ -1281,6 +1336,8 @@ document.addEventListener('DOMContentLoaded', () => {
             SeedVR2.hideCard('progressCard');
         }
     }
+    // 供 app.js 失败错误卡的「重试」调用（文件与参数保持不变，直接重跑）
+    window.__retryRestore = () => startRestore();
 
     // 开始批量修复
     async function startBatch() {
@@ -2059,6 +2116,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 compareCard.style.display = compareModeOn ? 'block' : 'none';
                 plainViewer.style.display = compareModeOn ? 'none' : 'flex';
                 cmp.classList.toggle('active', compareModeOn);
+                // 记住对比模式偏好
+                try {
+                    const _cur = JSON.parse(localStorage.getItem('sv_view_prefs') || '{}');
+                    _cur.compare = compareModeOn;
+                    localStorage.setItem('sv_view_prefs', JSON.stringify(_cur));
+                } catch(e) {}
+            });
+        }
+
+        // 放大镜开关：预览阶段作用于预览查看器，结果阶段作用于对比查看器
+        var mgBtn = document.getElementById('btnMagnifier');
+        if (mgBtn) {
+            mgBtn.addEventListener('click', function () {
+                if (mgBtn.hasAttribute('disabled')) return;
+                var resultCardEl = document.getElementById('resultCard');
+                var inResult = resultCardEl && resultCardEl.style.display !== 'none';
+                var viewer = null;
+                if (inResult && SeedVR2.getActiveCompareSlider) viewer = SeedVR2.getActiveCompareSlider();
+                if (!inResult && SeedVR2.getActivePreviewViewer) viewer = SeedVR2.getActivePreviewViewer();
+                if (!viewer || typeof viewer.setMagnifier !== 'function') return;
+                var turnOn = !viewer.magnifierOn;
+                viewer.setMagnifier(turnOn);
+                mgBtn.classList.toggle('active', turnOn);
             });
         }
 
@@ -2092,6 +2172,84 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     bindCanvasToolbar();
+
+    // ===== 参数方案预设（本地保存 / 切换 / 删除） =====
+    (function initPresets() {
+        const PRESET_KEY = 'sv_restore_presets';
+        const sel = document.getElementById('presetSelect');
+        const btnSave = document.getElementById('btnPresetSave');
+        const btnDel = document.getElementById('btnPresetDelete');
+        if (!sel || !btnSave) return;
+        const loadPresets = () => { try { return JSON.parse(localStorage.getItem(PRESET_KEY) || '[]'); } catch(e) { return []; } };
+        const savePresets = (list) => { try { localStorage.setItem(PRESET_KEY, JSON.stringify(list)); } catch(e) {} };
+        const renderSelect = () => {
+            const list = loadPresets();
+            sel.innerHTML = '<option value="">方案预设</option>' +
+                list.map((p, i) => `<option value="${i}">${SeedVR2.escapeHtml(p.name)}</option>`).join('');
+            if (btnDel) btnDel.disabled = true;
+        };
+        renderSelect();
+        btnSave.addEventListener('click', () => {
+            const name = (window.prompt('方案名称', '方案 ' + (loadPresets().length + 1)) || '').trim();
+            if (!name) return;
+            const list = loadPresets();
+            list.push({ name, values: _collectRestoreFormValues() });
+            savePresets(list);
+            renderSelect();
+            sel.value = String(list.length - 1);
+            if (btnDel) btnDel.disabled = false;
+            SeedVR2.toast('已保存方案「' + name + '」');
+        });
+        sel.addEventListener('change', () => {
+            const idx = sel.value;
+            const list = loadPresets();
+            const p = idx !== '' ? list[Number(idx)] : null;
+            if (btnDel) btnDel.disabled = !p;
+            if (!p) return;
+            _applyRestoreFormValues(p.values);
+            if (typeof syncResolutionUI === 'function') { try { syncResolutionUI(); } catch(e) {} }
+            SeedVR2.toast('已应用方案「' + p.name + '」');
+        });
+        if (btnDel) {
+            btnDel.addEventListener('click', () => {
+                const idx = sel.value;
+                const list = loadPresets();
+                if (idx === '' || !list[Number(idx)]) return;
+                const name = list[Number(idx)].name;
+                list.splice(Number(idx), 1);
+                savePresets(list);
+                renderSelect();
+                SeedVR2.toast('已删除方案「' + name + '」');
+            });
+        }
+    })();
+
+    // ===== 拖入文件夹 → 自动切批量模式并打开目录选择（浏览器限制无法直接读绝对路径） =====
+    (function bindFolderDrop() {
+        const dzEl = document.getElementById('restoreUploadZone');
+        if (!dzEl) return;
+        dzEl.addEventListener('drop', (e) => {
+            let hasDir = false;
+            try {
+                const items = e.dataTransfer && e.dataTransfer.items;
+                if (items && items.length) {
+                    for (let i = 0; i < items.length; i++) {
+                        const entry = items[i].webkitGetAsEntry && items[i].webkitGetAsEntry();
+                        if (entry && entry.isDirectory) { hasDir = true; break; }
+                    }
+                }
+            } catch (err) { /* 忽略 */ }
+            if (!hasDir) return; // 单文件走原有上传流程
+            e.preventDefault();
+            e.stopImmediatePropagation(); // 阻断 setupUploadZone 的单文件处理
+            if (typeof switchMode === 'function') switchMode('batch');
+            SeedVR2.toast('已切换到批量模式，请选择文件夹路径', 'info');
+            SeedVR2.openDirBrowser('', (path) => {
+                const fp = document.getElementById('folderPath');
+                if (fp && path) fp.value = path;
+            });
+        }, true); // capture 阶段优先于 setupUploadZone 的单文件处理
+    })();
 
     document.querySelectorAll('.sv-mode-tab').forEach(tab => {
         tab.addEventListener('click', () => switchMode(tab.dataset.mode));
