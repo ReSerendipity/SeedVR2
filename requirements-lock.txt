@@ -218,8 +218,8 @@ urllib3==2.7.0
 uvicorn==0.49.0
 # NO HASH (run generate_lock.py with network): watchfiles==1.2.0
 watchfiles==1.2.0
-# NO HASH (run generate_lock.py with network): wcwidth==0.8.1
-wcwidth==0.8.1
+# NO HASH (run generate_lock.py with network): wcwidth==0.8.2
+wcwidth==0.8.2
 # NO HASH (run generate_lock.py with network): websockets==16.0
 websockets==16.0
 # NO HASH (run generate_lock.py with network): wheel==0.45.1
