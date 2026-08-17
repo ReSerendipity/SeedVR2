@@ -204,3 +204,28 @@ scripts/simple_summary.ps1
 
 # 水印签名密钥（仅本机，严禁入库/随包分发）
 .watermark_key
+# ===== Local-only content (restored locally, not on remote — 2026-08-17) =====
+CHANGELOG.md
+CI-LESSONS.md
+CONTRIBUTING.md
+SeedVR2_video_cover.webp
+SeedVR2_video_cover_v2.webp
+SeedVR2_video_cover_v3_vertical.webp
+bin/integrated_app/static/design-system.md
+capture-screenshots.bat
+examples/
+perf/benchmark/BENCHMARK_GUIDE.md
+perf/monitoring_plan.md
+tests/reports/
+docs/ARCHITECTURE.md
+docs/COMPLIANCE_CHECKLIST.md
+docs/DEPLOYMENT.md
+docs/LOGGING_AUDIT_REPORT.md
+docs/SageAttention调研备忘.md
+docs/TEST_SYSTEM_AUDIT_REPORT.md
+docs/全功能实施指南.md
+docs/功能实现状态分析报告.md
+docs/测试体系完整性评估报告.md
+docs/项目健康度评估报告.md
+# ffprobe runtime binary (local only, keep out of repo)
+bin/ffprobe.exe

@@ -1,0 +1,104 @@
+name: CI - E2E Playwright
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'bin/integrated_app/**'
+      - 'tests/specs/**'
+      - 'tests/pages/**'
+      - 'tests/fixtures/**'
+      - 'tests/utils/**'
+      - 'tests/playwright.config.ts'
+  push:
+    branches: [main]
+    paths:
+      - 'bin/integrated_app/**'
+      - 'tests/specs/**'
+      - 'tests/pages/**'
+      - 'tests/fixtures/**'
+      - 'tests/utils/**'
+      - 'tests/playwright.config.ts'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [chromium-desktop, firefox-desktop, webkit-desktop]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: tests/package-lock.json
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ matrix.project }}-${{ hashFiles('tests/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-${{ matrix.project }}-
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Playwright dependencies
+        run: |
+          cd tests
+          npm ci
+          npx playwright install --with-deps ${{ matrix.project == 'firefox-desktop' && 'firefox' || matrix.project == 'webkit-desktop' && 'webkit' || 'chromium' }}
+
+      - name: Generate test assets (test-assets ignored by git, regenerated on CI)
+        run: |
+          python tests/generate_test_assets.py
+
+      - name: Start app server in background
+        run: |
+          python bin/integrated_app/app_server.py &
+        env:
+          PYTHONUNBUFFERED: '1'
+
+      - name: Wait for server ready
+        run: |
+          curl --retry 30 --retry-delay 2 --retry-connrefused \
+            http://127.0.0.1:7870/api/system/health
+
+      # Visual regression baselines are platform-specific (committed ones are
+      # win32). CI runs linux, so snapshot assertions are skipped here (--ignore-snapshots);
+      # visual regression is enforced on Windows dev machines via local runs or via
+      # the manual update-baselines.yml workflow to regenerate/commit linux baselines.
+      - name: Run Playwright tests
+        run: cd tests && npx playwright test --project=${{ matrix.project }} --ignore-snapshots --reporter=github,list
+
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.project }}
+          path: tests/playwright-report/
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results-${{ matrix.project }}
+          path: tests/test-results/

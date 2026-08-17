@@ -1,0 +1,60 @@
+name: Dependency Audit
+
+on:
+  pull_request:
+    paths:
+      - 'requirements.txt'
+      - 'requirements-lock.txt'
+      - 'pyproject.toml'
+      - 'tests/package.json'
+      - 'tests/package-lock.json'
+  schedule:
+    - cron: '0 6 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Run pip-audit on requirements
+        run: |
+          if [ -f requirements-lock.txt ]; then
+            pip-audit -r requirements-lock.txt || exit 1
+          elif [ -f requirements.txt ]; then
+            pip-audit -r requirements.txt || exit 1
+          else
+            echo "No requirements file found, skipping audit"
+          fi
+
+      - name: Install safety
+        run: pip install safety
+
+      - name: Run safety check
+        run: |
+          if [ -f requirements.txt ]; then
+            safety check -r requirements.txt --json
+          fi
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: tests/package-lock.json
+
+      - name: Run npm audit
+        run: |
+          cd tests
+          npm audit --audit-level=moderate || exit 1

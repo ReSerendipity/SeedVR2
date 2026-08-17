@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SeedVR2-Toolkit · 在线模拟演示</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%235e7d5a'/%3E%3Cpath d='M8 20l5-7 4 5 3-3 4 5' stroke='%23faf7f2' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+/* ===== SeedVR2 设计系统 (Warm Print 暖暮/暖纸) ===== */
+:root{
+  --primary:#94b88f; --primary-hover:#a8c9a3; --primary-dim:rgba(148,184,143,.18);
+  --success:#94b88f; --warning:#c9a55a; --danger:#c96a5a; --info:#6e90ac;
+  --terracotta:#c48870; --gold:#c9a878;
+  --bg-base:#1e1c19; --bg-surface:#272421; --bg-elevated:#302d29; --bg-hover:#45403b;
+  --border:rgba(234,230,225,.18); --border-hover:rgba(234,230,225,.26);
+  --text-1:#e8e4de; --text-2:#c8c1b9; --text-muted:#9e958c;
+  --radius:8px; --radius-lg:12px;
+  --shadow:0 10px 30px rgba(0,0,0,.35);
+}
+[data-theme="light"]{
+  --primary:#5e7d5a; --primary-hover:#506c4d; --primary-dim:rgba(94,125,90,.08);
+  --success:#4f7049; --warning:#a6823a; --danger:#b85a4a; --info:#52707c;
+  --terracotta:#905040; --gold:#967a4d;
+  --bg-base:#faf7f2; --bg-surface:#ffffff; --bg-elevated:#f0ebe3; --bg-hover:#e6dfd5;
+  --border:rgba(44,36,32,.14); --border-hover:rgba(44,36,32,.22);
+  --text-1:#2c2420; --text-2:#4a3f38; --text-muted:#7a6f66;
+  --shadow:0 10px 30px rgba(44,36,32,.12);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scrollbar-color:var(--border) transparent}
+body{background:var(--bg-base);color:var(--text-1);font:14px/1.55 "DM Sans","Segoe UI",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit}
+.hidden{display:none!important}
+
+/* 演示横幅 */
+.demo-banner{background:linear-gradient(90deg,#2a2620,#33291f);color:#e8e4de;font-size:12.5px;padding:7px 16px;display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--border)}
+[data-theme="light"] .demo-banner{background:linear-gradient(90deg,#f0ebe3,#efe3d2);color:#4a3f38}
+.demo-banner .dot{width:8px;height:8px;border-radius:50%;background:var(--warning);flex:none;animation:pulse 2s infinite}
+@keyframes pulse{50%{opacity:.4}}
+.demo-banner b{color:var(--gold)}
+[data-theme="light"] .demo-banner b{color:#967a4d}
+
+/* 顶栏 */
+.topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:8px;padding:0 16px;height:54px;background:var(--bg-surface);border-bottom:1px solid var(--border);backdrop-filter:blur(8px)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px;letter-spacing:.2px}
+.brand .logo{width:26px;height:26px;border-radius:7px;background:var(--primary);display:flex;align-items:center;justify-content:center;font-size:13px;color:#1a1917}
+.brand small{font-weight:400;color:var(--text-muted);font-size:11px;display:block;line-height:1.1}
+.nav{display:flex;gap:2px;margin-left:12px;flex:1;overflow-x:auto}
+.nav button{background:none;border:none;color:var(--text-muted);padding:8px 13px;border-radius:7px;font-size:13.5px;white-space:nowrap;transition:.15s}
+.nav button:hover{color:var(--text-1);background:var(--bg-hover)}
+.nav button.active{color:var(--primary);background:var(--primary-dim)}
+.top-right{display:flex;gap:8px;align-items:center}
+.icon-btn{background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-2);border-radius:7px;padding:6px 10px;font-size:13px}
+.icon-btn:hover{border-color:var(--border-hover);color:var(--text-1)}
+.top-right select{background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-1);border-radius:7px;padding:6px 8px;font-size:12.5px;outline:none}
+.badge{background:var(--primary-dim);color:var(--primary);border:1px solid rgba(148,184,143,.35);padding:3px 9px;border-radius:99px;font-size:11.5px;white-space:nowrap}
+
+/* 布局 */
+main{max-width:1240px;margin:0 auto;padding:20px 16px 60px}
+.page{display:none}
+.page.active{display:block;animation:fade .25s}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1}}
+.page-head{margin-bottom:16px}
+.page-head h1{font-size:21px;font-family:"Instrument Serif",Georgia,serif;font-weight:600}
+.page-head p{color:var(--text-muted);font-size:13px;margin-top:2px}
+.grid-2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+@media(max-width:900px){.grid-2{grid-template-columns:1fr}}
+
+.card{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;box-shadow:var(--shadow)}
+.card-title{font-size:13px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.card-title .bar{width:3px;height:14px;border-radius:2px;background:var(--primary)}
+
+/* 上传区 */
+.dropzone{border:2px dashed var(--border-hover);border-radius:var(--radius-lg);padding:34px 20px;text-align:center;color:var(--text-muted);cursor:pointer;transition:.2s;background:var(--bg-base)}
+.dropzone:hover,.dropzone.drag{border-color:var(--primary);background:var(--primary-dim);color:var(--text-2)}
+.dropzone .dz-icon{font-size:30px;margin-bottom:8px;color:var(--primary)}
+.dropzone b{color:var(--text-1)}
+.file-card{display:flex;align-items:center;gap:12px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-top:10px}
+.file-card img,.file-card .thumb{width:52px;height:52px;border-radius:6px;object-fit:cover;background:var(--bg-hover)}
+.file-card .meta{flex:1;min-width:0}
+.file-card .meta b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.file-card .meta span{font-size:11.5px;color:var(--text-muted)}
+
+/* 表单 */
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+@media(max-width:560px){.form-row{grid-template-columns:1fr}}
+.field label{display:block;font-size:12px;color:var(--text-muted);margin-bottom:5px}
+.field select,.field input[type=text],.field input[type=number]{width:100%;background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-1);border-radius:7px;padding:8px 10px;font-size:13px;outline:none}
+.field select:focus{border-color:var(--primary)}
+input[type=range]{width:100%;accent-color:var(--primary)}
+.range-label{display:flex;justify-content:space-between;font-size:11.5px;color:var(--text-muted);margin-bottom:2px}
+.switch{position:relative;width:40px;height:22px;flex:none;display:inline-block;vertical-align:middle}
+.switch input{opacity:0;width:0;height:0}
+.switch .sl{position:absolute;inset:0;background:var(--bg-hover);border-radius:99px;transition:.2s;cursor:pointer}
+.switch .sl::before{content:"";position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:3px;left:3px;transition:.2s}
+.switch input:checked+.sl{background:var(--primary)}
+.switch input:checked+.sl::before{transform:translateX(18px)}
+.switch-row{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:9px 12px;margin-bottom:10px}
+.switch-row .l b{font-size:13px}
+.switch-row .l span{display:block;font-size:11.5px;color:var(--text-muted)}
+
+/* 折叠 */
+.acc{border:1px solid var(--border);border-radius:9px;margin-bottom:10px;overflow:hidden}
+.acc-head{display:flex;align-items:center;gap:8px;width:100%;background:var(--bg-elevated);border:none;color:var(--text-1);padding:10px 13px;font-size:13px;font-weight:600;text-align:left}
+.acc-head .ar{margin-left:auto;transition:.2s;color:var(--text-muted)}
+.acc.open .acc-head .ar{transform:rotate(180deg)}
+.acc-body{padding:12px 13px;background:var(--bg-surface)}
+
+/* 按钮 */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:none;border-radius:8px;padding:10px 18px;font-size:14px;font-weight:600;transition:.15s}
+.btn-primary{background:var(--primary);color:#1a1917}
+.btn-primary:hover{background:var(--primary-hover)}
+[data-theme="light"] .btn-primary{color:#fff}
+.btn-primary:disabled{opacity:.55;cursor:not-allowed}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-danger:hover{filter:brightness(1.1)}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text-2)}
+.btn-ghost:hover{border-color:var(--border-hover);color:var(--text-1)}
+.btn-sm{padding:6px 12px;font-size:12.5px;border-radius:7px}
+.btn-block{width:100%;margin-top:12px}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+
+/* 进度 */
+.progress-wrap{margin-top:14px}
+.progress-bar{height:8px;background:var(--bg-elevated);border-radius:99px;overflow:hidden}
+.progress-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--primary),#a8c9a3);border-radius:99px;transition:width .3s}
+.progress-meta{display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);margin-top:6px}
+.log-box{margin-top:12px;background:#171512;border:1px solid var(--border);border-radius:8px;padding:10px 12px;font:11.5px/1.7 "Cascadia Code",Consolas,monospace;color:#b8b2a9;height:120px;overflow-y:auto}
+[data-theme="light"] .log-box{background:#f6f1e9}
+.log-box .ok{color:var(--success)} .log-box .warn{color:var(--warning)}
+
+/* 对比滑块 */
+.cmp{position:relative;border-radius:var(--radius-lg);overflow:hidden;user-select:none;background:var(--bg-elevated)}
+.cmp img{display:block;width:100%;height:auto}
+.cmp .before{position:absolute;inset:0;clip-path:inset(0 calc(100% - var(--pos,50%)) 0 0);overflow:hidden}
+.cmp .before img{width:100%;height:100%;object-fit:cover;filter:blur(3px) saturate(.45) contrast(.78) brightness(1.12)}
+.cmp .before::after{content:"";position:absolute;inset:0;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='140' height='140' filter='url(%23n)' opacity='0.35'/></svg>");background-size:140px 140px;opacity:.55;mix-blend-mode:overlay;pointer-events:none}
+.cmp .divider{position:absolute;top:0;bottom:0;left:var(--pos,50%);width:2px;background:#fff;box-shadow:0 0 8px rgba(0,0,0,.5);transform:translateX(-1px);pointer-events:none}
+.cmp .handle{position:absolute;top:50%;left:var(--pos,50%);transform:translate(-50%,-50%);width:34px;height:34px;border-radius:50%;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;color:#333;font-size:13px;pointer-events:none}
+.cmp input[type=range]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:ew-resize}
+.cmp-tag{position:absolute;top:10px;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:600;background:rgba(0,0,0,.55);color:#fff;backdrop-filter:blur(4px)}
+.cmp-tag.before-tag{left:10px}
+.cmp-tag.after-tag{right:10px;background:rgba(94,125,90,.85)}
+.cmp-canvas{display:flex;gap:6px;justify-content:center;padding:8px;background:var(--bg-elevated);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius-lg) var(--radius-lg);flex-wrap:wrap}
+.sim-badge{display:inline-flex;align-items:center;gap:5px;background:rgba(201,165,90,.14);color:var(--warning);border:1px solid rgba(201,165,90,.3);border-radius:99px;padding:3px 10px;font-size:11.5px;margin-top:10px}
+
+/* 历史表格/卡片 */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;color:var(--text-muted);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;padding:8px 10px;border-bottom:1px solid var(--border)}
+td{padding:10px;border-bottom:1px solid var(--border);color:var(--text-2)}
+tr:hover td{background:var(--bg-elevated)}
+.status-dot{display:inline-flex;align-items:center;gap:6px}
+.status-dot::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--success)}
+.status-dot.warn::before{background:var(--warning)}
+.status-dot.danger::before{background:var(--danger)}
+.hist-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.hist-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius);padding:12px;cursor:pointer;transition:.15s}
+.hist-card:hover{border-color:var(--primary)}
+.hist-card b{font-size:13px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hist-card .m{font-size:11.5px;color:var(--text-muted);margin-top:3px}
+.hist-card .thumb{width:100%;height:90px;object-fit:cover;border-radius:6px;margin-bottom:8px;background:var(--bg-hover)}
+
+/* 指标块/环 */
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.metric{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius);padding:12px}
+.metric .k{font-size:11.5px;color:var(--text-muted)}
+.metric .v{font-size:20px;font-weight:700;margin-top:2px;font-family:"Cascadia Code",Consolas,monospace}
+.metric .v small{font-size:11px;color:var(--text-muted);font-weight:400}
+.metric .sub{font-size:11px;color:var(--text-muted);margin-top:2px}
+.gpu-bar{height:10px;background:var(--bg-elevated);border-radius:99px;overflow:hidden;margin-top:4px}
+.gpu-bar>div{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--primary),var(--gold));transition:width 1s}
+
+/* 画廊 */
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.g-item{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:.15s}
+.g-item:hover{border-color:var(--primary);transform:translateY(-2px)}
+.g-item img{width:100%;height:130px;object-fit:cover;display:block}
+.g-item .cap{padding:8px 10px;font-size:12px;color:var(--text-2)}
+
+/* 模态/抽屉 */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;backdrop-filter:blur(4px)}
+.modal-box{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);max-width:760px;width:100%;max-height:86vh;overflow:auto;padding:20px;box-shadow:var(--shadow)}
+.modal-box h3{font-size:16px;margin-bottom:12px}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(430px,94vw);background:var(--bg-surface);border-left:1px solid var(--border);z-index:90;transform:translateX(105%);transition:transform .25s ease;display:flex;flex-direction:column;box-shadow:-8px 0 30px rgba(0,0,0,.35)}
+.drawer.open{transform:none}
+.drawer-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border);font-weight:700;font-size:14px}
+.drawer-body{flex:1;overflow-y:auto;padding:14px 16px}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:80;opacity:0;pointer-events:none;transition:.2s}
+.overlay.show{opacity:1;pointer-events:auto}
+
+/* toast */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--bg-elevated);border:1px solid var(--border-hover);color:var(--text-1);padding:10px 18px;border-radius:9px;font-size:13px;box-shadow:var(--shadow);z-index:200;opacity:0;transition:.25s;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
+
+/* 表格搜索 */
+.toolbar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+.search{flex:1;min-width:200px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:7px;padding:8px 12px;color:var(--text-1);font-size:13px;outline:none}
+.search:focus{border-color:var(--primary)}
+.pager{display:flex;gap:6px;align-items:center;margin-top:12px;font-size:12.5px;color:var(--text-muted)}
+.pager button{background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-2);border-radius:6px;padding:5px 10px;font-size:12px}
+.pager button:disabled{opacity:.4;cursor:not-allowed}
+.seg{display:inline-flex;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.seg button{border:none;background:none;color:var(--text-muted);padding:7px 13px;font-size:12.5px}
+.seg button.active{background:var(--primary-dim);color:var(--primary);font-weight:600}
+
+/* 设置列表/FAQ */
+.set-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 0;border-bottom:1px solid var(--border)}
+.set-row:last-child{border-bottom:none}
+.set-row .l b{font-size:13.5px}
+.set-row .l span{display:block;font-size:12px;color:var(--text-muted);margin-top:2px}
+.faq-item{border:1px solid var(--border);border-radius:9px;margin-bottom:9px;overflow:hidden}
+.faq-q{width:100%;display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--bg-elevated);border:none;color:var(--text-1);padding:11px 14px;font-size:13px;font-weight:600;text-align:left}
+.faq-a{padding:11px 14px;font-size:12.5px;color:var(--text-2);background:var(--bg-surface);border-top:1px solid var(--border)}
+footer{margin-top:30px;padding-top:14px;border-top:1px solid var(--border);color:var(--text-muted);font-size:12px}
+.scan-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:7px;font-size:12.5px;color:var(--text-2)}
+.scan-item .st{margin-left:auto;font-size:11.5px}
+</style>
+</head>
+<body>
+
+<div class="demo-banner"><span class="dot"></span><span><b data-i18n="banner">在线模拟演示模式</b> — <span data-i18n="banner2">纯前端仿真环境，不含模型推理。所有进度、日志与结果均为本地模拟。</span></span></div>
+
+<header class="topbar">
+  <div class="brand"><div class="logo">SV</div><div>SeedVR2<small>视频 &amp; 图像超分修复 · 模拟演示</small></div></div>
+  <nav class="nav" id="nav">
+    <button class="active" data-page="workbench" data-i18n="nav.workbench">修复工作台</button>
+    <button data-page="batch" data-i18n="nav.batch">批量修复</button>
+    <button data-page="history" data-i18n="nav.history">历史记录</button>
+    <button data-page="status" data-i18n="nav.status">系统状态</button>
+    <button data-page="settings" data-i18n="nav.settings">设置</button>
+  </nav>
+  <div class="top-right">
+    <select id="localeSel" title="Language">
+      <option value="zh">中文</option><option value="zh-TW">繁體中文</option><option value="en">English</option><option value="ja">日本語</option><option value="fr">Français</option>
+    </select>
+    <button class="icon-btn" id="helpBtn" data-i18n="help">帮助</button>
+    <button class="icon-btn" id="themeBtn" title="Theme">🌗</button>
+    <span class="badge">Simulation v2.0</span>
+  </div>
+</header>
+
+<main>
+
+<!-- ============ 修复工作台 ============ -->
+<section class="page active" id="page-workbench">
+  <div class="page-head"><h1 data-i18n="wb.title">修复工作台</h1><p data-i18n="wb.desc">上传低质量图片或视频，模拟 SeedVR2 单步扩散修复流程（演示为模拟，不执行真实推理）。</p></div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title"><span class="bar"></span><span data-i18n="wb.input">输入与参数</span></div>
+      <div class="dropzone" id="dz" tabindex="0" role="button" aria-label="上传文件">
+        <div class="dz-icon">⤴</div>
+        <div><b data-i18n="dz.hint">拖拽文件到这里</b> 或 <u data-i18n="dz.click">点击选择</u></div>
+        <div style="font-size:12px;margin-top:4px" data-i18n="dz.sub">支持图片 / 视频（模拟环境仅预览）</div>
+        <input type="file" id="fileInput" accept="image/*,video/*" class="hidden">
+      </div>
+      <div id="fileCard"></div>
+      <div class="btn-row">
+        <button class="btn btn-ghost btn-sm" id="btnClearImage" data-i18n="wb.clear">🗑 清空图片</button>
+        <button class="btn btn-ghost btn-sm" id="btnChangeFile" data-i18n="wb.change">⇄ 更换文件</button>
+        <button class="btn btn-ghost btn-sm" id="btnResetRestore" data-i18n="wb.reset">↺ 重置参数</button>
+      </div>
+      <div style="margin-top:14px">
+        <div class="form-row">
+          <div class="field"><label data-i18n="wb.model">模型</label><select id="model"><option>SeedVR2-3B</option><option>SeedVR2-7B</option><option>SeedVR2-7B-Sharp</option></select></div>
+          <div class="field"><label data-i18n="wb.precision">精度</label><select id="precision"><option>FP16</option><option>FP8</option></select></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label data-i18n="wb.scale">放大倍率</label><select id="scale"><option>2x</option><option>4x</option></select></div>
+          <div class="field"><label data-i18n="wb.denoise">去噪强度</label><input type="range" id="denoise" min="0" max="1" step="0.05" value="0.5"><span class="range-label" style="margin-top:2px"><span></span><span id="denoiseVal">0.50</span></span></div>
+        </div>
+
+        <div class="acc open" id="accAdv">
+          <button class="acc-head" id="advToggle"><span data-i18n="wb.adv">高级参数</span><span class="ar">▾</span></button>
+          <div class="acc-body" id="advBody">
+            <div class="form-row">
+              <div class="field"><label data-i18n="wb.tile">分块尺寸</label><select id="tile"><option>512</option><option>1024</option><option>2048</option></select></div>
+              <div class="field"><label data-i18n="wb.cc">色彩校正</label><select id="colorCorrection"><option>off</option><option>lab</option><option>adain</option><option>none</option></select></div>
+            </div>
+            <div class="form-row">
+              <div class="field"><label data-i18n="wb.encTile">编码分块</label><select id="encodeTileSize"><option>512</option><option>1024</option><option>2048</option></select></div>
+              <div class="field"><label data-i18n="wb.decTile">解码分块</label><select id="decodeTileSize"><option>512</option><option>1024</option><option>2048</option></select></div>
+            </div>
+            <div class="form-row">
+              <div class="field"><label data-i18n="wb.maxRes">最大分辨率</label><select id="maxResolution"><option>2048</option><option>4096</option><option>8192</option></select></div>
+              <div class="field"><label data-i18n="wb.blockswap">BlockSwap 块数</label><input type="number" id="blocksToSwap" value="0" min="0" max="56"></div>
+            </div>
+            <div class="switch-row">
+              <div class="l"><b data-i18n="wb.doubleRes">双倍分辨率</b><span data-i18n="wb.doubleResSub">启用后输出分辨率翻倍</span></div>
+              <label class="switch"><input type="checkbox" id="doubleResToggle"><span class="sl"></span></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn-ghost btn-sm" id="vramBtn">▣ <span data-i18n="wb.vram">VRAM 预检 &amp; 推荐参数</span></button>
+          <button class="btn btn-ghost btn-sm" id="btnApplyRecommend" data-i18n="wb.applyRec">⚡ 应用推荐</button>
+          <button class="btn btn-ghost btn-sm" id="btnGpuHelp" data-i18n="wb.gpuHelp">❓ GPU 帮助</button>
+        </div>
+        <div id="vramResult" class="hidden" style="margin-top:10px;background:var(--primary-dim);border:1px solid rgba(148,184,143,.35);border-radius:8px;padding:10px 12px;font-size:12.5px;color:var(--text-2)"></div>
+        <div class="btn-row">
+          <button class="btn btn-primary" id="runBtn" style="flex:1">▶ <span data-i18n="wb.run">开始修复（模拟）</span></button>
+          <button class="btn btn-danger hidden" id="cancelBtn" data-i18n="wb.cancel">✕ 取消任务</button>
+        </div>
+      </div>
+      <div class="progress-wrap hidden" id="progressWrap">
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="progress-meta"><span id="progressPct">0%</span><span id="progressStage">初始化…</span><span id="progressVram">VRAM 0.0 GB</span></div>
+        <div class="log-box" id="logBox"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="bar"></span><span data-i18n="wb.result">修复结果</span></div>
+      <div id="resultEmpty" style="text-align:center;padding:60px 20px;color:var(--text-muted)">
+        <div style="font-size:34px;margin-bottom:10px">🖼</div>
+        <div data-i18n="wb.resultEmpty">运行修复流程后，这里将展示「修复前 / 修复后」对比效果</div>
+      </div>
+      <div id="resultArea" class="hidden">
+        <div class="cmp" id="cmp" style="border-radius:var(--radius-lg) var(--radius-lg) 0 0">
+          <img id="cmpAfter" src="" alt="修复后">
+          <div class="before" id="beforeWrap"><img id="cmpBefore" src="" alt="修复前（模拟）"></div>
+          <div class="divider"></div>
+          <div class="handle">⇔</div>
+          <span class="cmp-tag before-tag">修复前 · 模拟</span>
+          <span class="cmp-tag after-tag">修复后</span>
+          <input type="range" id="cmpRange" min="0" max="100" value="50" aria-label="对比位置">
+        </div>
+        <div class="cmp-canvas" id="canvasToolbar">
+          <button class="btn btn-ghost btn-sm" id="btnCompareHorizontal" title="水平对比">⇔ 水平</button>
+          <button class="btn btn-ghost btn-sm" id="btnCompareVertical" title="垂直对比">⇕ 垂直</button>
+          <button class="btn btn-ghost btn-sm" id="btnCompareFit" title="适合窗口">⛶ 适合</button>
+          <button class="btn btn-ghost btn-sm" id="btnCompareZoomOut" title="缩小">−</button>
+          <span id="compareZoomLabel" style="font-size:12px;color:var(--text-muted);align-self:center">100%</span>
+          <button class="btn btn-ghost btn-sm" id="btnCompareZoomIn" title="放大">＋</button>
+          <button class="btn btn-ghost btn-sm" id="btnCompareReset" title="重置">↺</button>
+        </div>
+        <div class="sim-badge">⚡ <span data-i18n="wb.simNote">对比效果为本地模拟（右侧为仓库内置真实修复示例，左侧为 CSS 模拟退化）</span></div>
+        <div class="btn-row">
+          <button class="btn btn-ghost btn-sm" id="swapSample" data-i18n="wb.swap">↻ 换一个示例</button>
+          <button class="btn btn-ghost btn-sm" id="btnDownload" data-i18n="wb.download">⬇ 下载结果</button>
+          <button class="btn btn-ghost btn-sm" id="btnRestoreAgain" data-i18n="wb.again">↻ 再次修复</button>
+        </div>
+        <div class="card-title" style="margin-top:18px"><span class="bar"></span><span data-i18n="wb.realRef">真实模型输出参考</span></div>
+        <div class="gallery" id="realGallery"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 批量修复 ============ -->
+<section class="page" id="page-batch">
+  <div class="page-head"><h1 data-i18n="batch.title">批量修复</h1><p data-i18n="batch.desc">模拟文件夹批量扫描与断点续跑任务队列（演示为模拟）。</p></div>
+  <div class="card">
+    <div class="form-row" style="grid-template-columns:1fr auto;align-items:end">
+      <div class="field"><label data-i18n="batch.folder">文件夹路径</label><input type="text" id="folderPath" value="D:\photos\archive_2024" placeholder="输入文件夹路径…"></div>
+      <button class="btn btn-ghost" id="btnBrowseFolder" data-i18n="batch.browse">📂 浏览…</button>
+    </div>
+    <div class="btn-row" style="margin-top:0">
+      <button class="btn btn-primary btn-sm" id="btnScanFolder" data-i18n="batch.scan">🔍 扫描文件夹（模拟）</button>
+      <button class="btn btn-ghost btn-sm" id="batchAdd" data-i18n="batch.add">＋ 添加模拟文件</button>
+      <button class="btn btn-primary btn-sm" id="batchRun" data-i18n="batch.run">▶ 开始批量修复（模拟）</button>
+      <button class="btn btn-danger btn-sm hidden" id="btnCancelBatch" data-i18n="batch.cancel">✕ 取消批量</button>
+      <button class="btn btn-ghost btn-sm" id="batchClear" data-i18n="batch.clear">🗑 清空列表</button>
+      <span class="badge" id="batchState">空闲 · 0 个文件</span>
+    </div>
+    <div id="scanResults" class="hidden" style="margin-top:12px"></div>
+    <div id="batchList" style="margin-top:14px"></div>
+    <div id="batchSummary" class="hidden" style="margin-top:14px;background:var(--primary-dim);border-radius:8px;padding:12px;font-size:13px"></div>
+  </div>
+</section>
+
+<!-- ============ 历史记录 ============ -->
+<section class="page" id="page-history">
+  <div class="page-head"><h1 data-i18n="hist.title">历史记录</h1><p data-i18n="hist.desc">模拟 SQLite 历史库，支持搜索、筛选、视图切换与清空。</p></div>
+  <div class="card">
+    <div class="toolbar">
+      <input class="search" id="histSearch" placeholder="搜索文件名 / 模型…">
+      <select id="filterType" style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:7px;padding:8px;color:var(--text-1)">
+        <option value="all">全部类型</option><option value="image">图片</option><option value="video">视频</option>
+      </select>
+      <select id="filterStatus" style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:7px;padding:8px;color:var(--text-1)">
+        <option value="all">全部状态</option><option value="done">已完成</option><option value="fail">失败</option>
+      </select>
+      <div class="seg" id="viewSeg">
+        <button class="active" id="btnViewTable" title="表格视图">▦</button>
+        <button id="btnViewCards" title="卡片视图">▤</button>
+      </div>
+      <button class="btn btn-ghost btn-sm" id="btnRefresh" title="刷新">⟳</button>
+      <button class="btn btn-ghost btn-sm" id="btnClearHistory" style="color:var(--danger)" data-i18n="hist.clear">🗑 清空</button>
+    </div>
+    <div style="overflow-x:auto" id="histTableWrap">
+      <table>
+        <thead><tr><th>文件</th><th>模型</th><th>分辨率</th><th>耗时</th><th>时间</th><th>状态</th></tr></thead>
+        <tbody id="histBody"></tbody>
+      </table>
+    </div>
+    <div id="histCardsWrap" class="hist-cards hidden"></div>
+    <div class="pager">
+      <button id="histPrev">‹ 上一页</button><span id="histInfo"></span><button id="histNext">下一页 ›</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 系统状态 ============ -->
+<section class="page" id="page-status">
+  <div class="page-head"><h1 data-i18n="sys.title">系统状态</h1><p data-i18n="sys.desc">模拟 GPU / 系统实时监控、模型信息与 VRAM 估算（数值为本地模拟）。</p></div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title"><span class="bar"></span>GPU · NVIDIA GeForce RTX 4090 (24 GB) <span class="badge" style="margin-left:auto">模拟在线</span><button class="icon-btn" id="btnRefreshStatus" title="刷新" style="margin-left:8px">⟳</button></div>
+    <div class="metrics">
+      <div class="metric"><div class="k">利用率</div><div class="v" id="gpuUtil">37%</div><div class="sub">实时刷新</div></div>
+      <div class="metric"><div class="k">显存占用</div><div class="v" id="gpuVram">6.2 <small>/ 24 GB</small></div><div class="sub" id="gpuVramPct">26%</div></div>
+      <div class="metric"><div class="k">温度</div><div class="v" id="gpuTemp">52°C</div><div class="sub">风扇 1480 RPM</div></div>
+      <div class="metric"><div class="k">功耗</div><div class="v" id="gpuPower">186 <small>W</small></div><div class="sub">上限 450W</div></div>
+      <div class="metric"><div class="k">系统内存</div><div class="v" id="memPct">41%</div><div class="sub" id="memAvail">可用 30.2 GB / 64 GB</div></div>
+    </div>
+    <div style="margin-top:12px">
+      <div class="range-label"><span>显存占用</span><span id="vramBarLabel">26%</span></div>
+      <div class="gpu-bar"><div id="vramBar" style="width:26%"></div></div>
+    </div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title"><span class="bar"></span>模型注册表</div>
+      <table><thead><tr><th>模型</th><th>大小</th><th>精度</th><th>状态</th></tr></thead>
+      <tbody id="modelTable"></tbody></table>
+      <div style="margin-top:12px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:11px 13px;font-size:12.5px;color:var(--text-2)">
+        <b>当前模型：</b><span id="currentModel">SeedVR2-3B</span> · 加载耗时 <span id="modelLoadTime">2.8s</span> · 推理显存 <span id="modelVramUsage">6.3 GB</span><br>
+        <span style="font-size:11.5px;color:var(--text-muted)">CUDA <span id="gpuCudaVer">12.8</span> · 驱动 <span id="gpuDriverVer">572.16</span> · 运行时长 <span id="uptime">3 天 04:12</span> · Python <span id="pythonVer">3.12</span> · <span id="platform">Windows</span></span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="bar"></span>VRAM 估算计算器</div>
+      <div class="form-row">
+        <div class="field"><label>模型</label><select id="estModel"><option>SeedVR2-3B</option><option>SeedVR2-7B</option><option>SeedVR2-7B-Sharp</option></select></div>
+        <div class="field"><label>输入分辨率</label><select id="estRes"><option>1280×720</option><option>1920×1080</option><option>3840×2160</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>宽</label><input type="number" id="vramWidth" value="1920"></div>
+        <div class="field"><label>高</label><input type="number" id="vramHeight" value="1080"></div>
+      </div>
+      <div class="field"><label>视频帧数</label><select id="estFrames"><option>1</option><option>16</option><option>32</option><option>64</option></select></div>
+      <button class="btn btn-primary btn-sm" id="estBtn" style="margin-top:10px">计算估算</button>
+      <div id="estResult" class="hidden" style="margin-top:12px;background:var(--primary-dim);border-radius:8px;padding:12px;font-size:13px"></div>
+      <div id="vramRec" class="hidden" style="margin-top:10px;border:1px solid var(--border);border-radius:8px;padding:11px 13px;font-size:12.5px;color:var(--text-2)">
+        <b>推荐参数：</b><span id="vramRecPrecision">FP16</span> · 分块 <span id="vramRecTileSize">1024</span> · BlockSwap <span id="vramRecBlockswap">0</span> · 估算 <span id="vramRecEstimated">9.3 GB</span><br>
+        <span id="vramRecRisk" style="font-size:11.5px;color:var(--success)">✓ 可流畅运行</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 设置 ============ -->
+<section class="page" id="page-settings">
+  <div class="page-head"><h1 data-i18n="set.title">设置</h1><p data-i18n="set.desc">模拟全局设置（修改仅保存在浏览器本地）。</p></div>
+  <div class="card" style="max-width:720px">
+    <div class="set-row"><div class="l"><b data-i18n="set.theme">深色主题</b><span>暖暮 / 暖纸主题切换（持久化到本地）</span></div><label class="switch"><input type="checkbox" id="setTheme" checked><span class="sl"></span></label></div>
+    <div class="set-row"><div class="l"><b data-i18n="set.mode">模型来源模式</b><span>shared / portable</span></div>
+      <select id="setMode" style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text-1)">
+        <option>portable（默认）</option><option>shared</option></select></div>
+    <div class="set-row"><div class="l"><b data-i18n="set.locale">界面语言</b><span>5 种语言切换（导航/标题级）</span></div><select id="settingsLocale" style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text-1)"><option value="zh">中文</option><option value="zh-TW">繁體中文</option><option value="en">English</option><option value="ja">日本語</option><option value="fr">Français</option></select></div>
+    <div class="set-row"><div class="l"><b data-i18n="set.resume">断点续跑</b><span>批量任务崩溃后自动恢复进度</span></div><label class="switch"><input type="checkbox" checked><span class="sl"></span></label></div>
+    <div class="btn-row"><button class="btn btn-primary btn-sm" onclick="showToast('已保存（模拟）')">保存设置</button><button class="btn btn-ghost btn-sm" id="btnResetAll" data-i18n="set.resetAll">恢复默认设置</button></div>
+  </div>
+  <div class="card" style="max-width:720px;margin-top:14px">
+    <div class="card-title"><span class="bar"></span><span data-i18n="set.faq">常见问题 (FAQ)</span></div>
+    <div id="faqList">
+      <div class="faq-item"><button class="faq-q">为什么演示站没有真实推理？<span>▾</span></button><div class="faq-a hidden">GitHub Pages 只能托管静态文件，无法运行 CUDA 模型。本演示站用本地模拟替代推理，用于体验完整界面与流程。</div></div>
+      <div class="faq-item"><button class="faq-q">支持哪些模型与精度？<span>▾</span></button><div class="faq-a hidden">SeedVR2-3B / 7B / 7B-Sharp，支持 FP16 与 FP8 精度；真实运行最低需要 8GB 显存（3B + FP8）。</div></div>
+      <div class="faq-item"><button class="faq-q">对比滑块左右两边为什么一样？<span>▾</span></button><div class="faq-a hidden">为模拟「修复前」效果，左侧对同一张示例图做了 CSS 模糊/降饱和处理；真实模型会输出真正的修复结果。</div></div>
+      <div class="faq-item"><button class="faq-q">批量断点续跑如何工作？<span>▾</span></button><div class="faq-a hidden">每处理完一个文件自动保存 checkpoint，重启后检测未完成任务并恢复，已完成文件通过路径+大小+修改时间指纹跳过。</div></div>
+    </div>
+  </div>
+</section>
+
+<footer data-i18n="footer">SeedVR2 在线模拟演示 · 所有结果均为本地模拟 · 真实推理需 NVIDIA CUDA GPU + 模型权重 · 独立第三方工具，与字节跳动及其 Seed 团队无隶属关系，与 seedvr2.com 等付费站点无关</footer>
+</main>
+
+<!-- 帮助抽屉 -->
+<div class="overlay" id="overlay"></div>
+<aside class="drawer" id="helpDrawer">
+  <div class="drawer-head"><span data-i18n="help.title">帮助与快捷键</span> <button class="icon-btn" id="helpClose">✕</button></div>
+  <div class="drawer-body" style="font-size:13px;color:var(--text-2)">
+    <div class="card-title"><span class="bar"></span>新手引导（4 步）</div>
+    <div style="margin-bottom:10px">1️⃣ 上传一张低质量图片 → 2️⃣ 选择模型与精度 → 3️⃣ 点击「开始修复」→ 4️⃣ 拖动滑块查看前后对比</div>
+    <div class="card-title"><span class="bar"></span>快捷键</div>
+    <table>
+      <tr><td>Ctrl + K</td><td>命令面板</td></tr>
+      <tr><td>Esc</td><td>关闭弹层 / 抽屉</td></tr>
+      <tr><td>Ctrl + Enter</td><td>开始修复</td></tr>
+    </table>
+    <div class="card-title"><span class="bar"></span>GPU 显存速查</div>
+    <table>
+      <tr><td>SeedVR2-3B FP16</td><td>≥16 GB</td></tr>
+      <tr><td>SeedVR2-3B FP8</td><td>≥8 GB</td></tr>
+      <tr><td>SeedVR2-7B FP8</td><td>≥12 GB</td></tr>
+    </table>
+    <div class="sim-badge" style="margin-top:12px">💡 演示环境帮助内容为内置说明</div>
+  </div>
+</aside>
+
+<!-- 命令面板 -->
+<div class="modal hidden" id="cmdModal" style="align-items:flex-start;padding-top:12vh">
+  <div class="modal-box" style="max-width:520px;padding:0;overflow:visible">
+    <input id="cmdInput" placeholder="输入命令… 例如：开始修复 / 历史 / 主题 / 帮助" style="width:100%;background:var(--bg-elevated);border:none;border-bottom:1px solid var(--border);border-radius:0;padding:14px 16px;font-size:14px;color:var(--text-1);outline:none">
+    <div id="cmdList" style="padding:8px;font-size:13px"></div>
+  </div>
+</div>
+
+<div class="modal hidden" id="modal"><div class="modal-box" id="modalBox"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===== 基础 ===== */
+const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
+let toastTimer;
+function showToast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2400)}
+function openModal(html){$('#modalBox').innerHTML=html;$('#modal').classList.remove('hidden')}
+$('#modal').addEventListener('click',e=>{if(e.target.id==='modal')$('#modal').classList.add('hidden')});
+
+/* ===== i18n（5 语言，导航/标题/按钮级） ===== */
+const I18N={
+  zh:{banner:'在线模拟演示模式',banner2:'纯前端仿真环境，不含模型推理。所有进度、日志与结果均为本地模拟。','nav.workbench':'修复工作台','nav.batch':'批量修复','nav.history':'历史记录','nav.status':'系统状态','nav.settings':'设置',help:'帮助','wb.title':'修复工作台','wb.desc':'上传低质量图片或视频，模拟 SeedVR2 单步扩散修复流程（演示为模拟，不执行真实推理）。','wb.input':'输入与参数','dz.hint':'拖拽文件到这里','dz.click':'点击选择','dz.sub':'支持图片 / 视频（模拟环境仅预览）','wb.clear':'🗑 清空图片','wb.change':'⇄ 更换文件','wb.reset':'↺ 重置参数','wb.model':'模型','wb.precision':'精度','wb.scale':'放大倍率','wb.denoise':'去噪强度','wb.adv':'高级参数','wb.tile':'分块尺寸','wb.cc':'色彩校正','wb.encTile':'编码分块','wb.decTile':'解码分块','wb.maxRes':'最大分辨率','wb.blockswap':'BlockSwap 块数','wb.doubleRes':'双倍分辨率','wb.doubleResSub':'启用后输出分辨率翻倍','wb.vram':'VRAM 预检 & 推荐参数','wb.applyRec':'⚡ 应用推荐','wb.gpuHelp':'❓ GPU 帮助','wb.run':'开始修复（模拟）','wb.cancel':'✕ 取消任务','wb.result':'修复结果','wb.resultEmpty':'运行修复流程后，这里将展示「修复前 / 修复后」对比效果','wb.simNote':'对比效果为本地模拟（右侧为仓库内置真实修复示例，左侧为 CSS 模拟退化）','wb.swap':'↻ 换一个示例','wb.download':'⬇ 下载结果','wb.again':'↻ 再次修复','wb.realRef':'真实模型输出参考','batch.title':'批量修复','batch.desc':'模拟文件夹批量扫描与断点续跑任务队列（演示为模拟）。','batch.folder':'文件夹路径','batch.browse':'📂 浏览…','batch.scan':'🔍 扫描文件夹（模拟）','batch.add':'＋ 添加模拟文件','batch.run':'▶ 开始批量修复（模拟）','batch.cancel':'✕ 取消批量','batch.clear':'🗑 清空列表','hist.title':'历史记录','hist.desc':'模拟 SQLite 历史库，支持搜索、筛选、视图切换与清空。','hist.clear':'🗑 清空','sys.title':'系统状态','sys.desc':'模拟 GPU / 系统实时监控、模型信息与 VRAM 估算（数值为本地模拟）。','set.title':'设置','set.desc':'模拟全局设置（修改仅保存在浏览器本地）。','set.theme':'深色主题','set.mode':'模型来源模式','set.locale':'界面语言','set.resume':'断点续跑','set.resetAll':'恢复默认设置','set.faq':'常见问题 (FAQ)','help.title':'帮助与快捷键','footer':'SeedVR2 在线模拟演示 · 所有结果均为本地模拟 · 真实推理需 NVIDIA CUDA GPU + 模型权重 · 独立第三方工具，与字节跳动及其 Seed 团队无隶属关系，与 seedvr2.com 等付费站点无关'},
+  'zh-TW':{banner:'線上模擬演示模式',banner2:'純前端模擬環境，不含模型推理。所有進度、日誌與結果均為本地模擬。','nav.workbench':'修復工作台','nav.batch':'批量修復','nav.history':'歷史記錄','nav.status':'系統狀態','nav.settings':'設定',help:'幫助','wb.title':'修復工作台','wb.desc':'上傳低品質圖片或影片，模擬 SeedVR2 單步擴散修復流程（示範為模擬，不執行真實推理）。','wb.input':'輸入與參數','dz.hint':'拖拽檔案到這裡','dz.click':'點擊選擇','dz.sub':'支援圖片 / 影片（模擬環境僅預覽）','wb.clear':'🗑 清空圖片','wb.change':'⇄ 更換檔案','wb.reset':'↺ 重置參數','wb.model':'模型','wb.precision':'精度','wb.scale':'放大倍率','wb.denoise':'去噪強度','wb.adv':'進階參數','wb.tile':'分塊尺寸','wb.cc':'色彩校正','wb.encTile':'編碼分塊','wb.decTile':'解碼分塊','wb.maxRes':'最大解析度','wb.blockswap':'BlockSwap 塊數','wb.doubleRes':'雙倍解析度','wb.doubleResSub':'啟用後輸出解析度翻倍','wb.vram':'VRAM 預檢 & 推薦參數','wb.applyRec':'⚡ 套用推薦','wb.gpuHelp':'❓ GPU 幫助','wb.run':'開始修復（模擬）','wb.cancel':'✕ 取消任務','wb.result':'修復結果','wb.resultEmpty':'執行修復流程後，這裡將展示「修復前 / 修復後」對比效果','wb.simNote':'對比效果為本地模擬（右側為倉庫內建真實修復範例，左側為 CSS 模擬退化）','wb.swap':'↻ 換一個範例','wb.download':'⬇ 下載結果','wb.again':'↻ 再次修復','wb.realRef':'真實模型輸出參考','batch.title':'批量修復','batch.desc':'模擬資料夾批量掃描與斷點續跑任務佇列（示範為模擬）。','batch.folder':'資料夾路徑','batch.browse':'📂 瀏覽…','batch.scan':'🔍 掃描資料夾（模擬）','batch.add':'＋ 新增模擬檔案','batch.run':'▶ 開始批量修復（模擬）','batch.cancel':'✕ 取消批量','batch.clear':'🗑 清空清單','hist.title':'歷史記錄','hist.desc':'模擬 SQLite 歷史庫，支援搜尋、篩選、檢視切換與清空。','hist.clear':'🗑 清空','sys.title':'系統狀態','sys.desc':'模擬 GPU / 系統即時監控、模型資訊與 VRAM 估算（數值為本地模擬）。','set.title':'設定','set.desc':'模擬全域設定（修改僅保存在瀏覽器本地）。','set.theme':'深色主題','set.mode':'模型來源模式','set.locale':'介面語言','set.resume':'斷點續跑','set.resetAll':'恢復預設設定','set.faq':'常見問題 (FAQ)','help.title':'幫助與快捷鍵','footer':'SeedVR2 線上模擬示範 · 所有結果均為本地模擬 · 真實推理需 NVIDIA CUDA GPU + 模型權重 · 獨立第三方工具，與字節跳動及其 Seed 團隊無隸屬關係，與 seedvr2.com 等付費站點無關'},
+  en:{banner:'Online Simulation Demo Mode',banner2:'Pure frontend simulation, no model inference. All progress, logs and results are simulated locally.','nav.workbench':'Restore Workbench','nav.batch':'Batch Restore','nav.history':'History','nav.status':'System Status','nav.settings':'Settings',help:'Help','wb.title':'Restore Workbench','wb.desc':'Upload low-quality images or videos to simulate the SeedVR2 single-step diffusion restoration flow (simulated, no real inference).','wb.input':'Input & Parameters','dz.hint':'Drag files here','dz.click':'or click to select','dz.sub':'Images / Videos supported (preview only in simulation)','wb.clear':'🗑 Clear Image','wb.change':'⇄ Change File','wb.reset':'↺ Reset Params','wb.model':'Model','wb.precision':'Precision','wb.scale':'Upscale','wb.denoise':'Denoise','wb.adv':'Advanced Parameters','wb.tile':'Tile Size','wb.cc':'Color Correction','wb.encTile':'Encode Tile','wb.decTile':'Decode Tile','wb.maxRes':'Max Resolution','wb.blockswap':'BlockSwap Blocks','wb.doubleRes':'Double Resolution','wb.doubleResSub':'Double the output resolution when enabled','wb.vram':'VRAM Precheck & Recommend','wb.applyRec':'⚡ Apply Recommended','wb.gpuHelp':'❓ GPU Help','wb.run':'▶ Start Restore (Simulated)','wb.cancel':'✕ Cancel Task','wb.result':'Restore Result','wb.resultEmpty':'Run the restore flow to see the before/after comparison here','wb.simNote':'Comparison is simulated locally (right: real restored sample from repo; left: CSS-degraded mock)','wb.swap':'↻ Another Sample','wb.download':'⬇ Download','wb.again':'↻ Restore Again','wb.realRef':'Real Model Output Samples','batch.title':'Batch Restore','batch.desc':'Simulated folder scanning and resume-able batch queue (demo).','batch.folder':'Folder Path','batch.browse':'📂 Browse…','batch.scan':'🔍 Scan Folder (Simulated)','batch.add':'＋ Add Files','batch.run':'▶ Start Batch (Simulated)','batch.cancel':'✕ Cancel Batch','batch.clear':'🗑 Clear List','hist.title':'History','hist.desc':'Simulated SQLite history with search, filter, view toggle and clear.','hist.clear':'🗑 Clear','sys.title':'System Status','sys.desc':'Simulated GPU/system monitoring, model info and VRAM estimation (local values).','set.title':'Settings','set.desc':'Simulated global settings (stored in browser only).','set.theme':'Dark Theme','set.mode':'Model Source Mode','set.locale':'Language','set.resume':'Resume Interrupted Jobs','set.resetAll':'Reset Defaults','set.faq':'FAQ','help.title':'Help & Shortcuts','footer':'SeedVR2 online simulation demo · All results simulated locally · Real inference requires NVIDIA CUDA GPU + model weights · Independent third-party tool, not affiliated with ByteDance or its Seed team, and unrelated to paid sites such as seedvr2.com'},
+  ja:{banner:'オンライン模擬デモモード',banner2:'純フロントエンドのシミュレーション環境。モデル推論は行いません。すべてローカルで模擬されます。','nav.workbench':'修復ワークベンチ','nav.batch':'バッチ修復','nav.history':'履歴','nav.status':'システム状態','nav.settings':'設定',help:'ヘルプ','wb.title':'修復ワークベンチ','wb.desc':'低画質の画像・動画をアップロードして SeedVR2 の単段拡散修復フローを模擬します（実際の推論は行いません）。','wb.input':'入力とパラメータ','dz.hint':'ここにファイルをドラッグ','dz.click':'またはクリックして選択','dz.sub':'画像 / 動画対応（模擬環境ではプレビューのみ）','wb.clear':'🗑 画像をクリア','wb.change':'⇄ ファイル変更','wb.reset':'↺ パラメータリセット','wb.model':'モデル','wb.precision':'精度','wb.scale':'拡大倍率','wb.denoise':'ノイズ除去','wb.adv':'詳細パラメータ','wb.tile':'タイルサイズ','wb.cc':'色補正','wb.encTile':'エンコードタイル','wb.decTile':'デコードタイル','wb.maxRes':'最大解像度','wb.blockswap':'BlockSwap 数','wb.doubleRes':'解像度2倍','wb.doubleResSub':'有効にすると出力解像度が2倍になります','wb.vram':'VRAM 事前チェック','wb.applyRec':'⚡ 推奨を適用','wb.gpuHelp':'❓ GPU ヘルプ','wb.run':'▶ 修復開始（模擬）','wb.cancel':'✕ タスク取消','wb.result':'修復結果','wb.resultEmpty':'修復フローを実行すると、ここに「修復前/修復後」の比較が表示されます','wb.simNote':'比較効果はローカル模擬です（右: リポジトリ内の実際の修復サンプル、左: CSS による模擬劣化）','wb.swap':'↻ 別のサンプル','wb.download':'⬇ ダウンロード','wb.again':'↻ もう一度修復','wb.realRef':'実際のモデル出力サンプル','batch.title':'バッチ修復','batch.desc':'フォルダスキャンと再開可能なバッチキューの模擬（デモ）。','batch.folder':'フォルダパス','batch.browse':'📂 参照…','batch.scan':'🔍 フォルダをスキャン（模擬）','batch.add':'＋ ファイルを追加','batch.run':'▶ バッチ修復開始（模擬）','batch.cancel':'✕ バッチ取消','batch.clear':'🗑 リストをクリア','hist.title':'履歴','hist.desc':'検索・フィルタ・ビュー切替・クリアに対応した模擬履歴。','hist.clear':'🗑 クリア','sys.title':'システム状態','sys.desc':'GPU/システム監視・モデル情報・VRAM 見積もりの模擬（ローカル値）。','set.title':'設定','set.desc':'模擬グローバル設定（ブラウザ内のみ保存）。','set.theme':'ダークテーマ','set.mode':'モデルソースモード','set.locale':'言語','set.resume':'中断ジョブを再開','set.resetAll':'デフォルトに戻す','set.faq':'よくある質問','help.title':'ヘルプとショートカット','footer':'SeedVR2 オンライン模擬デモ · すべての結果はローカル模擬 · 実際の推論には NVIDIA CUDA GPU とモデルが必要です · 独立したサードパーティ製ツールであり、ByteDance および Seed チームとは無関係です。seedvr2.com などの有料サイトとは関係ありません'},
+  fr:{banner:'Mode démo de simulation en ligne',banner2:'Environnement frontend pur, aucune inférence de modèle. Toutes les progressions, journaux et résultats sont simulés localement.','nav.workbench':'Atelier de restauration','nav.batch':'Restauration par lot','nav.history':'Historique','nav.status':'État du système','nav.settings':'Paramètres',help:'Aide','wb.title':'Atelier de restauration','wb.desc':'Importez des images/vidéos basse qualité pour simuler le flux de restauration SeedVR2 (simulation, pas d\'inférence réelle).','wb.input':'Entrée & paramètres','dz.hint':'Glissez les fichiers ici','dz.click':'ou cliquez pour choisir','dz.sub':'Images / vidéos (aperçu uniquement en simulation)','wb.clear':'🗑 Vider l\'image','wb.change':'⇄ Changer le fichier','wb.reset':'↺ Réinitialiser','wb.model':'Modèle','wb.precision':'Précision','wb.scale':'Agrandissement','wb.denoise':'Débruitage','wb.adv':'Paramètres avancés','wb.tile':'Taille de tuile','wb.cc':'Correction couleur','wb.encTile':'Tuile encodage','wb.decTile':'Tuile décodage','wb.maxRes':'Résolution max','wb.blockswap':'Blocs BlockSwap','wb.doubleRes':'Double résolution','wb.doubleResSub':'Double la résolution de sortie','wb.vram':'Pré-vérif VRAM','wb.applyRec':'⚡ Appliquer recommandation','wb.gpuHelp':'❓ Aide GPU','wb.run':'▶ Démarrer (simulation)','wb.cancel':'✕ Annuler','wb.result':'Résultat','wb.resultEmpty':'Lancez le flux de restauration pour voir la comparaison avant/après','wb.simNote':'Comparaison simulée localement (droite : vrai échantillon du dépôt ; gauche : dégradation CSS simulée)','wb.swap':'↻ Autre échantillon','wb.download':'⬇ Télécharger','wb.again':'↻ Restaurer à nouveau','wb.realRef':'Échantillons de sortie réels','batch.title':'Restauration par lot','batch.desc':'Simulation de scan de dossier et file d\'attente reprenable (démo).','batch.folder':'Chemin du dossier','batch.browse':'📂 Parcourir…','batch.scan':'🔍 Scanner (simulation)','batch.add':'＋ Ajouter des fichiers','batch.run':'▶ Démarrer le lot (simulation)','batch.cancel':'✕ Annuler le lot','batch.clear':'🗑 Vider la liste','hist.title':'Historique','hist.desc':'Historique simulé avec recherche, filtres, bascule de vue et vidage.','hist.clear':'🗑 Vider','sys.title':'État du système','sys.desc':'Surveillance GPU/système simulée, infos modèle et estimation VRAM (valeurs locales).','set.title':'Paramètres','set.desc':'Paramètres globaux simulés (stockés localement).','set.theme':'Thème sombre','set.mode':'Mode source des modèles','set.locale':'Langue','set.resume':'Reprendre les tâches interrompues','set.resetAll':'Rétablir les défauts','set.faq':'FAQ','help.title':'Aide & raccourcis','footer':'Démo en ligne SeedVR2 · Résultats simulés localement · Inférence réelle : GPU NVIDIA CUDA + poids du modèle requis · Outil tiers indépendant, sans affiliation avec ByteDance ou son équipe Seed, et sans lien avec les sites payants tels que seedvr2.com'}
+};
+function applyLocale(l){
+  const d=I18N[l]||I18N.zh;
+  $$('[data-i18n]').forEach(el=>{const k=el.dataset.i18n;if(d[k]!==undefined)el.textContent=d[k]});
+  $('#localeSel').value=l;$('#settingsLocale').value=l;
+}
+$('#localeSel').onchange=e=>applyLocale(e.target.value);
+$('#settingsLocale').onchange=e=>applyLocale(e.target.value);
+
+/* 主题 */
+function applyTheme(t){document.documentElement.dataset.theme=t;$('#setTheme').checked=(t==='dark')}
+$('#themeBtn').onclick=()=>applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
+$('#setTheme').onchange=e=>applyTheme(e.target.checked?'dark':'light');
+
+/* 导航 */
+$$('#nav button').forEach(b=>b.onclick=()=>{
+  $$('#nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');
+  $$('.page').forEach(p=>p.classList.remove('active'));$('#page-'+b.dataset.page).classList.add('active');
+  window.scrollTo({top:0});
+});
+
+/* ===== 修复工作台 ===== */
+const RESULTS=['assets/results/result-1.jpg','assets/results/result-2.jpg','assets/results/result-3.jpg','assets/results/result-4.jpg'];
+let curResult=0, userFile=null, runToken=0;
+
+$('#dz').onclick=()=>$('#fileInput').click();
+$('#dz').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('#fileInput').click()}};
+$('#fileInput').onchange=e=>{const f=e.target.files[0];if(f)addFile(f)};
+['dragover','dragleave','drop'].forEach(ev=>$('#dz').addEventListener(ev,e=>{
+  e.preventDefault();
+  if(ev==='dragover')$('#dz').classList.add('drag');
+  else $('#dz').classList.remove('drag');
+  if(ev==='drop'&&e.dataTransfer.files[0])addFile(e.dataTransfer.files[0]);
+}));
+function addFile(f){
+  userFile=f;
+  const isImg=f.type.startsWith('image/');
+  const url=URL.createObjectURL(f);
+  $('#fileCard').innerHTML=`<div class="file-card">${isImg?`<img src="${url}">`:'<div class="thumb" style="display:flex;align-items:center;justify-content:center;font-size:20px">🎬</div>'}<div class="meta"><b>${f.name}</b><span>${(f.size/1024/1024).toFixed(2)} MB · ${isImg?'图片':'视频'} · 仅预览</span></div></div>`;
+}
+$('#btnClearImage').onclick=()=>{userFile=null;$('#fileCard').innerHTML='';showToast('已清空图片')};
+$('#btnChangeFile').onclick=()=>$('#fileInput').click();
+$('#btnResetRestore').onclick=()=>{
+  $('#model').value='SeedVR2-3B';$('#precision').value='FP16';$('#scale').value='2x';
+  $('#tile').value='1024';$('#denoise').value=0.5;$('#denoiseVal').textContent='0.50';
+  $('#colorCorrection').value='off';$('#blocksToSwap').value=0;$('#doubleResToggle').checked=false;
+  showToast('参数已重置为默认');
+};
+$('#denoise').oninput=e=>$('#denoiseVal').textContent=Number(e.target.value).toFixed(2);
+$('#advToggle').onclick=()=>{$('#accAdv').classList.toggle('open');$('#advBody').classList.toggle('hidden')};
+
+/* VRAM 预检 + 应用推荐 */
+function calcVram(){
+  const m=$('#model').value,p=$('#precision').value,t=$('#tile').value;
+  const base={'SeedVR2-3B':6.3,'SeedVR2-7B':14.8,'SeedVR2-7B-Sharp':14.9}[m];
+  const tileGb=(+t/1024)**2*1.6;
+  return base+(p==='FP8'?-4:0)+tileGb;
+}
+$('#vramBtn').onclick=()=>{
+  const est=calcVram();
+  $('#vramResult').classList.remove('hidden');
+  $('#vramResult').innerHTML=`<b>估算显存：</b>约 <b style="color:var(--primary)">${est.toFixed(1)} GB</b>（可用 24 GB，${+est>22?'⚠ 风险较高':'✓ 可流畅运行'}）`;
+};
+$('#btnApplyRecommend').onclick=()=>{
+  const m=$('#model').value;const est=calcVram();
+  if(est>22){$('#precision').value='FP8';$('#tile').value='512'}
+  else if(est>16){$('#precision').value='FP8'}
+  showToast('已应用推荐参数（模拟）');
+};
+$('#btnGpuHelp').onclick=()=>openDrawer('helpDrawer');
+
+/* 帮助抽屉 */
+$('#helpBtn').onclick=()=>openDrawer('helpDrawer');
+$('#helpClose').onclick=()=>closeDrawers();
+$('#overlay').onclick=closeDrawers;
+function openDrawer(id){$$('.drawer').forEach(d=>d.classList.remove('open'));$('#'+id).classList.add('open');$('#overlay').classList.add('show')}
+function closeDrawers(){$$('.drawer').forEach(d=>d.classList.remove('open'));$('#overlay').classList.remove('show')}
+
+/* 对比控件 */
+$('#cmpRange').oninput=e=>{const p=e.target.value+'%';$('#cmp').style.setProperty('--pos',p)};
+let cmpZoom=100, cmpMode='h';
+function setCmpMode(mode){
+  cmpMode=mode;
+  const after=$('#cmpAfter'),before=$('#beforeWrap');
+  if(mode==='v'){
+    $('#cmp').style.setProperty('--pos','50%');
+    after.style.clipPath='inset(50% 0 0 0)';before.style.clipPath='inset(0 0 50% 0)';
+    $('#cmpRange').classList.add('hidden');
+  }else{
+    after.style.clipPath='';before.style.clipPath='';
+    $('#cmpRange').classList.remove('hidden');
+  }
+}
+$('#btnCompareHorizontal').onclick=()=>{setCmpMode('h');showToast('水平对比模式')};
+$('#btnCompareVertical').onclick=()=>{setCmpMode('v');showToast('垂直对比模式')};
+$('#btnCompareFit').onclick=()=>{cmpZoom=100;$('#compareZoomLabel').textContent=cmpZoom+'%';showToast('已适合窗口')};
+$('#btnCompareZoomIn').onclick=()=>{cmpZoom=Math.min(200,cmpZoom+25);$('#compareZoomLabel').textContent=cmpZoom+'%'};
+$('#btnCompareZoomOut').onclick=()=>{cmpZoom=Math.max(50,cmpZoom-25);$('#compareZoomLabel').textContent=cmpZoom+'%'};
+$('#btnCompareReset').onclick=()=>{cmpZoom=100;$('#compareZoomLabel').textContent='100%';setCmpMode('h');$('#cmpRange').value=50;$('#cmp').style.setProperty('--pos','50%')};
+setCmpMode('h');
+
+$('#swapSample').onclick=()=>{curResult=(curResult+1)%RESULTS.length;setCmp()};
+function setCmp(){
+  $('#cmpAfter').src=RESULTS[curResult];
+  $('#cmpBefore').src=RESULTS[curResult];
+}
+$('#btnDownload').onclick=()=>{
+  const a=document.createElement('a');a.href=RESULTS[curResult];a.download='seedvr2-sample-'+curResult+'.jpg';a.click();
+  showToast('已下载结果（模拟）');
+};
+$('#btnRestoreAgain').onclick=()=>$('#runBtn').click();
+
+/* 真实示例画廊 */
+function renderGallery(){
+  const g=RESULTS.map((r,i)=>`<div class="g-item" onclick="openModal('<h3>示例对比</h3><div class=&quot;cmp&quot; style=&quot;--pos:50%&quot;><img src=&quot;${r}&quot;><div class=&quot;before&quot;><img src=&quot;${r}&quot;></div><div class=&quot;divider&quot;></div><span class=&quot;cmp-tag before-tag&quot;>修复前 · 模拟</span><span class=&quot;cmp-tag after-tag&quot;>修复后</span></div><p style=&quot;font-size:12px;color:var(--text-muted);margin-top:10px&quot;>示例 #${i+1} · 真实模型输出（来自仓库 outputs/image）· 左侧为模拟退化效果</p>')"><img src="${r}" alt="示例 ${i+1}"><div class="cap">真实修复示例 #${i+1}</div></div>`).join('');
+  $('#realGallery').innerHTML=g;
+}
+renderGallery();setCmp();
+
+/* 模拟修复流程（可取消） */
+const STAGES=[
+  ['加载模型权重…',700],['初始化 DiT / VAE 管线…',800],['VAE 编码 · 时间分块…',900],
+  ['扩散采样 · 单步修复…',1400],['分块融合 / 色彩校正…',900],['VAE 解码 · 输出写入…',700]
+];
+let running=false;
+$('#runBtn').onclick=()=>{
+  if(running)return;running=true;const token=++runToken;
+  $('#runBtn').disabled=true;$('#runBtn').classList.add('hidden');$('#cancelBtn').classList.remove('hidden');
+  $('#progressWrap').classList.remove('hidden');
+  $('#resultEmpty').classList.add('hidden');$('#resultArea').classList.remove('hidden');
+  const log=$('#logBox');log.innerHTML='';
+  const addLog=(t,c='')=>{const d=document.createElement('div');d.innerHTML=t;if(c)d.className=c;log.appendChild(d);log.scrollTop=log.scrollHeight};
+  addLog(`[init] 任务 ${Date.now().toString(36)} 已创建 · 输入: ${userFile?userFile.name:'内置示例'}`, 'ok');
+  const model=$('#model').value, prec=$('#precision').value;
+  const vramBase={'SeedVR2-3B':6.3,'SeedVR2-7B':14.8,'SeedVR2-7B-Sharp':14.9}[model];
+  const vramHist=[];
+  STAGES.forEach(([text,ms],i)=>{
+    setTimeout(()=>{
+      if(runToken!==token)return;
+      addLog(`[${(i+1).toString().padStart(2,'0')}] ${text} · ${model} / ${prec}`);
+      $('#progressFill').style.width=Math.round(((i+1)/STAGES.length)*100)+'%';
+      $('#progressPct').textContent=Math.round(((i+1)/STAGES.length)*100)+'%';
+      $('#progressStage').textContent=text;
+    },i*ms);
+  });
+  const vramTimer=setInterval(()=>{
+    if(runToken!==token){clearInterval(vramTimer);return}
+    const v=vramBase+Math.sin(vramHist.length/3)*0.8+vramHist.length*0.05;
+    vramHist.push(v);$('#progressVram').textContent='VRAM '+v.toFixed(1)+' GB';
+  },300);
+  setTimeout(()=>{
+    if(runToken!==token)return;
+    clearInterval(vramTimer);
+    $('#progressFill').style.width='100%';$('#progressPct').textContent='100%';
+    $('#progressStage').textContent='完成';
+    addLog(`[done] 修复完成 · 输出: outputs/image/seedvr2_${Date.now().toString(36)}.png`, 'ok');
+    addLog(`[info] 峰值显存 ${Math.max(...vramHist).toFixed(1)} GB · 用时 5.2s（模拟）`, 'warn');
+    running=false;$('#runBtn').disabled=false;$('#runBtn').classList.remove('hidden');$('#cancelBtn').classList.add('hidden');
+    showToast('修复完成（模拟）✓');
+  },STAGES.reduce((a,b)=>a+b[1],0));
+};
+$('#cancelBtn').onclick=()=>{
+  runToken++;running=false;
+  $('#runBtn').disabled=false;$('#runBtn').classList.remove('hidden');$('#cancelBtn').classList.add('hidden');
+  $('#progressStage').textContent='已取消';
+  const log=$('#logBox');
+  const d=document.createElement('div');d.innerHTML='[cancel] 任务已被用户取消';d.className='warn';
+  log.appendChild(d);
+  showToast('任务已取消');
+};
+
+/* ===== 批量修复 ===== */
+const BATCH_FILES=['IMG_20240812_1601.jpg','DJI_0032.MP4','scan_archive_014.png','old_photo_1987.jpg','cctv_capture_2210.mp4','trip_2024_raw_007.jpg','document_scan_042.png','phone_video_031.mp4'];
+let batchQueue=[], batchToken=0;
+function renderBatch(){
+  const list=$('#batchList');
+  if(!batchQueue.length){list.innerHTML='<div style="color:var(--text-muted);font-size:13px;padding:20px;text-align:center;border:1px dashed var(--border);border-radius:8px">点击「扫描文件夹」或「添加模拟文件」生成批量任务</div>';return}
+  list.innerHTML=batchQueue.map((f,i)=>`
+    <div class="file-card" style="margin-top:8px">
+      <div class="thumb" style="display:flex;align-items:center;justify-content:center;font-size:18px">${f.name.endsWith('.mp4')?'🎬':'🖼'}</div>
+      <div class="meta"><b>${f.name}</b><span>${f.state==='wait'?'等待中':f.state==='run'?'修复中…':'已完成'}</span></div>
+      ${f.state==='run'?`<div style="width:110px"><div class="progress-bar"><div class="progress-fill" style="width:${f.pct}%;transition:width .2s"></div></div></div>`:f.state==='done'?'<span class="status-dot"></span>':''}
+    </div>`).join('');
+  $('#batchState').textContent=`${batchQueue.some(f=>f.state!=='done')?'处理中':'空闲'} · ${batchQueue.filter(f=>f.state==='done').length}/${batchQueue.length} 完成`;
+}
+$('#btnBrowseFolder').onclick=()=>showToast('模拟环境：请输入文件夹路径后点击「扫描」');
+$('#btnScanFolder').onclick=()=>{
+  const p=$('#folderPath').value.trim()||'未命名路径';
+  const found=BATCH_FILES.slice(0,4+Math.floor(Math.random()*3));
+  $('#scanResults').classList.remove('hidden');
+  $('#scanResults').innerHTML=`<div class="card-title" style="margin-top:0"><span class="bar"></span>扫描结果：${p}（找到 ${found.length} 个文件）</div>`+
+    found.map((n,i)=>`<div class="scan-item">${n.endsWith('.mp4')?'🎬':'🖼'} <span>${n}</span><span class="st" style="color:var(--success)">✓ 已加入</span></div>`).join('');
+  found.forEach(n=>batchQueue.push({name:n,state:'wait',pct:0}));
+  renderBatch();showToast(`扫描完成：${found.length} 个文件已加入队列（模拟）`);
+};
+$('#batchAdd').onclick=()=>{batchQueue.push({name:BATCH_FILES[batchQueue.length%BATCH_FILES.length],state:'wait',pct:0});renderBatch()};
+$('#batchClear').onclick=()=>{batchToken++;batchQueue=[];$('#scanResults').classList.add('hidden');renderBatch();$('#batchSummary').classList.add('hidden');showToast('列表已清空')};
+$('#btnCancelBatch').onclick=()=>{
+  batchToken++;
+  batchQueue.forEach(f=>{if(f.state!=='done')f.state='wait'});
+  $('#btnCancelBatch').classList.add('hidden');
+  renderBatch();showToast('批量任务已取消');
+};
+$('#batchRun').onclick=()=>{
+  const todo=batchQueue.filter(f=>f.state==='wait');
+  if(!todo.length){showToast('没有待处理任务');return}
+  const token=++batchToken;
+  $('#btnCancelBatch').classList.remove('hidden');
+  $('#batchSummary').classList.add('hidden');
+  todo.forEach((f,ti)=>{
+    setTimeout(()=>{
+      if(token!==batchToken)return;
+      f.state='run';renderBatch();
+      const timer=setInterval(()=>{
+        if(token!==batchToken){clearInterval(timer);return}
+        f.pct=Math.min(100,f.pct+8+Math.random()*14);renderBatch();
+        if(f.pct>=100){clearInterval(timer);f.state='done';renderBatch();
+          if(batchQueue.every(x=>x.state==='done')){
+            $('#btnCancelBatch').classList.add('hidden');
+            const sec=(3+Math.random()*4).toFixed(1);
+            $('#batchSummary').classList.remove('hidden');
+            $('#batchSummary').innerHTML=`<b>批量任务完成（模拟）</b> · ${batchQueue.length} 个文件全部处理成功 · 总用时 ${sec}s · 已写入 checkpoint（断点续跑已启用）`;
+            showToast('批量修复完成（模拟）✓');
+          }}
+      },300);
+    },ti*2600);
+  });
+};
+
+/* ===== 历史记录 ===== */
+const HIST=[
+  ['IMG_20240812_1601.jpg','image','SeedVR2-3B · FP16','1920×1080','4.8s','2026-08-10 21:32','done'],
+  ['DJI_0032.MP4','video','SeedVR2-7B · FP8','3840×2160','42.1s','2026-08-10 20:15','done'],
+  ['scan_archive_014.png','image','SeedVR2-3B · FP8','2048×2048','3.2s','2026-08-10 18:47','done'],
+  ['old_photo_1987.jpg','image','SeedVR2-7B-Sharp · FP16','1200×800','6.9s','2026-08-10 16:03','fail'],
+  ['cctv_capture_2210.mp4','video','SeedVR2-3B · FP8','1280×720','18.5s','2026-08-10 14:22','done'],
+  ['trip_2024_raw_007.jpg','image','SeedVR2-7B · FP16','4000×3000','11.4s','2026-08-09 23:41','done'],
+  ['document_scan_042.png','image','SeedVR2-3B · FP8','2480×3508','4.1s','2026-08-09 22:05','done'],
+  ['phone_video_031.mp4','video','SeedVR2-7B-Sharp · FP8','1920×1080','33.7s','2026-08-09 20:18','done'],
+  ['wechat_screenshot_013.png','image','SeedVR2-3B · FP16','1170×2532','2.9s','2026-08-09 19:52','done'],
+  ['archive_vhs_002.avi','video','SeedVR2-7B · FP8','640×480','27.3s','2026-08-09 17:30','fail'],
+];
+let histRows=[],histPage=0,histView='table';
+const PER=5;
+function renderHist(){
+  const kw=$('#histSearch').value.toLowerCase(), ft=$('#filterType').value, fs=$('#filterStatus').value;
+  histRows=HIST.filter(r=>(!kw||r[0].toLowerCase().includes(kw)||r[1].includes(kw)||r[2].toLowerCase().includes(kw))&&(ft==='all'||r[1]===ft)&&(fs==='all'||r[6]===fs));
+  const pages=Math.max(1,Math.ceil(histRows.length/PER));
+  histPage=Math.min(histPage,pages-1);
+  const rows=histRows.slice(histPage*PER,histPage*PER+PER);
+  $('#histTableWrap').classList.toggle('hidden',histView!=='table');
+  $('#histCardsWrap').classList.toggle('hidden',histView!=='cards');
+  $('#histBody').innerHTML=rows.map(r=>`<tr style="cursor:pointer" onclick="showHist(${HIST.indexOf(r)})"><td>${r[0]}</td><td>${r[2]}</td><td>${r[3]}</td><td>${r[4]}</td><td>${r[5]}</td><td><span class="status-dot ${r[6]==='fail'?'danger':''}">${r[6]==='done'?'已完成':'失败'}</span></td></tr>`).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">无匹配记录</td></tr>';
+  $('#histCardsWrap').innerHTML=rows.map(r=>`<div class="hist-card" onclick="showHist(${HIST.indexOf(r)})"><img class="thumb" src="${RESULTS[(HIST.indexOf(r)+curResult)%4]}" alt=""><b>${r[0]}</b><div class="m">${r[2]} · ${r[3]} · ${r[5]}</div><div class="m" style="color:${r[6]==='done'?'var(--success)':'var(--danger)'}">${r[6]==='done'?'已完成':'失败'}</div></div>`).join('')||'<div style="color:var(--text-muted);text-align:center;padding:30px;grid-column:1/-1">无匹配记录</div>';
+  $('#histInfo').textContent=`第 ${histPage+1} / ${pages} 页 · 共 ${histRows.length} 条`;
+  $('#histPrev').disabled=histPage===0;$('#histNext').disabled=histPage>=pages-1;
+}
+window.showHist=function(r){
+  openModal(`<h3>${r[0]}</h3><div style="display:flex;gap:14px;flex-wrap:wrap"><div style="flex:1;min-width:220px"><img src="${RESULTS[(HIST.indexOf(r)+curResult)%4]}" style="width:100%;border-radius:8px"></div><div style="font-size:13px;color:var(--text-2);min-width:180px"><p><b>模型：</b>${r[2]}</p><p style="margin-top:6px"><b>分辨率：</b>${r[3]}</p><p style="margin-top:6px"><b>耗时：</b>${r[4]}</p><p style="margin-top:6px"><b>时间：</b>${r[5]}</p><p style="margin-top:6px"><b>状态：</b>${r[6]==='done'?'已完成':'失败'}</p><div style="margin-top:10px;display:flex;gap:6px"><button class="btn btn-ghost btn-sm" onclick="showToast('历史记录为模拟数据')">重试</button><button class="btn btn-ghost btn-sm" onclick="document.getElementById('modal').classList.add('hidden')">关闭</button></div></div></div>`);
+};
+$('#histSearch').oninput=()=>{histPage=0;renderHist()};
+$('#filterType').onchange=()=>{histPage=0;renderHist()};
+$('#filterStatus').onchange=()=>{histPage=0;renderHist()};
+$('#histPrev').onclick=()=>{histPage--;renderHist()};
+$('#histNext').onclick=()=>{histPage++;renderHist()};
+$('#btnRefresh').onclick=()=>{renderHist();showToast('已刷新（模拟）')};
+$('#btnClearHistory').onclick=()=>{
+  if(confirm('确定清空全部历史记录？（模拟）')){HIST.length=0;renderHist();showToast('历史已清空（模拟）')}
+};
+$('#btnViewTable').onclick=()=>{histView='table';$('#btnViewTable').classList.add('active');$('#btnViewCards').classList.remove('active');renderHist()};
+$('#btnViewCards').onclick=()=>{histView='cards';$('#btnViewCards').classList.add('active');$('#btnViewTable').classList.remove('active');renderHist()};
+renderHist();
+
+/* ===== 系统状态 ===== */
+function refreshSys(){
+  const u=Math.round(20+Math.random()*50), v=(4+Math.random()*10).toFixed(1), t=Math.round(45+Math.random()*18), p=Math.round(120+Math.random()*120);
+  $('#gpuUtil').textContent=u+'%';$('#gpuVram').innerHTML=v+' <small>/ 24 GB</small>';
+  const vp=Math.round(v/24*100);$('#gpuVramPct').textContent=vp+'%';
+  $('#vramBarLabel').textContent=vp+'%';$('#vramBar').style.width=vp+'%';
+  $('#gpuTemp').textContent=t+'°C';$('#gpuPower').innerHTML=p+' <small>W</small>';
+  $('#memPct').textContent=Math.round(35+Math.random()*15)+'%';
+}
+setInterval(refreshSys,3000);
+$('#btnRefreshStatus').onclick=()=>{refreshSys();showToast('状态已刷新（模拟）')};
+$('#modelTable').innerHTML=[
+  ['SeedVR2-3B','6.3 GB','FP16 / FP8','已加载'],
+  ['SeedVR2-7B','14.8 GB','FP16 / FP8','就绪'],
+  ['SeedVR2-7B-Sharp','14.9 GB','FP16 / FP8','就绪']
+].map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td><span class="status-dot">${r[3]}</span></td></tr>`).join('');
+
+$('#estBtn').onclick=()=>{
+  const m=$('#estModel').value,r=$('#estRes').value,f=$('#estFrames').value;
+  const base={'SeedVR2-3B':6.3,'SeedVR2-7B':14.8,'SeedVR2-7B-Sharp':14.9}[m];
+  const resMap={'1280×720':2.2,'1920×1080':4.8,'3840×2160':16.5}[r];
+  const frames=+f;
+  const est=base+resMap+(frames>1?(frames/16)*2.4:0);
+  const risk=est>22?'⚠ 风险高：建议 FP8 + BlockSwap 或降低分辨率':est>16?'⚠ 偏高：建议 FP8 精度':'✓ 推荐参数可流畅运行';
+  $('#estResult').classList.remove('hidden');
+  $('#estResult').innerHTML=`<b>估算结果：</b>${m} / ${r} / ${frames} 帧 → 约 <b style="color:var(--primary)">${est.toFixed(1)} GB</b> 显存<br><span style="color:var(--text-muted)">${risk}</span>`;
+  $('#vramRec').classList.remove('hidden');
+  $('#vramRecPrecision').textContent=est>16?'FP8':'FP16';
+  $('#vramRecTileSize').textContent=est>22?'512':'1024';
+  $('#vramRecBlockswap').textContent=est>22?'24':'0';
+  $('#vramRecEstimated').textContent=est.toFixed(1)+' GB';
+  $('#vramRecRisk').textContent=risk;$('#vramRecRisk').style.color=est>16?'var(--warning)':'var(--success)';
+};
+
+/* ===== 设置 ===== */
+$('#btnResetAll').onclick=()=>{applyTheme('dark');applyLocale('zh');$('#setMode').value='portable（默认）';showToast('已恢复默认设置（模拟）')};
+$$('.faq-q').forEach(q=>q.onclick=()=>{q.nextElementSibling.classList.toggle('hidden')});
+
+/* ===== 命令面板 Ctrl+K ===== */
+const CMDS=[
+  {t:'开始修复（模拟）',fn:()=>$('#runBtn').click()},
+  {t:'打开 修复工作台',fn:()=>switchPage('workbench')},
+  {t:'打开 批量修复',fn:()=>switchPage('batch')},
+  {t:'打开 历史记录',fn:()=>switchPage('history')},
+  {t:'打开 系统状态',fn:()=>switchPage('status')},
+  {t:'打开 设置',fn:()=>switchPage('settings')},
+  {t:'切换主题',fn:()=>applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark')},
+  {t:'打开帮助',fn:()=>openDrawer('helpDrawer')},
+  {t:'切换语言：English',fn:()=>applyLocale('en')},
+  {t:'切换语言：中文',fn:()=>applyLocale('zh')}
+];
+function switchPage(p){
+  $$('#nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===p));
+  $$('.page').forEach(x=>x.classList.toggle('active',x.id==='page-'+p));
+}
+$('#cmdModal').addEventListener('click',e=>{if(e.target.id==='cmdModal')$('#cmdModal').classList.add('hidden')});
+$('#cmdInput').addEventListener('input',()=>renderCmds());
+$('#cmdInput').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){const items=[...$$('#cmdList .cmd-item')];if(items[0])items[0].click()}
+  if(e.key==='Escape')$('#cmdModal').classList.add('hidden');
+});
+function renderCmds(){
+  const kw=$('#cmdInput').value.toLowerCase();
+  const list=CMDS.filter(c=>c.t.toLowerCase().includes(kw));
+  $('#cmdList').innerHTML=list.map((c,i)=>`<button class="cmd-item" style="display:flex;width:100%;text-align:left;gap:8px;background:none;border:none;color:var(--text-2);padding:9px 12px;border-radius:7px;font-size:13px" onclick="runCmd(${i});$('#cmdModal').classList.add('hidden')"><span>${c.t}</span><span style="margin-left:auto;color:var(--text-muted);font-size:11px">↵</span></button>`).join('')||'<div style="padding:12px;color:var(--text-muted);font-size:12.5px">无匹配命令</div>';
+}
+window.runCmd=function(i){CMDS[i].fn();$('#cmdInput').value=''};
+document.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();$('#cmdModal').classList.remove('hidden');$('#cmdInput').value='';renderCmds();$('#cmdInput').focus()}
+  if(e.key==='Escape'){closeDrawers();$('#cmdModal').classList.add('hidden')}
+  if((e.ctrlKey||e.metaKey)&&e.key==='Enter')$('#runBtn').click();
+});
+</script>
+</body>
+</html>
