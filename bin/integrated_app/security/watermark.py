@@ -238,7 +238,7 @@ def embed_watermark(
     if key is not None and _HMAC_SEPARATOR not in payload:
         payload = _sign_payload(payload, key)
     else:
-        logger.warning(
+        logger.debug(
             "未配置水印签名密钥，将嵌入未签名水印（不可证伪归属）。" "请运行 scripts/init_watermark_key.py 生成密钥"
         )
 
