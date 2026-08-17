@@ -1,7 +1,7 @@
 # Seedvr2 AGENTS.md — AI 辅助开发指南
 
-> 🧬 **自进化协议版本**：v1.13  
-> 📅 **最后更新日期**：2026-08-16  
+> 🧬 **自进化协议版本**：v1.14  
+> 📅 **最后更新日期**：2026-08-17  
 > 🎯 **对应项目版本**：v1.0.0（Apache-2.0 开源协议）
 
 ---
@@ -157,10 +157,10 @@ Seedvr2/
 | 单元测试 | pytest + pytest-asyncio + pytest-cov | `pytest tests/unit -q`（或脚本里 `python -m pytest tests/unit --cov=core --cov=engines --cov-report=term-missing`） | ≥ 65%（CI 强制：`--cov-fail-under=65`） |
 | 集成测试 | pytest + TestClient（FastAPI） + AioSQLite 内存库 | `pytest tests/integration -q` | 不计入 fail_under，但必须全部通过 |
 | 安全测试 | pytest + 手动攻击用例（路径穿越 / CSRF / SQL 注入） | `pytest tests/security -q` | 必须 100% 通过，CI 中阻断 PR |
-| 性能测试（手动） | pytest-benchmark（可选） | `pytest tests/perf -q` | 无强制，仅供参考对比 |
+| 性能测试（手动） | pytest-benchmark（可选；当前未接入，参考 `perf/benchmark/`） | `pytest tests/perf -q` | 无强制，仅供参考对比 |
 
 ### 4.2 测试命名 & 结构
-- 目录结构：`tests/unit/<模块>/test_<被测文件>.py`（一一对应源文件）
+- 目录结构：`tests/`（扁平布局，非 `unit/integration/security` 分层；分层仅通过 marker 区分）
 - 类名：`class Test<被测类>:`（PascalCase，首字母必须 Test）
 - 方法名：`def test_<场景>_<期望结果>_<条件>():`（snake_case，前缀必须 test_）
   ```python
@@ -172,7 +172,7 @@ Seedvr2/
               await safe_join("/base", "../etc/passwd")
   ```
 - **严禁 `assert True` 凑覆盖率**，每个断言必须对应真实行为验证
-- Marker 说明（pyproject.toml 已注册）：`@pytest.mark.security`、`@pytest.mark.slow`、`@pytest.mark.gpu`（后两个默认 CI 跳过，本地手动跑）
+- Marker 说明（pyproject.toml 已注册）：`@pytest.mark.integration`（9 个 API/集成文件使用）、`@pytest.mark.benchmark`（当前未使用）；历史文档所述的 `security/slow/gpu` markers 与 `pytest-benchmark` 依赖不存在于本项目（AGENTS.md v1.13 同步）
 
 ---
 
@@ -528,3 +528,4 @@ if scene_id not in db:
 | v1.13 | 2026-08-16 | 高级设置无法打开/展开区被压缩（二轮，Playwright 实测定位） | ① 根因一：`base.html` Google Fonts 样式表**同步阻塞 DOMContentLoaded**（弱网/被 CSP 拦截时 `readyState` 长期 `loading`）→ 页面内容可见但内联脚本（含高级设置点击）从未初始化；修复为 `media="print" onload="this.media='all'"` 异步加载 + noscript 兜底，新增陷阱 #13；② 根因二：旧规则 `.sv-param-sidebar .sv-advanced-params.open{flex-shrink:1;min-height:0}`（specificity 0,2,0）把展开后的 advParams 在 flex 容器里压缩到 12px，且 `overflow-y:visible` 与旧 `overflow-x:hidden` 混用被浏览器强制计算为 `auto`；修复为 `.sv2-sidebar .sv2-sidebar-scroll .sv-advanced-params.open{flex-shrink:0;min-height:auto;max-height:none;overflow:visible}`（0,3,0）并去掉 700px 展开限高，交由外层滚动容器统一滚动；③ 用 `tests/` Playwright 写临时诊断脚本（`_adv_check*.js`）实测：修复前 readyState=loading/advOpen=false/adv h=12px → 修复后 complete/advOpen=true/adv h=1276px/外层可滚，截图复查通过 | v1.0.0 |
 
 <!-- 🔄 下次更新 AGENTS.md 时，在上面表格末尾追加新一行，不要删除历史记录 -->
+| v1.14 | 2026-08-17 | 测试体系审计修复：门禁虚设/marker 失效/零覆盖模块/文档漂移同步 | ① e2e.yml：移除 `--update-snapshots` bootstrap（视觉回归改为 `--ignore-snapshots`，本地 win32 基线强制）+ ci.yml 删除空转的 `-m "not integration"`；② T2：9 个 TestClient 集成文件打标 `pytest.mark.integration`（test_api/schema/history_htmx/settings_routes/sse_integration/ui_routes + conftest）；③ T5：同步 AGENTS.md §4 实际测试布局（扁平 tests/ 非 unit/integration 分层）、marker 真实使用情况（integration/benchmark 注册 + 零使用 markers 说明）、缺失依赖说明；新增陷阱 #14（视觉门禁虚设）+ #15（marker 配置与执行策略脱节），CI/CD 章节注释修正为单 OS 触发与 pytest-cov 覆盖；版本递增 v1.14 | v1.0.0 |

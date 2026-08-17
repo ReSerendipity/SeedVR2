@@ -12,9 +12,9 @@ import { defineConfig, devices } from '@playwright/test';
 
 /**
  * Base URL for the SeedVR2 application.
- * The app runs on 127.0.0.1:7870 by default.
+ * The app runs on 127.0.0.1:7870 by default. Can be overridden via SEEDVR2_BASE_URL env.
  */
-const BASE_URL = 'http://127.0.0.1:7870';
+const BASE_URL = process.env.SEEDVR2_BASE_URL || 'http://127.0.0.1:7870';
 
 /**
  * Default timeout for each test in milliseconds.

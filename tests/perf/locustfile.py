@@ -9,16 +9,16 @@
     pip install locust
 
     # 启动 Web UI（默认 http://localhost:8089）
-    locust -f tests/perf/load_test.py
+    locust -f tests/perf/locustfile.py
 
     # 无头模式运行
-    locust -f tests/perf/load_test.py --headless \
+    locust -f tests/perf/locustfile.py --headless \
         -u 20 -r 2 -t 5m \
         --host http://127.0.0.1:7870 \
         --only-summary
 
     # 运行并检查阈值（退出码 0 = 通过，1 = 失败）
-    locust -f tests/perf/load_test.py --headless \
+    locust -f tests/perf/locustfile.py --headless \
         -u 20 -r 2 -t 5m \
         --host http://127.0.0.1:7870 \
         --expect-workers 1 \
