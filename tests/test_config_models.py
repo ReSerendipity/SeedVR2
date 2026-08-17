@@ -1,3 +1,4 @@
+import pytest
 """测试 SeedVR2 配置数据模型"""
 
 import os
@@ -41,10 +42,21 @@ class TestServerConfig:
         assert config.debug is False
 
     def test_custom_values(self):
-        config = ServerConfig(host="0.0.0.0", port=9000, debug=True)
-        assert config.host == "0.0.0.0"
+        config = ServerConfig(host="127.0.0.1", port=9000, debug=True)
+        assert config.host == "127.0.0.1"
         assert config.port == 9000
         assert config.debug is True
+
+    def test_public_host_rejected_without_auth(self):
+        """安全强制：0.0.0.0 未配置 SEEDVR2_AUTH_PASSWORD 时必须被拒绝。"""
+        import os
+        old = os.environ.pop("SEEDVR2_AUTH_PASSWORD", None)
+        try:
+            with pytest.raises(ValueError):
+                ServerConfig(host="0.0.0.0", port=9000)
+        finally:
+            if old is not None:
+                os.environ["SEEDVR2_AUTH_PASSWORD"] = old
 
 
 class TestModelConfig:
