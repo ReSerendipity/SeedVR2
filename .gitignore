@@ -204,6 +204,3 @@ scripts/simple_summary.ps1
 
 # 水印签名密钥（仅本机，严禁入库/随包分发）
 .watermark_key
-
-# ffprobe runtime binary (local only, keep out of repo)
-bin/ffprobe.exe
