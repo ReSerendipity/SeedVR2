@@ -172,8 +172,8 @@ requests==2.34.2
 rich==15.0.0
 # NO HASH (run generate_lock.py with network): rotary-embedding-torch==0.9.1
 rotary-embedding-torch==0.9.1
-# NO HASH (run generate_lock.py with network): ruff==0.15.17
-ruff==0.15.17
+# NO HASH (run generate_lock.py with network): ruff==0.16.3
+ruff==0.16.3
 # NO HASH (run generate_lock.py with network): safetensors==0.8.0
 safetensors==0.8.0
 # NO HASH (run generate_lock.py with network): setuptools==79.0.1
