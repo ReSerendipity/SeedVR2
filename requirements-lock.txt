@@ -24,8 +24,8 @@ Pygments==2.20.0
 aiofiles==25.1.0
 # NO HASH (run generate_lock.py with network): aiosqlite==0.22.1
 aiosqlite==0.22.1
-# NO HASH (run generate_lock.py with network): annotated-doc==0.0.4
-annotated-doc==0.0.4
+# NO HASH (run generate_lock.py with network): annotated-doc==0.0.5
+annotated-doc==0.0.5
 # NO HASH (run generate_lock.py with network): annotated-types==0.7.0
 annotated-types==0.7.0
 # NO HASH (run generate_lock.py with network): antlr4-python3-runtime==4.9.3
