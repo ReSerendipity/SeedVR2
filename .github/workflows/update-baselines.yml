@@ -72,7 +72,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if ! git diff --quiet tests/specs/uiux-compatibility.spec.ts-snapshots/; then
-            git add tests/specs/uiux-compatibility.spec.ts-snapshots/
+            git add -f tests/specs/uiux-compatibility.spec.ts-snapshots/
             git commit -m "chore(e2e): update visual regression baselines"
             git push origin HEAD:main || {
               echo "push failed (branch protection or race) - baselines committed locally only"

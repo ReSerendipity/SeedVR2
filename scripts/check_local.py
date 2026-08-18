@@ -26,7 +26,6 @@ import argparse
 import os
 import subprocess
 import sys
-from pathlib import Path
 
 TEXT_EXTS = {
     ".py", ".json", ".yaml", ".yml", ".toml", ".md", ".txt",

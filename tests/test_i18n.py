@@ -9,22 +9,16 @@
 
 from __future__ import annotations
 
-import json
-import os
-from pathlib import Path
-
 import pytest
 
 from bin.integrated_app.i18n import (
-    I18n,
-    LOCALE_ICONS,
-    LOCALE_NAMES,
-    _DEFAULT_LANG,
     _I18N_TRANSLATIONS,
     _LANG_FILE_MAP,
+    LOCALE_ICONS,
+    LOCALE_NAMES,
+    I18n,
     _load_translations,
     _resolve_key,
-    _get_locales_dir,
     t,
 )
 
@@ -163,7 +157,6 @@ class TestI18nClass:
     def test_set_locale_updates_current_locale(self):
         """set_locale 应更新 current_locale"""
         i18n_inst = I18n()
-        initial = i18n_inst.current_locale
         i18n_inst.set_locale("en")
         assert i18n_inst.current_locale == "en"
 
@@ -194,7 +187,7 @@ class TestLocaleMetadata:
 
     def test_locale_names_match_lang_file_map(self):
         """LOCALE_NAMES 中的语言应在 _LANG_FILE_MAP 中有对应文件"""
-        for locale in LOCALE_NAMES.keys():
+        for locale in LOCALE_NAMES:
             assert locale in _LANG_FILE_MAP or f"{locale}.json" in [f.lower() for f in ["zh.json", "zh-TW.json", "en.json", "ja.json", "fr.json"]]
 
     def test_all_lang_codes_have_display_names(self):

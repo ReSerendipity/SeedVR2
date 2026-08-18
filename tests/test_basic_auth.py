@@ -11,13 +11,10 @@
 from __future__ import annotations
 
 import base64
-import os
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-from starlette.requests import Request
 from starlette.responses import Response
 
 from bin.integrated_app.middleware.basic_auth import (
@@ -57,14 +54,6 @@ class TestBasicAuthMiddleware:
 
         async def mock_receive():
             return {"type": "http.request"}
-
-        scope = {
-            "type": "http",
-            "method": "GET",
-            "path": "/",
-            "headers": [(b"authorization", f"Basic {credentials}".encode())],
-            "server": ("localhost", 7870),
-        }
 
         # 直接调用 dispatch 会触发 call_next，需完整模拟
         app = FastAPI()

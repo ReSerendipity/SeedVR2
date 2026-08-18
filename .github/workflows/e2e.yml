@@ -2,7 +2,7 @@ name: CI - E2E Playwright
 
 on:
   pull_request:
-    branches: [main, develop]
+    branches: [main]
     paths:
       - 'bin/integrated_app/**'
       - 'tests/specs/**'

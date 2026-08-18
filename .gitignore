@@ -245,3 +245,8 @@ pretrained_models/*.ckpt
 tests/frontend/_rendered/
 .qoder/
 .catpaw/
+
+# 运行时二进制与用户数据（不进远程）
+app/ffmpeg.exe
+app/ffprobe.exe
+新建文件夹/

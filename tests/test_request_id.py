@@ -12,16 +12,13 @@ from __future__ import annotations
 import logging
 import re
 
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from starlette.requests import Request
-from starlette.responses import Response
 
 from bin.integrated_app.middleware.request_id import (
     RequestIDLogFilter,
     RequestIDMiddleware,
-    _REQUEST_ID_SANITIZER,
     _sanitize_request_id,
     get_request_id,
     set_request_id,
@@ -149,7 +146,6 @@ class TestRequestIdLogFilter:
 
     def test_filter_adds_request_id_to_record(self, monkeypatch):
         """filter 应为 LogRecord 添加 request_id 属性"""
-        from contextvars import ContextVar
 
         # Use module's actual ContextVar instead of creating a new one
         from bin.integrated_app.middleware.request_id import _request_id_var
@@ -178,7 +174,6 @@ class TestRequestIdLogFilter:
 
     def test_filter_uses_thread_local_as_fallback(self, monkeypatch):
         """异步上下文中没有时使用线程本地回退"""
-        import threading
 
         from bin.integrated_app.middleware.request_id import _request_id_local
 

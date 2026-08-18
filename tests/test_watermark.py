@@ -9,17 +9,14 @@
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
-
 import numpy as np
 import pytest
 
 from bin.integrated_app.security.watermark import (
     _WATERMARK_ALPHA,
     _WATERMARK_KEY_ENV,
-    _text_to_bits,
     _bits_to_text,
+    _text_to_bits,
     embed_watermark,
     extract_watermark,
     verify_watermark,

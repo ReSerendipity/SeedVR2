@@ -1,7 +1,8 @@
-import pytest
 """测试 SeedVR2 配置数据模型"""
 
 import os
+
+import pytest
 
 from bin.integrated_app.config_models import AppConfig, ModelConfig, ServerConfig, get_pretrained_root
 

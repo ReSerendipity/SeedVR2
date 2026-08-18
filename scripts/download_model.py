@@ -30,7 +30,6 @@ import argparse
 import importlib.util
 from pathlib import Path
 
-
 # 各模型尺寸对应的权重文件名（与 config.yaml model.models.<size> 保持一致）
 _MODEL_FILES: dict[str, list[str]] = {
     "3b": [

@@ -9,13 +9,10 @@
 from __future__ import annotations
 
 import hashlib
-import os
-from pathlib import Path
 
 import pytest
 
 from bin.integrated_app.security.integrity_check import (
-    _CHUNK_SIZE,
     compute_sha256,
     verify_checkpoint,
     verify_model_files,
@@ -225,5 +222,5 @@ class TestVerifyModelFiles:
         results = verify_model_files(str(pretrained_dir), model_cfg, precision="fp16")
 
         # 没有哈希配置，不应有结果或均为 True
-        for key, value in results.items():
+        for _key, value in results.items():
             assert value is True  # 跳过即视为通过

@@ -38,15 +38,6 @@ os.chdir(PROJECT_ROOT)
 LOG_FORMAT = "[%(asctime)s] [%(levelname)s] [PID:%(process)d TID:%(thread)d] [%(name)s:%(filename)s:%(lineno)d] [req=%(request_id)s] %(message)s"  # noqa: E501
 
 
-class RequestIDLogFilter(logging.Filter):
-    """为日志记录注入请求ID字段，缺失时使用 '-' 兜底，避免格式化报错。"""
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        request_id = getattr(record, "request_id", None)
-        record.request_id = str(request_id) if request_id else "-"
-        return True
-
-
 def setup_logging(config: dict | None = None) -> None:
     """集中配置日志：控制台 + 按大小轮转的文件双通道输出。
 
