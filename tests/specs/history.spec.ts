@@ -323,8 +323,8 @@ test.describe('History Records', () => {
       // Verify only video records are shown
       const rowCount = await historyPage.getRowCount();
       if (rowCount > 0) {
-        // Wait for table to stabilize
-        await page.waitForTimeout(500);
+        // Wait for table to stabilize — use network idle instead of a fixed timeout
+        await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
         const rows = await historyPage.getHistoryRows();
         for (const row of rows) {
           // Wait for row to be visible before reading content
@@ -398,8 +398,8 @@ test.describe('History Records', () => {
       // Verify only image records are shown
       const rowCount = await historyPage.getRowCount();
       if (rowCount > 0) {
-        // Wait for table to stabilize
-        await page.waitForTimeout(500);
+        // Wait for table to stabilize — use network idle instead of a fixed timeout
+        await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
         const rows = await historyPage.getHistoryRows();
         for (const row of rows) {
           // Wait for row to be visible before reading content

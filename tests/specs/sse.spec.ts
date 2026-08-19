@@ -470,8 +470,21 @@ test.describe('Server-Sent Events', () => {
       }
     });
 
-    // Give the app a moment to process the simulated disconnection.
-    await page.waitForTimeout(500);
+    // Wait for the app to process the simulated disconnection — check for
+    // reconnection hint visibility instead of a fixed timeout.
+    await page.waitForFunction(
+      () => {
+        const selectors = [
+          '.sv-sse-reconnect-hint', '.sv-toast', '.toast', '[role="alert"]',
+          '.sv-sse-status', '.sv-connection-status',
+        ];
+        return selectors.some(s => {
+          const el = document.querySelector(s) as HTMLElement | null;
+          return el !== null && el.offsetWidth > 0;
+        });
+      },
+      { timeout: 5000 },
+    ).catch(() => {});
 
     // Verify a reconnection hint is displayed
     // The app may show a toast, banner, or inline message, or may silently retry

@@ -137,11 +137,11 @@ test.describe('WCAG 2.1 AA Contrast Compliance', () => {
 
           // 稳定化：等待字体与渲染稳定，避免对比度检查时元素样式仍在变化导致 flaky
           await page.evaluate(() => document.fonts.ready);
-          await page.waitForTimeout(300);
+          await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
           // 设置页含异步加载内容，额外等待关键表单元素渲染完成
           if (pageInfo.path === '/settings') {
             await page.waitForSelector('input, select, button, [data-testid]', { timeout: 10000 });
-            await page.waitForTimeout(300);
+            await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
           }
 
           // Switch theme
@@ -164,7 +164,7 @@ test.describe('WCAG 2.1 AA Contrast Compliance', () => {
           await page.addStyleTag({
             content: '* { transition: none !important; animation: none !important; }',
           });
-          await page.waitForTimeout(200);
+          await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
 
           const failures: string[] = [];
 

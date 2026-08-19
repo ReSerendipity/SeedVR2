@@ -44,8 +44,11 @@ export default defineConfig({
   // Fail the build on CI if you accidentally left test.only in source code
   forbidOnly: !!process.env.CI,
 
-  // Retry failed tests once (video and trace captured on first retry)
-  retries: process.env.CI ? 2 : 1,
+  // No retries — flaky tests must be fixed at the source, not masked by
+  // automatic retries. A non-deterministic test is a bug in the test or the
+  // code under test, and retries only hide the problem until it becomes a
+  // production incident.
+  retries: 0,
 
   // Number of parallel workers (limit on CI for stability)
   workers: process.env.CI ? 2 : undefined,
@@ -165,7 +168,7 @@ export default defineConfig({
    * reuseExistingServer: true allows running against an already-running instance.
    */
   webServer: {
-    command: 'python bin/integrated_app/app_server.py',
+    command: 'python app/integrated_app/app_server.py',
     cwd: '../',
     url: `${BASE_URL}/api/system/health`,
     reuseExistingServer: true,

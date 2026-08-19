@@ -353,10 +353,11 @@ test.describe('System Status', () => {
       await statusPage.waitForStatusLoad();
       const callsAfterLoad = gpuCallCount;
 
-      // Wait for a potential auto-refresh cycle (the app may have a 30s or 60s interval)
-      // We simulate this by waiting a short time and checking if additional calls were made
-      // In a real test environment, we'd mock the timer. Reduced from 3000ms to 200ms.
-      await page.waitForTimeout(200);
+      // Wait for the initial GPU API call to complete instead of a fixed timeout
+      await page.waitForResponse(
+        (resp) => resp.url().includes('/api/system/gpu'),
+        { timeout: 5000 },
+      ).catch(() => {});
 
       // If auto-refresh is configured, the call count may have increased
       // This test verifies the mechanism exists rather than exact timing

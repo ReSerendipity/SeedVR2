@@ -17,9 +17,9 @@ import { test, expect, Page } from '@playwright/test';
 import axe from 'axe-core';
 import { setupAllMocks } from '@fixtures/api-mocks';
 
-// a11y audits share server state; run serially to avoid cross-test
-// contamination (e.g. settings tablist not rendering under parallel load).
-test.describe.configure({ mode: 'serial' });
+// Each test gets its own Playwright browser context with isolated state
+// (setupAllMocks in beforeEach ensures no cross-test contamination).
+// Parallel mode is safe and faster than serial.
 
 // ============================================================
 // Helper: Inject axe-core and run accessibility audit
@@ -65,7 +65,10 @@ async function runAxeAuditWithOptions(
   await page.addStyleTag({
     content: '* { transition: none !important; animation: none !important; }',
   });
-  await page.waitForTimeout(200);
+  // Wait for the style injection to take effect (next animation frame) instead
+  // of a hardcoded timeout — the guard style is applied synchronously, so one
+  // requestAnimationFrame guarantees all in-flight transitions are frozen.
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
   await page.addScriptTag({ path: require.resolve('axe-core') });
   const results = await page.evaluate((opts) => {
     return (window as any).axe.run(document, opts);

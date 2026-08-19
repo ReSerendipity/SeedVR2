@@ -83,8 +83,8 @@ async function getConsoleErrors(page: Page): Promise<string[]> {
       errors.push(msg.text());
     }
   });
-  // Give the page a moment to emit any console messages
-  await page.waitForTimeout(500);
+  // Wait for page to be fully loaded instead of a hardcoded timeout
+  await page.waitForFunction(() => document.readyState === 'complete', { timeout: 5000 });
   return errors;
 }
 
@@ -500,13 +500,12 @@ test.describe('Responsive layout - Tablet (768x1024)', () => {
       (t) => t.tag === 'button' || t.id.includes('btn') || t.id.includes('Toggle'),
     );
 
-    // Tightened from <=30 to <=10 in phase 1 of WCAG 2.5.5 compliance improvement.
-    // Target: eventually tighten to toBe(0) once all touch targets are fixed.
+    // Phase 2: tighten to toBe(0) — all critical touch targets must meet 44x44px.
     expect(
       criticalSmallTargets.length,
       `Found ${criticalSmallTargets.length} button/toggle elements below 44x44px on tablet viewport. ` +
       'Critical interactive elements should meet the minimum touch target size.',
-    ).toBeLessThanOrEqual(10);
+    ).toBe(0);
   });
 });
 
@@ -611,13 +610,12 @@ test.describe('Responsive layout - Mobile (375x812)', () => {
         t.id.includes('Download'),
     );
 
-    // Tightened from <=30 to <=10 in phase 1 of WCAG 2.5.5 compliance improvement.
-    // Target: eventually tighten to toBe(0) once all touch targets are fixed.
+    // Phase 2: tighten to toBe(0) — all critical touch targets must meet 44x44px.
     expect(
       criticalSmallTargets.length,
       `Found ${criticalSmallTargets.length} critical interactive elements below 44x44px on mobile. ` +
       'All buttons and primary actions must meet the minimum touch target size (WCAG 2.5.5).',
-    ).toBeLessThanOrEqual(10);
+    ).toBe(0);
   });
 
   test('no horizontal overflow on mobile', async ({ page }) => {
@@ -1019,13 +1017,12 @@ test.describe('Touch target compliance', () => {
       );
     }
 
-    // Tightened from <=30 to <=10 in phase 1 of WCAG 2.5.5 compliance improvement.
-    // Target: eventually tighten to toBe(0) once all touch targets are fixed.
+    // Phase 2: tighten to toBe(0) — all buttons must meet 44x44px.
     expect(
       smallButtons.length,
       `Found ${smallButtons.length} buttons below 44x44px on mobile. ` +
       'All buttons should meet the minimum touch target size for mobile usability.',
-    ).toBeLessThanOrEqual(10);
+    ).toBe(0);
   });
 
   test('all links have minimum 44x44px clickable area on mobile', async ({ page }) => {
@@ -1066,13 +1063,12 @@ test.describe('Touch target compliance', () => {
       (l) => l.id.includes('nav') || l.href === '/' || l.href.includes('restore') || l.href.includes('settings'),
     );
 
-    // Tightened from <=10 to <=5 in phase 1 of WCAG 2.5.5 compliance improvement.
-    // Target: eventually tighten to toBe(0) once all touch targets are fixed.
+    // Phase 2: tighten to toBe(0) — all navigation links must meet 44x44px.
     expect(
       smallNavLinks.length,
       `Found ${smallNavLinks.length} navigation links below 44x44px on mobile. ` +
       'Navigation links must meet the minimum touch target size.',
-    ).toBeLessThanOrEqual(5);
+    ).toBe(0);
   });
 
   test('all switches and toggle controls have minimum 44x44px clickable area', async ({ page }) => {
@@ -1155,12 +1151,11 @@ test.describe('Touch target compliance', () => {
       );
     }
 
-    // Tightened from <=25 to <=10 in phase 1 of WCAG 2.5.5 compliance improvement.
-    // Target: eventually tighten to toBe(0) once all touch targets are fixed.
+    // Phase 2: tighten to toBe(0) — all critical touch targets must meet 44x44px.
     expect(
       criticalSmall.length,
       `Found ${criticalSmall.length} critical interactive elements below 44x44px on video restore page.`,
-    ).toBeLessThanOrEqual(10);
+    ).toBe(0);
   });
 
   test('touch target compliance on settings page', async ({ page }) => {
@@ -1191,12 +1186,11 @@ test.describe('Touch target compliance', () => {
       );
     }
 
-    // Tightened from <=25 to <=10 in phase 1 of WCAG 2.5.5 compliance improvement.
-    // Target: eventually tighten to toBe(0) once all touch targets are fixed.
+    // Phase 2: tighten to toBe(0) — all critical touch targets must meet 44x44px.
     expect(
       criticalSmall.length,
       `Found ${criticalSmall.length} critical interactive elements below 44x44px on settings page.`,
-    ).toBeLessThanOrEqual(10);
+    ).toBe(0);
   });
 });
 

@@ -27,17 +27,17 @@ import { setupAllMocks } from '@fixtures/api-mocks';
 // Performance thresholds (in milliseconds unless otherwise noted)
 // ============================================================
 
-/** Maximum acceptable First Contentful Paint (ms) - increased for CPU-only environment */
-const FCP_THRESHOLD = 15000;
+/** Maximum acceptable First Contentful Paint (ms) - tightened from 15s to 3s */
+const FCP_THRESHOLD = 3000;
 
 /** Maximum acceptable Largest Contentful Paint (ms) */
-const LCP_THRESHOLD = 5000;
+const LCP_THRESHOLD = 3000;
 
 /** Maximum acceptable Cumulative Layout Shift (unitless) */
 const CLS_THRESHOLD = 0.1;
 
 /** Maximum acceptable page load time (ms) */
-const PAGE_LOAD_THRESHOLD = 10000;
+const PAGE_LOAD_THRESHOLD = 5000;
 
 /** Maximum acceptable heap usage in MB (for memory checks) */
 const HEAP_THRESHOLD_MB = 300;
@@ -101,17 +101,44 @@ async function measureFCP(page: Page): Promise<number> {
 async function measureCLS(page: Page): Promise<number> {
   return page.evaluate(() => new Promise<number>((resolve) => {
     let clsScore = 0;
-    new PerformanceObserver((list) => {
+    let settled = false;
+    const observer = new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
         // Only count layout shifts without recent user input
         if (!(entry as any).hadRecentInput) {
           clsScore += (entry as any).value;
         }
       }
-    }).observe({ type: 'layout-shift', buffered: true });
+    });
+    observer.observe({ type: 'layout-shift', buffered: true });
 
-    // Wait a short period to capture layout shifts during page load
-    setTimeout(() => resolve(clsScore), 3000);
+    // Resolve once no new layout-shift entries arrive for 500ms (layout settled)
+    // instead of a fixed 3s timeout. Falls back to 3s max wait for safety.
+    let lastShiftTime = performance.now();
+    const checkInterval = setInterval(() => {
+      const records = performance.getEntriesByType('layout-shift');
+      const latestEntry = records[records.length - 1];
+      const now = performance.now();
+      if (latestEntry && latestEntry.startTime > lastShiftTime) {
+        lastShiftTime = latestEntry.startTime;
+      }
+      // If no layout shift in the last 500ms, consider layout settled
+      if (now - lastShiftTime > 500 && !settled) {
+        settled = true;
+        clearInterval(checkInterval);
+        observer.disconnect();
+        resolve(clsScore);
+      }
+    }, 100);
+    // Safety fallback: resolve after 3s max regardless
+    setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        clearInterval(checkInterval);
+        observer.disconnect();
+        resolve(clsScore);
+      }
+    }, 3000);
   }));
 }
 
@@ -213,9 +240,7 @@ test.describe('Performance - Page Load Time', () => {
     await setupAllMocks(page);
   });
 
-  test('Each page loads within 3 seconds', async ({ page }) => {
-    // Increase timeout for multi-page traversal in CPU-only environment
-    test.setTimeout(120000);
+  test('Each page loads within 5 seconds', async ({ page }) => {
 
     const pages = [
       { path: '/', name: 'Home' },
@@ -369,8 +394,6 @@ test.describe('Performance - Memory Usage', () => {
   });
 
   test('Page heap usage is within reasonable limits after navigation', async ({ page, browserName }) => {
-    // Increase timeout for multi-page traversal in CPU-only environment
-    test.setTimeout(120000);
 
     // page.metrics() is only available in Chromium
     test.skip(browserName !== 'chromium', 'page.metrics() is only available in Chromium');

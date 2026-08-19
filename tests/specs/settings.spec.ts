@@ -63,7 +63,7 @@ test.describe('Settings page (about + settings two-column layout)', () => {
     test('paths are displayed read-only with the configured directories', async () => {
       const text = (await settingsPage.pathsText.textContent()) || '';
       expect(text).toContain('outputs/');
-      expect(text).toContain('pretrained_models/');
+      expect(text).toContain('model/');
       // 路径为只读展示（非输入框）
       await expect(settingsPage.pathsText.locator('input')).toHaveCount(0);
       // 说明文字可见
@@ -96,7 +96,11 @@ test.describe('Settings page (about + settings two-column layout)', () => {
 
       // 切换语言（选择触发 switchLocale）
       await settingsPage.switchLocale('en');
-      await page.waitForTimeout(500);
+      // Wait for the locale API request to be intercepted instead of a fixed timeout
+      await page.waitForResponse(
+        (resp) => resp.url().includes('/api/system/locale') && resp.request().method() === 'POST',
+        { timeout: 5000 },
+      ).catch(() => {});
 
       expect(localeRequested).toBe('en');
     });
@@ -117,8 +121,10 @@ test.describe('Settings page (about + settings two-column layout)', () => {
 
       // switchLocale 内部 300ms 后 window.location.reload()
       await settingsPage.switchLocale('ja');
+      // switchLocale internally triggers window.location.reload() after 300ms;
+      // wait for the reload to complete instead of a fixed timeout.
       await page.waitForLoadState('domcontentloaded').catch(() => {});
-      await page.waitForTimeout(1500);
+      await page.waitForFunction(() => document.readyState === 'complete', { timeout: 5000 }).catch(() => {});
 
       // 页面应已重新加载（导航事件发生），重新回到 /settings
       expect(new URL(page.url()).pathname).toBe('/settings');
