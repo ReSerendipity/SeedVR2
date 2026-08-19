@@ -32,30 +32,32 @@ class TestSSEEndpointErrorHandling:
         assert response.status_code == 404
 
     def test_cancel_nonexistent_returns_404(self, test_app):
-        """不存在的任务取消端点应返回 404"""
+        """不存在的任务取消端点应返回 404（CSRF token 已通过 csrf_post 自动携带）"""
         from tests.conftest import csrf_post
 
         response = csrf_post(test_app, "/api/restore/nonexistent-sse-task/cancel")
-        assert response.status_code in (404, 403)
+        # csrf_post 自动携带有效 CSRF token，因此不会因 CSRF 失败返回 403。
+        # 不存在的 task_id 应精确返回 404。
+        assert response.status_code == 404, (
+            f"Cancel nonexistent task should return 404, got {response.status_code}"
+        )
 
 
 class TestRestoreEndpointStructure:
     """Restore 端点结构验证"""
 
     def test_restore_endpoints_require_valid_task_id(self, test_app):
-        """Restore 相关端点应验证 task_id 参数"""
-        # 不存在的 task_id 应返回 404
+        """Restore 相关端点应对不存在的 task_id 返回 404"""
         endpoints = [
             "/api/restore/test-task-12345/result",
             "/api/restore/test-task-12345/download",
         ]
         for endpoint in endpoints:
             response = test_app.get(endpoint)
-            assert response.status_code in (
-                200,
-                404,
-                422,
-            ), f"Endpoint {endpoint} returned unexpected status {response.status_code}"
+            assert response.status_code == 404, (
+                f"Endpoint {endpoint} should return 404 for nonexistent task, "
+                f"got {response.status_code}"
+            )
 
     def test_restore_progress_nonexistent_404(self, test_app):
         """不存在的 restore 进度端点应返回 404"""
