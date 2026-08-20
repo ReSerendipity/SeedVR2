@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from fastapi import HTTPException
 
-from bin.integrated_app.security.path_guard import (
+from app.integrated_app.security.path_guard import (
     PathGuard,
     build_default_path_guard,
 )

@@ -92,7 +92,7 @@ model:
       num_blocks: 36
       pos_emb: pos_emb.pt
       vae_checkpoint: ema_vae_fp16.safetensors
-  pretrained_dir: pretrained_models
+  pretrained_dir: model
   shared_models_root: ''
 restore:
   default_resolution_h: 1080

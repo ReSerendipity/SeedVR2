@@ -14,8 +14,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from bin.integrated_app.history_db import HistoryDB, TaskRecord
-from bin.integrated_app.services.task_state import TaskStateStore
+from app.integrated_app.history_db import HistoryDB, TaskRecord
+from app.integrated_app.services.task_state import TaskStateStore
 
 
 @pytest.fixture

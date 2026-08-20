@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from bin.integrated_app.model_manager import ModelManager
+from app.integrated_app.model_manager import ModelManager
 
 
 @pytest.fixture
@@ -19,7 +19,7 @@ def config():
             "default_size": "3b",
             "default_precision": "fp16",
             "auto_load": False,
-            "pretrained_dir": "pretrained_models",
+            "pretrained_dir": "model",
             "models": {
                 "3b": {
                     "config_dir": "configs_3b",
@@ -44,7 +44,7 @@ def config():
 @pytest.fixture
 def mock_registry():
     """模拟 model_registry 单例"""
-    with patch("bin.integrated_app.model_manager.model_registry") as mock:
+    with patch("app.integrated_app.model_manager.model_registry") as mock:
         mock.model_loaded = False
         mock.current_model_size = None
         mock.current_precision = None
@@ -121,7 +121,7 @@ class TestModelManagerInfo:
     def test_get_pretrained_dir(self, mock_registry, config):
         manager = ModelManager(config)
         path = manager.get_pretrained_dir()
-        assert "pretrained_models" in path
+        assert "model" in path
 
     def test_get_pretrained_dir_custom(self, mock_registry):
         """自定义 pretrained_dir"""
@@ -135,7 +135,7 @@ class TestModelManagerInfo:
         cfg: dict = {"model": {}}
         manager = ModelManager(cfg)
         path = manager.get_pretrained_dir()
-        assert "pretrained_models" in path
+        assert "model" in path
 
 
 # ---------------------------------------------------------------------------
@@ -195,7 +195,7 @@ class TestCheckModelExists:
 class TestGetRecommendedPrecision:
     """get_recommended_precision 测试"""
 
-    @patch("bin.integrated_app.model_manager.torch")
+    @patch("app.integrated_app.model_manager.torch")
     def test_fp16_when_enough_vram(self, mock_torch, mock_registry, config):
         """显存充足时推荐 fp16"""
         mock_torch.cuda.is_available.return_value = True
@@ -203,7 +203,7 @@ class TestGetRecommendedPrecision:
         manager = ModelManager(config)
         assert manager.get_recommended_precision("3b") == "fp16"
 
-    @patch("bin.integrated_app.model_manager.torch")
+    @patch("app.integrated_app.model_manager.torch")
     def test_fp8_when_limited_vram(self, mock_torch, mock_registry, config):
         """显存有限时推荐 fp8"""
         mock_torch.cuda.is_available.return_value = True
@@ -211,7 +211,7 @@ class TestGetRecommendedPrecision:
         manager = ModelManager(config)
         assert manager.get_recommended_precision("3b") == "fp8"
 
-    @patch("bin.integrated_app.model_manager.torch")
+    @patch("app.integrated_app.model_manager.torch")
     def test_fp8_when_insufficient_vram(self, mock_torch, mock_registry, config):
         """显存严重不足时仍返回 fp8"""
         mock_torch.cuda.is_available.return_value = True
@@ -219,14 +219,14 @@ class TestGetRecommendedPrecision:
         manager = ModelManager(config)
         assert manager.get_recommended_precision("3b") == "fp8"
 
-    @patch("bin.integrated_app.model_manager.torch")
+    @patch("app.integrated_app.model_manager.torch")
     def test_fp8_when_no_cuda(self, mock_torch, mock_registry, config):
         """无 CUDA 时 total_vram_gb=0，低于 min_fp8_gb，返回 fp8"""
         mock_torch.cuda.is_available.return_value = False
         manager = ModelManager(config)
         assert manager.get_recommended_precision("3b") == "fp8"
 
-    @patch("bin.integrated_app.model_manager.torch")
+    @patch("app.integrated_app.model_manager.torch")
     def test_fp8_when_torch_exception(self, mock_torch, mock_registry, config):
         """torch 异常时 total_vram_gb=0，低于 min_fp8_gb，返回 fp8"""
         mock_torch.cuda.is_available.side_effect = RuntimeError("driver error")
@@ -237,7 +237,7 @@ class TestGetRecommendedPrecision:
         manager = ModelManager(config)
         assert manager.get_recommended_precision("99b") == "fp16"
 
-    @patch("bin.integrated_app.model_manager.torch")
+    @patch("app.integrated_app.model_manager.torch")
     def test_7b_requires_more_vram(self, mock_torch, mock_registry, config):
         """7B 模型需要更多显存"""
         mock_torch.cuda.is_available.return_value = True
@@ -271,7 +271,7 @@ class TestLoadModel:
     async def test_no_gpu_raises_runtime_error(self, mock_registry, config):
         """无 GPU 时抛出 RuntimeError"""
         manager = ModelManager(config)
-        with patch("bin.integrated_app.gpu_backend.gpu_manager") as mock_gpu:
+        with patch("app.integrated_app.gpu_backend.gpu_manager") as mock_gpu:
             mock_gpu.is_gpu_available = False
             with pytest.raises(RuntimeError, match="仅支持 NVIDIA GPU"):
                 await manager.load_model(model_size="3b", precision="fp16")
@@ -280,7 +280,7 @@ class TestLoadModel:
     async def test_unknown_model_raises_value_error(self, mock_registry, config):
         """未知模型大小抛出 ValueError"""
         manager = ModelManager(config)
-        with patch("bin.integrated_app.gpu_backend.gpu_manager") as mock_gpu:
+        with patch("app.integrated_app.gpu_backend.gpu_manager") as mock_gpu:
             mock_gpu.is_gpu_available = True
             with pytest.raises(ValueError, match="未知的模型大小"):
                 await manager.load_model(model_size="99b", precision="fp16")
@@ -290,7 +290,7 @@ class TestLoadModel:
         """模型文件不存在抛出 FileNotFoundError"""
         manager = ModelManager(config)
         with (
-            patch("bin.integrated_app.gpu_backend.gpu_manager") as mock_gpu,
+            patch("app.integrated_app.gpu_backend.gpu_manager") as mock_gpu,
             patch.object(manager, "check_model_exists", return_value=False),
         ):
             mock_gpu.is_gpu_available = True
@@ -308,11 +308,11 @@ class TestLoadModel:
 
         mock_engine = AsyncMock()
         with (
-            patch("bin.integrated_app.gpu_backend.gpu_manager") as mock_gpu,
+            patch("app.integrated_app.gpu_backend.gpu_manager") as mock_gpu,
             patch.object(manager, "check_model_exists", side_effect=mock_check_exists),
-            patch("bin.integrated_app.model_manager.check_vram_available", return_value=(True, 16000)),
-            patch("bin.integrated_app.model_manager.estimate_model_vram", return_value=8000),
-            patch("bin.integrated_app.model_manager.SeedVR2Engine", return_value=mock_engine),
+            patch("app.integrated_app.model_manager.check_vram_available", return_value=(True, 16000)),
+            patch("app.integrated_app.model_manager.estimate_model_vram", return_value=8000),
+            patch("app.integrated_app.model_manager.SeedVR2Engine", return_value=mock_engine),
         ):
             mock_gpu.is_gpu_available = True
             result = await manager.load_model(model_size="3b", precision="fp16")
@@ -324,10 +324,10 @@ class TestLoadModel:
         """显存不足时抛出 MemoryError"""
         manager = ModelManager(config)
         with (
-            patch("bin.integrated_app.gpu_backend.gpu_manager") as mock_gpu,
+            patch("app.integrated_app.gpu_backend.gpu_manager") as mock_gpu,
             patch.object(manager, "check_model_exists", return_value=True),
-            patch("bin.integrated_app.model_manager.check_vram_available", return_value=(False, 2000)),
-            patch("bin.integrated_app.model_manager.estimate_model_vram", return_value=16000),
+            patch("app.integrated_app.model_manager.check_vram_available", return_value=(False, 2000)),
+            patch("app.integrated_app.model_manager.estimate_model_vram", return_value=16000),
         ):
             mock_gpu.is_gpu_available = True
             with pytest.raises(MemoryError, match="显存不足"):
@@ -351,11 +351,11 @@ class TestLoadModel:
 
         mock_engine = AsyncMock()
         with (
-            patch("bin.integrated_app.gpu_backend.gpu_manager") as mock_gpu,
+            patch("app.integrated_app.gpu_backend.gpu_manager") as mock_gpu,
             patch.object(manager, "check_model_exists", return_value=True),
-            patch("bin.integrated_app.model_manager.check_vram_available", side_effect=mock_check_vram),
-            patch("bin.integrated_app.model_manager.estimate_model_vram", side_effect=mock_estimate),
-            patch("bin.integrated_app.model_manager.SeedVR2Engine", return_value=mock_engine),
+            patch("app.integrated_app.model_manager.check_vram_available", side_effect=mock_check_vram),
+            patch("app.integrated_app.model_manager.estimate_model_vram", side_effect=mock_estimate),
+            patch("app.integrated_app.model_manager.SeedVR2Engine", return_value=mock_engine),
         ):
             mock_gpu.is_gpu_available = True
             result = await manager.load_model(model_size="3b", precision="fp16", device="auto")
@@ -368,11 +368,11 @@ class TestLoadModel:
         manager = ModelManager(config)
         mock_engine = AsyncMock()
         with (
-            patch("bin.integrated_app.gpu_backend.gpu_manager") as mock_gpu,
+            patch("app.integrated_app.gpu_backend.gpu_manager") as mock_gpu,
             patch.object(manager, "check_model_exists", return_value=True),
-            patch("bin.integrated_app.model_manager.check_vram_available", return_value=(True, 24000)),
-            patch("bin.integrated_app.model_manager.estimate_model_vram", return_value=8000),
-            patch("bin.integrated_app.model_manager.SeedVR2Engine", return_value=mock_engine),
+            patch("app.integrated_app.model_manager.check_vram_available", return_value=(True, 24000)),
+            patch("app.integrated_app.model_manager.estimate_model_vram", return_value=8000),
+            patch("app.integrated_app.model_manager.SeedVR2Engine", return_value=mock_engine),
         ):
             mock_gpu.is_gpu_available = True
             result = await manager.load_model(model_size="3b", precision="fp16")
@@ -387,11 +387,11 @@ class TestLoadModel:
         manager = ModelManager(config)
         mock_engine = AsyncMock()
         with (
-            patch("bin.integrated_app.gpu_backend.gpu_manager") as mock_gpu,
+            patch("app.integrated_app.gpu_backend.gpu_manager") as mock_gpu,
             patch.object(manager, "check_model_exists", return_value=True),
-            patch("bin.integrated_app.model_manager.check_vram_available", return_value=(True, 24000)),
-            patch("bin.integrated_app.model_manager.estimate_model_vram", return_value=8000),
-            patch("bin.integrated_app.model_manager.SeedVR2Engine", return_value=mock_engine),
+            patch("app.integrated_app.model_manager.check_vram_available", return_value=(True, 24000)),
+            patch("app.integrated_app.model_manager.estimate_model_vram", return_value=8000),
+            patch("app.integrated_app.model_manager.SeedVR2Engine", return_value=mock_engine),
             patch.object(manager, "get_recommended_precision", return_value="fp16"),
         ):
             mock_gpu.is_gpu_available = True
@@ -425,7 +425,7 @@ class TestUnloadModel:
         mock_registry.get_engine.return_value = mock_engine
         manager = ModelManager(config)
 
-        with patch("bin.integrated_app.model_manager.clear_gpu_cache"):
+        with patch("app.integrated_app.model_manager.clear_gpu_cache"):
             result = await manager.unload_model()
             assert result["status"] == "ok"
             assert "已卸载" in result["message"]
@@ -439,7 +439,7 @@ class TestUnloadModel:
         mock_registry.get_engine.return_value = None
         manager = ModelManager(config)
 
-        with patch("bin.integrated_app.model_manager.clear_gpu_cache"):
+        with patch("app.integrated_app.model_manager.clear_gpu_cache"):
             result = await manager.unload_model()
             assert result["status"] == "ok"
             mock_registry.clear_engine.assert_called_once()

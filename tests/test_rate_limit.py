@@ -18,8 +18,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from bin.integrated_app.middleware import rate_limit as rate_limit_module
-from bin.integrated_app.middleware.rate_limit import RateLimitMiddleware
+from app.integrated_app.middleware import rate_limit as rate_limit_module
+from app.integrated_app.middleware.rate_limit import RateLimitMiddleware
 
 
 def _make_request(client_host: str = "192.0.2.10", xff: str | None = None) -> MagicMock:
@@ -189,7 +189,7 @@ class TestAppServerWiring:
     """验证 app_server.create_app() 中限流中间件接线。"""
 
     def test_middleware_registered_in_create_app(self):
-        from bin.integrated_app.app_server import create_app
+        from app.integrated_app.app_server import create_app
 
         app = create_app({"runtime": {"security": {"rate_limit_per_minute": 7}}})
         names = [m.cls.__name__ for m in app.user_middleware]

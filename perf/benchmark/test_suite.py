@@ -32,7 +32,7 @@ def test_flash_attention():
         return TestResult("Flash Attention"), "CUDA unavailable"
 
     try:
-        from bin.vram.flash_attention_wrapper import FlashAttention
+        from app.vram.flash_attention_wrapper import FlashAttention
 
         result = TestResult("Flash Attention")
         n_heads, head_dim = 8, 64
@@ -69,7 +69,7 @@ def test_lcm_distill():
     try:
         from diffusers import AutoencoderKL, UNet2DConditionModel
 
-        from bin.models.lcm_distill import LatentConsistencyModel
+        from app.models.lcm_distill import LatentConsistencyModel
 
         result = TestResult("LCM Distill")
 
@@ -105,7 +105,7 @@ def test_lcm_distill():
 def test_raft_flow():
     """测试 RAFT 光流模块"""
     try:
-        from bin.models.raft_flow import RAFT
+        from app.models.raft_flow import RAFT
 
         result = TestResult("RAFT")
         raft = RAFT()
@@ -126,7 +126,7 @@ def test_raft_flow():
 def test_rife_interpolator():
     """测试 RIFE 帧插值"""
     try:
-        from bin.models.rife_interpolator import RIFEInterpolator
+        from app.models.rife_interpolator import RIFEInterpolator
 
         result = TestResult("RIFE")
         rife = RIFEInterpolator()
@@ -165,7 +165,7 @@ def test_distributed_trainer():
 def test_experiment_tracker():
     """测试实验追踪器"""
     try:
-        from bin.utils.experiment_tracker import ExperimentTracker
+        from app.utils.experiment_tracker import ExperimentTracker
 
         result = TestResult("Experiment Tracker")
         tracker = ExperimentTracker(experiment_name="test_run")
@@ -183,7 +183,7 @@ def test_experiment_tracker():
 def test_perf_optimizer():
     """测试性能优化器"""
     try:
-        from bin.perf.optimizer import perf_monitor
+        from app.perf.optimizer import perf_monitor
 
         result = TestResult("Performance Optimizer")
 

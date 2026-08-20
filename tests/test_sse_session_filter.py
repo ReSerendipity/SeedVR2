@@ -12,7 +12,7 @@ import asyncio
 
 import pytest
 
-from bin.integrated_app.routes.system.sse import EventBus
+from app.integrated_app.routes.system.sse import EventBus
 
 
 class TestEventBusSessionFilter:

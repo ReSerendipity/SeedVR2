@@ -52,7 +52,7 @@ jobs:
 
       - name: Start app server in background
         run: |
-          python bin/integrated_app/app_server.py &
+          python app/integrated_app/app_server.py &
         env:
           PYTHONUNBUFFERED: '1'
 

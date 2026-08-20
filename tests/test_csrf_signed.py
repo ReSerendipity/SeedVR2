@@ -10,8 +10,8 @@
 import os
 import tempfile
 
-from bin.integrated_app.middleware.csrf import CSRFMiddleware
-from bin.integrated_app.security.secret_key import get_secret_key, reset_cached_key
+from app.integrated_app.middleware.csrf import CSRFMiddleware
+from app.integrated_app.security.secret_key import get_secret_key, reset_cached_key
 
 
 class TestSecretKey:

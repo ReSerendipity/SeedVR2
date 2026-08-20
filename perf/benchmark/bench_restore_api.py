@@ -7,7 +7,7 @@
         [--param key=value ...]
 
 说明：
-    1. 需要先在本地启动 SeedVR2 服务（bin/clean_launch.py）。
+    1. 需要先在本地启动 SeedVR2 服务（app/clean_launch.py）。
     2. 通过 multipart/form-data 上传文件 + 参数，POST /api/restore/。
     3. 轮询 /api/restore/{task_id}/result 直到终态，打印：
        - submit: 上传+建任务耗时

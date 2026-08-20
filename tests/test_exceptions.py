@@ -2,7 +2,7 @@
 
 import pytest
 
-from bin.integrated_app.exceptions import (
+from app.integrated_app.exceptions import (
     BlockSwapError,
     ConfigError,
     InferenceError,
@@ -148,7 +148,7 @@ class TestExceptionHandlerMiddleware:
     """测试 FastAPI 异常处理器的响应格式"""
 
     def test_restore_error_handler_response(self):
-        from bin.integrated_app.middleware.error_handler import _build_error_body
+        from app.integrated_app.middleware.error_handler import _build_error_body
 
         exc = InsufficientVRAMError("需要 16GB 显存", detail={"required_gb": 16, "available_gb": 8})
         body = _build_error_body(exc)
@@ -161,7 +161,7 @@ class TestExceptionHandlerMiddleware:
         }
 
     def test_model_load_error_response(self):
-        from bin.integrated_app.middleware.error_handler import _build_error_body
+        from app.integrated_app.middleware.error_handler import _build_error_body
 
         exc = ModelLoadError("权重文件损坏", detail={"path": "/models/3b_fp16.pt"})
         body = _build_error_body(exc)
@@ -169,7 +169,7 @@ class TestExceptionHandlerMiddleware:
         assert body["error"]["detail"]["path"] == "/models/3b_fp16.pt"
 
     def test_config_error_response(self):
-        from bin.integrated_app.middleware.error_handler import _build_error_body
+        from app.integrated_app.middleware.error_handler import _build_error_body
 
         exc = ConfigError("无效的精度设置", detail={"field": "precision", "value": "fp32"})
         body = _build_error_body(exc)

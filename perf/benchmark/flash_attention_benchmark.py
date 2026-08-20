@@ -79,9 +79,9 @@ def benchmark_attention(
     dim = n_heads * head_dim
 
     try:
-        from bin.vram.flash_attention_wrapper import FLASH_AVAILABLE, FlashAttention
+        from app.vram.flash_attention_wrapper import FLASH_AVAILABLE, FlashAttention
     except ImportError:
-        from bin.vram.flash_attention_wrapper import FLASH_AVAILABLE  # type: ignore[assignment]
+        from app.vram.flash_attention_wrapper import FLASH_AVAILABLE  # type: ignore[assignment]
 
         FlashAttention = None  # type: ignore[assignment,misc]
 
@@ -183,9 +183,9 @@ def benchmark_precision(
     dim = n_heads * head_dim
 
     try:
-        from bin.vram.flash_attention_wrapper import FLASH_AVAILABLE, FlashAttention
+        from app.vram.flash_attention_wrapper import FLASH_AVAILABLE, FlashAttention
     except ImportError:
-        from bin.vram.flash_attention_wrapper import FLASH_AVAILABLE  # type: ignore[assignment]
+        from app.vram.flash_attention_wrapper import FLASH_AVAILABLE  # type: ignore[assignment]
 
         FlashAttention = None  # type: ignore[assignment,misc]
 

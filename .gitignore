@@ -48,11 +48,11 @@ tests/blob-report/
 *.iml
 
 # Model files
-pretrained_models/*.pth
-pretrained_models/*.safetensors
-pretrained_models/*.bin
-pretrained_models/*.pt
-!pretrained_models/.gitkeep
+model/*.pth
+model/*.safetensors
+model/*.bin
+model/*.pt
+!model/.gitkeep
 
 # Data
 data/uploads/*
@@ -188,7 +188,7 @@ scripts/parse_repos.ps1
 scripts/simple_summary.ps1
 
 # ===== 2026-08-09 审计补充（仓库瘦身防回归） =====
-# 权重/模型格式全局兜底（现有规则只覆盖 pretrained_models/ 下 4 种）
+# 权重/模型格式全局兜底（现有规则只覆盖 model/ 下 4 种）
 *.ckpt
 *.onnx
 *.gguf
@@ -240,7 +240,7 @@ env/
 ENV/
 WinPython*/
 python/
-pretrained_models/*.ckpt
+model/*.ckpt
 *.safetensors
 tests/frontend/_rendered/
 .qoder/
@@ -250,3 +250,8 @@ tests/frontend/_rendered/
 app/ffmpeg.exe
 app/ffprobe.exe
 新建文件夹/
+# ── 文档站（VitePress）本地构建产物 ─────────────────────────────────────────
+website/node_modules/
+website/docs/.vitepress/cache/
+website/docs/.vitepress/dist/
+demo/docs/

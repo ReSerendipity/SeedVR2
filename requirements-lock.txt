@@ -4,7 +4,7 @@
 # 重新生成: python scripts/generate_lock.py
 #
 # 注意:
-#   - torch/torchvision/torraudio 使用 CUDA 预编译包 (+cu128)
+#   - torch/torchvision 使用 CUDA 预编译包 (+cu132)；torchaudio 走 PyPI CPU 版配套
 #   - 切换 CUDA 版本时需重新生成哈希
 #   - 无哈希的条目标记为 # NO HASH, 需联网下载后重新生成
 
@@ -194,12 +194,12 @@ sv-ttk==2.6.0
 sympy==1.14.0
 # NO HASH (run generate_lock.py with network): tokenizers==0.22.2
 tokenizers==0.22.2
-# NO HASH (run generate_lock.py with network): torch==2.11.0+cu128
-torch==2.11.0+cu128
-# NO HASH (run generate_lock.py with network): torchaudio==2.11.0+cu128
-torchaudio==2.11.0+cu128
-# NO HASH (run generate_lock.py with network): torchvision==0.26.0+cu128
-torchvision==0.26.0+cu128
+# NO HASH (run generate_lock.py with network): torch==2.13.0+cu132
+torch==2.13.0+cu132
+# NO HASH (run generate_lock.py with network): torchaudio==2.11.0
+torchaudio==2.11.0
+# NO HASH (run generate_lock.py with network): torchvision==0.28.0+cu132
+torchvision==0.28.0+cu132
 # NO HASH (run generate_lock.py with network): tqdm==4.68.2
 tqdm==4.68.2
 # NO HASH (run generate_lock.py with network): traitlets==5.15.1

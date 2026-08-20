@@ -12,9 +12,9 @@ sys.path.insert(0, PROJECT_ROOT)
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
-import bin.integrated_app.routes.system.settings as settings_module  # noqa: E402
-from bin.integrated_app.app_server import create_app  # noqa: E402
-from bin.integrated_app.config import load_config, save_config  # noqa: E402
+import app.integrated_app.routes.system.settings as settings_module  # noqa: E402
+from app.integrated_app.app_server import create_app  # noqa: E402
+from app.integrated_app.config import load_config, save_config  # noqa: E402
 
 if TYPE_CHECKING:
     from starlette.responses import Response

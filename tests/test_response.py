@@ -10,7 +10,7 @@ import json
 
 from fastapi.responses import JSONResponse
 
-from bin.integrated_app.utils.response import respond_error, respond_success
+from app.integrated_app.utils.response import respond_error, respond_success
 
 
 class TestRespondSuccess:

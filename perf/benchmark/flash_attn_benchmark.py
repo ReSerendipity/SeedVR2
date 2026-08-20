@@ -34,7 +34,7 @@ def benchmark_attention(seq_len: int, batch_size: int, n_heads: int = 8, head_di
 
     # Flash Attention (使用项目自实现的包装器)
     try:
-        from bin.vram.flash_attention_wrapper import FlashAttention
+        from app.vram.flash_attention_wrapper import FlashAttention
 
         flash_attn = FlashAttention(dim, n_heads).to(device)
         has_flash = True

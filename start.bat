@@ -13,7 +13,16 @@ echo.
 set "PYTHON_CMD="
 
 :: ============================================================
-:: 1. First, try system Python (preferred)
+:: 0. First, prefer project-local .venv (isolated model env)
+:: ============================================================
+if exist "%~dp0.venv\Scripts\python.exe" (
+    set "PYTHON_CMD=%~dp0.venv\Scripts\python.exe"
+    echo [OK] Found project venv: %~dp0.venv\Scripts\python.exe
+    goto :python_found
+)
+
+:: ============================================================
+:: 1. Fallback: try system Python (shared, may be polluted)
 :: ============================================================
 
 :: 1a. Check common system Python installation paths
@@ -136,7 +145,7 @@ if errorlevel 1 (
 
 :: Start application
 cd /d "%~dp0"
-"%PYTHON_CMD%" bin\clean_launch.py
+"%PYTHON_CMD%" app\clean_launch.py
 
 if errorlevel 1 (
     echo.

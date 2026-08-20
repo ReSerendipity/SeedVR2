@@ -13,8 +13,8 @@ from unittest.mock import MagicMock, patch
 import cv2
 import numpy as np
 
-from bin.integrated_app.engines._video_pipeline import _VideoPipelineMixin
-from bin.integrated_app.video_processor import VideoInfo
+from app.integrated_app.engines._video_pipeline import _VideoPipelineMixin
+from app.integrated_app.video_processor import VideoInfo
 
 
 class MockVideoEngine(_VideoPipelineMixin):
@@ -204,8 +204,8 @@ class TestMemoryProtection:
         engine = MockVideoEngine(info)
         with (
             patch.object(engine, "_available_ram_gb", return_value=0.05),
-            patch("bin.integrated_app.engines._video_pipeline._check_memory", return_value=0.0),
-            patch("bin.integrated_app.engines._video_pipeline._log_memory"),
+            patch("app.integrated_app.engines._video_pipeline._check_memory", return_value=0.0),
+            patch("app.integrated_app.engines._video_pipeline._log_memory"),
         ):
             result = engine._infer_video_impl("x.mp4", str(tmp_path))
         assert not result.success
@@ -216,8 +216,8 @@ class TestMemoryProtection:
         info = _make_video_info("x.mp4", 0)  # frame_count=0
         engine = MockVideoEngine(info)
         with (
-            patch("bin.integrated_app.engines._video_pipeline._check_memory", return_value=0.0),
-            patch("bin.integrated_app.engines._video_pipeline._log_memory"),
+            patch("app.integrated_app.engines._video_pipeline._check_memory", return_value=0.0),
+            patch("app.integrated_app.engines._video_pipeline._log_memory"),
         ):
             result = engine._infer_video_impl("x.mp4", str(tmp_path))
         assert not result.success
@@ -234,10 +234,10 @@ class TestSegmentedStreamingInference:
         info = _make_video_info(video_path, 10, 64, 64)
         engine = MockVideoEngine(info)
         with (
-            patch("bin.integrated_app.engines._video_pipeline._check_memory", return_value=0.0),
-            patch("bin.integrated_app.engines._video_pipeline._log_memory"),
-            patch("bin.integrated_app.engines._video_pipeline._cleanup_cuda_cache"),
-            patch("bin.integrated_app.engines._video_pipeline.shutil.rmtree"),
+            patch("app.integrated_app.engines._video_pipeline._check_memory", return_value=0.0),
+            patch("app.integrated_app.engines._video_pipeline._log_memory"),
+            patch("app.integrated_app.engines._video_pipeline._cleanup_cuda_cache"),
+            patch("app.integrated_app.engines._video_pipeline.shutil.rmtree"),
         ):
             result = engine._infer_video_impl(str(video_path), str(tmp_path / "out"))
         assert result.success
@@ -252,10 +252,10 @@ class TestSegmentedStreamingInference:
         info = _make_video_info(video_path, 65, 64, 64)
         engine = MockVideoEngine(info)
         with (
-            patch("bin.integrated_app.engines._video_pipeline._check_memory", return_value=0.0),
-            patch("bin.integrated_app.engines._video_pipeline._log_memory"),
-            patch("bin.integrated_app.engines._video_pipeline._cleanup_cuda_cache"),
-            patch("bin.integrated_app.engines._video_pipeline.shutil.rmtree"),
+            patch("app.integrated_app.engines._video_pipeline._check_memory", return_value=0.0),
+            patch("app.integrated_app.engines._video_pipeline._log_memory"),
+            patch("app.integrated_app.engines._video_pipeline._cleanup_cuda_cache"),
+            patch("app.integrated_app.engines._video_pipeline.shutil.rmtree"),
         ):
             result = engine._infer_video_impl(str(video_path), str(tmp_path / "out"))
         assert result.success
@@ -284,10 +284,10 @@ class TestSegmentedStreamingInference:
         engine = MockVideoEngine(info)
         assert engine.dit is None
         with (
-            patch("bin.integrated_app.engines._video_pipeline._check_memory", return_value=0.0),
-            patch("bin.integrated_app.engines._video_pipeline._log_memory"),
-            patch("bin.integrated_app.engines._video_pipeline._cleanup_cuda_cache"),
-            patch("bin.integrated_app.engines._video_pipeline.shutil.rmtree"),
+            patch("app.integrated_app.engines._video_pipeline._check_memory", return_value=0.0),
+            patch("app.integrated_app.engines._video_pipeline._log_memory"),
+            patch("app.integrated_app.engines._video_pipeline._cleanup_cuda_cache"),
+            patch("app.integrated_app.engines._video_pipeline.shutil.rmtree"),
         ):
             result = engine._infer_video_impl(str(video_path), str(tmp_path / "out"))
         assert result.success
@@ -306,10 +306,10 @@ class TestSegmentedStreamingInference:
             (current_frame, total_frames, progress)
         )
         with (
-            patch("bin.integrated_app.engines._video_pipeline._check_memory", return_value=0.0),
-            patch("bin.integrated_app.engines._video_pipeline._log_memory"),
-            patch("bin.integrated_app.engines._video_pipeline._cleanup_cuda_cache"),
-            patch("bin.integrated_app.engines._video_pipeline.shutil.rmtree"),
+            patch("app.integrated_app.engines._video_pipeline._check_memory", return_value=0.0),
+            patch("app.integrated_app.engines._video_pipeline._log_memory"),
+            patch("app.integrated_app.engines._video_pipeline._cleanup_cuda_cache"),
+            patch("app.integrated_app.engines._video_pipeline.shutil.rmtree"),
         ):
             result = engine._infer_video_impl(str(video_path), str(tmp_path / "out"))
         assert result.success

@@ -16,7 +16,7 @@ from unittest.mock import AsyncMock
 import aiosqlite
 import pytest
 
-from bin.integrated_app.history_db import HistoryDB, HistoryRecord, TaskRecord
+from app.integrated_app.history_db import HistoryDB, HistoryRecord, TaskRecord
 
 
 @pytest.fixture

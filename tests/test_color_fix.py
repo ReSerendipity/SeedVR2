@@ -11,7 +11,7 @@ import cv2
 import numpy as np
 import pytest
 
-from bin.integrated_app.color_fix import (
+from app.integrated_app.color_fix import (
     apply_color_correction,
     color_fix_adain,
     color_fix_hsv,

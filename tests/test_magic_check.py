@@ -7,7 +7,7 @@
 包括正常文件通过、伪装文件被拦截的场景。
 """
 
-from bin.integrated_app.security.magic_check import validate_upload_magic
+from app.integrated_app.security.magic_check import validate_upload_magic
 
 
 class TestImageMagicCheck:

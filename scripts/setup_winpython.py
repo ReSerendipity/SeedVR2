@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """SeedVR2 WinPython 环境检测与自动安装脚本。
 
 本模块用于在 Windows 平台上检测、定位并自动下载配置 WinPython 便携 Python 环境，
@@ -138,7 +138,7 @@ def setup_environment() -> None:
     1. 定位 Python 解释器并打印版本信息
     2. 检测是否为 WinPython 环境
     3. 若 requirements.txt 存在则自动安装项目依赖
-    4. 创建 data/uploads、outputs、logs、pretrained_models 等必要目录
+    4. 创建 data/uploads、outputs、logs、model 等必要目录
 
     Returns:
         None
@@ -164,7 +164,7 @@ def setup_environment() -> None:
             print(f"依赖安装失败: {result.stderr}")
 
     # 创建必要目录
-    for dir_name in ["data/uploads", "outputs", "logs", "pretrained_models"]:
+    for dir_name in ["data/uploads", "outputs", "logs", "model"]:
         dir_path = PROJECT_ROOT / dir_name
         dir_path.mkdir(parents=True, exist_ok=True)
         print(f"目录已创建: {dir_path}")

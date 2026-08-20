@@ -9,12 +9,14 @@
     "test:ui": "npx playwright test --ui",
     "test:debug": "npx playwright test --debug",
     "test:report": "npx playwright show-report",
+    "test:frontend": "node frontend/smoke.js",
     "screenshots": "node capture-screenshots.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.0",
     "@types/node": "^25.9.3",
     "axe-core": "^4.10.0",
+    "jsdom": "^24.1.0",
     "typescript": "^5.7.0"
   }
 }

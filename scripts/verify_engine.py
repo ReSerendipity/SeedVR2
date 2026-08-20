@@ -161,7 +161,7 @@ def check_model_files(model_size: str, precision: str) -> bool:
     print_info(f"配置目录: {model_cfg.get('config_dir', 'N/A')}")
     print_info(f"Block 数量: {model_cfg.get('num_blocks', 'N/A')}")
 
-    pretrained_dir = PROJECT_ROOT / config.get("model", {}).get("pretrained_dir", "pretrained_models")
+    pretrained_dir = PROJECT_ROOT / config.get("model", {}).get("pretrained_dir", "model")
 
     # 检查主要权重文件
     checkpoint_key = f"checkpoint_{precision}"
@@ -229,8 +229,8 @@ def check_model_load(model_size: str, precision: str) -> bool:
     print_header(f"5. 模型加载测试 ({model_size}/{precision})")
 
     try:
-        from bin.integrated_app.gpu_backend import gpu_manager
-        from bin.integrated_app.model_manager import ModelManager
+        from app.integrated_app.gpu_backend import gpu_manager
+        from app.integrated_app.model_manager import ModelManager
 
         if not gpu_manager.is_gpu_available:
             print_fail("GPU 不可用，无法加载模型")
@@ -269,7 +269,7 @@ def run_inference_test(model_size: str, precision: str) -> bool:
         import numpy as np
         from PIL import Image
 
-        from bin.integrated_app.model_registry import model_registry
+        from app.integrated_app.model_registry import model_registry
 
         if not model_registry.model_loaded:
             print_fail("模型未加载，无法执行推理测试")
@@ -292,7 +292,7 @@ def run_inference_test(model_size: str, precision: str) -> bool:
             print_fail("引擎实例不可用")
             return False
 
-        from bin.integrated_app.engines.seedvr2_engine import ImageInferenceConfig
+        from app.integrated_app.engines.seedvr2_engine import ImageInferenceConfig
 
         config = ImageInferenceConfig()
         print_info("开始推理...")

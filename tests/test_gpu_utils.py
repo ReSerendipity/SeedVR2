@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from bin.integrated_app import gpu_utils
+from app.integrated_app import gpu_utils
 
 
 class TestGetGpuMemoryInfo:

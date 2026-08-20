@@ -1,6 +1,6 @@
 """测试 SeedVR2 模型状态注册中心"""
 
-from bin.integrated_app.model_registry import _ModelRegistry
+from app.integrated_app.model_registry import _ModelRegistry
 
 
 class TestSingleton:

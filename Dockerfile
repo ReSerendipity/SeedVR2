@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Create data directories and non-root user
-RUN mkdir -p data/uploads data/logs pretrained_models && \
+RUN mkdir -p data/uploads data/logs model && \
     groupadd -r appuser && useradd -r -g appuser appuser && \
     chown -R appuser:appuser /app
 
@@ -27,4 +27,4 @@ ENV PYTHONPATH=/app
 
 EXPOSE 7870
 
-CMD ["gunicorn", "-w", "1", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:7870", "bin.integrated_app.app_server:app"]
+CMD ["gunicorn", "-w", "1", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:7870", "app.integrated_app.app_server:app"]

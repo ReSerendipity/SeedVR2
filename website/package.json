@@ -1,0 +1,15 @@
+{
+  "name": "seedvr2-lite-docs",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "SeedVR2-lite 官方文档站（VitePress）",
+  "scripts": {
+    "dev": "vitepress dev docs",
+    "build": "vitepress build docs",
+    "preview": "vitepress preview docs"
+  },
+  "devDependencies": {
+    "vitepress": "^1.5.0"
+  }
+}

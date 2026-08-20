@@ -12,7 +12,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from bin.integrated_app.security.watermark import (
+from app.integrated_app.security.watermark import (
     _WATERMARK_ALPHA,
     _WATERMARK_KEY_ENV,
     _bits_to_text,

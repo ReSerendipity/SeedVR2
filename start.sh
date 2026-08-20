@@ -94,7 +94,7 @@ fi
 # 5. Start application
 # ============================================================
 echo "[Start] Launching SeedVR2..."
-$PYTHON_CMD bin/clean_launch.py
+$PYTHON_CMD app/clean_launch.py
 
 if [ $? -ne 0 ]; then
     echo ""

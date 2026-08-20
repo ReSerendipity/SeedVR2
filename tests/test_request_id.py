@@ -16,7 +16,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from starlette.requests import Request
 
-from bin.integrated_app.middleware.request_id import (
+from app.integrated_app.middleware.request_id import (
     RequestIDLogFilter,
     RequestIDMiddleware,
     _sanitize_request_id,
@@ -148,7 +148,7 @@ class TestRequestIdLogFilter:
         """filter 应为 LogRecord 添加 request_id 属性"""
 
         # Use module's actual ContextVar instead of creating a new one
-        from bin.integrated_app.middleware.request_id import _request_id_var
+        from app.integrated_app.middleware.request_id import _request_id_var
 
         token = _request_id_var.set("test-log-request-id")
 
@@ -175,7 +175,7 @@ class TestRequestIdLogFilter:
     def test_filter_uses_thread_local_as_fallback(self, monkeypatch):
         """异步上下文中没有时使用线程本地回退"""
 
-        from bin.integrated_app.middleware.request_id import _request_id_local
+        from app.integrated_app.middleware.request_id import _request_id_local
 
         # 设置线程本地值
         _request_id_local.request_id = "thread-local-fallback"

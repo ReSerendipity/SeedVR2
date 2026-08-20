@@ -21,7 +21,6 @@ PAGES = ["restore", "index", "history", "settings"]
 
 
 def main() -> None:
-    import json
     import sys
 
     sys.path.insert(0, str(PROJECT_ROOT))

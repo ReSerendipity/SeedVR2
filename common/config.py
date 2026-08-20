@@ -150,14 +150,14 @@ def import_item(path: str, name: str) -> Any:
     """Dynamically import a Python class, function, or object from a module.
 
     Args:
-        path: Dotted module path (e.g., ``"models.dit_v2"``).
+        path: Dotted module path (e.g., ``"model_lib.dit_v2"``).
         name: Name of the attribute to retrieve from the module (e.g., ``"DiT"``).
 
     Returns:
         The imported Python object.
 
     Example:
-        >>> DiTClass = import_item("models.dit_v2", "DiT")
+        >>> DiTClass = import_item("model_lib.dit_v2", "DiT")
         >>> model = DiTClass(dim=512)
     """
     return getattr(importlib.import_module(path), name)

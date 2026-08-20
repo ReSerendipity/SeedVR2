@@ -1,6 +1,6 @@
 """webui_enhancement.py 文件列表管理核心逻辑测试。"""
 
-from bin.integrated_app.optimization.webui_enhancement import (
+from app.integrated_app.optimization.webui_enhancement import (
     FileItem,
     FileItemStatus,
     FileListManager,

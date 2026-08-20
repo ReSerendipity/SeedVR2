@@ -5,7 +5,7 @@ import re
 
 import pytest
 
-from bin.integrated_app.security.weight_encryption import (
+from app.integrated_app.security.weight_encryption import (
     _MAGIC,
     _VERSION,
     LicenseInfo,

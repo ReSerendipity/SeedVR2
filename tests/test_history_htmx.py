@@ -2,7 +2,7 @@
 
 import pytest
 
-from bin.integrated_app.history_db import HistoryRecord
+from app.integrated_app.history_db import HistoryRecord
 
 pytestmark = pytest.mark.integration
 

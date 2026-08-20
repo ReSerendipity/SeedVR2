@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="{{ current_locale }}" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self';">
+    <title>{% block title %}SeedVR2{% endblock %}</title>
+    <!-- 主题初始化（防止闪烁，默认暗色主题） -->
+    <script>
+        (function() {
+            var saved = localStorage.getItem('sv-theme');
+            // 默认暗色主题，仅当用户明确选择过才使用保存的主题
+            var theme = saved || 'dark';
+            document.documentElement.setAttribute('data-theme', theme);
+            // 防止加载时的过渡动画闪烁
+            document.documentElement.classList.add('sv-theme-no-transition');
+            window.addEventListener('DOMContentLoaded', function() {
+                setTimeout(function() {
+                    document.documentElement.classList.remove('sv-theme-no-transition');
+                }, 100);
+            });
+        })();
+    </script>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%235e7d5a'/%3E%3Ctext x='16' y='22' font-family='Georgia,serif' font-size='17' font-style='italic' fill='%23faf7f2' text-anchor='middle'%3ES%3C/text%3E%3C/svg%3E">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%235e7d5a'/%3E%3Ctext x='90' y='126' font-family='Georgia,serif' font-size='96' font-style='italic' fill='%23faf7f2' text-anchor='middle'%3ES%3C/text%3E%3C/svg%3E">
+
+    <!-- 免费开源字体（Google Fonts，SIL OFL / Apache 2.0 协议）         异步加载：外部字体样式不阻塞 DOMContentLoaded，避免弱网/无网络环境下页面 JS 初始化延迟-->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@400;600;700&family=Ma+Shan+Zheng&family=ZCOOL+XiaoWei&family=ZCOOL+QingKe+HuangYou&family=ZCOOL+KuaiLe&family=Long+Cang&family=Liu+Jian+Mao+Cao&family=Zhi+Mang+Xing&family=Playfair+Display:wght@400;600&family=Cinzel:wght@400;600&family=Great+Vibes&family=Pacifico&family=Dancing+Script:wght@400;600&display=swap"
+          rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@400;600;700&family=Ma+Shan+Zheng&family=ZCOOL+XiaoWei&family=ZCOOL+QingKe+HuangYou&family=ZCOOL+KuaiLe&family=Long+Cang&family=Liu+Jian+Mao+Cao&family=Zhi+Mang+Xing&family=Playfair+Display:wght@400;600&family=Cinzel:wght@400;600&family=Great+Vibes&family=Pacifico&family=Dancing+Script:wght@400;600&display=swap" rel="stylesheet"></noscript>
+
+    <!-- [i18n 翻译注入前置 JS] -->
+    <script>
+    window.__LOCALE__ = "{{ current_locale }}";
+    window.__I18N__ = {
+        "common.upload": "{{ t('common.upload') }}",
+        "common.start": "{{ t('common.start') }}",
+        "common.stop": "{{ t('common.stop') }}",
+        "common.download": "{{ t('common.download') }}",
+        "common.save": "{{ t('common.save') }}",
+        "common.reset": "{{ t('common.reset') }}",
+        "common.loading": "{{ t('common.loading') }}",
+        "common.processing": "{{ t('common.processing') }}",
+        "common.completed": "{{ t('common.completed') }}",
+        "common.failed": "{{ t('common.failed') }}",
+        "common.pending": "{{ t('common.pending') }}",
+        "common.cancel": "{{ t('common.cancel') }}",
+        "common.confirm": "{{ t('common.confirm') }}",
+        "common.close": "{{ t('common.close') }}",
+        "common.refresh": "{{ t('common.refresh') }}",
+        "common.delete": "{{ t('common.delete') }}",
+        "common.switch_theme": "{{ t('common.switch_theme') }}",
+        "common.saving": "{{ t('common.saving') }}",
+        "common.retry": "{{ t('common.retry') }}",
+        "status.restore_completed": "{{ t('status.restore_completed') }}",
+        "status.restore_failed": "{{ t('status.restore_failed') }}",
+        "status.pending": "{{ t('status.pending') }}",
+        "status.processing": "{{ t('status.processing') }}",
+        "status.completed": "{{ t('status.completed') }}",
+        "status.failed": "{{ t('status.failed') }}",
+        "status.uploaded": "{{ t('status.uploaded') }}",
+        "nav.home": "{{ t('nav.home') }}",
+        "nav.restore": "{{ t('nav.restore') }}",
+        "nav.history": "{{ t('nav.history') }}",
+        "nav.system": "{{ t('nav.system') }}",
+        "nav.settings": "{{ t('nav.settings') }}",
+        "restore.title": "{{ t('restore.title') }}",
+        "restore.subtitle": "{{ t('restore.subtitle') }}",
+        "restore.model_settings": "{{ t('restore.model_settings') }}",
+        "restore.seed": "{{ t('restore.seed') }}",
+        "restore.resolution": "{{ t('restore.resolution') }}",
+        "restore.max_resolution": "{{ t('restore.max_resolution') }}",
+        "restore.upload_hint": "{{ t('restore.upload_hint') }}",
+        "restore.supported_formats": "{{ t('restore.supported_formats') }}",
+        "restore.single_mode": "{{ t('restore.single_mode') }}",
+        "restore.collapse_params": "{{ t('restore.collapse_params') }}",
+        "restore.expand_params": "{{ t('restore.expand_params') }}",
+        "restore.batch_mode": "{{ t('restore.batch_mode') }}",
+        "history.title": "{{ t('history.title') }}",
+        "history.no_records": "{{ t('history.no_records') }}",
+        "history.no_records_desc": "{{ t('history.no_records_desc') }}",
+        "history.load_failed": "{{ t('history.load_failed') }}",
+        "history.clear_confirm": "{{ t('history.clear_confirm') }}",
+        "history.cleared": "{{ t('history.cleared') }}",
+        "history.clear_failed": "{{ t('history.clear_failed') }}",
+        "history.video": "{{ t('history.video') }}",
+        "history.image": "{{ t('history.image') }}",
+        "history.filter_type": "{{ t('history.filter_type') }}",
+        "history.filter_status": "{{ t('history.filter_status') }}",
+        "history.prev_page": "{{ t('history.prev_page') }}",
+        "history.next_page": "{{ t('history.next_page') }}",
+        "system.loaded": "{{ t('system.loaded') }}",
+        "system.not_loaded": "{{ t('system.not_loaded') }}",
+        "system.nvidia_ready": "{{ t('system.nvidia_ready') }}",
+        "system.cpu_mode_tip": "{{ t('system.cpu_mode_tip') }}",
+        "system.unsupported_gpu_tip": "{{ t('system.unsupported_gpu_tip') }}",
+        "system.connection_failed": "{{ t('system.connection_failed') }}",
+        "video.single_file_upload": "{{ t('video.single_file_upload') }}",
+        "video.folder_path": "{{ t('video.folder_path') }}",
+        "video.waiting_input": "{{ t('video.waiting_input') }}",
+        "video.selected": "{{ t('video.selected') }}",
+        "video.enabled": "{{ t('video.enabled') }}",
+        "video.disabled": "{{ t('video.disabled') }}",
+        "video.uploading": "{{ t('video.uploading') }}",
+        "video.upload_success": "{{ t('video.upload_success') }}",
+        "video.upload_failed": "{{ t('video.upload_failed') }}",
+        "video.please_select_video": "{{ t('video.please_select_video') }}",
+        "video.please_enter_folder": "{{ t('video.please_enter_folder') }}",
+        "video.folder_selected": "{{ t('video.folder_selected') }}",
+        "video.starting_batch": "{{ t('video.starting_batch') }}",
+        "video.batch_started": "{{ t('video.batch_started') }}",
+        "video.batch_start_failed": "{{ t('video.batch_start_failed') }}",
+        "video.batch_completed": "{{ t('video.batch_completed') }}",
+        "video.retrying": "{{ t('video.retrying') }}",
+        "video.retrying_failed": "{{ t('video.retrying_failed') }}",
+        "video.retry_failed": "{{ t('video.retry_failed') }}",
+        "video.retry_failed_videos": "{{ t('video.retry_failed_videos') }}",
+        "video.core": "{{ t('video.core') }}",
+        "video.model": "{{ t('video.model') }}",
+        "video.device": "{{ t('video.device') }}",
+        "video.swap_io_components": "{{ t('video.swap_io_components') }}",
+        "video.cache_model": "{{ t('video.cache_model') }}",
+        "video.attention_mode": "{{ t('video.attention_mode') }}",
+        "video.vae_model": "{{ t('video.vae_model') }}",
+        "video.encode_tiled": "{{ t('video.encode_tiled') }}",
+        "video.encode_tile_size": "{{ t('video.encode_tile_size') }}",
+        "video.encode_tile_overlap": "{{ t('video.encode_tile_overlap') }}",
+        "video.decode_tiled": "{{ t('video.decode_tiled') }}",
+        "video.decode_tile_size": "{{ t('video.decode_tile_size') }}",
+        "video.decode_tile_overlap": "{{ t('video.decode_tile_overlap') }}",
+        "video.tile_debug": "{{ t('video.tile_debug') }}",
+        "video.seed": "{{ t('video.seed') }}",
+        "video.random_seed": "{{ t('video.random_seed') }}",
+        "video.resolution": "{{ t('video.resolution') }}",
+        "video.max_resolution": "{{ t('video.max_resolution') }}",
+        "video.batch_size": "{{ t('video.batch_size') }}",
+        "video.uniform_batch_size": "{{ t('video.uniform_batch_size') }}",
+        "video.color_correction": "{{ t('video.color_correction') }}",
+        "video.temporal_overlap": "{{ t('video.temporal_overlap') }}",
+        "video.prepend_frames": "{{ t('video.prepend_frames') }}",
+        "video.input_noise_scale": "{{ t('video.input_noise_scale') }}",
+        "video.latent_noise_scale": "{{ t('video.latent_noise_scale') }}",
+        "video.debug_mode": "{{ t('video.debug_mode') }}",
+        "video.before": "{{ t('video.before') }}",
+        "video.after": "{{ t('video.after') }}",
+        "restore.select_file": "{{ t('restore.select_file') }}",
+        "restore.output_settings": "{{ t('restore.output_settings') }}",
+        "restore.upload_and_restore": "{{ t('restore.upload_and_restore') }}",
+        "restore.processing": "{{ t('restore.processing') }}",
+        "restore.completed": "{{ t('restore.completed') }}",
+        "restore.failed": "{{ t('restore.failed') }}",
+        "restore.batch_from_folder": "{{ t('restore.batch_from_folder') }}",
+        "restore.folder_path": "{{ t('restore.folder_path') }}",
+        "restore.browse": "{{ t('restore.browse') }}",
+        "restore.scan": "{{ t('restore.scan') }}",
+        "restore.scanning": "{{ t('restore.scanning') }}",
+        "restore.scan_failed": "{{ t('restore.scan_failed') }}",
+        "restore.found_files": "{{ t('restore.found_files') }}",
+        "restore.please_select": "{{ t('restore.please_select') }}",
+        "restore.download": "{{ t('restore.download') }}",
+        "restore.restore_again": "{{ t('restore.restore_again') }}",
+        "restore.before": "{{ t('restore.before') }}",
+        "restore.after": "{{ t('restore.after') }}",
+        "restore.batch_progress": "{{ t('restore.batch_progress') }}",
+        "restore.batch_success": "{{ t('restore.batch_success') }}",
+        "restore.batch_failed": "{{ t('restore.batch_failed') }}",
+        "restore.batch_current_processing": "{{ t('restore.batch_current_processing') }}",
+        "home.hero_title": "{{ t('home.hero_title') }}",
+        "home.hero_highlight": "{{ t('home.hero_highlight') }}",
+        "home.hero_subtitle": "{{ t('home.hero_subtitle') }}",
+        "home.start": "{{ t('home.start') }}",
+        "home.recent_tasks": "{{ t('home.recent_tasks') }}",
+        "home.view_all": "{{ t('home.view_all') }}",
+        "home.no_tasks_desc": "{{ t('home.no_tasks_desc') }}",
+        "home.total_tasks": "{{ t('home.total_tasks') }}",
+        "system.title": "{{ t('system.title') }}",
+        "system.model_status": "{{ t('system.model_status') }}",
+        "system.system_memory": "{{ t('system.system_memory') }}",
+        "system.uptime": "{{ t('system.uptime') }}",
+        "system.available_models": "{{ t('system.available_models') }}",
+        "system.cpu_mode": "{{ t('system.cpu_mode') }}",
+        "status.gpu_detecting": "{{ t('status.gpu_detecting') }}",
+        "status.initializing": "{{ t('status.initializing') }}",
+        "common.search": "{{ t('common.search') }}",
+        "common.browse_folder": "{{ t('common.browse_folder') }}",
+        "common.open_explorer": "{{ t('common.open_explorer') }}",
+        "common.select_folder": "{{ t('common.select_folder') }}",
+        "common.go": "{{ t('common.go') }}",
+        "common.menu": "{{ t('common.menu') }}",
+        "history.preview": "{{ t('history.preview') }}",
+        "history.search_placeholder": "{{ t('history.search_placeholder') }}",
+        "history.all_types": "{{ t('history.all_types') }}",
+        "history.all_status": "{{ t('history.all_status') }}",
+        "history.view_table": "{{ t('history.view_table') }}",
+        "history.view_cards": "{{ t('history.view_cards') }}",
+        "history.view_mode": "{{ t('history.view_mode') }}",
+        "history.clear": "{{ t('history.clear') }}",
+        "history.id": "{{ t('history.id') }}",
+        "history.type": "{{ t('history.type') }}",
+        "history.input_file": "{{ t('history.input_file') }}",
+        "history.model": "{{ t('history.model') }}",
+        "history.status": "{{ t('history.status') }}",
+        "history.processing_time": "{{ t('history.processing_time') }}",
+        "history.created_at": "{{ t('history.created_at') }}",
+        "history.actions": "{{ t('history.actions') }}",
+        "history.more_actions": "{{ t('history.more_actions') }}",
+        "history.open_output_dir": "{{ t('history.open_output_dir') }}",
+        "common.switch_language": "{{ t('common.switch_language') }}",
+        "common.collapse": "{{ t('common.collapse') }}",
+        "common.skip_to_content": "{{ t('common.skip_to_content') }}",
+        "home.quick.upload": "{{ t('home.quick.upload') }}",
+        "home.quick.upload_desc": "{{ t('home.quick.upload_desc') }}",
+        "home.quick.batch": "{{ t('home.quick.batch') }}",
+        "home.quick.batch_desc": "{{ t('home.quick.batch_desc') }}",
+        "home.quick.history": "{{ t('home.quick.history') }}",
+        "home.quick.history_desc": "{{ t('home.quick.history_desc') }}",
+        "restore.please_select_file": "{{ t('restore.please_select_file') }}",
+        "restore.batch_size_required": "{{ t('restore.batch_size_required') }}",
+        "restore.batch_size_4n1": "{{ t('restore.batch_size_4n1') }}",
+        "restore.please_select_folder": "{{ t('restore.please_select_folder') }}",
+        "restore.please_scan_folder": "{{ t('restore.please_scan_folder') }}",
+        "restore.gpu_required": "{{ t('restore.gpu_required') }}",
+        "restore.gpu_timeout": "{{ t('restore.gpu_timeout') }}",
+        "restore.gpu_available": "{{ t('restore.gpu_available') }}",
+        "restore.gpu_detect_timeout": "{{ t('restore.gpu_detect_timeout') }}",
+        "restore.gpu_detecting": "{{ t('restore.gpu_detecting') }}",
+        "restore.gpu_warning_title": "{{ t('restore.gpu_warning_title') }}",
+        "restore.gpu_warning_detail": "{{ t('restore.gpu_warning_detail') }}",
+        "restore.gpu_warning_hint": "{{ t('restore.gpu_warning_hint') }}",
+        "restore.gpu_help": "{{ t('restore.gpu_help') }}",
+        "restore.gpu_retry": "{{ t('restore.gpu_retry') }}",
+        "restore.gpu_not_found": "{{ t('restore.gpu_not_found') }}",
+        "restore.gpu_retry_failed": "{{ t('restore.gpu_retry_failed') }}",
+        "restore.cancel_task": "{{ t('restore.cancel_task') }}",
+        "restore.cancel_task_confirm": "{{ t('restore.cancel_task_confirm') }}",
+        "restore.task_cancelled": "{{ t('restore.task_cancelled') }}",
+        "restore.cancel_failed": "{{ t('restore.cancel_failed') }}",
+        "restore.cancel_batch_task": "{{ t('restore.cancel_batch_task') }}",
+        "restore.cancel_batch_confirm": "{{ t('restore.cancel_batch_confirm') }}",
+        "restore.batch_task_cancelled": "{{ t('restore.batch_task_cancelled') }}",
+        "restore.change_file": "{{ t('restore.change_file') }}",
+        "restore.no_files_found": "{{ t('restore.no_files_found') }}",
+        "restore.batch_confirm_title": "{{ t('restore.batch_confirm_title') }}",
+        "restore.batch_confirm_msg": "{{ t('restore.batch_confirm_msg') }}"
+    };
+    </script>
+
+    <!-- Bootstrap 5 CSS (本地) -->
+    <link href="/static/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons (本地) -->
+    <link href="/static/vendor/bootstrap-icons/bootstrap-icons.min.css" rel="stylesheet">
+    <!-- Warm Print 字体：DM Sans 正文 + Instrument Serif 展示字体 (本地) -->
+    <link rel="stylesheet" href="/static/fonts/fonts.css">
+
+    <!-- 自定义样-->
+    <link rel="stylesheet" href="/static/css/style.css?v=3.8.0">
+
+    {% block head %}{% endblock %}
+</head>
+<body>
+
+    <!-- 全局 HTMX 加载指示器-->
+    <div id="htmxIndicator" class="htmx-indicator">
+        <div class="sv-top-progress-bar"></div>
+    </div>
+
+    <a href="#main-content" class="sv-skip-link">{{ t('common.skip_to_content') }}</a>
+
+    <!-- ===== 顶部导航栏（三区布局：品牌 / 标题 / 操作区?===== -->
+    <header class="sv-navbar-wrapper">
+    <nav class="sv-navbar">
+        <a href="/" class="sv-navbar-brand">
+            <svg class="brand-logo" width="22" height="22" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="7" fill="currentColor"/><text x="16" y="22" font-family="Georgia,serif" font-size="17" font-style="italic" fill="#faf7f2" text-anchor="middle">S</text></svg>
+            <span class="brand-text">SeedVR2<span class="brand-dot">.</span></span>
+        </a>
+
+        <ul class="sv-navbar-nav" id="mainNav">
+            <li>
+                <a href="/" class="sv-nav-link {% if active_page == 'index' %}active{% endif %}">
+                    <i class="bi bi-house-door nav-icon"></i>
+                    <span>{{ t('nav.home') }}</span>
+                </a>
+            </li>
+            <li>
+                <a href="/restore" class="sv-nav-link {% if active_page == 'restore' %}active{% endif %}">
+                    <i class="bi bi-magic nav-icon"></i>
+                    <span>{{ t('nav.restore') }}</span>
+                </a>
+            </li>
+            <li>
+                <a href="/history" class="sv-nav-link {% if active_page == 'history' %}active{% endif %}">
+                    <i class="bi bi-clock-history nav-icon"></i>
+                    <span>{{ t('nav.history') }}</span>
+                </a>
+            </li>
+            <li>
+                <a href="/system-status" class="sv-nav-link {% if active_page == 'system' %}active{% endif %}">
+                    <i class="bi bi-cpu nav-icon"></i>
+                    <span>{{ t('nav.system') }}</span>
+                </a>
+            </li>
+            <li>
+                <a href="/settings" class="sv-nav-link {% if active_page == 'settings' %}active{% endif %}">
+                    <i class="bi bi-gear nav-icon"></i>
+                    <span>{{ t('nav.settings') }}</span>
+                </a>
+            </li>
+        </ul>
+
+        <div class="sv-navbar-actions">
+            <!-- 标题字体切换下拉 -->
+            <div class="sv-font-dropdown" id="fontDropdown">
+                <button class="sv-nav-icon-btn" id="btnFontSwitch" aria-label="切换标题字体" title="切换标题字体" aria-haspopup="true" aria-expanded="false">
+                    <span style="font-weight:700;font-style:italic;font-size:15px">Aa</span>
+                </button>
+                <div class="sv-font-menu" id="fontMenu" role="menu"></div>
+            </div>
+
+            <!-- 主题切换按钮 -->
+            <button class="sv-theme-toggle" id="btnThemeToggle" aria-label="{{ t('common.switch_theme') }}" title="{{ t('common.switch_theme') }}">
+                <i class="bi bi-moon-stars-fill" id="themeIcon"></i>
+            </button>
+
+            <!-- 语言切换下拉菜单 -->
+            <div class="sv-locale-dropdown" id="localeDropdown">
+                <button class="sv-nav-icon-btn" id="btnLocaleSwitch" aria-label="{{ t('common.switch_language') }}" aria-haspopup="true" aria-expanded="false">
+                    <i class="bi bi-translate"></i>
+                </button>
+                <div class="sv-locale-menu" id="localeMenu" role="menu">
+                    <button class="sv-locale-item {% if current_locale == 'zh' %}active{% endif %}" data-locale="zh" role="menuitem">简中</button>
+                    <button class="sv-locale-item {% if current_locale == 'zh-TW' %}active{% endif %}" data-locale="zh-TW" role="menuitem">繁體中文</button>
+                    <button class="sv-locale-item {% if current_locale == 'en' %}active{% endif %}" data-locale="en" role="menuitem">English</button>
+                    <button class="sv-locale-item {% if current_locale == 'ja' %}active{% endif %}" data-locale="ja" role="menuitem">日本語</button>
+                    <button class="sv-locale-item {% if current_locale == 'fr' %}active{% endif %}" data-locale="fr" role="menuitem">Français</button>
+                </div>
+            </div>
+
+            <button class="sv-btn sv-btn-icon sv-btn-outline sv-md-hidden" id="btnToggleNav"
+                    aria-label="{{ t('common.menu') }}" title="{{ t('common.menu') }}">
+                <i class="bi bi-list"></i>
+            </button>
+        </div>
+    </nav>
+    </header>
+
+    <div class="sv-mobile-nav-overlay" id="mobileNavOverlay" aria-hidden="true"></div>
+
+    <!-- ===== 主内容区 ===== -->
+    <main class="sv-main" id="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- ===== 自动系统状态组件（右下角 · 默认收起为状态点，点击/hover展开）?===== -->
+    <div class="sv-sys-widget collapsed" role="status" aria-label="System status">
+        <button class="sv-sys-widget-toggle" id="sysWidgetToggle" aria-label="Toggle system status" title="系统状态>
+            <i class="bi bi-chevron-up"></i>
+        </button>
+        <div class="sv-sys-widget-body collapsed" id="sysWidgetBody">
+            <span class="sw-item">
+                <span class="sv-status-dot online" id="statusDot"></span>
+            </span>
+            <span class="sw-item sw-item-hide-mobile">
+                SeedVR2 v1.0.0
+            </span>
+            <span class="sw-item" id="statusModel">{{ t('settings.model_management') }}: {{ t('status.initializing') }}</span>
+            <span class="sw-item" id="statusGpu">GPU: --</span>
+            <span class="sw-item" id="statusMem">
+                <span class="sw-bar"><span class="sw-bar-fill" id="statusMemFill" style="transform:scaleX(0);transform-origin:left center"></span></span>
+                <span id="statusMemText">--</span>
+            </span>
+        </div>
+    </div>
+
+    <!-- ===== Toast 通知容器 ===== -->
+    <div class="sv-toast-container" id="toastContainer" role="status" aria-live="polite"></div>
+
+    <!-- ===== 确认模态框 ===== -->
+    <div class="sv-modal-overlay" id="confirmModal">
+        <div class="sv-modal">
+            <div class="sv-modal-header">
+                <h3 id="confirmTitle">{{ t('common.confirm') }}</h3>
+                <button class="sv-btn sv-btn-icon sv-btn-outline" aria-label="{{ t('common.close') }}" data-modal-close="confirmModal">
+                    <i class="bi bi-x"></i>
+                </button>
+            </div>
+            <div class="sv-modal-body">
+                <p id="confirmMessage"></p>
+            </div>
+            <div class="sv-modal-footer">
+                <button class="sv-btn sv-btn-secondary" data-modal-close="confirmModal">{{ t('common.cancel') }}</button>
+                <button class="sv-btn sv-btn-danger" id="confirmAction">{{ t('common.confirm') }}</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 目录浏览模态框 ===== -->
+    <div class="sv-modal-overlay" id="dirBrowserModal">
+        <div class="sv-modal sv-modal-md">
+            <div class="sv-modal-header">
+                <h3><i class="bi bi-folder2-open"></i> {{ t('common.browse_folder') }}</h3>
+                <button class="sv-btn sv-btn-icon sv-btn-outline" aria-label="{{ t('common.close') }}" data-modal-close="dirBrowserModal">
+                    <i class="bi bi-x"></i>
+                </button>
+            </div>
+            <div class="sv-modal-body sv-p-0">
+                <!-- 当前路径 + 手动输入 -->
+                <div class="sv-flex sv-gap-2 sv-items-center sv-browser-toolbar">
+                    <input type="text" class="sv-form-control sv-flex-1 sv-text-sm" id="dirBrowserPathInput"
+                           placeholder="Enter path, e.g. C:\Users" aria-label="Directory path">
+                    <button class="sv-btn sv-btn-primary sv-btn-sm" id="dirBrowserGoBtn">{{ t('common.go') }}</button>
+                    <button class="sv-btn sv-btn-outline sv-btn-sm" id="dirBrowserOpenExplorerBtn"
+                            data-tooltip="{{ t('common.open_explorer') if t('common.open_explorer') else 'Open in explorer' }}"
+                            aria-label="{{ t('common.open_explorer') if t('common.open_explorer') else 'Open in explorer' }}">
+                        <i class="bi bi-folder2-open"></i>
+                    </button>
+                </div>
+                <!-- 目录列表 -->
+                <div id="dirBrowserList" class="sv-dir-list">
+                    <div class="sv-text-center sv-text-muted sv-p-8">{{ t('common.loading') }}</div>
+                </div>
+            </div>
+            <div class="sv-modal-footer">
+                <button class="sv-btn sv-btn-secondary" data-modal-close="dirBrowserModal">{{ t('common.cancel') }}</button>
+                <button class="sv-btn sv-btn-primary" id="dirBrowserSelectBtn">{{ t('common.select_folder') }}</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 历史记录右键菜单 ===== -->
+    <div class="sv-context-menu" id="svContextMenu" role="menu" aria-hidden="true">
+        <button class="sv-context-menu-item" id="ctxOpenOutputDir" role="menuitem">
+            <i class="bi bi-folder2-open"></i>
+            <span>{{ t('history.open_output_dir') if t('history.open_output_dir') else 'Open output directory' }}</span>
+        </button>
+        <button class="sv-context-menu-item" id="ctxRefreshRow" role="menuitem">
+            <i class="bi bi-arrow-clockwise"></i>
+            <span>{{ t('common.refresh') }}</span>
+        </button>
+        <div class="sv-context-menu-divider"></div>
+        <button class="sv-context-menu-item sv-context-menu-item-danger" id="ctxDeleteRecord" role="menuitem">
+            <i class="bi bi-trash"></i>
+            <span>{{ t('common.delete') }}</span>
+        </button>
+    </div>
+
+    <!-- ===== 脚本 ===== -->
+    <!-- Bootstrap JS (本地) -->
+    <script src="/static/vendor/bootstrap/bootstrap.bundle.min.js"></script>
+    <!-- HTMX (本地) -->
+    <script src="/static/vendor/htmx/htmx.min.js"></script>
+    <!-- 应用脚本 -->
+    <script src="/static/js/app.js?v=3.7.7"></script>
+    <script src="/static/js/video-compare.js?v=1.0.0"></script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

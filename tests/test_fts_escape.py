@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from bin.integrated_app.utils.fts import escape_fts_query
+from app.integrated_app.utils.fts import escape_fts_query
 
 
 class TestEscapeFtsQueryBasic:

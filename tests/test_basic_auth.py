@@ -17,7 +17,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from starlette.responses import Response
 
-from bin.integrated_app.middleware.basic_auth import (
+from app.integrated_app.middleware.basic_auth import (
     BasicAuthMiddleware,
     create_auth_middleware,
     should_enable_auth,

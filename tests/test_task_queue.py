@@ -11,7 +11,7 @@ import contextlib
 
 import pytest
 
-from bin.integrated_app.task_queue import (
+from app.integrated_app.task_queue import (
     DEFAULT_QUEUE_MAXSIZE,
     DEFAULT_TASK_TIMEOUT_SECONDS,
     MAX_WORKER_RESTARTS,
@@ -251,7 +251,7 @@ class TestTaskQueueWorkerRestart:
         通过 monkeypatch 将重启间的 sleep 缩短到 0.01s 加速测试。
         """
         # 加速重启间隔
-        import bin.integrated_app.task_queue as tq_module
+        import app.integrated_app.task_queue as tq_module
 
         original_sleep = tq_module.asyncio.sleep
 

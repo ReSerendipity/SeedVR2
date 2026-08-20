@@ -4,7 +4,7 @@
 """TorchScript / ONNX 导出脚本 (P3 长期方案)
 
 将 SeedVR2 的 DiT / VAE 模型导出为 TorchScript (.pt) 或 ONNX (.onnx) 格式，
-使推理时不需要暴露 models/ 源代码，抬高逆向门槛。
+使推理时不需要暴露 model_lib/ 源代码，抬高逆向门槛。
 
 导出后的模型仍然可以被 Netron 可视化，但不再暴露 Python 源码实现。
 
@@ -42,8 +42,8 @@ def export_torchscript(model_size: str, output_dir: str, precision: str = "fp16"
     """
     import torch
 
-    from bin.integrated_app.config import load_config
-    from bin.integrated_app.engines.seedvr2_engine import SeedVR2Engine
+    from app.integrated_app.config import load_config
+    from app.integrated_app.engines.seedvr2_engine import SeedVR2Engine
 
     config = load_config()
     engine = SeedVR2Engine(config)
@@ -94,8 +94,8 @@ def export_onnx(
     """
     import torch
 
-    from bin.integrated_app.config import load_config
-    from bin.integrated_app.engines.seedvr2_engine import SeedVR2Engine
+    from app.integrated_app.config import load_config
+    from app.integrated_app.engines.seedvr2_engine import SeedVR2Engine
 
     config = load_config()
     engine = SeedVR2Engine(config)

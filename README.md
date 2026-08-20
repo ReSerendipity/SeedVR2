@@ -5,11 +5,32 @@
 **基于 SeedVR2 扩散模型的视频与图像超分辨率修复工具箱 — 独立运行的 Web UI，一键修复，无需 ComfyUI**
 
 > **SeedVR2-lite** — A standalone video & image super-resolution toolkit powered by SeedVR2 diffusion models. One-click restoration via Web UI, no ComfyUI dependency required.
+
+## 📖 文档
+
+完整文档（安装 / 模型下载 / 使用指南 / FAQ）请访问：
+
+**<https://reserendipity.github.io/SeedVR2-lite/docs/>**
+
+> 由 `website/` 目录的 VitePress 文档站构建，与下方在线演示一并由
+> `.github/workflows/pages-deploy.yml` 部署到 GitHub Pages。
+
 ## 🧪 在线模拟演示（GitHub Pages）
 
 无需 GPU / Python / 模型权重，纯前端仿真环境即可体验完整界面与流程模拟：
 
 **<https://reserendipity.github.io/SeedVR2-lite/>** （由 `.github/workflows/pages-deploy.yml` 自动部署 `demo/` 目录，详见 [demo/README.md](demo/README.md)）
+
+---
+
+## 快速导航
+
+| 想做什么 | 去哪里 |
+|---|---|
+| 从零开始安装运行 | [README 快速上手 ↓](#快速上手从零开始新手保姆式教程约-5-分钟) |
+| 查看完整文档 | [文档站](https://reserendipity.github.io/SeedVR2-lite/docs/) |
+| 在线体验界面 | [模拟演示站](https://reserendipity.github.io/SeedVR2-lite/) |
+| 模型格式 / 直链 / 显存对比 | [模型下载与选型 ↓](#模型格式精度与下载直链) |
 
 ---
 
@@ -60,39 +81,54 @@
 | **GPU** | NVIDIA CUDA GPU（**必须**，不支持 CPU 推理） |
 | **Python** | **两种方式均可**：<br>• **推荐**：系统 Python 3.12+（需先安装依赖，见下方）<br>• **备选**：项目内置 WinPython 3.12（位于 `WPy64-312101/`，无需系统 Python） |
 
-#### 显存需求
+#### 模型格式、精度与下载直链
 
-| 模型 | 精度 | 最低显存 |
-|---|---|---|
-| SeedVR2-3B | FP16 | 16 GB |
-| SeedVR2-3B | FP8 | 8 GB |
-| SeedVR2-7B | FP16 | 24 GB |
-| SeedVR2-7B | FP8 | 12 GB |
-| SeedVR2-7B-Sharp | FP16 | 24 GB |
-| SeedVR2-7B-Sharp | FP8 | 12 GB |
+> **模型格式：`.safetensors`**（非 GGUF、非 PTH）。SeedVR2 官方与社区仓库均以
+> HuggingFace `safetensors` 格式分发，本项目仅兼容该格式。
+> 精度支持 **FP16（全精度，画质最佳）** 与 **FP8（E4M3FN 量化，省显存）** 两种；
+> **不兼容 GGUF / INT4 / INT8 等其他量化**（这些格式在修复类扩散模型中会明显损伤画质）。
+
+各模型/精度组合的资源占用与效果对比：
+
+| 模型 | 精度 | 文件直链（`huggingface.co/numz/SeedVR2_comfyUI/resolve/main/…`） | 最低显存 | 约内存 | 效果 |
+|---|---|---|---|---|---|
+| SeedVR2-3B | FP16 | `seedvr2_ema_3b_fp16.safetensors` | 16 GB | ~12 GB | ★★★ 最佳 |
+| SeedVR2-3B | FP8 | `seedvr2_ema_3b_fp8_e4m3fn.safetensors` | 8 GB | ~8 GB | ★★☆ 略降 |
+| SeedVR2-7B | FP16 | `seedvr2_ema_7b_fp16.safetensors` | 24 GB | ~20 GB | ★★★ 最佳 |
+| SeedVR2-7B | FP8 | `seedvr2_ema_7b_fp8_e4m3fn.safetensors` | 12 GB | ~12 GB | ★★☆ 略降 |
+| SeedVR2-7B-Sharp | FP16 | `seedvr2_ema_7b_sharp_fp16.safetensors` | 24 GB | ~20 GB | ★★★ 最佳（细节增强） |
+| SeedVR2-7B-Sharp | FP8 | `seedvr2_ema_7b_sharp_fp8_e4m3fn.safetensors` | 12 GB | ~12 GB | ★★☆ 略降 |
+
+> 配套必需文件（所有模型共用，文件名见下方「模型权重下载（保姆级）」）：
+> `ema_vae_fp16.safetensors`（视频 VAE）、`pos_emb.pt` / `neg_emb.pt`（文本嵌入）。
+> 三个文件的直链：<https://huggingface.co/numz/SeedVR2_comfyUI/resolve/main/ema_vae_fp16.safetensors> 等（把文件名替换到 URL 末尾即可）。
+
+**选型建议**：
+- 显存 ≤ 12 GB → 选 **3B FP8**（最低 8 GB）或 7B FP8 + BlockSwap
+- 显存 16–24 GB → 选 **3B FP16** 或 **7B FP8**（画质/显存均衡）
+- 显存 ≥ 24 GB → 选 **7B-Sharp FP16**（三档中画质与细节最好）
+
+> 📌 上表"最低显存"为模型推理所需的显卡显存下限（来自 `config.yaml` 的 `model.models.*.min_vram_*_gb`）；
+> "约内存"为推理时系统 RAM 占用经验值（含权重加载与交换缓存），实际以 `系统状态` 页监控为准。
+> 显存不足时可通过 **FP8 + BlockSwap**（GPU/CPU 动态换入换出 Transformer 块）进一步压降显存需求。
 
 #### 环境变量配置（.env）
 
-项目根目录支持 `.env` 文件管理环境变量，模板见 `.env.example`：
+项目根目录支持 `.env` 文件管理环境变量，模板见 `.env.example`（复制即可）：
 
 ```bash
-# 复制模板并按需修改
 copy .env.example .env
 ```
 
-常用环境变量：
-- `KMP_DUPLICATE_LIB_OK` — Intel OpenMP 重复库兼容（一般不需要改）
-- `PYTORCH_CUDA_ALLOC_CONF` — PyTorch 显存分配器配置（`expandable_segments:True` 减少碎片化）
-- `PYTORCH_ALLOC_CONF` — 同上，备用键名
-
-> 显式系统环境变量优先级高于 `.env` 文件，不会覆盖用户在 shell 中设置的值。
+常用变量：`KMP_DUPLICATE_LIB_OK`（Intel OpenMP 兼容，一般不用改）、
+`PYTORCH_CUDA_ALLOC_CONF`（`expandable_segments:True` 减少显存碎片化）。
 
 #### 模型共享模式（shared / portable）
 
-支持两种模型文件存储模式，通过 `config.yaml` 中 `model.model_source_mode` 配置：
+`config.yaml` 中 `model.model_source_mode` 支持两种模型文件存储模式：
 
-- **portable**（默认）：模型文件存储在项目内 `pretrained_models/` 目录，完全自包含
-- **shared**：模型文件存储在外部共享目录（`model.shared_models_root`），多个项目（SeedVR2 / TTS / Image）可共用同一套模型文件，节省磁盘空间
+- **portable**（默认）：模型在项目内 `model/` 目录，完全自包含
+- **shared**：模型在外部共享目录（`model.shared_models_root`），多个项目共用，节省磁盘空间
 
 ```yaml
 # config.yaml
@@ -103,38 +139,17 @@ model:
 
 #### VRAM 预检 & 参数推荐
 
-系统内置 VRAM 预检功能，可根据输入分辨率、模型大小和可用显存自动推荐最优参数组合：
-
-- **估算公式**：模型基线显存 + 分辨率额外开销 + 视频帧缓冲
-- **推荐逻辑**：FP16 → FP8 → FP8 + BlockSwap 逐级回退，确保不 OOM
-- **UI 集成**：
-  - 系统状态页面提供 VRAM 估算计算器（选择模型/分辨率/帧数 → 查看推荐参数）
-  - 修复工作台参数面板提供"VRAM 预检 & 推荐参数"按钮，支持一键应用推荐值
-- **API 端点**：
-  - `GET /api/system/gpu/vram-estimate` — 估算指定参数下的显存需求
-  - `GET /api/system/gpu/recommend-params` — 获取推荐参数组合（精度/BlockSwap/tile大小/风险等级）
+内置 VRAM 预检：根据输入分辨率、模型大小和可用显存自动推荐参数组合
+（FP16 → FP8 → FP8 + BlockSwap 逐级回退）。UI 提供「VRAM 预检 & 推荐参数」按钮与估算计算器。
 
 #### 批量任务断点续跑（Checkpoint）
 
-文件夹批量修复支持断点续跑，中途崩溃或关闭后可恢复：
-
-- Checkpoint 文件存储在 `data/checkpoints/` 目录（可通过 `config.yaml` 配置）
-- 每处理完一个文件自动保存进度（`runtime.task.checkpoint_every` 控制保存频率）
-- 重启应用后自动检测未完成的批量任务，可选择恢复
-- 已完成文件通过路径 + 文件大小 + 修改时间指纹匹配，避免重复处理
-
-```yaml
-# config.yaml
-runtime:
-  task:
-    checkpoint_dir: data/checkpoints  # checkpoint 存储目录
-    checkpoint_every: 1               # 每处理 N 个文件保存一次
-    auto_recover: false               # 启动时是否自动恢复未完成任务
-```
+文件夹批量修复支持断点续跑：每处理完一个文件自动保存 checkpoint（`data/checkpoints/`），
+重启后自动检测未完成批量任务并恢复，已完成文件按路径+大小+修改时间指纹跳过。
 
 #### 国际化（i18n）
 
-- 翻译文件采用 JSON 格式，位于 `bin/integrated_app/locales/` 目录
+- 翻译文件采用 JSON 格式，位于 `app/integrated_app/locales/` 目录
 - 支持五种语言：中文（zh）、繁体中文（zh-TW）、英文（en）、日文（ja）、法文（fr）
 - 三层回退机制：指定语言 → 英文（en）回退 → key 本身（兜底）
 - 支持扁平键优先查找（含点号的键不会被误判为嵌套结构）
@@ -161,10 +176,22 @@ cd SeedVR2-lite
 
 **第 3 步 · 安装依赖**
 
-- Windows：双击运行 `install.bat`；Linux/macOS：运行 `./install.sh`
-- 脚本会自动：检测 Python → 安装 PyTorch（CUDA 版）→ 安装其余依赖
-- 看到 `Installation complete!` 即完成
-- 若安装报错，见下方「常见问题 FAQ」
+任选一种方式：
+
+- **方式 ① 一键脚本（新手推荐）**：Windows 双击 `install.bat`；Linux/macOS 运行 `./install.sh`。
+  脚本自动检测 Python → 安装 PyTorch（CUDA 版）→ 安装其余依赖，看到 `Installation complete!` 即完成。
+- **方式 ② uv（开发者推荐，跨平台体验一致）**：
+  ```bash
+  # 安装 uv（Windows / macOS / Linux 通用）：https://docs.astral.sh/uv/
+  pip install uv
+
+  uv sync                # 读取 pyproject.toml，自动创建 .venv 并安装全部依赖（含 CUDA PyTorch）
+  .venv\Scripts\activate # Windows 激活虚拟环境（macOS/Linux：source .venv/bin/activate）
+  ```
+  本项目已通过 `pyproject.toml` 提供完整的 uv 配置（`[project].dependencies` + `[tool.uv]`），
+  torch 默认从 CUDA cu128 源安装；驱动较旧时改 `pyproject.toml` 中 `[[tool.uv.index]]` 的 url 为
+  `cu121` / `cu132` 后重跑 `uv sync`。
+- 若安装报错，见下方「常见问题 FAQ」。
 
 **第 4 步 · 下载模型权重**（最关键的一步）
 
@@ -192,7 +219,7 @@ python scripts/download_model.py --size 3b
 ### 📦 模型权重下载（保姆级）
 
 > 权重文件较大（3B 约 20 GB / 7B 约 40 GB），且**文件名必须与下表完全一致**、
-> 必须直接放在 `pretrained_models/` **根目录**（不要建子文件夹，否则应用识别不到）。
+> 必须直接放在 `model/` **根目录**（不要建子文件夹，否则应用识别不到）。
 
 **你需要的最小文件集合**（以 3B 为例）：
 
@@ -220,15 +247,31 @@ python scripts/download_model.py --size 7b_sharp  # 7B-Sharp + VAE + 嵌入
 
 **方式 B：手动下载（网络更稳时）**
 
-1. 打开任一模型仓库页面：`huggingface.co/numz/SeedVR2_comfyUI`（社区整理）或
-   `huggingface.co/ByteDance-Seed/SeedVR2-3B` / `SeedVR2-7B`（官方，文件名可能略异）
-2. 把上表文件下载到 `pretrained_models/` 根目录，**文件名不要改**
-3. 大陆用户可把 `huggingface.co` 换成 `hf-mirror.com` 加速
-
-**验证放对位置**：最终 `pretrained_models/` 根目录下应直接看到这些文件（以 3B 为例）：
+每个文件的**完整直链**（把 `<FILE>` 替换成下表文件名，`hf-mirror.com` 为国内加速镜像）：
 
 ```text
-pretrained_models/
+https://huggingface.co/numz/SeedVR2_comfyUI/resolve/main/<FILE>
+https://hf-mirror.com/numz/SeedVR2_comfyUI/resolve/main/<FILE>   # 国内加速
+```
+
+| 文件 | 说明 |
+|---|---|
+| `seedvr2_ema_3b_fp16.safetensors` | 3B DiT（FP16） |
+| `seedvr2_ema_3b_fp8_e4m3fn.safetensors` | 3B DiT（FP8） |
+| `seedvr2_ema_7b_fp16.safetensors` | 7B DiT（FP16） |
+| `seedvr2_ema_7b_fp8_e4m3fn.safetensors` | 7B DiT（FP8） |
+| `seedvr2_ema_7b_sharp_fp16.safetensors` | 7B-Sharp DiT（FP16） |
+| `seedvr2_ema_7b_sharp_fp8_e4m3fn.safetensors` | 7B-Sharp DiT（FP8） |
+| `ema_vae_fp16.safetensors` | 视频 VAE（所有模型共用，必须） |
+| `pos_emb.pt` / `neg_emb.pt` | 文本嵌入（所有模型共用，必须） |
+
+把下载好的文件放到 `model/` 根目录，**文件名不要改**。
+> 备选来源：官方仓库 `huggingface.co/ByteDance-Seed/SeedVR2-3B` / `SeedVR2-7B`（文件名可能略异，需对照 `config.yaml` 中的 `checkpoint_*` / `vae_checkpoint` / `pos_emb` / `neg_emb` 字段）。
+
+**验证放对位置**：最终 `model/` 根目录下应直接看到这些文件（以 3B 为例）：
+
+```text
+model/
 ├── seedvr2_ema_3b_fp16.safetensors
 ├── seedvr2_ema_3b_fp8_e4m3fn.safetensors
 ├── ema_vae_fp16.safetensors
@@ -244,7 +287,7 @@ pretrained_models/
 ### ❓ 常见问题（FAQ）
 
 1. **启动报错模型文件未找到（`FileNotFoundError`）** → 核对文件名与位置，见「模型权重下载（保姆级）」。
-   最常见的坑是：把权重放进了 `pretrained_models/SeedVR2-3B/` 这样的子文件夹里——必须放在根目录。
+   最常见的坑是：把权重放进了 `model/SeedVR2-3B/` 这样的子文件夹里——必须放在根目录。
 2. **`install.bat` 装 PyTorch 失败** → 手动执行
    `pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128`
    （把 `cu128` 换成你驱动支持的 CUDA 版本，`nvidia-smi` 可查看），再重跑 `install.bat`。
@@ -283,7 +326,7 @@ docker run --gpus all -p 7870:7870 seedvr2
 
 ```
 SeedVR2/
-├── bin/                        # 应用入口与主程序
+├── app/                        # 应用入口与主程序
 │   ├── clean_launch.py         # 启动清理脚本
 │   └── integrated_app/         # 核心应用
 │       ├── app_server.py       # FastAPI 应用创建与生命周期管理
@@ -296,18 +339,22 @@ SeedVR2/
 │       ├── locales/            # 国际化翻译文件（zh/zh-TW/en/ja/fr）
 │       └── middleware/         # CSRF 保护、错误处理中间件
 ├── common/                     # 通用工具库（扩散调度、分布式、种子等）
-├── models/                     # 模型定义
+├── model_lib/                  # 模型定义
 │   ├── dit/ / dit_v2/          # DiT 架构（MM-DiT、Window Attention、RoPE）
 │   └── video_vae_v3/           # 视频 VAE（基于 SD3 inflation）
 ├── configs_3b/                 # 3B 模型配置
 ├── configs_7b/                 # 7B 模型配置
-├── pretrained_models/          # 预训练模型存放目录
+├── model/                      # 预训练模型存放目录
 ├── data/                       # 数据处理与历史数据库
 ├── docs/                       # 项目文档与截图
+├── website/                    # VitePress 文档站源码
+├── demo/                       # GitHub Pages 在线模拟演示
 ├── tests/                      # 测试套件（pytest + Playwright）
+├── scripts/                    # 辅助脚本（模型下载 / 备份等）
 ├── start.bat                   # Windows 启动脚本
 ├── config.yaml                 # 应用配置文件
-└── pyproject.toml              # 项目元数据与工具配置
+├── requirements.txt            # 运行依赖（uv 亦可从 pyproject.toml 安装）
+└── pyproject.toml              # 项目元数据、依赖与工具配置（uv 兼容）
 ```
 
 ---
@@ -343,7 +390,7 @@ SeedVR2 的 Web UI **默认仅绑定 `127.0.0.1`**（`config.yaml` 中 `server.h
 - **开源协议**: [Apache License 2.0](LICENSE)
 - **版权声明位置**:
   - [LICENSE](LICENSE) 附录版权行
-  - UI 设置页版权区块（通过 `bin/integrated_app/locales/*.yaml` 的 `settings.copyright_notice` 渲染）
+  - UI 设置页版权区块（通过 `app/integrated_app/locales/*.json` 的 `settings.copyright_notice` 渲染）
   - 核心 Python 源文件 SPDX 版权头
 
 **根据 Apache 2.0 协议第 4 条，任何再分发或衍生作品必须：**

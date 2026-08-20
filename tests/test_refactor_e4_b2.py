@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """SeedVR2 - 重构测试
 
 覆盖本次重构的核心改动:
@@ -21,7 +21,7 @@ import threading
 
 import pytest
 
-from bin.integrated_app.exceptions import InferenceCancelledError, RestoreError
+from app.integrated_app.exceptions import InferenceCancelledError, RestoreError
 
 # ---------------------------------------------------------------------------
 # 1. InferenceCancelledError 异常属性 (提案 2B)
@@ -80,8 +80,8 @@ class TestInferenceCancelledError:
 # 2. TaskStateStoreProxy 浅拷贝语义 (提案 2A)
 # ---------------------------------------------------------------------------
 
-from bin.integrated_app.routes.restore.common import TaskStateStoreProxy
-from bin.integrated_app.services.task_state import TaskStateStore
+from app.integrated_app.routes.restore.common import TaskStateStoreProxy
+from app.integrated_app.services.task_state import TaskStateStore
 
 
 @pytest.fixture
@@ -227,7 +227,7 @@ class TestTaskStateStoreCachedMethods:
 # 4. TaskQueue on_cancel 回调机制 (提案 2B)
 # ---------------------------------------------------------------------------
 
-from bin.integrated_app.task_queue import TaskQueue
+from app.integrated_app.task_queue import TaskQueue
 
 
 @pytest.fixture
@@ -339,7 +339,7 @@ class TestSeedVR2EngineCancellationToken:
 
     def _make_engine(self):
         """构造一个最小化的 SeedVR2Engine 实例（不加载模型）"""
-        from bin.integrated_app.engines.seedvr2_engine import SeedVR2Engine
+        from app.integrated_app.engines.seedvr2_engine import SeedVR2Engine
 
         engine = SeedVR2Engine.__new__(SeedVR2Engine)
         engine.config = {}
@@ -388,7 +388,7 @@ class TestSeedVR2EngineCancellationToken:
 # 6. PathGuard 白名单守卫 (提案 1) - 补充验证
 # ---------------------------------------------------------------------------
 
-from bin.integrated_app.security.path_guard import build_default_path_guard
+from app.integrated_app.security.path_guard import build_default_path_guard
 
 
 class TestPathGuardWhitelist:
@@ -434,7 +434,7 @@ class TestExplicitParameterization:
     """验证 _load_dit_model / _load_vae_model 的显式参数签名"""
 
     def _make_engine(self):
-        from bin.integrated_app.engines.seedvr2_engine import SeedVR2Engine
+        from app.integrated_app.engines.seedvr2_engine import SeedVR2Engine
 
         engine = SeedVR2Engine.__new__(SeedVR2Engine)
         engine.config = {}

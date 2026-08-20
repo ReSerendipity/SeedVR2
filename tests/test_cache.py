@@ -8,7 +8,7 @@ import os
 import time
 from unittest.mock import patch
 
-from bin.integrated_app.cache import AdaptiveLRUCache, FileCache, LRUCache
+from app.integrated_app.cache import AdaptiveLRUCache, FileCache, LRUCache
 
 # ---------------------------------------------------------------------------
 # FileCache

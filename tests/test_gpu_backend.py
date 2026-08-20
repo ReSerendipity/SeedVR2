@@ -7,7 +7,7 @@ GPUBackendManager 管理器的检测/查询/模型加载预检功能。
 
 from unittest.mock import patch
 
-from bin.integrated_app.gpu_backend import (
+from app.integrated_app.gpu_backend import (
     GPUBackend,
     GPUBackendManager,
     GPUInfo,

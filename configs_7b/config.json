@@ -40,7 +40,7 @@
         "decay": 0.9998
     },
     "vae": {
-        "config": "models/video_vae_v3/s8_c16_t4_inflation_sd3.yaml",
+        "config": "model_lib/video_vae_v3/s8_c16_t4_inflation_sd3.yaml",
         "freeze_encoder": false,
         "slicing": {
             "split_size": 4,

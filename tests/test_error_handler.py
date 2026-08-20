@@ -11,7 +11,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from bin.integrated_app.exceptions import (
+from app.integrated_app.exceptions import (
     ConfigError,
     InferenceCancelledError,
     InferenceError,
@@ -24,7 +24,7 @@ from bin.integrated_app.exceptions import (
     VAEDecodeError,
     VAEEncodeError,
 )
-from bin.integrated_app.middleware.error_handler import (
+from app.integrated_app.middleware.error_handler import (
     _build_error_body,
     _htmx_error_response,
     _is_htmx_request,

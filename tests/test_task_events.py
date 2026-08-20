@@ -16,7 +16,7 @@ import asyncio
 
 import pytest
 
-from bin.integrated_app.services.task_events import TaskEventBus
+from app.integrated_app.services.task_events import TaskEventBus
 
 
 @pytest.fixture

@@ -15,7 +15,7 @@ try:
 except ImportError:
     FACTORY_BOY_AVAILABLE = False
 
-from bin.integrated_app.history_db import HistoryRecord, TaskRecord
+from app.integrated_app.history_db import HistoryRecord, TaskRecord
 
 pytestmark = pytest.mark.skipif(
     not FACTORY_BOY_AVAILABLE,

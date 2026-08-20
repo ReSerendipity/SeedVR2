@@ -113,7 +113,7 @@ def main():
     )
     args = parser.parse_args()
 
-    locales_dir = Path(__file__).parent.parent / "bin" / "integrated_app" / "locales"
+    locales_dir = Path(__file__).parent.parent / "app" / "integrated_app" / "locales"
     if not locales_dir.exists():
         print(f"错误: locales 目录不存在: {locales_dir}", file=sys.stderr)
         sys.exit(2)

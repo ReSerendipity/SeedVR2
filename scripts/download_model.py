@@ -2,8 +2,8 @@
 """SeedVR2 预训练模型下载脚本。
 
 从 HuggingFace 下载与 config.yaml 引用的文件名完全一致的权重文件，
-并直接保存到 pretrained_models/ 根目录（与 model_manager / engine 的
-查找逻辑对齐，见 bin/integrated_app/model_manager.py check_model_exists）。
+并直接保存到 model/ 根目录（与 model_manager / engine 的
+查找逻辑对齐，见 app/integrated_app/model_manager.py check_model_exists）。
 
 命令行用法:
     # 下载 3B + VAE + 文本嵌入（默认行为，完整可运行最小集合）
@@ -97,12 +97,12 @@ def _download_file(
         raise
 
 
-def download_model(model_size: str = "3b", save_dir: str = "pretrained_models", repo_id: str = _DEFAULT_REPO, with_vae: bool = True) -> None:
+def download_model(model_size: str = "3b", save_dir: str = "model", repo_id: str = _DEFAULT_REPO, with_vae: bool = True) -> None:
     """从 HuggingFace 下载指定尺寸的 SeedVR2 模型权重到根目录。
 
     Args:
         model_size: 模型参数规模，可选 "3b" / "7b" / "7b_sharp"。默认为 "3b"。
-        save_dir: 模型保存的根目录路径（权重文件直接写入该目录根下）。默认为 "pretrained_models"。
+        save_dir: 模型保存的根目录路径（权重文件直接写入该目录根下）。默认为 "model"。
         repo_id: HuggingFace 仓库 ID，默认为社区整理仓库 numz/SeedVR2_comfyUI。
         with_vae: 是否同时下载共享的 VAE 与文本嵌入文件。默认为 True。
 
@@ -153,7 +153,7 @@ if __name__ == "__main__":
         choices=["3b", "7b", "7b_sharp"],
         help="模型大小 (默认 3b)",
     )
-    parser.add_argument("--save-dir", default="pretrained_models", help="保存目录 (默认 pretrained_models)")
+    parser.add_argument("--save-dir", default="model", help="保存目录 (默认 model)")
     parser.add_argument("--repo", default=_DEFAULT_REPO, help="HuggingFace 仓库 ID (默认 numz/SeedVR2_comfyUI)")
     parser.add_argument(
         "--no-vae",

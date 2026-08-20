@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import numpy as np
 
 # 测试水印
-from bin.integrated_app.security.watermark import embed_watermark, extract_watermark
+from app.integrated_app.security.watermark import embed_watermark, extract_watermark
 
 img = np.random.randint(0, 256, (64, 64, 3), dtype=np.uint8)
 wm = embed_watermark(img)
@@ -30,7 +30,7 @@ else:
     print("PSNR: infinite (identical images)")
 
 # 测试启动自检
-from bin.integrated_app.security.integrity_selfcheck import run_startup_selfcheck
+from app.integrated_app.security.integrity_selfcheck import run_startup_selfcheck
 
 result = run_startup_selfcheck()
 print(
@@ -43,7 +43,7 @@ import os
 # 创建临时文件测试
 import tempfile
 
-from bin.integrated_app.security.integrity_check import compute_sha256, verify_checkpoint
+from app.integrated_app.security.integrity_check import compute_sha256, verify_checkpoint
 
 with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as f:
     f.write(b"test data for sha256")
@@ -57,7 +57,7 @@ print(f"Verify with empty hash (skip): {verify_checkpoint(tmpfile, '', purpose='
 os.unlink(tmpfile)
 
 # 测试 Basic Auth
-from bin.integrated_app.middleware.basic_auth import should_enable_auth
+from app.integrated_app.middleware.basic_auth import should_enable_auth
 
 print(f"Auth disabled by default: {not should_enable_auth({})}")
 print(
@@ -65,7 +65,7 @@ print(
 )
 
 # 测试权重加密模块
-from bin.integrated_app.security.weight_encryption import generate_license, get_machine_fingerprint
+from app.integrated_app.security.weight_encryption import generate_license, get_machine_fingerprint
 
 fingerprint = get_machine_fingerprint()
 print(f"Machine fingerprint: {fingerprint[:16]}...")

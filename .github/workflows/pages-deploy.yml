@@ -1,10 +1,11 @@
-name: Deploy Demo to GitHub Pages
+name: Deploy Demo & Docs to GitHub Pages
 
 on:
   push:
     branches: [main, master]
     paths:
       - 'demo/**'
+      - 'website/**'
       - '.github/workflows/pages-deploy.yml'
   workflow_dispatch:
 
@@ -26,6 +27,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build docs site (VitePress)
+        working-directory: website
+        run: |
+          npm ci
+          npm run build
+          # 把文档站构建产物放入 demo/docs/，与 demo 一并部署到
+          # https://<owner>.github.io/<repo>/docs/
+          mkdir -p ../demo/docs
+          cp -r docs/.vitepress/dist/* ../demo/docs/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

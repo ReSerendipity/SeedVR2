@@ -5,7 +5,7 @@
 
 import pytest
 
-from bin.integrated_app.metrics import MetricsCollector, MetricsSnapshot
+from app.integrated_app.metrics import MetricsCollector, MetricsSnapshot
 
 
 class TestMetricsCollector:

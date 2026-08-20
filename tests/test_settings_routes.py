@@ -3,7 +3,7 @@
 import pytest
 from fastapi import HTTPException
 
-from bin.integrated_app.routes.system.settings import validate_path
+from app.integrated_app.routes.system.settings import validate_path
 
 pytestmark = pytest.mark.integration
 
@@ -132,7 +132,7 @@ def test_open_explorer_invalid_path(test_app):
 def test_open_explorer_valid_path(test_app, tmp_path):
     import sys
 
-    import bin.integrated_app.routes.system.settings as sm
+    import app.integrated_app.routes.system.settings as sm
 
     if sys.platform == "win32":
         with __import__("unittest.mock", fromlist=["patch"]).patch.object(sm.os, "startfile") as mock_sf:

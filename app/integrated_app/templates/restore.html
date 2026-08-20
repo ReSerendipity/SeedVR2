@@ -1,0 +1,2335 @@
+{% extends "base.html" %}
+
+{% block title %}SeedVR2 - {{ t('restore.title') }}{% endblock %}
+
+{% block content %}<div class="sv2-workbench">
+    <!-- 页头：单行化（标题 + 模式分段） -->
+    <div class="sv2-header">
+        <div class="sv2-title-wrap">
+            <h1 class="sv2-title">{{ t('restore.title') }}</h1>
+            <p class="sv2-sub">{{ t('restore.subtitle') }}</p>
+        </div>
+        <div class="sv-mode-tabs sv2-mode-seg" role="tablist">
+            <button class="sv-mode-tab active" data-mode="single" type="button" role="tab" aria-selected="true">
+                <i class="bi bi-file-earmark"></i> {{ t('restore.single_mode') }}
+            </button>
+            <button class="sv-mode-tab" data-mode="batch" type="button" role="tab" aria-selected="false">
+                <i class="bi bi-folder2-open"></i> {{ t('restore.batch_mode') }}
+            </button>
+        </div>
+    </div>
+
+    <div class="sv2-body" id="sv2Body">
+    <main class="sv2-main">
+        <!-- 批量路径工具条（批量模式显示） -->
+        <div class="sv2-batch-toolbar" id="batchToolbar" style="display:none;">
+            <input type="text" class="sv-batch-input" id="folderPath" name="folder_path"
+                   placeholder="{{ t('restore.folder_path_placeholder') }}" aria-label="{{ t('restore.folder_path') }}">
+            <button type="button" class="sv-btn sv-btn-outline sv-btn-sm" id="btnBrowseFolder"
+                    data-tooltip="{{ t('restore.browse') }}" aria-label="{{ t('restore.browse') }}">
+                <i class="bi bi-folder2-open"></i>
+            </button>
+            <button type="button" class="sv-btn sv-btn-secondary sv-btn-sm" id="btnScanFolder">
+                <i class="bi bi-search"></i> {{ t('restore.scan') }}
+            </button>
+            <button type="button" class="sv-btn sv-btn-primary sv-btn-sm" id="btnStartBatch">
+                <i class="bi bi-collection"></i> {{ t('restore.batch_from_folder') }}
+            </button>
+        </div>
+
+        <!-- 一体化画布工具条 -->
+        <div class="sv2-toolbar" id="canvasToolbar">
+            <span class="sv2-badge" id="canvasStateLabel">{{ t('restore.empty_state') or '未上传' }}</span>
+            <span class="sv2-filename" id="tbFileName" style="display:none"></span>
+            <span class="sv2-meta" id="resultMetaText" style="display:none"></span>
+            <span class="sv2-flex"></span>
+            <div class="sv2-tb-group">
+                <button type="button" class="sv2-tb-btn" id="btnCanvasClear" disabled><i class="bi bi-x-lg"></i> 清除</button>
+                <button type="button" class="sv2-tb-btn" id="btnCanvasReplace" disabled><i class="bi bi-arrow-repeat"></i> 替换</button>
+            </div>
+            <span class="sv2-tb-sep"></span>
+            <div class="sv2-tb-group">
+                <button type="button" class="sv2-tb-btn sv2-ico" id="btnMagnifier" disabled title="放大镜（局部放大）"><i class="bi bi-search"></i></button>
+                <button type="button" class="sv2-tb-btn sv2-toggle" id="btnCanvasCompare" disabled><i class="bi bi-columns-gap"></i> {{ t('restore.compare_mode') or '对比模式' }}</button>
+                <button type="button" class="sv2-tb-btn sv2-ico active" id="btnCompareHorizontal" disabled title="{{ t('restore.compare_horizontal') or '水平' }}"><i class="bi bi-arrows-left-right"></i></button>
+                <button type="button" class="sv2-tb-btn sv2-ico" id="btnCompareVertical" disabled title="{{ t('restore.compare_vertical') or '垂直' }}"><i class="bi bi-arrows-up-down"></i></button>
+                <button type="button" class="sv2-tb-btn sv2-ico" id="btnCompareZoomIn" disabled title="{{ t('restore.zoom_in') or '放大' }}"><i class="bi bi-zoom-in"></i></button>
+                <span class="sv2-zoomlabel" id="compareZoomLabel" title="点击回到 1:1">—</span>
+                <button type="button" class="sv2-tb-btn sv2-ico" id="btnCompareZoomOut" disabled title="{{ t('restore.zoom_out') or '缩小' }}"><i class="bi bi-zoom-out"></i></button>
+                <button type="button" class="sv2-tb-btn sv2-ico" id="btnCompareFit" disabled title="{{ t('restore.fit_window') or '适配窗口' }}"><i class="bi bi-arrows-angle-expand"></i></button>
+                <button type="button" class="sv2-tb-btn sv2-ico" id="btnCompareReset" disabled title="{{ t('restore.reset') or '重置' }}"><i class="bi bi-arrow-counterclockwise"></i></button>
+            </div>
+            <span class="sv2-tb-sep"></span>
+            <div class="sv2-tb-group">
+                <a class="sv2-tb-btn sv2-dl" id="btnDownload" href="#" download disabled><i class="bi bi-download"></i> {{ t('common.download') }}</a>
+                <button type="button" class="sv2-tb-btn sv2-primary" id="btnRestoreAgain" disabled><i class="bi bi-arrow-counterclockwise"></i> {{ t('video.restore_again') }}</button>
+            </div>
+        </div>
+
+        <!-- 画布舞台（单文件） -->
+        <div class="sv2-stage sv-mode-tab-pane active" id="previewArea" data-mode-pane="single">
+            <!-- 上传空态 -->
+            <div class="sv2-pane" id="workflowGuide" data-auto-hide="true">
+                <div class="sv-dropzone" id="restoreUploadZone">
+                    <div class="sv-dropzone-icon"><i class="bi bi-cloud-arrow-up"></i></div>
+                    <div class="sv-dropzone-title">{{ t('restore.upload_hint') }}</div>
+                    <div class="sv-dropzone-hint">{{ t('restore.upload_single_hint') }}</div>
+                    <div class="sv-dropzone-formats">{{ t('restore.supported_formats') }}</div>
+                    <div class="sv-dropzone-fileinfo" id="restoreFileInfo" style="display:none;"></div>
+                    <input type="file" id="restoreFileInput" style="display:none;"
+                           accept="image/png,image/jpeg,image/jpg,image/bmp,image/webp,video/mp4,video/avi,video/quicktime,video/x-matroska,video/webm,video/x-flv">
+                </div>
+            </div>
+
+            <!-- 图片预览（支持缩放 / 拖动 / 双击适配 / 放大镜） -->
+            <div class="sv2-pane" id="imagePreviewContainer" style="display:none;">
+                <div class="sv2-preview-stage" id="previewStage">
+                    <div class="sv2-preview-img" id="previewImgWrap"><img id="imagePreview" alt="{{ t('restore.before') }}"></div>
+                    <span class="sv2-hud" id="previewHud">—</span>
+                    <span class="sv2-hint"><kbd>滚轮</kbd> 缩放 · <kbd>左键</kbd> 拖动平移 · <kbd>双击</kbd> 适配</span>
+                    <div class="sv2-magnifier" id="previewMagnifier" hidden>
+                        <div class="mg-layer mg-before"></div>
+                        <div class="mg-layer mg-after" style="display:none"></div>
+                    </div>
+                </div>
+                <button type="button" class="sv2-clear-btn" id="btnClearImage" title="{{ t('restore.clear_image') or '清除图片' }}"><i class="bi bi-x-lg"></i></button>
+            </div>
+
+            <!-- 进度 -->
+            <div class="sv2-pane" id="progressCard" style="display:none;">
+                <div class="sv2-progress-card">
+                    <div class="sv2-progress-head">
+                        <span class="sv2-progress-stage" id="taskStatus">{{ t('status.processing') }}</span>
+                        <span class="sv2-progress-eta" id="progressEta"></span>
+                        <button type="button" class="sv2-cancel" id="btnCancelRestore" aria-label="{{ t('common.cancel') }}" title="{{ t('restore.cancel_task') }}"><i class="bi bi-x-lg"></i></button>
+                    </div>
+                    <div class="sv2-progress-track"><div class="sv2-progress-bar" id="progressBar"></div></div>
+                    <div class="sv2-progress-meta">
+                        <span class="sv2-progress-pct" id="progressPct">0%</span>
+                        <span class="sv2-progress-detail" id="progressText">{{ t('status.pending') }}</span>
+                        <span class="sv2-progress-frames" id="progressFrames"></span>
+                    </div>
+                    <div class="sv2-progress-sub" id="progressDetail" style="display:none;">
+                        <span id="progressFps"></span>
+                        <span id="progressStage"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 结果：错误卡 / 视频 / 单图 / 前后对比 -->
+            <div class="sv2-pane sv2-result" id="resultCard" style="display:none;">
+                <!-- 失败错误卡 -->
+                <div class="sv2-error-card" id="errorCard" style="display:none;">
+                    <div class="sv2-error-icon"><i class="bi bi-exclamation-triangle"></i></div>
+                    <div class="sv2-error-title">修复失败</div>
+                    <div class="sv2-error-msg" id="errorMsg"></div>
+                    <button type="button" class="sv2-tb-btn sv2-primary" id="btnRetry" style="height:38px;padding:0 18px"><i class="bi bi-arrow-counterclockwise"></i> 重试</button>
+                </div>
+                <!-- 视频单图查看器 -->
+                <div id="videoPlainViewer" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;">
+                    <video id="resultVideo" controls style="max-width:calc(100% - 40px);max-height:calc(100% - 40px);border-radius:var(--sv-radius);box-shadow:0 10px 40px rgba(0,0,0,.3);"></video>
+                </div>
+                <div id="plainViewer" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;width:100%;height:100%;">
+                    <img id="plainImg" alt="{{ t('restore.after') }}" style="max-width:calc(100% - 40px);max-height:calc(100% - 40px);object-fit:contain;border-radius:var(--sv-radius);box-shadow:0 10px 40px rgba(0,0,0,.3);">
+                </div>
+                <div id="compareCard" style="display:none;position:absolute;inset:0;width:100%;height:100%;">
+                    <div class="sv-compare-viewport sv2-viewport" id="compareViewport" tabindex="0">
+                        <div class="sv-compare-container" id="compareContainer">
+                            <img id="compareBefore" alt="{{ t('restore.before') }}">
+                            <span class="sv-compare-label sv-compare-label-before">{{ t('restore.before') or 'Before' }}</span>
+                            <div class="sv-compare-after" id="compareAfter">
+                                <img id="compareAfterImg" alt="{{ t('restore.after') }}">
+                                <span class="sv-compare-label sv-compare-label-after">{{ t('restore.after') or 'After' }}</span>
+                            </div>
+                            <div class="sv-compare-slider" id="compareSlider"><i class="bi bi-arrows-expand-horizontal"></i></div>
+                        </div>
+                        <span class="sv2-hud" id="compareHud">—</span>
+                        <span class="sv2-hint"><kbd>滚轮</kbd> 缩放 · <kbd>左键</kbd> 分割线/平移 · <kbd>双击</kbd> 适配/1:1</span>
+                        <div class="sv2-magnifier" id="compareMagnifier" hidden>
+                            <div class="mg-layer mg-before"></div>
+                            <div class="mg-layer mg-after"></div>
+                        </div>
+                    </div>
+                </div>
+                <!-- 视频前后对比查看器 -->
+                <div id="videoCompareCard" style="display:none;position:absolute;inset:0;width:100%;height:100%;">
+                    <div class="sv-compare-viewport sv2-viewport" id="videoCompareViewport" tabindex="0">
+                        <div class="sv-compare-container" id="videoCompareContainer">
+                            <video id="videoCompareBefore" muted loop playsinline></video>
+                            <span class="sv-compare-label sv-compare-label-before">{{ t('restore.before') or 'Before' }}</span>
+                            <div class="sv-compare-after" id="videoCompareAfter">
+                                <video id="videoCompareAfterImg" muted loop playsinline></video>
+                                <span class="sv-compare-label sv-compare-label-after">{{ t('restore.after') or 'After' }}</span>
+                            </div>
+                            <div class="sv-compare-slider" id="videoCompareSlider"><i class="bi bi-arrows-expand-horizontal"></i></div>
+                        </div>
+                        <span class="sv2-hud" id="videoCompareHud">—</span>
+                        <span class="sv2-hint"><kbd>滚轮</kbd> 缩放 · <kbd>左键</kbd> 分割线/平移 · <kbd>双击</kbd> 适配/1:1 · <kbd>空格</kbd> 播放/暂停</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 批量面板 -->
+        <div class="sv2-batch-pane sv-mode-tab-pane" data-mode-pane="batch">
+            <div class="sv2-batch-head">
+                <span class="sv2-batch-title">{{ t('restore.batch_title') }}</span>
+                <span class="sv-badge sv-badge-info">{{ t('restore.folder_mode') }}</span>
+            </div>
+            <div id="folderScanResults" class="sv2-scan-results"></div>
+            <div class="sv2-batch-progress" id="batchProgressCard" style="display:none;">
+                <div class="sv2-batch-progress-head">
+                    <span id="batchProgressTitle">{{ t('video.batch_progress') }}</span>
+                    <span class="sv2-batch-pct" id="batchPercentText">0%</span>
+                    <span id="batchStatus" class="sv-badge sv-badge-processing">{{ t('status.processing') }}</span>
+                    <button type="button" class="sv2-cancel" id="btnCancelBatch" aria-label="{{ t('common.cancel') }}" title="{{ t('restore.cancel_batch_task') }}"><i class="bi bi-x-lg"></i></button>
+                </div>
+                <div class="sv2-progress-track"><div class="sv2-progress-bar" id="batchProgressBar"></div></div>
+                <div id="batchCurrentFile" class="sv2-batch-cur" style="display:none;"><i class="bi bi-file-earmark-play"></i> <span></span></div>
+                <div class="sv2-batch-stats">
+                    <span id="batchProgressText">--</span>
+                    <span class="sv2-batch-ok">完成 <span id="batchCompleted">0</span></span>
+                    <span class="sv2-batch-fail">失败 <span id="batchFailed">0</span></span>
+                    <span id="batchEta" class="sv2-batch-eta"></span>
+                </div>
+            </div>
+        </div>
+    </main>
+
+<aside class="sv-param-sidebar sv2-sidebar" id="paramsSidebar">
+        <div class="sv2-sidebar-scroll">
+        <div class="sv-param-sidebar-row">
+            <div class="sv-param-sidebar-title">{{ t('restore.param_config') }}</div>
+            <button type="button" class="sv-param-collapse-btn" id="btnToggleParams"
+                    aria-label="{{ t('restore.collapse_params') }}" title="{{ t('restore.collapse_params') }}">
+                <i class="bi bi-chevron-double-left" id="paramCollapseIcon"></i>
+            </button>
+        </div>
+
+        <!-- 参数方案预设：保存/切换/删除整套参数 -->
+        <div class="sv2-presets">
+            <select class="select sv2-preset-select" id="presetSelect" aria-label="参数方案预设">
+                <option value="">方案预设</option>
+            </select>
+            <button type="button" class="sv2-tb-btn sv2-ico" id="btnPresetSave" title="将当前参数保存为方案"><i class="bi bi-plus-lg"></i></button>
+            <button type="button" class="sv2-tb-btn sv2-ico" id="btnPresetDelete" title="删除选中方案" disabled><i class="bi bi-trash"></i></button>
+        </div>
+
+        <div class="sv-param-section-title">{{ t('restore.basic_params') or '基础参数' }}</div>
+
+        <div class="sv-param-group">
+            <label class="sv-param-label" for="ditModel">{{ t('video.model') }}
+                <span class="sv-param-help" data-tooltip="{{ t('restore.tip_model') }}"><i class="bi bi-info-circle"></i></span>
+            </label>
+            <select class="sv-param-select" id="ditModel" name="dit_model">
+                <option value="3b_fp16" selected>3B FP16</option>
+                <option value="3b_fp8">3B FP8</option>
+                <option value="7b_fp16">7B FP16</option>
+                <option value="7b_fp8">7B FP8</option>
+                <option value="7b_sharp_fp16">7B-Sharp FP16</option>
+            </select>
+        </div>
+        <div class="sv-param-group">
+            <label class="sv-param-label" for="resolution">{{ t('restore.resolution') }}
+                <span class="sv-param-help" data-tooltip="{{ t('restore.tip_resolution') }}"><i class="bi bi-info-circle"></i></span>
+                <label class="sv-res-auto-toggle" title="{{ '开启后上传图片或视频自动按短边×2设置分辨率' if t('restore.double_res_tip') == 'restore.double_res_tip' else t('restore.double_res_tip') }}">
+                    <input type="checkbox" id="doubleResToggle" name="double_res" value="true" checked>
+                    <span class="sv-res-auto-track"><span class="sv-res-auto-thumb"></span></span>
+                    <span class="sv-res-auto-label">{{ '两倍模式' if t('restore.double_res') == 'restore.double_res' else t('restore.double_res') }}</span>
+                </label>
+            </label>
+            <input type="number" class="sv-param-input" id="resolution" name="resolution" value="960" min="1">
+            <div class="sv-res-hint" id="resolutionHint">{{ '上传图片后将按短边×2自动计算（两倍模式下不可手动修改）' if t('restore.double_res_hint_default') == 'restore.double_res_hint_default' else t('restore.double_res_hint_default') }}</div>
+        </div>
+        <div class="sv-param-group">
+            <label class="sv-param-label" for="vaeModel">{{ t('video.vae_model') }}</label>
+            <select class="sv-param-select" id="vaeModel" name="vae_model">
+                <option value="ema_vae_fp16" selected>EMA VAE FP16</option>
+                <option value="ema_vae_fp8">EMA VAE FP8</option>
+            </select>
+        </div>
+        <div class="sv-param-group">
+            <label class="sv-param-label" for="blocksToSwap">{{ t('video.blocks_to_swap') }}
+                <span class="sv-param-help" data-tooltip="{{ t('restore.tip_blockswap') }}"><i class="bi bi-info-circle"></i></span>
+            </label>
+            <input type="number" class="sv-param-input" id="blocksToSwap" name="blocks_to_swap" value="32" min="0" max="36">
+        </div>
+        <div class="sv-param-group">
+            <label class="sv-param-check" data-tooltip="{{ t('restore.tip_force_reload') }}">
+                <input type="checkbox" name="force_reload_dit">
+                <span><i class="bi bi-arrow-clockwise"></i> {{ t('video.force_reload_dit') }} <i class="bi bi-info-circle"></i></span>
+            </label>
+        </div>
+        <input type="hidden" name="seed" value="1373201197">
+
+        <button type="button" class="sv-advanced-toggle" id="advToggle" aria-expanded="false" aria-controls="advParams">
+            {{ t('video.advanced_settings') }}
+            <span class="arrow"><i class="bi bi-chevron-right"></i></span>
+        </button>
+
+        <div class="sv-advanced-params" id="advParams">
+            <div class="sv-adv-intro">所有参数均可悬停 <i class="bi bi-info-circle"></i> 查看详细说明;带 <i class="bi bi-lock-fill"></i> 的为系统优化参数,点击锁图标解锁后可手动修改;其余隐藏参数(时域重叠、前置帧、噪声尺度、设备分配)由系统按显存自动优化,保持默认即可。</div>
+            <div class="sv-adv-section">
+                <div class="sv-adv-section-title">{{ t('video.node_dit') }}</div>
+                <input type="hidden" name="attention_mode" value="sdpa">
+                <div class="sv-param-group">
+                    <label class="sv-param-label" for="maxResolution">{{ t('restore.max_resolution') }} (0=∞) <span class="sv-param-help" data-tooltip="单张图片或单帧视频的最大边长限制(像素)。输入超过该值时模型会自动分块处理,防止大图 OOM。设为 0 表示不限制,由显存自动决定。显存紧张(如 12GB)时建议设 1024~1536。"><i class="bi bi-info-circle"></i></span></label>
+                    <input type="number" class="sv-param-input" id="maxResolution" name="max_resolution" value="0" min="0">
+                </div>
+                <div class="sv-param-group">
+                    <label class="sv-param-label" for="colorCorrection">{{ t('video.color_correction') }}
+                        <span class="sv-param-help" data-tooltip="修复完成后是否做色彩校正。LAB(推荐):在 LAB 色彩空间进行颜色匹配,尽量保留原图的色调、白平衡与饱和度;无:不做校正,直接输出模型原始色彩,色调可能与原图有偏差。"><i class="bi bi-info-circle"></i></span>
+                    </label>
+                    <select class="sv-param-select" id="colorCorrection" name="color_correction">
+                        <option value="lab" selected>LAB</option>
+                        <option value="none">{{ t('video.none') }}</option>
+                    </select>
+                </div>
+                <div class="sv-param-group">
+                    <label class="sv-param-label" for="batchSize">{{ t('video.batch_size') }} <span class="sv-param-help" data-tooltip="每次送入模型的图像块数量,取值必须为 4n+1(1、5、9、13…),这是 DiT 模型对批大小的硬性要求。批越大吞吐越高,但显存占用越大;遇到 OOM 时请调小。默认 5。"><i class="bi bi-info-circle"></i></span></label>
+                    <input type="number" class="sv-param-input" id="batchSize" name="batch_size" value="5" min="1" step="4" data-rule-4n1>
+                </div>
+                <div class="sv-adv-locked-group">
+                    <div class="sv-adv-locked-header">{{ t('restore.optimized_params') }}</div>
+                    <div class="sv-param-group">
+                        <label class="sv-param-check" data-tooltip="启用后,模型权重会按需在显存与内存之间交换,可显著降低峰值显存占用,换取少量速度损失。显存小于模型体积时强烈建议保持开启。">
+                            <input type="checkbox" name="swap_io_components" checked disabled>
+                            <input type="hidden" name="swap_io_components" value="true">
+                            <span>{{ t('video.swap_io_components') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted" title="{{ '点击解锁，可手动修改' if t('restore.lock_hint_lock') == 'restore.lock_hint_lock' else t('restore.lock_hint_lock') }}"></i></span>
+                        </label>
+                    </div>
+                    <input type="hidden" name="dit_cache_model" value="true">
+                </div>
+            </div>
+
+            <div class="sv-adv-section">
+                <div class="sv-adv-section-title">{{ t('video.node_vae') }}</div>
+                <div class="sv-param-group">
+                    <label class="sv-param-label" for="encodeTileSize">{{ t('video.encode_tile_size') }} <span class="sv-param-help" data-tooltip="VAE 编码阶段的分块边长(像素)。输入会被切成该尺寸的块分别编码。块越小单次显存占用越低,但块间拼接可能出现接缝伪影。1024 是显存与质量的平衡点;OOM 时可降到 512。"><i class="bi bi-info-circle"></i></span></label>
+                    <input type="number" class="sv-param-input" id="encodeTileSize" name="encode_tile_size" value="1024" min="64">
+                </div>
+                <div class="sv-param-group">
+                    <label class="sv-param-label" for="encodeTileOverlap">{{ t('video.encode_tile_overlap') }} <span class="sv-param-help" data-tooltip="相邻编码块之间的重叠像素。重叠让块边界共享更多信息,减少接缝与条纹伪影。通常取 Tile 尺寸的一半(如 1024 对应 512)。设为 0 可省显存但可能出现接缝。"><i class="bi bi-info-circle"></i></span></label>
+                    <input type="number" class="sv-param-input" id="encodeTileOverlap" name="encode_tile_overlap" value="512" min="0">
+                </div>
+                <div class="sv-param-group">
+                    <label class="sv-param-label" for="decodeTileSize">{{ t('video.decode_tile_size') }} <span class="sv-param-help" data-tooltip="VAE 解码阶段的分块边长。规则与编码 Tile 相同:块越小越省显存,拼接伪影风险越高。默认 1024。"><i class="bi bi-info-circle"></i></span></label>
+                    <input type="number" class="sv-param-input" id="decodeTileSize" name="decode_tile_size" value="1024" min="64">
+                </div>
+                <div class="sv-param-group">
+                    <label class="sv-param-label" for="decodeTileOverlap">{{ t('video.decode_tile_overlap') }} <span class="sv-param-help" data-tooltip="相邻解码块之间的重叠像素,作用同编码重叠。默认取解码 Tile 的一半(512)。"><i class="bi bi-info-circle"></i></span></label>
+                    <input type="number" class="sv-param-input" id="decodeTileOverlap" name="decode_tile_overlap" value="512" min="0">
+                </div>
+                <div class="sv-adv-locked-group">
+                    <div class="sv-adv-locked-header">{{ t('restore.optimized_params') }}</div>
+                    <div class="sv-param-group sv-param-checks-row">
+                        <label class="sv-param-check" data-tooltip="开启分块编码:把大图切成小块再编码,避免单次显存占用过高。保持开启即可;仅在大分辨率且显存充裕时关闭可能略快。">
+                            <input type="checkbox" name="encode_tiled" checked disabled>
+                            <input type="hidden" name="encode_tiled" value="true">
+                            <span>{{ t('video.encode_tiled') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted" title="{{ '点击解锁，可手动修改' if t('restore.lock_hint_lock') == 'restore.lock_hint_lock' else t('restore.lock_hint_lock') }}"></i></span>
+                        </label>
+                        <label class="sv-param-check" data-tooltip="开启分块解码:解码同样分块进行,降低显存峰值。保持开启。">
+                            <input type="checkbox" name="decode_tiled" checked disabled>
+                            <input type="hidden" name="decode_tiled" value="true">
+                            <span>{{ t('video.decode_tiled') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted" title="{{ '点击解锁，可手动修改' if t('restore.lock_hint_lock') == 'restore.lock_hint_lock' else t('restore.lock_hint_lock') }}"></i></span>
+                        </label>
+                        <label class="sv-param-check" data-tooltip="调试用:输出时叠加显示分块边界,便于观察接缝位置与块大小是否合适。正常使用请关闭。">
+                            <input type="checkbox" name="tile_debug" value="true" disabled>
+                            <input type="hidden" name="tile_debug" value="false">
+                            <span>{{ t('video.tile_debug') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted" title="{{ '点击解锁，可手动修改' if t('restore.lock_hint_lock') == 'restore.lock_hint_lock' else t('restore.lock_hint_lock') }}"></i></span>
+                        </label>
+                    </div>
+                    <div class="sv-param-group">
+                        <input type="hidden" name="vae_cache_model" value="true">
+                    </div>
+                </div>
+            </div>
+
+            <div class="sv-adv-section">
+                <div class="sv-adv-section-title">{{ t('video.node_upscaler') }}</div>
+                <div class="sv-adv-locked-group">
+                    <div class="sv-adv-locked-header">{{ t('restore.optimized_params') }}</div>
+                    <div class="sv-param-group">
+                        <label class="sv-param-check" data-tooltip="视频修复时各帧使用统一的批大小,避免显存随帧内容波动导致 OOM。对图片任务无影响。保持开启。">
+                            <input type="checkbox" name="uniform_batch_size" checked disabled>
+                            <input type="hidden" name="uniform_batch_size" value="true">
+                            <span>{{ t('video.uniform_batch_size') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted" title="{{ '点击解锁，可手动修改' if t('restore.lock_hint_lock') == 'restore.lock_hint_lock' else t('restore.lock_hint_lock') }}"></i></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="sv-param-group">
+                    <input type="hidden" name="temporal_overlap" value="0">
+                </div>
+                <div class="sv-param-group">
+                    <input type="hidden" name="prepend_frames" value="0">
+                </div>
+                <div class="sv-param-group">
+                    <input type="hidden" name="input_noise_scale" value="0.0">
+                </div>
+                <div class="sv-param-group">
+                    <input type="hidden" name="latent_noise_scale" value="0.0">
+                </div>
+                <div class="sv-param-group">
+                    <label class="sv-param-check" data-tooltip="调试模式:输出中间过程的调试信息与日志,用于排查问题。日常使用请关闭。">
+                        <input type="checkbox" name="enable_debug" disabled>
+                        <input type="hidden" name="enable_debug" value="false">
+                        <span>{{ t('video.debug_mode') }} <i class="bi bi-lock-fill sv-text-xs sv-text-muted" title="{{ '点击解锁，可手动修改' if t('restore.lock_hint_lock') == 'restore.lock_hint_lock' else t('restore.lock_hint_lock') }}"></i></span>
+                    </label>
+                </div>
+            </div>
+
+<input type="hidden" name="dit_device" value="cuda:0">
+            <input type="hidden" name="dit_offload_device" value="cpu">
+<input type="hidden" name="vae_device" value="cuda:0">
+            <input type="hidden" name="vae_offload_device" value="cpu">
+            <input type="hidden" name="offload_device" value="cpu">
+        </div>
+
+        <!-- VRAM 预检 & 参数推荐 -->
+        <div class="sv-param-group sv-vram-recommend" id="vramRecommendBox">
+            <button type="button" class="sv-btn sv-btn-outline sv-btn-sm sv-w-100" id="btnVramRecommend">
+                <i class="bi bi-speedometer2"></i> VRAM 预检 & 推荐参数
+            </button>
+            <div id="vramRecommendResult" style="display:none;" class="sv-mt-2">
+                <div class="sv-vram-rec-item">
+                    <span class="sv-text-xs sv-text-muted">推荐精度</span>
+                    <span class="sv-badge sv-badge-completed sv-text-xs" id="restoreRecPrecision">--</span>
+                </div>
+                <div class="sv-vram-rec-item">
+                    <span class="sv-text-xs sv-text-muted">估算显存</span>
+                    <span class="sv-text-xs" id="restoreRecEstimated">--</span>
+                </div>
+                <div class="sv-vram-rec-item">
+                    <span class="sv-text-xs sv-text-muted">OOM 风险</span>
+                    <span class="sv-badge sv-text-xs" id="restoreRecRisk">--</span>
+                </div>
+                <button type="button" class="sv-btn sv-btn-primary sv-btn-xs sv-w-100 sv-mt-1" id="btnApplyRecommend">
+                    <i class="bi bi-magic"></i> 一键应用推荐
+                </button>
+                <div id="restoreRecWarning" class="sv-alert sv-alert-warning sv-mt-1" style="display:none;">
+                    <small><i class="bi bi-exclamation-triangle"></i> <span id="restoreRecWarningText"></span></small>
+                </div>
+            </div>
+        </div>
+
+        </div>
+        <div class="sv-param-actions">
+            <button type="button" class="sv-btn sv-btn-primary" id="btnStartRestore" data-disabled-reason="{{ t('restore.please_select') }}">
+                <i class="bi bi-play-fill"></i> {{ t('restore.upload_and_restore') }}
+            </button>
+            <button type="button" class="sv-btn sv-btn-ghost sv-btn-sm" id="btnResetRestore">
+                <i class="bi bi-arrow-counterclockwise"></i> {{ t('common.reset') }}
+            </button>
+        </div>
+    </aside>
+    </div>
+</div>
+
+<!-- 浮动帮助 -->
+<div class="sv-float-help" id="floatHelp">
+    <button class="sv-float-help__toggle" id="helpToggle" type="button" aria-label="打开帮助" aria-expanded="false">?</button>
+    <div class="sv-float-help__panel">
+        <div class="sv-float-help__panel-header">
+            <span class="sv-float-help__panel-title">快速帮助</span>
+            <button class="sv-float-help__panel-close" id="helpClose" type="button" aria-label="关闭帮助">&#x2715;</button>
+        </div>
+        <div class="sv-float-help__step">
+            <span class="sv-float-help__step-num">1</span>
+            <span>拖拽或点击画布中央区域上传文件</span>
+        </div>
+        <div class="sv-float-help__step">
+            <span class="sv-float-help__step-num">2</span>
+            <span>在右侧面板调整模型、分辨率等参数</span>
+        </div>
+        <div class="sv-float-help__step">
+            <span class="sv-float-help__step-num">3</span>
+            <span>点击「开始修复」，结果直接显示在画布上</span>
+        </div>
+        <div class="sv-float-help__shortcut">
+            <kbd>Ctrl</kbd>+<kbd>Enter</kbd> 开始修复 &nbsp;·&nbsp; <kbd>Esc</kbd> 取消
+        </div>
+    </div>
+</div>
+
+<!-- 首次引导模态框 -->
+<div class="sv-modal-overlay" id="onboardingModal" style="display:none;">
+    <div class="sv-modal" style="max-width:460px;width:90%;padding:28px;">
+        <h2 style="font-family:var(--sv-font-display);font-size:22px;margin-bottom:6px;">欢迎使用修复工作台</h2>
+        <p style="font-size:13px;color:var(--sv-fg-secondary);margin-bottom:20px;">画布式工作流 — 文件即见即修，参数随调随用</p>
+        <ul style="list-style:none;margin-bottom:20px;">
+            <li style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--sv-border-light);font-size:13px;">
+                <span style="width:26px;height:26px;background:var(--sv-primary-light);color:var(--sv-primary-text);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;">1</span>
+                <span>拖拽文件到画布中央，或点击上传区域选择文件</span>
+            </li>
+            <li style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--sv-border-light);font-size:13px;">
+                <span style="width:26px;height:26px;background:var(--sv-primary-light);color:var(--sv-primary-text);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;">2</span>
+                <span>文件上传后直接显示在画布上，右侧面板配置参数</span>
+            </li>
+            <li style="display:flex;gap:12px;padding:12px 0;font-size:13px;">
+                <span style="width:26px;height:26px;background:var(--sv-primary-light);color:var(--sv-primary-text);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;">3</span>
+                <span>点击「开始修复」，AI 处理完成后结果替换画布内容</span>
+            </li>
+        </ul>
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--sv-surface-2);border-radius:var(--sv-radius-sm);font-size:12px;color:var(--sv-fg-secondary);margin-bottom:20px;">
+            <kbd style="padding:2px 7px;background:var(--sv-surface-1);border:1px solid var(--sv-border);border-radius:4px;font-size:11px;">Ctrl</kbd>+<kbd style="padding:2px 7px;background:var(--sv-surface-1);border:1px solid var(--sv-border);border-radius:4px;font-size:11px;">Enter</kbd> 开始修复，<kbd style="padding:2px 7px;background:var(--sv-surface-1);border:1px solid var(--sv-border);border-radius:4px;font-size:11px;">Esc</kbd> 取消
+        </div>
+        <div style="display:flex;justify-content:flex-end;">
+            <button id="onboardingClose" type="button" style="padding:9px 22px;background:var(--sv-primary);color:#fff;border:none;border-radius:var(--sv-radius-sm);font-size:13px;font-weight:600;cursor:pointer;">知道了，开始使用</button>
+        </div>
+    </div>
+</div>
+
+
+<button type="button" class="sv2-sb-restore" id="btnRestoreSidebar" style="display:none;" title="展开参数面板"><i class="bi bi-sliders"></i> 参数</button>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const I = window.__I18N__ || {};
+
+    const els = {
+        uploadZone: document.getElementById('restoreUploadZone'),
+        fileInput: document.getElementById('restoreFileInput'),
+        fileInfo: document.getElementById('restoreFileInfo'),
+        imagePreviewContainer: document.getElementById('imagePreviewContainer'),
+        imagePreview: document.getElementById('imagePreview'),
+        folderPath: document.getElementById('folderPath'),
+        btnBrowseFolder: document.getElementById('btnBrowseFolder'),
+        btnScanFolder: document.getElementById('btnScanFolder'),
+        scanResults: document.getElementById('folderScanResults'),
+        progressCard: document.getElementById('progressCard'),
+        resultCard: document.getElementById('resultCard'),
+        resultVideo: document.getElementById('resultVideo'),
+        compareCard: document.getElementById('compareCard'),
+        btnDownload: document.getElementById('btnDownload'),
+        btnRestoreAgain: document.getElementById('btnRestoreAgain'),
+        btnStartRestore: document.getElementById('btnStartRestore'),
+        btnStartBatch: document.getElementById('btnStartBatch'),
+        btnResetRestore: document.getElementById('btnResetRestore'),
+        btnCancelRestore: document.getElementById('btnCancelRestore'),
+        btnCancelBatch: document.getElementById('btnCancelBatch'),
+        batchProgressBar: document.getElementById('batchProgressBar'),
+        batchProgressText: document.getElementById('batchProgressText'),
+        batchPercentText: document.getElementById('batchPercentText'),
+        batchCompleted: document.getElementById('batchCompleted'),
+        batchFailed: document.getElementById('batchFailed'),
+        batchStatus: document.getElementById('batchStatus'),
+        batchProgressCard: document.getElementById('batchProgressCard'),
+        batchCurrentFile: document.getElementById('batchCurrentFile'),
+        batchEta: document.getElementById('batchEta'),
+        advToggle: document.getElementById('advToggle'),
+        advParams: document.getElementById('advParams'),
+    };
+
+    let previewObjectUrl = null;
+    let scannedFiles = [];
+    let batchInterval = null;
+    let currentBatchId = null;
+    var currentTaskId = null;
+    let gpuAvailable = null;
+    let batchStartTime = null;
+
+    // 同步 window.currentTaskId（由 app.js 设置）
+    Object.defineProperty(window, 'currentTaskId', {
+        get: function() { return currentTaskId; },
+        set: function(v) { currentTaskId = v; },
+        configurable: true
+    });
+
+    // ===== 分辨率 / 两倍模式 管理 =====
+    /** @type {number|null} 最近一次两倍模式自动算出的分辨率（字符串形式的数值），用来检测用户是否手动改动 */
+    let _resolutionLastAutoValue = null;
+    /** @type {string} 最近一次自动设置的依据（如 "1024×768"） */
+    let _resolutionLastSource = '';
+
+    /**
+     * 根据两倍模式状态，同步更新输入框边框高亮、禁用状态与底部提示文字
+     * @param {Object} meta  可选字段说明：
+     *     meta.width     {number} 图片宽度
+     *     meta.height    {number} 图片高度
+     *     meta.shortEdge {number} 短边长度（不传则用 width/height 自动取 min）
+     */
+    function syncResolutionUI(meta) {
+        const toggle = /** @type {HTMLInputElement} */ (document.getElementById('doubleResToggle'));
+        const input = /** @type {HTMLInputElement} */ (document.getElementById('resolution'));
+        const hint = document.getElementById('resolutionHint');
+        if (!toggle || !input || !hint) return;
+
+        const autoOn = toggle.checked;
+        input.classList.toggle('double-res-active', autoOn);
+        // 两倍模式 ON → 禁用分辨率 + 四个 VAE tile 参数，与自定义值完全互斥
+        input.disabled = autoOn;
+        const tileInputs = [
+            document.getElementById('encodeTileSize'),
+            document.getElementById('encodeTileOverlap'),
+            document.getElementById('decodeTileSize'),
+            document.getElementById('decodeTileOverlap'),
+        ];
+        tileInputs.forEach((el) => { if (el) el.disabled = autoOn; });
+
+        if (autoOn && meta && typeof meta.width === 'number' && typeof meta.height === 'number') {
+            const shortEdge = meta.shortEdge != null ? meta.shortEdge : Math.min(meta.width, meta.height);
+            const target = shortEdge * 2;
+            hint.classList.add('is-auto');
+            hint.textContent =
+                (I['restore.double_res_applied'] || '已根据尺寸 {w}×{h} 的短边 {s} 自动设置为 {v}（不可手动修改）')
+                    .replace('{w}', String(meta.width))
+                    .replace('{h}', String(meta.height))
+                    .replace('{s}', String(shortEdge))
+                    .replace('{v}', String(target));
+        } else if (autoOn) {
+            hint.classList.add('is-auto');
+            hint.textContent = I['restore.double_res_hint_default'] || '上传图片或视频后将按短边×2自动计算（两倍模式下不可手动修改）';
+        } else {
+            hint.classList.remove('is-auto');
+            hint.textContent = I['manual_res_hint'] || '自定义模式：可手动输入任意分辨率';
+        }
+    }
+
+    /**
+     * 读取图片真实宽高，若两倍模式开启则自动设置分辨率 = 较短边 × 2
+     * @param {File} file
+     * @returns {Promise<Object|null>} 解析成功返回 {width,height,shortEdge,resolution}，失败返回 null
+     */
+    function autoSetResolutionFromImage(file) {
+        return new Promise((resolve) => {
+            const toggle = /** @type {HTMLInputElement} */ (document.getElementById('doubleResToggle'));
+            const input = /** @type {HTMLInputElement} */ (document.getElementById('resolution'));
+            if (!toggle || !input) { resolve(null); return; }
+
+            const cleanResolve = (result) => {
+                // 防止回调未清理导致内存小泄漏，此处不强制 cleanup
+                resolve(result);
+            };
+
+            const img = new Image();
+            img.onload = () => {
+                const w = img.naturalWidth;
+                const h = img.naturalHeight;
+                if (w <= 0 || h <= 0) { syncResolutionUI({}); cleanResolve(null); return; }
+                const shortEdge = Math.min(w, h);
+                const target = shortEdge * 2;
+                _resolutionLastSource = `${w}×${h}`;
+                if (toggle.checked) {
+                    // 分辨率: short_edge × 2
+                    input.value = String(target);
+                    _resolutionLastAutoValue = target;
+                    // 四个 tile 参数与短边分辨率联动：
+                    // tile_size = short_edge × 100%
+                    // tile_overlap = short_edge × 50%  →  天然满足 size = 2 × overlap
+                    const tileSize = Math.round(shortEdge);
+                    const tileOverlap = Math.round(shortEdge * 0.5);
+                    const ets = document.getElementById('encodeTileSize');
+                    const dts = document.getElementById('decodeTileSize');
+                    const eto = document.getElementById('encodeTileOverlap');
+                    const dto = document.getElementById('decodeTileOverlap');
+                    if (ets) ets.value = String(tileSize);
+                    if (dts) dts.value = String(tileSize);
+                    if (eto) eto.value = String(tileOverlap);
+                    if (dto) dto.value = String(tileOverlap);
+                }
+                syncResolutionUI({ width: w, height: h, shortEdge });
+                cleanResolve({ width: w, height: h, shortEdge, resolution: target });
+            };
+            img.onerror = () => {
+                syncResolutionUI({});
+                cleanResolve(null);
+            };
+
+            // 优先使用已创建的预览 objectUrl（如果已存在则复用，避免重复解码）
+            try {
+                if (previewObjectUrl) {
+                    img.src = previewObjectUrl;
+                } else {
+                    img.src = URL.createObjectURL(file);
+                }
+            } catch (e) {
+                syncResolutionUI({});
+                cleanResolve(null);
+            }
+        });
+    }
+
+    /**
+     * 读取视频真实宽高，若两倍模式开启则自动设置分辨率 = 较短边 × 2
+     * @param {File} file
+     * @returns {Promise<Object|null>} 解析成功返回 {width,height,shortEdge,resolution}，失败返回 null
+     */
+    function autoSetResolutionFromVideo(file) {
+        return new Promise((resolve) => {
+            const toggle = /** @type {HTMLInputElement} */ (document.getElementById('doubleResToggle'));
+            const input = /** @type {HTMLInputElement} */ (document.getElementById('resolution'));
+            if (!toggle || !input) { resolve(null); return; }
+
+            const cleanResolve = (result) => resolve(result);
+            let done = false;
+
+            const video = document.createElement('video');
+            video.preload = 'metadata';
+            video.muted = true;
+
+            const applyDims = () => {
+                const w = video.videoWidth;
+                const h = video.videoHeight;
+                // 部分浏览器 loadedmetadata 阶段宽高仍为 0，等待 loadeddata 再取
+                if (w <= 0 || h <= 0) return;
+                if (done) return;
+                done = true;
+                URL.revokeObjectURL(video.src);
+                const shortEdge = Math.min(w, h);
+                const target = shortEdge * 2;
+                _resolutionLastSource = `${w}×${h}`;
+                if (toggle.checked) {
+                    // 分辨率: short_edge × 2
+                    input.value = String(target);
+                    _resolutionLastAutoValue = target;
+                    // 四个 tile 参数与短边分辨率联动：
+                    // tile_size = short_edge × 100%
+                    // tile_overlap = short_edge × 50%  →  天然满足 size = 2 × overlap
+                    const tileSize = Math.round(shortEdge);
+                    const tileOverlap = Math.round(shortEdge * 0.5);
+                    const ets = document.getElementById('encodeTileSize');
+                    const dts = document.getElementById('decodeTileSize');
+                    const eto = document.getElementById('encodeTileOverlap');
+                    const dto = document.getElementById('decodeTileOverlap');
+                    if (ets) ets.value = String(tileSize);
+                    if (dts) dts.value = String(tileSize);
+                    if (eto) eto.value = String(tileOverlap);
+                    if (dto) dto.value = String(tileOverlap);
+                }
+                syncResolutionUI({ width: w, height: h, shortEdge });
+                cleanResolve({ width: w, height: h, shortEdge, resolution: target });
+            };
+            video.onloadedmetadata = applyDims;
+            video.onloadeddata = applyDims;
+            video.onerror = () => {
+                if (done) return;
+                done = true;
+                URL.revokeObjectURL(video.src);
+                syncResolutionUI({});
+                cleanResolve(null);
+            };
+            // 安全兜底：最多等 8s，避免不可解码视频永远不触发事件导致 promise 悬挂
+            setTimeout(() => {
+                if (!done) {
+                    done = true;
+                    URL.revokeObjectURL(video.src);
+                    syncResolutionUI({});
+                    cleanResolve(null);
+                }
+            }, 8000);
+
+            // 用 file 新建独立 objectURL，避免复用 previewObjectUrl（它会被时长检测的
+            // tempVideo 提前 revokeObjectURL 撤销，导致无法读取视频宽高）
+            let srcUrl = null;
+            try {
+                srcUrl = URL.createObjectURL(file);
+                video.src = srcUrl;
+            } catch (e) {
+                if (srcUrl) URL.revokeObjectURL(srcUrl);
+                syncResolutionUI({});
+                cleanResolve(null);
+            }
+        });
+    }
+
+    /** 重置分辨率开关和提示到页面初始状态 */
+    function resetResolutionState() {
+        const toggle = /** @type {HTMLInputElement} */ (document.getElementById('doubleResToggle'));
+        const input = /** @type {HTMLInputElement} */ (document.getElementById('resolution'));
+        if (toggle) toggle.checked = true;
+        if (input) input.value = input.getAttribute('value') || '960'; // 回到 HTML 默认值
+        // 四个 tile 参数同时回到初始 HTML 默认值
+        const tileDefaults = [
+            ['encodeTileSize', '1024'],
+            ['encodeTileOverlap', '512'],
+            ['decodeTileSize', '1024'],
+            ['decodeTileOverlap', '512'],
+        ];
+        tileDefaults.forEach(([id, def]) => {
+            const el = document.getElementById(id);
+            if (el) el.value = el.getAttribute('value') || def;
+        });
+        _resolutionLastAutoValue = null;
+        _resolutionLastSource = '';
+        syncResolutionUI({});
+    }
+
+    // 降级模式检查：无 NVIDIA GPU 时禁用推理功能
+    async function checkGpuAvailability() {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => {
+                controller.abort();
+                gpuAvailable = 'timeout';
+                updateStartButton();
+                const heroStatusText = document.getElementById('heroStatusText');
+                if (heroStatusText) heroStatusText.textContent = I['restore.gpu_detect_timeout'] || '检测超时';
+            }, 5000);
+            const health = await SeedVR2.api.get('/api/system/health', { signal: controller.signal });
+            clearTimeout(timeoutId);
+
+            if (health.gpu && health.gpu.is_gpu_available) {
+                gpuAvailable = true;
+                const heroStatusText = document.getElementById('heroStatusText');
+                if (heroStatusText) heroStatusText.textContent = health.gpu.device_name || (I['restore.gpu_available'] || 'GPU 可用');
+            } else {
+                gpuAvailable = false;
+                const pageHeader = document.querySelector('.sv-page-head');
+                if (pageHeader && !pageHeader.querySelector('.sv-alert-gpu')) {
+                    const warning = document.createElement('div');
+                    warning.className = 'sv-alert sv-alert-warning sv-mt-2 sv-alert-gpu sv-alert-collapsible';
+                    warning.innerHTML = '<button type="button" class="sv-alert-collapse" aria-label="' + (I['common.collapse'] || '折叠') + '"><i class="bi bi-chevron-up"></i></button>' +
+                        '<div class="sv-alert-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>' +
+                        '<div class="sv-alert-content sv-alert-collapsed-content">' +
+                        '<strong>' + (I['restore.gpu_warning_title'] || '需要 NVIDIA 显卡才能进行修复') + '</strong>' +
+                        '<div class="sv-alert-detail">' +
+                        '<p>' + (I['restore.gpu_warning_detail'] || 'SeedVR2 需要配备 NVIDIA 独立显卡的电脑才能进行视频/图片修复。当前设备未检测到支持的显卡。') + '</p>' +
+                        '<p class="sv-alert-hint">' + (I['restore.gpu_warning_hint'] || '如有NVIDIA显卡，请安装最新显卡驱动后重试。') + '</p>' +
+                        '</div>' +
+                        '</div>' +
+                        '<div class="sv-alert-actions">' +
+                        '<button type="button" class="sv-btn sv-btn-outline sv-btn-sm" id="btnGpuHelp"><i class="bi bi-question-circle"></i> ' + (I['restore.gpu_help'] || '帮助') + '</button>' +
+                        '<button type="button" class="sv-btn sv-btn-secondary sv-btn-sm" id="btnRetryGpu"><i class="bi bi-arrow-clockwise"></i> ' + (I['restore.gpu_retry'] || '重新检测') + '</button>' +
+                        '</div>';
+                    pageHeader.appendChild(warning);
+
+                    const collapseBtn = warning.querySelector('.sv-alert-collapse');
+                    const detailEl = warning.querySelector('.sv-alert-detail');
+                    const actionsEl = warning.querySelector('.sv-alert-actions');
+                    if (collapseBtn) {
+                        collapseBtn.addEventListener('click', () => {
+                            warning.classList.toggle('sv-alert-collapsed');
+                            const isCollapsed = warning.classList.contains('sv-alert-collapsed');
+                            collapseBtn.innerHTML = isCollapsed ? '<i class="bi bi-chevron-down"></i>' : '<i class="bi bi-chevron-up"></i>';
+                            if (detailEl) detailEl.style.display = isCollapsed ? 'none' : '';
+                            if (actionsEl) actionsEl.style.display = isCollapsed ? 'none' : '';
+                        });
+                    }
+
+                    const btnRetry = warning.querySelector('#btnRetryGpu');
+                    if (btnRetry) {
+                        btnRetry.addEventListener('click', async () => {
+                            btnRetry.disabled = true;
+                            btnRetry.innerHTML = '<i class="bi bi-arrow-repeat"></i> ' + (I['restore.gpu_detecting'] || '检测中...');
+                            try {
+                                const h = await SeedVR2.api.get('/api/system/health');
+                                if (h.gpu && h.gpu.is_gpu_available) {
+                                    location.reload();
+                                } else {
+                                    SeedVR2.toast(I['restore.gpu_not_found'] || '仍未检测到可用 GPU，请确认驱动安装', 'warning');
+                                    btnRetry.disabled = false;
+                                    btnRetry.innerHTML = '<i class="bi bi-arrow-clockwise"></i> ' + (I['restore.gpu_retry'] || '重新检测');
+                                }
+                            } catch (e) {
+                                SeedVR2.toast(I['restore.gpu_retry_failed'] || '检测失败，请重试', 'error');
+                                btnRetry.disabled = false;
+                                btnRetry.innerHTML = '<i class="bi bi-arrow-clockwise"></i> ' + (I['restore.gpu_retry'] || '重新检测');
+                            }
+                        });
+                    }
+                }
+            }
+            updateStartButton();
+        } catch (e) {
+            if (gpuAvailable === null) {
+                console.warn('GPU 可用性检查失败:', e);
+                gpuAvailable = 'timeout';
+                const heroStatusText = document.getElementById('heroStatusText');
+                if (heroStatusText) heroStatusText.textContent = I['restore.gpu_detect_timeout'] || '检测超时';
+                updateStartButton();
+            }
+        }
+    }
+
+    function updateStartButton() {
+        const btn = els.btnStartRestore;
+        const batchBtn = els.btnStartBatch;
+        if (!btn) return;
+
+        const hasFile = els.fileInput.files.length > 0;
+
+        btn.classList.remove('is-disabled');
+        btn.removeAttribute('disabled');
+        btn.title = hasFile ? '' : (I['restore.please_select_file'] || '请先选择要修复的文件');
+        btn.innerHTML = '<i class="bi bi-play-fill"></i> ' + (I['restore.upload_and_restore'] || '上传并修复');
+        btn.classList.add('sv-btn-primary');
+
+        if (batchBtn) {
+            batchBtn.classList.remove('is-disabled');
+            batchBtn.removeAttribute('disabled');
+            batchBtn.title = '';
+        }
+
+        if (gpuAvailable === false) {
+            btn.classList.add('is-disabled');
+            btn.title = I['restore.gpu_required'] || '需要 NVIDIA CUDA GPU 才能执行修复';
+            btn.innerHTML = '⚠️ ' + (I['restore.gpu_required'] || '需要NVIDIA GPU');
+            if (batchBtn) {
+                batchBtn.classList.add('is-disabled');
+                batchBtn.title = I['restore.gpu_required'] || '需要 NVIDIA CUDA GPU 才能执行修复';
+            }
+        } else if (gpuAvailable === 'timeout') {
+            btn.classList.add('is-disabled');
+            btn.title = I['restore.gpu_timeout'] || 'GPU检测超时，请检查服务状态';
+            btn.innerHTML = '⚠️ ' + (I['restore.gpu_timeout'] || 'GPU检测超时');
+            if (batchBtn) {
+                batchBtn.classList.add('is-disabled');
+                batchBtn.title = I['restore.gpu_timeout'] || 'GPU检测超时，请检查服务状态';
+            }
+        }
+    }
+
+    function cancelRestore() {
+        // SeedVR2.confirm 使用回调模式：第三个参数是用户点"确认"后的回调
+        function doCancel() {
+            // 无论后端是否成功，都强制关闭进度卡片和清除会话
+            var savedTaskId = currentTaskId;
+            SeedVR2.hideCard('progressCard');
+            currentTaskId = null;
+            currentBatchId = null;
+            try { localStorage.removeItem('sv_restore_session'); } catch(e) {}
+
+            // 尝试通知后端取消（失败也无妨，前端已清理）
+            if (savedTaskId) {
+                SeedVR2.api.post('/api/restore/' + savedTaskId + '/cancel').then(function() {
+                    SeedVR2.toast(I['restore.task_cancelled'] || '任务已取消', 'info');
+                }).catch(function(err) {
+                    console.warn('Cancel API failed (frontend already cleaned):', err.message);
+                    SeedVR2.toast(I['restore.task_cancelled'] || '任务已取消', 'info');
+                });
+            } else {
+                SeedVR2.toast(I['restore.task_cancelled'] || '任务已取消', 'info');
+            }
+        }
+
+        try {
+            SeedVR2.confirm(
+                I['restore.cancel_task'] || '取消任务',
+                I['restore.cancel_task_confirm'] || '确定要取消当前修复任务吗？已处理进度将丢失。',
+                doCancel
+            );
+        } catch (e) {
+            // confirm dialog broken, proceed anyway
+            console.warn('Confirm dialog failed:', e);
+            doCancel();
+        }
+    }
+
+    function cancelBatch() {
+        function doCancelBatch() {
+            if (batchInterval) {
+                clearInterval(batchInterval);
+                batchInterval = null;
+            }
+            var savedBatchId = currentBatchId;
+            var savedTaskId = currentTaskId;
+            els.batchProgressCard.style.display = 'none';
+            currentTaskId = null;
+            currentBatchId = null;
+            try { localStorage.removeItem('sv_restore_session'); } catch(e) {}
+
+            // 尝试通知后端取消（失败也无妨，前端已清理）
+            var cancelPromise;
+            if (savedBatchId) {
+                cancelPromise = SeedVR2.api.post('/api/restore/batch/' + savedBatchId + '/cancel');
+            } else if (savedTaskId) {
+                cancelPromise = SeedVR2.api.post('/api/restore/' + savedTaskId + '/cancel');
+            }
+            if (cancelPromise) {
+                cancelPromise.then(function() {
+                    SeedVR2.toast(I['restore.batch_task_cancelled'] || '任务已取消', 'info');
+                }).catch(function(err) {
+                    console.warn('Cancel API failed (frontend already cleaned):', err.message);
+                    SeedVR2.toast(I['restore.batch_task_cancelled'] || '任务已取消', 'info');
+                });
+            } else {
+                SeedVR2.toast(I['restore.batch_task_cancelled'] || '任务已取消', 'info');
+            }
+        }
+
+        try {
+            SeedVR2.confirm(
+                I['restore.cancel_batch_task'] || '取消批量任务',
+                I['restore.cancel_batch_confirm'] || '确定要取消当前批量修复任务吗？已处理进度将丢失。',
+                doCancelBatch
+            );
+        } catch (e) {
+            console.warn('Confirm dialog failed:', e);
+            doCancelBatch();
+        }
+    }
+
+    checkGpuAvailability();
+
+    // GPU状态定时刷新：每60秒自动重新检测，避免长时间空闲后状态过期
+    let gpuRefreshInterval = setInterval(() => {
+        if (document.visibilityState === 'visible') {
+            checkGpuAvailability();
+        }
+    }, 60000);
+
+    // 页面从后台切回时立即刷新GPU状态
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            checkGpuAvailability();
+        }
+    });
+
+    // 页面离开时清除定时器
+    window.addEventListener('beforeunload', () => {
+        if (gpuRefreshInterval) clearInterval(gpuRefreshInterval);
+        if (batchInterval) clearInterval(batchInterval);
+    });
+
+    // 首次使用引导模态框：仅首次访问显示（Canvas v3.1）
+    (function() {
+        var modal = document.getElementById('onboardingModal');
+        var closeBtn = document.getElementById('onboardingClose');
+        var hasSeen = localStorage.getItem('sv_onboarding_seen_v2');
+
+        if (modal && !hasSeen) {
+            modal.style.display = 'flex';
+            requestAnimationFrame(function() {
+                modal.classList.add('show');
+            });
+            localStorage.setItem('sv_onboarding_seen_v2', '1');
+        }
+
+        if (closeBtn && modal) {
+            closeBtn.addEventListener('click', function() {
+                modal.classList.remove('show');
+                setTimeout(function() { modal.style.display = 'none'; }, 300);
+            });
+        }
+
+        // 点击遮罩关闭
+        if (modal) {
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    modal.classList.remove('show');
+                    setTimeout(function() { modal.style.display = 'none'; }, 300);
+                }
+            });
+        }
+    })();
+
+    // 上传区
+    SeedVR2.setupUploadZone(els.uploadZone, els.fileInput, {
+        onFileSelected: (file) => {
+            els.fileInfo.style.display = 'flex';
+            const isImage = file.type.startsWith('image/');
+            const isVideo = file.type.startsWith('video/');
+            const iconClass = isImage ? 'bi-image' : 'bi-film';
+
+            if (previewObjectUrl) {
+                URL.revokeObjectURL(previewObjectUrl);
+                previewObjectUrl = null;
+            }
+            previewObjectUrl = URL.createObjectURL(file);
+
+            const fileInfoHtml = `
+                <div class="sv-fileinfo-main">
+                    <i class="bi ${iconClass}"></i>
+                    <span class="sv-fileinfo-name" title="${SeedVR2.escapeHtml(file.name)}">${SeedVR2.escapeHtml(file.name)}</span>
+                    <span class="sv-fileinfo-size">${SeedVR2.formatFileSize(file.size)}</span>
+                    <span class="sv-fileinfo-duration" id="fileDuration"></span>
+                </div>
+                <button type="button" class="sv-btn sv-btn-outline sv-btn-xs" id="btnChangeFile">
+                    <i class="bi bi-arrow-repeat"></i> ${I['restore.change_file'] || '更换文件'}
+                </button>
+            `;
+            els.fileInfo.innerHTML = fileInfoHtml;
+
+            const btnChangeFile = document.getElementById('btnChangeFile');
+            if (btnChangeFile) {
+                btnChangeFile.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    els.fileInput.click();
+                });
+            }
+
+            if (isVideo) {
+                const tempVideo = document.createElement('video');
+                tempVideo.preload = 'metadata';
+                tempVideo.src = previewObjectUrl;
+                tempVideo.onloadedmetadata = () => {
+                    const durationEl = document.getElementById('fileDuration');
+                    if (durationEl && tempVideo.duration && isFinite(tempVideo.duration)) {
+                        const mins = Math.floor(tempVideo.duration / 60);
+                        const secs = Math.floor(tempVideo.duration % 60);
+                        durationEl.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+                    }
+                    URL.revokeObjectURL(tempVideo.src);
+                };
+                tempVideo.onerror = () => {
+                    URL.revokeObjectURL(tempVideo.src);
+                };
+            }
+
+            if (isImage) {
+                els.imagePreview.src = previewObjectUrl;
+                els.imagePreview.style.display = 'block';
+                if (els.imagePreviewContainer) {
+                    els.imagePreviewContainer.style.display = 'flex';
+                    const pa = document.getElementById('previewArea');
+                    if (pa) pa.classList.add('has-content');
+                }
+                // 预览查看器：滚轮缩放 / 拖动平移 / 双击适配 / 放大镜
+                try { SeedVR2.initPreviewViewer('previewStage', 'previewImgWrap', 'imagePreview'); } catch(e) {}
+                const mgBtn = document.getElementById('btnMagnifier');
+                if (mgBtn) { mgBtn.removeAttribute('disabled'); mgBtn.classList.remove('active'); }
+                // 应用查看偏好：上次开启的放大镜自动恢复
+                try {
+                    const _vp = JSON.parse(localStorage.getItem('sv_view_prefs') || '{}');
+                    const _pv = SeedVR2.getActivePreviewViewer ? SeedVR2.getActivePreviewViewer() : null;
+                    if (_pv && _vp.magnifier) { _pv.setMagnifier(true); if (mgBtn) mgBtn.classList.add('active'); }
+                } catch(e) {}
+                const wg = document.getElementById('workflowGuide');
+                if (wg) wg.style.display = 'none';
+                // 两倍模式：自动根据图片短边 × 2 填分辨率
+                autoSetResolutionFromImage(file).catch(() => { /* 忽略非致命错误 */ });
+            } else {
+                els.imagePreview.style.display = 'none';
+                // 两倍模式：自动根据视频宽高短边 × 2 填分辨率
+                autoSetResolutionFromVideo(file).catch(() => { /* 忽略非致命错误 */ });
+            }
+            // 保存文件元信息到持久化会话，切页回来可恢复
+            try {
+                SeedVR2.saveRestoreSession({
+                    fileName: file.name,
+                    fileSize: SeedVR2.formatFileSize(file.size),
+                    taskType: isVideo ? 'video' : 'image',
+                    status: 'uploaded'
+                });
+            } catch(e) {}
+            updateStartButton();
+        },
+        onFileCleared: () => {
+            els.fileInfo.style.display = 'none';
+            els.fileInfo.innerHTML = '';
+            if (previewObjectUrl) {
+                URL.revokeObjectURL(previewObjectUrl);
+                previewObjectUrl = null;
+            }
+            els.imagePreview.style.display = 'none';
+            els.imagePreview.src = '';
+            if (els.imagePreviewContainer) els.imagePreviewContainer.style.display = 'none';
+            // 销毁预览查看器并禁用放大镜
+            try { SeedVR2.destroyPreviewViewer(); } catch(e) {}
+            const mgBtn = document.getElementById('btnMagnifier');
+            if (mgBtn) { mgBtn.setAttribute('disabled', ''); mgBtn.classList.remove('active'); }
+            const wg = document.getElementById('workflowGuide');
+            if (wg) wg.style.display = '';
+            // 文件清除时也清理持久化会话
+            try { SeedVR2.saveRestoreSession({ status: 'cleared' }); } catch(e) {}
+            resetResolutionState();
+            updateStartButton();
+        },
+    });
+
+    // 清除图片按钮
+    const btnClearImage = document.getElementById('btnClearImage');
+    if (btnClearImage) {
+        btnClearImage.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // 清空文件input
+            els.fileInput.value = '';
+            // 触发onFileCleared回调
+            if (previewObjectUrl) {
+                URL.revokeObjectURL(previewObjectUrl);
+                previewObjectUrl = null;
+            }
+            els.fileInfo.style.display = 'none';
+            els.fileInfo.innerHTML = '';
+            els.imagePreview.style.display = 'none';
+            els.imagePreview.src = '';
+            if (els.imagePreviewContainer) els.imagePreviewContainer.style.display = 'none';
+            // 销毁预览查看器 / 关闭放大镜
+            try { SeedVR2.destroyPreviewViewer(); } catch(e) {}
+            const mgBtn = document.getElementById('btnMagnifier');
+            if (mgBtn) { mgBtn.setAttribute('disabled', ''); mgBtn.classList.remove('active'); }
+            // 重置结果区域（对比滑块/视频播放器）
+            const resultCard = document.getElementById('resultCard');
+            const compareCard = document.getElementById('compareCard');
+            const resultVideo = document.getElementById('resultVideo');
+            if (resultCard) resultCard.style.display = 'none';
+            if (compareCard) compareCard.style.display = 'none';
+            if (resultVideo) { resultVideo.style.display = 'none'; resultVideo.src = ''; }
+            if (SeedVR2.getActiveCompareSlider) {
+                const cs = SeedVR2.getActiveCompareSlider();
+                if (cs && cs.setMagnifier) cs.setMagnifier(false);
+            }
+            // 清除 sessionStorage 中的结果缓存
+            try { sessionStorage.removeItem('sv_restore_result'); } catch(e) {}
+            // 显示上传区域
+            const wg = document.getElementById('workflowGuide');
+            if (wg) wg.style.display = '';
+            // 清除持久化会话
+            try { localStorage.removeItem('sv_restore_session'); } catch(e) {}
+            resetResolutionState();
+            updateStartButton();
+        });
+    }
+
+    // 文件夹浏览
+    if (els.btnBrowseFolder) {
+        els.btnBrowseFolder.addEventListener('click', () => {
+            SeedVR2.openDirBrowser(els.folderPath.value, (path) => {
+                els.folderPath.value = path;
+            });
+        });
+    }
+
+    // 扫描文件夹（带防重复提交保护）
+    let isScanning = false;
+    async function scanFolder() {
+        if (isScanning) return; // 防止重入
+        const path = els.folderPath.value.trim();
+        if (!path) {
+            SeedVR2.toast(I['restore.please_select_folder'] || '请输入或选择文件夹路径', 'warning');
+            return;
+        }
+        isScanning = true;
+        const originalHtml = els.btnScanFolder.innerHTML;
+        els.btnScanFolder.disabled = true;
+        els.btnScanFolder.innerHTML = '<span class="sv-spinner sv-spinner-sm"></span> ' + (I['restore.scanning'] || 'Scanning...');
+        // 扫描开始时清空之前的结果
+        els.scanResults.innerHTML = `<div class="sv-alert sv-alert-info"><span class="sv-spinner sv-spinner-sm"></span> ${I['restore.scanning'] || 'Scanning...'}</div>`;
+        try {
+            const data = await SeedVR2.api.get(`/api/restore/scan-folder?folder_path=${encodeURIComponent(path)}`);
+            scannedFiles = data.files || [];
+            if (scannedFiles.length === 0) {
+                els.scanResults.innerHTML = `<div class="sv-alert sv-alert-warning"><i class="bi bi-exclamation-triangle"></i> ${I['restore.no_files_found'] || '未找到可处理文件'}</div>`;
+                SeedVR2.toast(I['restore.no_files_found'] || '未找到可处理文件', 'warning', 5000);
+                return;
+            }
+            // 统计文件类型
+            const videoCount = scannedFiles.filter(f => f.type === 'video').length;
+            const imageCount = scannedFiles.filter(f => f.type === 'image').length;
+            const totalSize = scannedFiles.reduce((sum, f) => sum + (f.size || 0), 0);
+            const totalSizeMB = (totalSize / 1024 / 1024).toFixed(1);
+            const totalText = (I['restore.found_files'] || '找到 {total} 个文件').replace('{total}', scannedFiles.length);
+            const typeStats = [];
+            if (videoCount > 0) typeStats.push(`<i class="bi bi-film"></i> ${videoCount} ${I['restore.video_files'] || '视频'}`);
+            if (imageCount > 0) typeStats.push(`<i class="bi bi-image"></i> ${imageCount} ${I['restore.image_files'] || '图片'}`);
+            const listHtml = scannedFiles.slice(0, 10).map(f => {
+                const icon = f.type === 'video' ? 'bi-film' : 'bi-image';
+                const sizeText = f.size ? (f.size / 1024 / 1024).toFixed(2) + ' MB' : '';
+                return `<div class="sv-batch-file-item"><i class="bi ${icon} sv-text-muted"></i><span class="bf-name">${SeedVR2.escapeHtml(f.relative)}</span>${sizeText ? `<span class="sv-text-xs sv-text-muted sv-ml-auto">${sizeText}</span>` : ''}</div>`;
+            }).join('');
+            const more = scannedFiles.length > 10 ? `<div class="sv-text-xs sv-text-muted sv-mt-1">... ${I['restore.and_more'] || '还有'} ${scannedFiles.length - 10} ${I['restore.more_files'] || '个文件'}</div>` : '';
+            els.scanResults.innerHTML = `
+                <div class="sv-alert sv-alert-success sv-mb-2">
+                    <i class="bi bi-check-circle-fill"></i>
+                    <div>
+                        <strong>${totalText}</strong>
+                        <div class="sv-text-xs sv-mt-1 sv-flex sv-gap-3">${typeStats.join('')}<span><i class="bi bi-hdd"></i> ${totalSizeMB} MB</span></div>
+                    </div>
+                </div>
+                <div class="sv-batch-file-list">${listHtml}${more}</div>
+            `;
+            // 启用批量开始按钮
+            if (els.btnStartBatch) {
+                els.btnStartBatch.disabled = false;
+                els.btnStartBatch.classList.remove('is-disabled');
+            }
+            SeedVR2.toast(totalText, 'success', 3000);
+        } catch (err) {
+            els.scanResults.innerHTML = '';
+            SeedVR2.toast((I['restore.scan_failed'] || '扫描失败') + ': ' + err.message, 'error', 8000);
+        } finally {
+            els.btnScanFolder.disabled = false;
+            els.btnScanFolder.innerHTML = originalHtml;
+            isScanning = false;
+        }
+    }
+
+    if (els.btnScanFolder) {
+        els.btnScanFolder.addEventListener('click', scanFolder);
+    }
+
+    // 收集表单参数
+    function collectParams() {
+        const params = new FormData();
+
+        // 基础参数（含隐藏字段）
+        document.querySelectorAll('#paramsSidebar input[name], #paramsSidebar select[name]').forEach(input => {
+            if (input.closest('#advParams')) return;
+            if (input.type === 'checkbox') {
+                if (input.disabled) return;
+                if (input.checked) {
+                    params.append(input.name, input.value || 'true');
+                }
+            } else if (input.name) {
+                params.append(input.name, input.value);
+            }
+        });
+
+        // 高级参数（含隐藏字段）
+        els.advParams.querySelectorAll('input, select').forEach(input => {
+            if (input.type === 'checkbox') {
+                // Skip disabled checkboxes - their values are sent via hidden inputs
+                if (input.disabled) return;
+                if (input.checked) {
+                    params.append(input.name, input.value || 'true');
+                }
+            } else if (input.name) {
+                params.append(input.name, input.value);
+            }
+        });
+
+        return params;
+    }
+
+    // 将 batch_size 修正为最近的 4n+1 值（1,5,9,13,...）
+    function normalizeBatchSize() {
+        const batchSizeEl = document.getElementById('batchSize');
+        if (!batchSizeEl) return true;
+        const raw = batchSizeEl.value;
+        const val = parseInt(raw, 10);
+        if (!Number.isFinite(val) || val < 1) {
+            batchSizeEl.value = 1;
+            SeedVR2.toast(I['restore.batch_size_4n1'] || '批量帧数已自动修正为 1', 'warning');
+            return false;
+        }
+        if ((val - 1) % 4 !== 0) {
+            const n = Math.max(0, Math.round((val - 1) / 4));
+            const corrected = 4 * n + 1;
+            batchSizeEl.value = corrected;
+            SeedVR2.toast((I['restore.batch_size_4n1'] || '批量帧数必须满足 4n+1，已自动修正为 {v}').replace('{v}', corrected), 'warning');
+        }
+        return true;
+    }
+
+    // 开始单文件修复
+    async function startRestore() {
+        normalizeBatchSize();
+        const file = els.fileInput.files[0];
+        if (!file) {
+            SeedVR2.toast(I['restore.please_select_file'] || '请先选择要修复的文件', 'warning');
+            return;
+        }
+
+        if (gpuAvailable === false) {
+            SeedVR2.toast(I['restore.gpu_required'] || '需要 NVIDIA CUDA GPU 才能执行修复', 'warning');
+            return;
+        }
+        if (gpuAvailable === 'timeout') {
+            SeedVR2.toast(I['restore.gpu_timeout'] || 'GPU检测超时，请检查服务状态', 'warning');
+            return;
+        }
+        if (gpuAvailable === null) {
+            SeedVR2.toast(I['restore.gpu_detecting'] || 'GPU检测中，请稍候...', 'info');
+            return;
+        }
+
+        const params = collectParams();
+        params.append('file', file);
+
+        try {
+            SeedVR2.showCard('progressCard');
+            els.resultCard.style.display = 'none';
+            els.compareCard.style.display = 'none';
+            els.resultVideo.style.display = 'none';
+
+            const res = await SeedVR2.api.submitWithLoading(els.btnStartRestore,
+                SeedVR2.api.uploadRestore(params),
+                { loadingText: I['restore.processing'] || 'Processing...' }
+            );
+            const taskData = (res && res.success && res.data) ? res.data : res;
+            if (taskData && taskData.task_id) {
+                // 立即设置当前任务ID，供取消按钮使用
+                currentTaskId = taskData.task_id;
+                // 保存初始会话快照
+                const file = els.fileInput.files[0];
+                SeedVR2.saveRestoreSession({
+                    taskId: taskData.task_id,
+                    taskType: taskData.task_type || 'image',
+                    status: 'processing',
+                    taskStatus: 'processing',
+                    fileName: file ? file.name : '',
+                    fileSize: file ? SeedVR2.formatFileSize(file.size) : '',
+                    progress: 0
+                });
+                SeedVR2.startRestoreProgressSSE(taskData.task_id, taskData.task_type || 'image');
+            }
+            SeedVR2.toast(I['restore.processing'] || '处理中...', 'info');
+        } catch (err) {
+            SeedVR2.toast((I['restore.failed'] || '修复失败') + ': ' + err.message, 'error');
+            SeedVR2.hideCard('progressCard');
+        }
+    }
+    // 供 app.js 失败错误卡的「重试」调用（文件与参数保持不变，直接重跑）
+    window.__retryRestore = () => startRestore();
+
+    // 开始批量修复
+    async function startBatch() {
+        normalizeBatchSize();
+        const path = els.folderPath.value.trim();
+        if (!path) {
+            SeedVR2.toast(I['restore.please_select_folder'] || '请输入或选择文件夹路径', 'warning');
+            return;
+        }
+
+        const fileCount = scannedFiles.length || 0;
+        if (fileCount === 0) {
+            SeedVR2.toast(I['restore.please_scan_folder'] || '请先扫描文件夹', 'warning');
+            return;
+        }
+
+        if (gpuAvailable === false) {
+            SeedVR2.toast(I['restore.gpu_required'] || '需要 NVIDIA CUDA GPU 才能执行修复', 'warning');
+            return;
+        }
+        if (gpuAvailable === 'timeout') {
+            SeedVR2.toast(I['restore.gpu_timeout'] || 'GPU检测超时，请检查服务状态', 'warning');
+            return;
+        }
+        if (gpuAvailable === null) {
+            SeedVR2.toast(I['restore.gpu_detecting'] || 'GPU检测中，请稍候...', 'info');
+            return;
+        }
+
+        // 批量处理预确认
+        const confirmMsg = (I['restore.batch_confirm_msg'] || '即将处理 {count} 个文件，确认开始？').replace('{count}', fileCount);
+
+        SeedVR2.confirm(
+            I['restore.batch_confirm_title'] || '确认批量修复',
+            confirmMsg,
+            async () => {
+                const params = collectParams();
+                params.append('folder_path', path);
+
+                try {
+                    SeedVR2.showCard('batchProgressCard');
+                    const data = await SeedVR2.api.submitWithLoading(els.btnStartBatch,
+                        SeedVR2.api.post('/api/restore/batch', params),
+                        { loadingText: I['common.processing'] || 'Processing...' }
+                    );
+                    const batchData = data.data || data;
+                    currentBatchId = batchData.batch_id;
+                    SeedVR2.saveRestoreSession({
+                        taskId: 'batch_' + batchData.batch_id,
+                        taskType: 'batch',
+                        status: 'processing',
+                        taskStatus: 'processing',
+                        batchId: batchData.batch_id,
+                        batchTotal: scannedFiles.length,
+                        batchCompleted: 0,
+                        batchFailed: 0,
+                        progress: 0
+                    });
+                    batchStartTime = Date.now();
+                    if (els.batchPercentText) els.batchPercentText.textContent = '0%';
+                    if (els.batchEta) els.batchEta.textContent = '';
+                    if (els.batchCurrentFile) els.batchCurrentFile.style.display = 'none';
+                    SeedVR2.toast(I['video.batch_started'] || '批量处理已启动', 'info');
+                    pollBatchProgress(batchData.batch_id);
+                } catch (err) {
+                    SeedVR2.toast((I['video.batch_start_failed'] || '批量处理启动失败') + ': ' + err.message, 'error');
+                    SeedVR2.hideCard('batchProgressCard');
+                }
+            }
+        );
+    }
+
+    function pollBatchProgress(batchId) {
+        if (batchInterval) clearInterval(batchInterval);
+        batchInterval = setInterval(async () => {
+            try {
+                const res = await SeedVR2.api.get(`/api/restore/batch/${batchId}/progress`);
+                const data = res.data || res;
+                const cached = {
+                    total: data.total || 0,
+                    completed: data.completed || 0,
+                    failed: data.failed || 0,
+                    current_index: data.current_index || 0,
+                    current_file: data.current_file || '',
+                };
+                const total = cached.total || 0;
+                const completed = cached.completed || 0;
+                const failed = cached.failed || 0;
+                const current = Math.min((cached.current_index || 0) + 1, total);
+                const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+                els.batchProgressBar.style.transform = `scaleX(${progress / 100})`;
+                // 持久化批量进度
+                SeedVR2.saveRestoreSession({
+                    batchCompleted: completed,
+                    batchFailed: failed,
+                    progress: progress,
+                    taskStatus: data.status || 'processing'
+                });
+                els.batchProgressBar.setAttribute('aria-valuenow', progress);
+                els.batchProgressText.textContent = `${completed} / ${total}`;
+                els.batchCompleted.textContent = completed;
+                els.batchFailed.textContent = failed;
+                if (els.batchPercentText) els.batchPercentText.textContent = progress + '%';
+
+                // 显示当前处理文件名
+                if (els.batchCurrentFile && cached.current_file) {
+                    els.batchCurrentFile.style.display = '';
+                    const nameSpan = els.batchCurrentFile.querySelector('span');
+                    if (nameSpan) nameSpan.textContent = cached.current_file;
+                    els.batchCurrentFile.title = cached.current_file;
+                }
+
+                // 计算预计剩余时间(ETA)
+                if (els.batchEta && batchStartTime && completed > 0 && progress < 100) {
+                    const elapsedMs = Date.now() - batchStartTime;
+                    const msPerFile = elapsedMs / completed;
+                    const remainingFiles = total - completed;
+                    const etaMs = msPerFile * remainingFiles;
+                    if (etaMs < 60000) {
+                        els.batchEta.textContent = (I['restore.eta'] || '预计剩余') + ': ' + Math.ceil(etaMs / 1000) + 's';
+                    } else {
+                        const etaMin = Math.floor(etaMs / 60000);
+                        const etaSec = Math.ceil((etaMs % 60000) / 1000);
+                        els.batchEta.textContent = (I['restore.eta'] || '预计剩余') + ': ' + etaMin + 'm ' + etaSec + 's';
+                    }
+                }
+
+                if (data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') {
+                    clearInterval(batchInterval);
+                    batchInterval = null;
+                    batchStartTime = null;
+                    els.batchStatus.className = data.status === 'completed' ? 'sv-badge sv-badge-completed' : 'sv-badge sv-badge-failed';
+                    els.batchStatus.textContent = I[`status.${data.status}`] || data.status;
+                    if (els.batchPercentText) els.batchPercentText.textContent = data.status === 'completed' ? '100%' : progress + '%';
+                    if (els.batchEta) els.batchEta.textContent = data.status === 'completed' ? (I['restore.completed'] || '完成') : '';
+                    if (els.batchCurrentFile) els.batchCurrentFile.style.display = 'none';
+                    SeedVR2.toast(I['video.batch_completed']?.replace('{completed}', completed).replace('{failed}', failed) || '批量处理完成', data.status === 'completed' ? 'success' : 'error');
+                }
+            } catch (err) {
+                console.error('Batch poll error:', err);
+            }
+        }, 1000);
+    }
+
+    // 重置
+    function resetRestore() {
+        SeedVR2.resetRestore();
+        try { localStorage.removeItem('sv_restore_result'); } catch (e) {}
+        if (batchInterval) {
+            clearInterval(batchInterval);
+            batchInterval = null;
+        }
+        currentBatchId = null;
+        scannedFiles = [];
+        els.scanResults.innerHTML = '';
+        els.folderPath.value = '';
+        if (previewObjectUrl) {
+            URL.revokeObjectURL(previewObjectUrl);
+            previewObjectUrl = null;
+        }
+        resetResolutionState();
+        updateStartButton();
+    }
+
+    // 高级参数展开 / 收起
+    if (els.advToggle && els.advParams) {
+        els.advToggle.addEventListener('click', () => {
+            const open = els.advParams.classList.toggle('open');
+            els.advToggle.classList.toggle('open', open);
+            els.advToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+    }
+
+    els.btnStartRestore.addEventListener('click', startRestore);
+    els.btnStartBatch.addEventListener('click', startBatch);
+    if (document.getElementById('batchSize')) {
+        document.getElementById('batchSize').addEventListener('change', normalizeBatchSize);
+    }
+    els.btnResetRestore.addEventListener('click', resetRestore);
+    els.btnRestoreAgain.addEventListener('click', resetRestore);
+
+    // ===== 分辨率 / 两倍模式 事件绑定 =====
+    (function bindResolutionEvents() {
+        const toggle = /** @type {HTMLInputElement|null} */ (document.getElementById('doubleResToggle'));
+        const input = /** @type {HTMLInputElement|null} */ (document.getElementById('resolution'));
+        if (!toggle || !input) return;
+
+        // 初始状态同步 UI 提示
+        syncResolutionUI({});
+
+        // 用户切换开关
+        toggle.addEventListener('change', () => {
+            const autoOn = toggle.checked;
+            // 切回两倍模式 + 当前已有媒体文件 → 立即自动填入
+            if (autoOn && els.fileInput && els.fileInput.files && els.fileInput.files[0]) {
+                const f = els.fileInput.files[0];
+                if (f.type && f.type.startsWith('image/')) {
+                    autoSetResolutionFromImage(f).catch(() => {});
+                    return;
+                }
+                if (f.type && f.type.startsWith('video/')) {
+                    autoSetResolutionFromVideo(f).catch(() => {});
+                    return;
+                }
+            }
+            // 否则仅刷新提示
+            syncResolutionUI({});
+            if (!autoOn) {
+                // 切到自定义模式，不再认为当前值是"自动设置"的，之后用户输入不会再跳开关
+                _resolutionLastAutoValue = null;
+            }
+        });
+
+        // 用户手动输入分辨率：若输入值与自动设置值不一致，自动切回自定义模式
+        input.addEventListener('input', () => {
+            if (!toggle.checked) return; // 已经是自定义，无需处理
+            const currentNum = parseInt(input.value, 10);
+            if (_resolutionLastAutoValue !== null && Number.isFinite(currentNum)) {
+                if (currentNum !== _resolutionLastAutoValue) {
+                    toggle.checked = false;
+                    _resolutionLastAutoValue = null;
+                    syncResolutionUI({});
+                    SeedVR2.toast(
+                        I['restore.switched_to_manual'] || '检测到手动修改，已切换为「自定义」模式',
+                        'info'
+                    );
+                }
+            } else if (input.value !== '' && _resolutionLastAutoValue === null) {
+                // 用户在两倍模式未生效（未上传图片）时就开始输入 → 视为想自定义
+                toggle.checked = false;
+                syncResolutionUI({});
+            }
+        });
+    })();
+
+    // VRAM 预检 & 参数推荐
+    let lastRecommendation = null;
+    document.getElementById('btnVramRecommend')?.addEventListener('click', async () => {
+        const ditModel = document.getElementById('ditModel').value;
+        const resolution = parseInt(document.getElementById('resolution').value) || 960;
+        const btn = document.getElementById('btnVramRecommend');
+        const resultDiv = document.getElementById('vramRecommendResult');
+
+        // 从 dit_model 解析模型名和精度 (如 "3b_fp16" → model="3b", precision="fp16")
+        const parts = ditModel.split('_');
+        let modelName = parts[0] || '3b';
+        if (ditModel.includes('sharp')) modelName = '7b-sharp';
+        const precision = parts.includes('fp8') ? 'fp8' : 'fp16';
+
+        // 估算输入分辨率（resolution 是短边，假设 16:9）
+        const isLandscape = true;
+        const height = resolution;
+        const width = Math.round(resolution * (isLandscape ? 16/9 : 9/16));
+
+        try {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split"></i> 估算中...';
+
+            const url = `/api/system/gpu/recommend-params?model_name=${encodeURIComponent(modelName)}&width=${width}&height=${height}&num_frames=1`;
+            const resp = await SeedVR2.api.get(url);
+
+            if (resp.success && resp.data) {
+                const d = resp.data;
+                lastRecommendation = d;
+
+                document.getElementById('restoreRecPrecision').textContent = d.precision.toUpperCase();
+                document.getElementById('restoreRecEstimated').textContent = `${d.estimated_vram_gb} GB / ${d.available_vram_gb} GB`;
+
+                const riskEl = document.getElementById('restoreRecRisk');
+                riskEl.textContent = d.risk;
+                riskEl.className = 'sv-badge sv-text-xs ' + (d.risk === 'low' ? 'sv-badge-completed' : d.risk === 'medium' ? 'sv-badge-warning' : 'sv-badge-error');
+
+                const warnDiv = document.getElementById('restoreRecWarning');
+                const warnText = document.getElementById('restoreRecWarningText');
+                if (d.warning) {
+                    warnDiv.style.display = '';
+                    warnText.textContent = d.warning;
+                } else {
+                    warnDiv.style.display = 'none';
+                }
+
+                resultDiv.style.display = '';
+            }
+        } catch (err) {
+            console.error('VRAM recommend failed:', err);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-speedometer2"></i> VRAM 预检 & 推荐参数';
+        }
+    });
+
+    document.getElementById('btnApplyRecommend')?.addEventListener('click', () => {
+        if (!lastRecommendation) return;
+        const d = lastRecommendation;
+
+        // 应用推荐精度到 ditModel 选择框
+        const ditModelSelect = document.getElementById('ditModel');
+        const currentVal = ditModelSelect.value;
+        const modelPrefix = currentVal.includes('sharp') ? '7b_sharp' : currentVal.split('_')[0];
+        const newModelVal = `${modelPrefix}_${d.precision}`;
+        for (const opt of ditModelSelect.options) {
+            if (opt.value === newModelVal) {
+                ditModelSelect.value = newModelVal;
+                break;
+            }
+        }
+
+        // 两倍模式下用户主动"应用推荐参数"= 放弃自动计算 → 先切到自定义模式再应用
+        (function exitDoubleModeIfActive() {
+            const tg = /** @type {HTMLInputElement|null} */ (document.getElementById('doubleResToggle'));
+            if (!tg || !tg.checked) return;
+            tg.checked = false;
+            syncResolutionUI({});
+            SeedVR2.toast?.(
+                I['restore.switched_by_vram_rec'] || '检测到应用推荐参数，已切换至自定义模式',
+                'info'
+            );
+        })();
+
+        // 应用 BlockSwap 推荐值
+        const blocksToSwapInput = document.getElementById('blocksToSwap');
+        if (blocksToSwapInput) {
+            blocksToSwapInput.value = d.blocks_to_swap;
+        }
+
+        // 应用 tile 大小到 encode/decode tile
+        const encodeTileSize = document.getElementById('encodeTileSize');
+        const decodeTileSize = document.getElementById('decodeTileSize');
+        const encodeTileOverlap = document.getElementById('encodeTileOverlap');
+        const decodeTileOverlap = document.getElementById('decodeTileOverlap');
+        if (encodeTileSize) encodeTileSize.value = d.tile_size;
+        if (decodeTileSize) decodeTileSize.value = d.tile_size;
+        if (encodeTileOverlap) encodeTileOverlap.value = d.vram_tile_overlap;
+        if (decodeTileOverlap) decodeTileOverlap.value = d.vram_tile_overlap;
+
+        SeedVR2.toast?.success?.('已应用推荐参数') || console.log('推荐参数已应用');
+    });
+    if (els.btnCancelRestore) {
+        els.btnCancelRestore.addEventListener('click', cancelRestore);
+    }
+    if (els.btnCancelBatch) {
+        els.btnCancelBatch.addEventListener('click', cancelBatch);
+    }
+
+    // ===== 优化参数分组：点击 🔒/🔓 图标解锁 & 重新锁定 =====
+    (function bindOptimizationLocks() {
+        /**
+         * 每次点击图标在「锁定 / 解锁」之间切换：
+         * - 锁定：可见复选框 disabled + 隐藏字段启用（强制提交系统推荐值） + bi-lock-fill
+         * - 解锁：可见复选框 enabled + 隐藏字段 disabled（使用可见复选框的真实值提交） + bi-unlock-fill + 组背景虚线化
+         */
+        document.addEventListener('click', (e) => {
+            const icon = /** @type {HTMLElement|null} */ (
+                e.target.closest('.sv-adv-locked-group i.bi-lock-fill, .sv-adv-locked-group i.bi-unlock-fill')
+            );
+            if (!icon) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const group = icon.closest('.sv-adv-locked-group');
+            if (!group) return;
+            const currentlyUnlocked = icon.classList.contains('bi-unlock-fill');
+            const willUnlock = !currentlyUnlocked; // true = 切换为"解锁"
+            group.classList.toggle('is-unlocked', willUnlock);
+
+            const labels = /** @type {NodeListOf<HTMLLabelElement>} */ (
+                group.querySelectorAll('label.sv-param-check')
+            );
+            labels.forEach((lbl) => {
+                const visCb = /** @type {HTMLInputElement|null} */ (
+                    lbl.querySelector('input[type="checkbox"]')
+                );
+                const hiddenInp = /** @type {HTMLInputElement|null} */ (
+                    lbl.querySelector('input[type="hidden"]')
+                );
+                const iEl = /** @type {HTMLElement|null} */ (
+                    lbl.querySelector('i.bi-lock-fill, i.bi-unlock-fill')
+                );
+                if (!visCb || !iEl) return;
+
+                if (willUnlock) {
+                    visCb.disabled = false;
+                    if (hiddenInp) hiddenInp.disabled = true; // 停止强制提交硬编码值
+                    iEl.classList.remove('bi-lock-fill');
+                    iEl.classList.add('bi-unlock-fill');
+                    const fb = '点击重新锁定（恢复系统推荐值）';
+                    iEl.title = (I['restore.lock_hint_unlock'] && I['restore.lock_hint_unlock'] !== 'restore.lock_hint_unlock')
+                        ? I['restore.lock_hint_unlock'] : fb;
+                } else {
+                    visCb.disabled = true;
+                    visCb.checked = true; // 回到系统推荐的勾选状态
+                    if (hiddenInp) hiddenInp.disabled = false;
+                    iEl.classList.remove('bi-unlock-fill');
+                    iEl.classList.add('bi-lock-fill');
+                    const fb = '点击解锁，允许手动修改优化参数';
+                    iEl.title = (I['restore.lock_hint_lock'] && I['restore.lock_hint_lock'] !== 'restore.lock_hint_lock')
+                        ? I['restore.lock_hint_lock'] : fb;
+                }
+            });
+            SeedVR2.toast?.(
+                willUnlock
+                    ? (I['restore.optim_unlocked'] || '已解锁本组优化参数，可手动调整')
+                    : (I['restore.optim_locked'] || '已重新锁定本组优化参数，恢复系统推荐值'),
+                'info'
+            );
+        });
+    })();
+
+    // 键盘快捷键：Ctrl+Enter 开始修复，Esc 取消任务
+    document.addEventListener('keydown', (e) => {
+        // 忽略输入框内的Enter（除了Ctrl组合）
+        const target = e.target;
+        const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable;
+
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            if (isInput) return; // 在输入框时不触发，避免提交表单冲突
+            // 判断当前模式：单文件或批量
+            const activeTab = document.querySelector('.sv-mode-tab.active');
+            const mode = activeTab ? activeTab.dataset.mode : 'single';
+            if (mode === 'batch' && scannedFiles.length > 0 && !els.btnStartBatch.disabled) {
+                startBatch();
+            } else if (mode === 'single' && els.fileInput.files.length > 0 && !els.btnStartRestore.disabled) {
+                startRestore();
+            }
+        } else if (e.key === 'Escape') {
+            // Esc 关闭模态框/帮助面板/取消任务
+            var obModal = document.getElementById('onboardingModal');
+            if (obModal && obModal.style.display !== 'none') {
+                obModal.classList.remove('show');
+                setTimeout(function() { obModal.style.display = 'none'; }, 300);
+                return;
+            }
+            var floatHelp = document.getElementById('floatHelp');
+            if (floatHelp && floatHelp.classList.contains('sv-float-help--open')) {
+                floatHelp.classList.remove('sv-float-help--open');
+                var ht = document.getElementById('helpToggle');
+                if (ht) ht.setAttribute('aria-expanded', 'false');
+                return;
+            }
+            // Esc键取消确认框或进行中的任务
+            const confirmModal = document.getElementById('confirmModal');
+            if (confirmModal && confirmModal.classList.contains('show')) {
+                SeedVR2.closeModal('confirmModal');
+                return;
+            }
+            // 如果有正在进行的批量任务，取消批量
+            if (currentBatchId && els.batchProgressCard.style.display !== 'none') {
+                cancelBatch();
+            }
+            // ESC also clears stale restore session
+            try {
+                var saved = localStorage.getItem('sv_restore_session');
+                if (saved) {
+                    var snap = JSON.parse(saved);
+                    if (snap.status === 'processing') {
+                        localStorage.removeItem('sv_restore_session');
+                    }
+                }
+            } catch(e) {}
+        }
+    });
+
+    // ===== 修复页参数分组：上锁 / 解锁交互 =====
+    // 规则：每个 .sv-adv-locked-group 内含：
+    //   - 一组 checkbox（初始 disabled，表示锁定时不可改）
+    //   - 对应一组同名 hidden input（锁定时提交默认值）
+    //   - 一个锁图标（.bi-lock-fill 或 .bi-unlock-fill）
+    function _setupLockToggles() {
+        const groups = document.querySelectorAll('.sv-adv-locked-group');
+        groups.forEach((group) => {
+            // 在组内找到锁图标（可能多个，每个 checkbox 行一个也可共享同一组状态 —— 这里按"组名=第一个参数名"统一管理）
+            const lockIcons = group.querySelectorAll('.bi-lock-fill, .bi-unlock-fill');
+            const checkboxes = group.querySelectorAll('input[type="checkbox"]');
+            const hiddenInputs = group.querySelectorAll('input[type="hidden"]');
+            if (lockIcons.length === 0) return;
+
+            // 提取组的统一 key：用第一个 checkbox name 或第一个 hidden name
+            let groupKey = '';
+            const firstCheckbox = checkboxes[0];
+            const firstHidden = hiddenInputs[0];
+            if (firstCheckbox && firstCheckbox.name) groupKey = firstCheckbox.name;
+            else if (firstHidden && firstHidden.name) groupKey = firstHidden.name;
+            if (!groupKey) return;
+
+            // 将组 key 存到 dataset 便于后续 apply / save
+            group.dataset.lockGroup = groupKey;
+
+            // 绑定点击（每个锁图标都能触发同一组切换）
+            lockIcons.forEach((icon) => {
+                icon.style.cursor = 'pointer';
+                icon.style.pointerEvents = 'auto';
+                icon.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const unlocked = group.classList.toggle('sv-adv-unlocked');
+                    // 同步所有子控件
+                    checkboxes.forEach((cb) => { cb.disabled = !unlocked; });
+                    hiddenInputs.forEach((hi) => { hi.disabled = unlocked; });
+                    // 同步图标
+                    lockIcons.forEach((ic) => {
+                        if (unlocked) {
+                            ic.classList.remove('bi-lock-fill');
+                            ic.classList.add('bi-unlock-fill');
+                            ic.title = I['lock_hint_unlock'] || '点击锁回系统推荐值';
+                        } else {
+                            ic.classList.remove('bi-unlock-fill');
+                            ic.classList.add('bi-lock-fill');
+                            ic.title = I['lock_hint_lock'] || '点击解锁，可手动修改';
+                        }
+                    });
+                    // 解锁状态变更 → 触发一次增量保存
+                    _queueSaveRestorePrefs(null, { [groupKey]: unlocked });
+                    // 视觉提示
+                    SeedVR2.toast(unlocked
+                        ? (I['optim_unlocked'] || '已解锁本组优化参数，可手动调整')
+                        : (I['optim_locked'] || '已锁定系统推荐值'), 'info');
+                });
+            });
+        });
+    }
+
+    // 根据 unlock_state dict 恢复分组解锁状态（必须在 setupLockToggles 之后调用，或内部兼容）
+    function _applyUnlockState(unlockState) {
+        if (!unlockState || typeof unlockState !== 'object') return;
+        const groups = document.querySelectorAll('.sv-adv-locked-group');
+        groups.forEach((group) => {
+            const groupKey = group.dataset.lockGroup;
+            if (!groupKey || !(groupKey in unlockState)) return;
+            const unlocked = Boolean(unlockState[groupKey]);
+            const lockIcons = group.querySelectorAll('.bi-lock-fill, .bi-unlock-fill');
+            const checkboxes = group.querySelectorAll('input[type="checkbox"]');
+            const hiddenInputs = group.querySelectorAll('input[type="hidden"]');
+            group.classList.toggle('sv-adv-unlocked', unlocked);
+            checkboxes.forEach((cb) => { cb.disabled = !unlocked; });
+            hiddenInputs.forEach((hi) => { hi.disabled = unlocked; });
+            lockIcons.forEach((ic) => {
+                if (unlocked) {
+                    ic.classList.remove('bi-lock-fill');
+                    ic.classList.add('bi-unlock-fill');
+                } else {
+                    ic.classList.remove('bi-unlock-fill');
+                    ic.classList.add('bi-lock-fill');
+                }
+            });
+        });
+    }
+
+    // ===== 收集当前修复页的所有表单值（按 name → value） =====
+    // 只保存 JSON 可序列化基础类型，避免复杂对象入库
+    function _collectRestoreFormValues() {
+        const values = {};
+        const inputs = document.querySelectorAll('#paramsSidebar [name]');
+        inputs.forEach((input) => {
+            const name = input.name;
+            if (!name) return;
+            // 用第一个非 disabled 的同 name 元素（避免 hidden 与 checkbox 同名冲突时，优先读当前"生效"的那个）
+            if (input.disabled && input.type !== 'hidden') return;
+            // 对于 hidden + checkbox 同名双写模式：只有当 checkbox disabled 时 hidden 才生效
+            if (input.type === 'hidden') {
+                const siblingCb = document.querySelector(`#paramsSidebar input[type="checkbox"][name="${CSS.escape(name)}"]`);
+                if (siblingCb && !siblingCb.disabled) return; // 以 checkbox 为准
+            }
+            if (input.type === 'checkbox') {
+                values[name] = input.checked;
+            } else if (input.type === 'number' || input.type === 'range') {
+                const parsed = parseFloat(input.value);
+                values[name] = Number.isFinite(parsed) ? parsed : (input.value || '');
+            } else if (input.tagName === 'SELECT') {
+                values[name] = input.value;
+            } else {
+                values[name] = input.value;
+            }
+        });
+        return values;
+    }
+
+    // ===== 加载保存的表单值并写回 DOM =====
+    // 注意：必须只对"当前未被 autoSetResolutionFromImage 覆盖"的字段赋值（防覆盖上传图片后的联动值）
+    function _applyRestoreFormValues(values) {
+        if (!values || typeof values !== 'object') return;
+        const inputs = document.querySelectorAll('#paramsSidebar [name]');
+        const applied = new Set();
+        inputs.forEach((input) => {
+            const name = input.name;
+            if (!name || applied.has(name)) return;
+            if (!(name in values)) return;
+            const saved = values[name];
+
+            // hidden / checkbox 同名双写：统一按 checkbox 那一组的状态应用
+            if (input.type === 'hidden') {
+                const siblingCb = document.querySelector(`#paramsSidebar input[type="checkbox"][name="${CSS.escape(name)}"]`);
+                if (siblingCb) return; // 由下面的 checkbox 分支处理
+            }
+
+            applied.add(name);
+            try {
+                if (input.type === 'checkbox') {
+                    const cb = /** @type {HTMLInputElement} */ (input);
+                    cb.checked = Boolean(saved);
+                    // 同步同名 hidden value（否则后端拿不到）
+                    const siblingHidden = document.querySelector(`#paramsSidebar input[type="hidden"][name="${CSS.escape(name)}"]`);
+                    if (siblingHidden) siblingHidden.value = String(Boolean(saved));
+                } else if (input.type === 'number' || input.type === 'range') {
+                    const parsed = typeof saved === 'number' ? saved : parseFloat(String(saved));
+                    if (Number.isFinite(parsed)) input.value = String(parsed);
+                } else {
+                    input.value = String(saved);
+                }
+            } catch (e) {
+                console.debug(`应用修复页字段失败 ${name}:`, e);
+            }
+        });
+    }
+
+    // ===== 修复页偏好保存（统一入口：防抖 + 浅 merge + 容错） =====
+    let _restoreSaveTimer = null;
+    function _queueSaveRestorePrefs(valuesPatch, unlockStatePatch) {
+        clearTimeout(_restoreSaveTimer);
+        _restoreSaveTimer = setTimeout(async () => {
+            try {
+                // values 传 null 表示本次只存解锁状态
+                const values = valuesPatch == null ? _collectRestoreFormValues() : valuesPatch;
+                const payload = {};
+                // 只在确实有变更字段时才传对应 key（后端 merge 语义）
+                if (valuesPatch !== null) payload.values = values;
+                if (unlockStatePatch != null) payload.unlock_state = unlockStatePatch;
+                if (payload.values == null && payload.unlock_state == null) return;
+                await SeedVR2.saveRestorePrefs(payload);
+            } catch (e) {
+                console.debug('保存修复页偏好失败（静默忽略）:', e);
+            }
+        }, 500);
+    }
+
+    // ===== 初始化：加载偏好 → 应用表单值 → 应用解锁状态 → 绑定事件 =====
+    async function applyRestorePreferences() {
+        try {
+            // 1. 先建立锁交互（后续应用解锁状态依赖 DOM class）
+            _setupLockToggles();
+
+            // 2. 从后端加载快照
+            const snapshot = await SeedVR2.loadRestorePrefs();
+
+            // 3. 若新接口无历史，则回退到老 preferences 字段（一次性迁移兼容）
+            let values = {};
+            let unlockState = {};
+            if (snapshot) {
+                values = snapshot.values || {};
+                unlockState = snapshot.unlock_state || {};
+            }
+            // 兼容迁移：如果新 dict 几乎为空，尝试从老的 default_* 填一些常用字段
+            if (Object.keys(values).length === 0) {
+                try {
+                    const legacy = await SeedVR2.loadUserPreferences();
+                    if (legacy) {
+                        if (legacy.default_resolution != null) values.resolution = legacy.default_resolution;
+                        if (legacy.default_seed != null && legacy.default_seed !== -1) values.seed = legacy.default_seed;
+                        if (legacy.blocks_to_swap != null) values.blocks_to_swap = legacy.blocks_to_swap;
+                        if (legacy.default_model) values.dit_model = legacy.default_model;
+                        if (legacy.default_vae) values.vae_model = legacy.default_vae;
+                        if (legacy.default_color_correction) values.color_correction = legacy.default_color_correction;
+                        if (legacy.default_batch_size != null) values.batch_size = legacy.default_batch_size;
+                        if (legacy.vae_tile_size != null) values.encode_tile_size = legacy.vae_tile_size;
+                        if (legacy.default_max_resolution != null) values.max_resolution = legacy.default_max_resolution;
+                    }
+                } catch (_) { /* ignore legacy migration */ }
+            }
+
+            // 4. 应用表单值（先写值，再同步 UI）
+            _applyRestoreFormValues(values);
+
+            // 5. 应用解锁状态（必须在 setup 之后）
+            _applyUnlockState(unlockState);
+
+            // 6. 最后同步分辨率互斥 UI（此时已恢复用户上次的 double_res 勾选值）
+            //    注意：只有当用户未上传文件（没有 width/height 元数据）时才做默认同步，
+            //    防止 autoSetResolutionFromImage 已经设置过的联动值被默认逻辑覆盖。
+            const toggle = document.getElementById('doubleResToggle');
+            const hasUploaded = toggle && (document.getElementById('imagePreviewContainer')?.style.display !== 'none'
+                || document.getElementById('restoreFileInfo')?.style.display !== 'none');
+            if (!hasUploaded) {
+                syncResolutionUI({});
+            }
+
+        } catch (e) {
+            console.debug('应用修复页偏好失败:', e);
+        }
+    }
+
+    // 启动加载（DOMContentLoaded 之后脚本位于 body 末尾，所以 DOM 已就绪，直接调用）
+    applyRestorePreferences();
+
+    // ===== 恢复上次修复会话（跨页面持久化） =====
+    if (typeof SeedVR2 !== 'undefined' && typeof SeedVR2.restoreRestoreSession === 'function') {
+        SeedVR2.restoreRestoreSession();
+    }
+
+    // ===== 参数变更 → 自动保存（防抖 500ms，采用 merge 增量保存） =====
+    function _bindAutoSaveListeners() {
+        const sidebar = document.getElementById('paramsSidebar');
+        if (!sidebar) return;
+        const handler = () => _queueSaveRestorePrefs(null, null);
+        const inputs = sidebar.querySelectorAll('input, select, textarea');
+        inputs.forEach((el) => {
+            el.addEventListener('input', handler);
+            el.addEventListener('change', handler);
+        });
+    }
+    _bindAutoSaveListeners();
+
+    // 模式切换标签（单文件/批量）+ URL hash 同步（重构：顶部工具条 + sv-mode-tab-pane）
+    function switchMode(mode) {
+        // 切换 mode-tab 的 active 状态
+        document.querySelectorAll('.sv-mode-tab').forEach(function(tab) {
+            tab.classList.toggle('active', tab.dataset.mode === mode);
+            tab.setAttribute('aria-selected', tab.dataset.mode === mode ? 'true' : 'false');
+        });
+
+        // 显示/隐藏对应的模式面板（sv-mode-tab-pane.active）
+        document.querySelectorAll('[data-mode-pane]').forEach(function(pane) {
+            pane.classList.toggle('active', pane.dataset.modePane === mode);
+        });
+
+        // 批量路径行工具条（内嵌主区顶部）
+        var batchToolbar = document.getElementById('batchToolbar');
+        if (batchToolbar) batchToolbar.style.display = mode === 'batch' ? 'flex' : 'none';
+
+        // 更新 URL hash
+        history.replaceState(null, '', '#' + mode);
+    }
+
+    // 参数面板折叠（桌面端）：折叠后保留右侧「参数」恢复入口，操作可逆
+    var btnToggleParams = document.getElementById('btnToggleParams');
+    var paramsSidebarEl = document.getElementById('paramsSidebar');
+    var sv2BodyEl = document.getElementById('sv2Body');
+    var sbRestoreBtn = document.getElementById('btnRestoreSidebar');
+    function setParamsCollapsed(collapsed) {
+        if (sv2BodyEl) sv2BodyEl.classList.toggle('sv2-sb-collapsed', collapsed);
+        if (paramsSidebarEl) paramsSidebarEl.classList.toggle('collapsed', collapsed);
+        if (sbRestoreBtn) sbRestoreBtn.style.display = collapsed ? 'flex' : 'none';
+        var label = collapsed
+            ? (I['restore.expand_params'] || 'Expand params')
+            : (I['restore.collapse_params'] || 'Collapse params');
+        if (btnToggleParams) { btnToggleParams.setAttribute('aria-label', label); btnToggleParams.setAttribute('title', label); }
+        var icon = document.getElementById('paramCollapseIcon');
+        if (icon) icon.className = collapsed ? 'bi bi-chevron-double-right' : 'bi bi-chevron-double-left';
+    }
+    if (btnToggleParams && paramsSidebarEl) {
+        btnToggleParams.addEventListener('click', function () {
+            setParamsCollapsed(!(sv2BodyEl ? sv2BodyEl.classList.contains('sv2-sb-collapsed') : paramsSidebarEl.classList.contains('collapsed')));
+        });
+    }
+    if (sbRestoreBtn) {
+        sbRestoreBtn.addEventListener('click', function () { setParamsCollapsed(false); });
+    }
+
+    // 画布工具条：一体化操作（对比模式切换 / 清除 / 替换 / 下载兜底 / 文件名显示）
+    function bindCanvasToolbar() {
+        var dl = document.getElementById('btnDownload');
+        if (dl) dl.addEventListener('click', function (e) {
+            if (dl.hasAttribute('disabled')) { e.preventDefault(); return; }
+            var b = document.getElementById('btnDownload');
+            if (b && b.href && b.href !== '#') return; // href 已由 app.js 绑定产物地址
+        });
+
+        // 对比模式开关：图片结果在「对比查看器」与「单图结果」之间切换；视频结果在「视频对比」与「单视频」之间切换
+        var cmp = document.getElementById('btnCanvasCompare');
+        var compareCard = document.getElementById('compareCard');
+        var plainViewer = document.getElementById('plainViewer');
+        var videoCompareCard = document.getElementById('videoCompareCard');
+        var videoPlainViewer = document.getElementById('videoPlainViewer');
+        var compareModeOn = true;
+        if (cmp && compareCard && plainViewer) {
+            cmp.addEventListener('click', function () {
+                if (cmp.hasAttribute('disabled')) return;
+                compareModeOn = !compareModeOn;
+                var videoActive = videoCompareCard && videoCompareCard.style.display !== 'none';
+                if (videoActive) {
+                    // 视频结果：对比查看器 ⇄ 单视频查看器
+                    if (videoCompareCard) videoCompareCard.style.display = compareModeOn ? 'block' : 'none';
+                    if (videoPlainViewer) videoPlainViewer.style.display = compareModeOn ? 'none' : 'flex';
+                    cmp.classList.toggle('active', compareModeOn);
+                    var vV = null;
+                    if (compareModeOn && typeof window.getActiveVideoCompareSlider === 'function') {
+                        try { vV = window.getActiveVideoCompareSlider(); } catch(e) {}
+                    }
+                    if (vV) try { vV._resetView && vV._resetView(); } catch(e) {}
+                } else {
+                    compareCard.style.display = compareModeOn ? 'block' : 'none';
+                    plainViewer.style.display = compareModeOn ? 'none' : 'flex';
+                    cmp.classList.toggle('active', compareModeOn);
+                }
+                // 记住对比模式偏好
+                try {
+                    const _cur = JSON.parse(localStorage.getItem('sv_view_prefs') || '{}');
+                    _cur.compare = compareModeOn;
+                    localStorage.setItem('sv_view_prefs', JSON.stringify(_cur));
+                } catch(e) {}
+            });
+        }
+
+        // 放大镜开关：预览阶段作用于预览查看器，结果阶段作用于对比查看器
+        var mgBtn = document.getElementById('btnMagnifier');
+        if (mgBtn) {
+            mgBtn.addEventListener('click', function () {
+                if (mgBtn.hasAttribute('disabled')) return;
+                var resultCardEl = document.getElementById('resultCard');
+                var inResult = resultCardEl && resultCardEl.style.display !== 'none';
+                var viewer = null;
+                if (inResult && SeedVR2.getActiveCompareSlider) viewer = SeedVR2.getActiveCompareSlider();
+                if (!inResult && SeedVR2.getActivePreviewViewer) viewer = SeedVR2.getActivePreviewViewer();
+                if (!viewer || typeof viewer.setMagnifier !== 'function') return;
+                var turnOn = !viewer.magnifierOn;
+                viewer.setMagnifier(turnOn);
+                mgBtn.classList.toggle('active', turnOn);
+            });
+        }
+
+        // 清除：委托到预览区清除按钮
+        var clearBtn = document.getElementById('btnCanvasClear');
+        var clearImg = document.getElementById('btnClearImage');
+        if (clearBtn && clearImg) {
+            clearBtn.addEventListener('click', function () {
+                clearImg.click();
+                var tbf = document.getElementById('tbFileName');
+                if (tbf) { tbf.style.display = 'none'; tbf.textContent = ''; }
+            });
+        }
+
+        // 替换：直接唤起文件选择（走既有 onFileSelected 流程）
+        var repBtn = document.getElementById('btnCanvasReplace');
+        var fileInputEl = document.getElementById('restoreFileInput');
+        if (repBtn && fileInputEl) {
+            repBtn.addEventListener('click', function () { fileInputEl.click(); });
+        }
+
+        // 文件名显示：选择文件后更新工具条文件名
+        if (fileInputEl) {
+            fileInputEl.addEventListener('change', function () {
+                var tbf = document.getElementById('tbFileName');
+                if (tbf && fileInputEl.files && fileInputEl.files[0]) {
+                    tbf.textContent = fileInputEl.files[0].name;
+                    tbf.style.display = '';
+                }
+            });
+        }
+    }
+    bindCanvasToolbar();
+
+    // ===== 参数方案预设（本地保存 / 切换 / 删除） =====
+    (function initPresets() {
+        const PRESET_KEY = 'sv_restore_presets';
+        const sel = document.getElementById('presetSelect');
+        const btnSave = document.getElementById('btnPresetSave');
+        const btnDel = document.getElementById('btnPresetDelete');
+        if (!sel || !btnSave) return;
+        const loadPresets = () => { try { return JSON.parse(localStorage.getItem(PRESET_KEY) || '[]'); } catch(e) { return []; } };
+        const savePresets = (list) => { try { localStorage.setItem(PRESET_KEY, JSON.stringify(list)); } catch(e) {} };
+        const renderSelect = () => {
+            const list = loadPresets();
+            sel.innerHTML = '<option value="">方案预设</option>' +
+                list.map((p, i) => `<option value="${i}">${SeedVR2.escapeHtml(p.name)}</option>`).join('');
+            if (btnDel) btnDel.disabled = true;
+        };
+        renderSelect();
+        btnSave.addEventListener('click', () => {
+            const name = (window.prompt('方案名称', '方案 ' + (loadPresets().length + 1)) || '').trim();
+            if (!name) return;
+            const list = loadPresets();
+            list.push({ name, values: _collectRestoreFormValues() });
+            savePresets(list);
+            renderSelect();
+            sel.value = String(list.length - 1);
+            if (btnDel) btnDel.disabled = false;
+            SeedVR2.toast('已保存方案「' + name + '」');
+        });
+        sel.addEventListener('change', () => {
+            const idx = sel.value;
+            const list = loadPresets();
+            const p = idx !== '' ? list[Number(idx)] : null;
+            if (btnDel) btnDel.disabled = !p;
+            if (!p) return;
+            _applyRestoreFormValues(p.values);
+            if (typeof syncResolutionUI === 'function') { try { syncResolutionUI(); } catch(e) {} }
+            SeedVR2.toast('已应用方案「' + p.name + '」');
+        });
+        if (btnDel) {
+            btnDel.addEventListener('click', () => {
+                const idx = sel.value;
+                const list = loadPresets();
+                if (idx === '' || !list[Number(idx)]) return;
+                const name = list[Number(idx)].name;
+                list.splice(Number(idx), 1);
+                savePresets(list);
+                renderSelect();
+                SeedVR2.toast('已删除方案「' + name + '」');
+            });
+        }
+    })();
+
+    // ===== 拖入文件夹 → 自动切批量模式并打开目录选择（浏览器限制无法直接读绝对路径） =====
+    (function bindFolderDrop() {
+        const dzEl = document.getElementById('restoreUploadZone');
+        if (!dzEl) return;
+        dzEl.addEventListener('drop', (e) => {
+            let hasDir = false;
+            try {
+                const items = e.dataTransfer && e.dataTransfer.items;
+                if (items && items.length) {
+                    for (let i = 0; i < items.length; i++) {
+                        const entry = items[i].webkitGetAsEntry && items[i].webkitGetAsEntry();
+                        if (entry && entry.isDirectory) { hasDir = true; break; }
+                    }
+                }
+            } catch (err) { /* 忽略 */ }
+            if (!hasDir) return; // 单文件走原有上传流程
+            e.preventDefault();
+            e.stopImmediatePropagation(); // 阻断 setupUploadZone 的单文件处理
+            if (typeof switchMode === 'function') switchMode('batch');
+            SeedVR2.toast('已切换到批量模式，请选择文件夹路径', 'info');
+            SeedVR2.openDirBrowser('', (path) => {
+                const fp = document.getElementById('folderPath');
+                if (fp && path) fp.value = path;
+            });
+        }, true); // capture 阶段优先于 setupUploadZone 的单文件处理
+    })();
+
+    document.querySelectorAll('.sv-mode-tab').forEach(tab => {
+        tab.addEventListener('click', () => switchMode(tab.dataset.mode));
+    });
+
+    // 从 URL hash 恢复模式，默认 single
+    switchMode(location.hash === '#batch' ? 'batch' : 'single');
+
+    // ===== 浮动帮助交互（Canvas v3.1） =====
+    (function() {
+        var floatHelp = document.getElementById('floatHelp');
+        var helpToggle = document.getElementById('helpToggle');
+        var helpClose = document.getElementById('helpClose');
+
+        if (helpToggle && floatHelp) {
+            helpToggle.addEventListener('click', function(e) {
+                e.stopPropagation();
+                var isOpen = floatHelp.classList.toggle('sv-float-help--open');
+                helpToggle.setAttribute('aria-expanded', String(isOpen));
+            });
+        }
+
+        if (helpClose && floatHelp) {
+            helpClose.addEventListener('click', function(e) {
+                e.stopPropagation();
+                floatHelp.classList.remove('sv-float-help--open');
+                if (helpToggle) helpToggle.setAttribute('aria-expanded', 'false');
+            });
+        }
+
+        // 点击外部关闭
+        document.addEventListener('click', function(e) {
+            if (floatHelp && !floatHelp.contains(e.target)) {
+                floatHelp.classList.remove('sv-float-help--open');
+                if (helpToggle) helpToggle.setAttribute('aria-expanded', 'false');
+            }
+        });
+    })();
+});
+</script>
+{% endblock %}
+
+

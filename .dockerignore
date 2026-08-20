@@ -1,6 +1,6 @@
 WPy64-312101/
 data/
-pretrained_models/
+model/
 .trae/
 *.pyc
 __pycache__/

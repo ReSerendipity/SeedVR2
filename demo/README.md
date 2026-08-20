@@ -7,6 +7,7 @@
 - 完整的产品界面交互（与真实 Web UI 同款设计语言）
 - 模拟任务流程：上传 → 进度 → 日志 → 结果
 - 所有结果均为**本地模拟**（内置示例图片 / 浏览器语音引擎），不执行真实模型推理
+- **工作流可视化页面**：展示 SeedVR2 处理管线（预处理 → VAE 编码 → DiT 单步 → 融合/色彩校正 → VAE 解码）与 ComfyUI 工作流对比
 
 ## 本地预览
 
@@ -14,10 +15,14 @@
 
 ## 部署
 
-推送到 `main`（或 `master`）分支后，`.github/workflows/pages-deploy.yml` 会自动把 `demo/` 部署到 GitHub Pages。
+推送到 `main`（或 `master`）分支后，`.github/workflows/pages-deploy.yml` 会自动：
+1. 构建 `website/` 的 VitePress 文档站到 `demo/docs/`
+2. 把整个 `demo/`（含文档站）部署到 GitHub Pages
 
 部署前需要在仓库 Settings → Pages 中把 Source 设置为 **GitHub Actions**（只需一次）。
 
-线上地址：`https://<owner>.github.io/<repo>/`
+线上地址：
+- 模拟演示：`https://<owner>.github.io/<repo>/`
+- 文档站：`https://<owner>.github.io/<repo>/docs/`
 
 > 部署触发记录：2026-08-10 23:52

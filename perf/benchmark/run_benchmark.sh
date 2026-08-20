@@ -5,7 +5,7 @@
 #   ./run_benchmark.sh <test_image_or_video> [label]
 #
 # 前提条件:
-#   1. 已启动 SeedVR2 服务：python bin/clean_launch.py
+#   1. 已启动 SeedVR2 服务：python app/clean_launch.py
 #   2. 测试文件存在且可访问
 #
 # 输出:

@@ -15,7 +15,7 @@
  * Output: screenshots/<viewport>/<theme>/<NN>-<name>.png
  *
  * NOTE: All selectors below are verified against the real templates in
- *       bin/integrated_app/templates/. Only UI-state toggles are clicked
+ *       app/integrated_app/templates/. Only UI-state toggles are clicked
  *       (advanced params, mode tabs, help panel, view toggle, FAQ details,
  *       locale dropdown, mobile nav). Action buttons that trigger real
  *       backend work (start restore, scan folder, start batch) are NOT

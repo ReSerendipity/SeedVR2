@@ -88,7 +88,7 @@ body:
       description: 相关的日志或控制台输出（如有）。请使用 ``` 代码块包裹。
       render: shell
       placeholder: |
-        [2026-08-10 10:00:00] [ERROR] bin.integrated_app.routes.restore.upload: ...
+        [2026-08-10 10:00:00] [ERROR] app.integrated_app.routes.restore.upload: ...
     validations:
       required: false
 
