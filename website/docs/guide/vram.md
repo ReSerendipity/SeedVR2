@@ -21,6 +21,14 @@
 - 通过 PCIe 总线低延迟交换，显著降低显存占用
 - 典型效果：7B 模型配合 BlockSwap 可在 12GB 级显存上运行
 
+### 速度影响详解
+
+| 配置 | 相对速度 | 适用场景 |
+|---|---|---|
+| 无 BlockSwap | ⚡⚡⚡ 基准 | RTX 3060 (12GB)+ |
+| BlockSwap (16 块) | ⚡⚡ 慢 20-30% | RTX 3050 (8GB) |
+| BlockSwap (32 块) | ⚡ 慢 50-70% | GTX 1660 Super (6GB) |
+
 ## 显存配置参考
 
 | 模型 | 精度 | 最低显存 | 备注 |
@@ -30,12 +38,20 @@
 | SeedVR2-7B | FP8 | 12 GB | 可配合 BlockSwap |
 | SeedVR2-7B / Sharp | FP16 | 24 GB | 画质最佳 |
 
+### 实际显存需求参考
+
+| 配置 | 最低显存 | 推荐内存 | 说明 |
+|---|---|---|---|
+| 3B + 无 BlockSwap | 8-16GB | 16GB+ | FP8 文件小，加载后显存与 FP16 相近 |
+| 3B + BlockSwap (16 块) | 6GB | 16GB+ | 平衡方案 |
+| 3B + BlockSwap (32 块) | 4GB | 16GB+ | 最低配置，速度慢 |
+
 ## 相关配置（config.yaml）
 
 ```yaml
 inference:
   attention_mode: sdpa        # 注意力模式（sdpa / flash_attn）
-  fp8_enabled: false          # 是否启用 FP8 精度
+  fp8_enabled: false          # 目前仅影响权重存储格式，推理仍用 FP16/FP32
   blocks_to_swap: 32          # BlockSwap 换出块数
   offload_device: cpu         # 换出目标设备
   vae_tile_size: 1024         # VAE 分块尺寸
