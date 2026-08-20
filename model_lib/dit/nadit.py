@@ -245,7 +245,11 @@ class NaDiT(nn.Module):
         self.head_dim = config.dim // config.num_heads
 
         self.patch_embed = NaPatchifyEmbed(config.in_channels, config.dim, config.patch_size)
-        self.time_embed = TimeEmbedding(config.dim)
+        self.time_embed = TimeEmbedding(
+            sinusoidal_dim=256,
+            hidden_dim=config.dim,
+            output_dim=config.dim * 6,  # AdaLN-Zero 需要 6 组参数
+        )
         self.text_proj = nn.Sequential(
             nn.SiLU(),
             initialize_linear(config.text_dim, config.dim, fp8=config.fp8),
@@ -339,3 +343,5 @@ class NaDiT(nn.Module):
 
         x_vid, x_txt = na_split(x.view(b, -1, x.shape[-1]), vid_lens, txt_lens)
         return unpatchify(x_vid, window_sizes, self.patch_size)
+
+
