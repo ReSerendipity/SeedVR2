@@ -9,7 +9,10 @@ echo   SeedVR2 Video Restoration Toolbox
 echo ============================================
 echo.
 
-:: Detect Python interpreter (prefer system Python, fallback to bundled WinPython)
+:: Python detection priority (user suggested):
+::   1. Project virtual environment (.venv) - most isolated, recommended
+::   2. Bundled WinPython - second best, fully compatible  
+::   3. System Python - last resort, may have conflicts
 set "PYTHON_CMD="
 
 :: ============================================================
