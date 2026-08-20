@@ -21,6 +21,15 @@
 
 **<https://reserendipity.github.io/SeedVR2-lite/>** （由 `.github/workflows/pages-deploy.yml` 自动部署 `demo/` 目录，详见 [demo/README.md](demo/README.md)）
 
+## 🆕 新手必看
+
+**第一次使用？完全不懂技术？**  
+👉 请先阅读 [新手引导](FIRST_TIME_USER_GUIDE.md) —— 从零开始的保姆级教程，包含：
+- 如何获取代码（ZIP 下载 vs Git 克隆）
+- 系统要求和环境检查清单
+- 一步步安装指引（含常见问题解答）
+- 模型下载和启动说明
+
 ---
 
 ## 快速导航
@@ -413,3 +422,4 @@ SeedVR2 的 Web UI **默认仅绑定 `127.0.0.1`**（`config.yaml` 中 `server.h
 
 本项目采用 [Apache License 2.0](LICENSE) 开源协议。
 版权所有 Copyright 2024-2026 ReSerendipity。
+

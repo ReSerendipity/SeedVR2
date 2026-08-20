@@ -1,0 +1,189 @@
+# 🚀 第一次使用 SeedVR2-lite？从这里开始！
+
+> **适合人群**：从未接触过 GitHub、Python 或 AI 工具的新手用户
+
+---
+
+## 📥 第一步：获取项目代码（二选一）
+
+### 方法 A：下载 ZIP（推荐给不懂 Git 的用户）
+
+1. 点击这个链接：**[Download ZIP](https://github.com/ReSerendipity/SeedVR2-lite/archive/refs/heads/main.zip)**
+2. 等待下载完成（约 50-100MB，取决于网速）
+3. 找到下载的 ZIP 文件，**右键 → 解压到当前文件夹**
+4. 进入解压后的文件夹 `SeedVR2-lite-main`
+
+### 方法 B：使用 Git（推荐有技术基础的用户）
+
+```bash
+git clone https://github.com/ReSerendipity/SeedVR2-lite.git
+cd SeedVR2-lite
+```
+
+> 💡 **没装 Git？** 直接使用方法 A 下载 ZIP 即可！
+
+---
+
+## ⚙️ 第二步：检查系统要求
+
+在继续之前，请确认你的电脑满足以下条件：
+
+| 要求 | 说明 | 如何检查 |
+|---|---|---|
+| **Windows 10/11** | 仅支持 Windows（Linux/macOS 用户请看文末） | 按 `Win + Pause` 查看系统版本 |
+| **NVIDIA 显卡** | 必须！至少 8GB 显存（RTX 3060 或以上） | 右键桌面 → NVIDIA 控制面板 → 帮助 → 系统信息 |
+| **Python 3.12** | 项目自带 Python，**不需要单独安装** | 跳过此步，直接用项目自带的 |
+| **磁盘空间** | 至少 25GB 可用空间 | 打开"此电脑"查看 C 盘或 D 盘剩余空间 |
+| **管理员权限** | 安装依赖时需要 | 右键命令行 → "以管理员身份运行" |
+
+> ⚠️ **重要提醒**：
+> - ❌ **不要**把项目放在中文路径下（如 `C:\用户\张三\...`）
+> - ✅ **建议**放在简单路径下，如 `D:\SeedVR2-lite`
+> - ❌ **不要**放在 OneDrive 同步文件夹（会被锁定）
+
+---
+
+## 🔧 第三步：安装依赖（一键搞定）
+
+### Windows 用户
+
+1. **右键点击** `install.bat`
+2. 选择 **"以管理员身份运行"**
+3. 等待安装完成（可能需要 10-30 分钟，取决于网速）
+4. 看到 `Installation complete!` 表示成功
+
+> 💡 **如果窗口闪退**：
+> - 右键 `install.bat` → 编辑
+> - 在最后一行添加 `pause`
+> - 保存后重新运行，这样可以看到错误信息
+
+### 常见问题
+
+#### ❌ 报错："python: command not found"
+**解决**：项目应该自带 Python，如果出错请手动指定：
+```batch
+WPy64-312101\python\python.exe -m pip install -r requirements.txt
+```
+
+#### ❌ 报错："No module named 'pip'"
+**解决**：手动安装 pip：
+```batch
+curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+python get-pip.py
+```
+
+#### ❌ 下载太慢或失败
+**解决**：使用国内镜像源：
+```batch
+set HF_ENDPOINT=https://hf-mirror.com
+install.bat
+```
+
+---
+
+## 🎯 第四步：下载模型权重（最关键！）
+
+**这是最容易出错的一步！** 请仔细阅读：
+
+### 自动下载（推荐）
+
+```batch
+python scripts\download_model.py --size 3b
+```
+
+- 这会下载 3B 模型 + VAE + 文本嵌入（约 20GB）
+- 下载会自动保存到 `model/` 文件夹
+- 可以中断后继续下载
+
+### 手动下载（网络不好时用）
+
+1. 打开 [HuggingFace 模型仓库](https://huggingface.co/numz/SeedVR2_comfyUI/tree/main)
+2. 下载以下文件：
+   - `seedvr2_ema_3b_fp16.safetensors` (约 6GB)
+   - `ema_vae_fp16.safetensors` (约 1GB)
+   - `pos_emb.pt` 和 `neg_emb.pt` (各约 100KB)
+3. 把所有文件放到 `model/` 文件夹（与项目根目录同级）
+
+> 💡 **国内用户加速**：
+> - 使用 [hf-mirror.com](https://hf-mirror.com) 镜像站下载
+> - 或使用百度网盘（如果有分享链接）
+
+---
+
+## ▶️ 第五步：启动应用
+
+1. **双击** `start.bat`
+2. 等待启动（首次启动可能需要 1-2 分钟）
+3. 浏览器会自动打开 http://127.0.0.1:7870
+4. 如果没有自动打开，手动访问该地址
+
+---
+
+## 🆘 遇到错误怎么办？
+
+### 快速自查清单
+
+| 问题 | 可能原因 | 解决方法 |
+|---|---|---|
+| **双击没反应** | 需要管理员权限 | 右键 → 以管理员身份运行 |
+| **ModuleNotFoundError** | 依赖未安装 | 重新运行 `install.bat` |
+| **Model file not found** | 模型未下载 | 执行第四步下载模型 |
+| **CUDA out of memory** | 显存不足 | 改用 FP8 模型或减小分辨率 |
+| **端口被占用** | 7870 端口已使用 | 关闭其他程序或修改 `config.yaml` |
+
+### 获取帮助
+
+如果以上方法都无效，请提供以下信息到 [GitHub Issues](https://github.com/ReSerendipity/SeedVR2-lite/issues)：
+
+1. **你的操作系统版本**（Win+Pause 查看）
+2. **显卡型号和显存大小**（NVIDIA 控制面板查看）
+3. **完整的错误信息**（复制终端输出的所有内容）
+4. **你执行的命令**（例如：`start.bat` 还是 `python app_server.py`）
+
+---
+
+## 📚 进阶阅读
+
+- [完整文档站](https://reserendipity.github.io/SeedVR2-lite/docs/) - 详细的安装和使用指南
+- [模型选型指南](https://reserendipity.github.io/SeedVR2-lite/docs/guide/models.html) - 根据你的显卡选择合适模型
+- [常见问题 FAQ](https://reserendipity.github.io/SeedVR2-lite/docs/guide/faq.html) - 更多问题的解答
+
+---
+
+## 🌏 Linux/macOS 用户
+
+虽然项目主要针对 Windows，但 Linux/macOS 用户也可以运行：
+
+```bash
+# 1. 克隆或下载项目
+git clone https://github.com/ReSerendipity/SeedVR2-lite.git
+cd SeedVR2-lite
+
+# 2. 安装依赖
+chmod +x install.sh
+./install.sh
+
+# 3. 下载模型
+python scripts/download_model.py --size 3b
+
+# 4. 启动
+./start.sh
+```
+
+> ⚠️ 注意：Linux/macOS 可能需要额外配置 CUDA 环境，详见 [官方文档](https://reserendipity.github.io/SeedVR2-lite/docs/guide/install.html)
+
+---
+
+## ✅ 验证安装成功
+
+运行以下命令检查所有组件是否正常：
+
+```batch
+python scripts\verify_engine.py
+```
+
+如果看到所有绿色勾 ✓，说明安装成功！🎉
+
+---
+
+**祝你使用愉快！** 如有问题随时联系我们。
