@@ -60,17 +60,26 @@ cd SeedVR2-lite
 
 ### 常见问题
 
-#### ❌ 报错："python: command not found"
-**解决**：项目应该自带 Python，如果出错请手动指定：
+
+### 常见问题
+
+#### ❌ 报错："python: command not found" 或 "No module named pip"
+
+**解决**：项目**不自带** Python！请先安装 Python 3.12+：
+
+**方法 1：安装官方 Python（推荐）**
+- 下载地址：https://www.python.org/downloads/
+- 选择 Python 3.12.x
+- **安装时务必勾选 Add Python to PATH**
+
+**方法 2：使用 WinPython（完全隔离）**
+- 下载：https://sourceforge.net/projects/winpython/files/
+- 下载 WPy64-312101.zip
+- 解压到项目根目录（与 install.bat 同级）
+
+如果已安装 Python 但仍报错，尝试手动指定：
 ```batch
 WPy64-312101\python\python.exe -m pip install -r requirements.txt
-```
-
-#### ❌ 报错："No module named 'pip'"
-**解决**：手动安装 pip：
-```batch
-curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
-python get-pip.py
 ```
 
 #### ❌ 下载太慢或失败
@@ -187,7 +196,7 @@ python scripts/download_model.py --size 3b
 python scripts\download_model.py --size 3b --precision fp8
 ```
 
-- 3B-FP8 最低只需 **6GB 显存**（关闭 BlockSwap）
+- 3B-FP8 文件体积更小，下载更快（但推理显存占用与 FP16 相近）
 - 画质损失很小（SSIM > 0.95）
 
 ### 方案 2：开启 BlockSwap（用内存换显存）
@@ -208,17 +217,28 @@ inference:
 - 最大分辨率：1024×1024（而不是默认的 2048×2048）
 - 视频帧数：减少到 16 帧（默认 32 帧）
 
-### 显存需求参考表
+### 显存与速度关系说明
 
-| 模型 | 精度 | BlockSwap | 最低显存 | 系统内存 | 速度 |
-|---|---|---|---|---|---|
-| 3B | FP16 | 关闭 | 16GB | 32GB | ⚡⚡⚡ 最快 |
-| 3B | FP8 | 关闭 | 8GB | 16GB | ⚡⚡ 快 |
-| 3B | FP8 | 开启 (16 块) | 6GB | 16GB | ⚡ 中等 |
-| 3B | FP8 | 开启 (32 块) | 4GB | 16GB | 🐌 慢 |
-| 7B | FP8 | 开启 (32 块) | 8GB | 32GB | ⚡ 中等 |
+> ⚠️ **重要说明**：当前项目的 FP8 实现**仅用于权重存储格式**，推理时仍按 FP16/FP32 计算。
+> 因此**FP8 模型和 FP16 模型的推理速度基本相同**。真正影响速度的是 BlockSwap 和分辨率。
 
-> 💡 **提示**：如果显存不足，**优先尝试 3B-FP8 + BlockSwap**，这是性价比最高的方案。
+| 配置 | 最低显存 | 系统内存要求 | 相对速度 | 适用场景 |
+|---|---|---|---|---|
+| 3B (无 BlockSwap) | 8-16GB | 16GB+ | ⚡⚡⚡ 基准 | RTX 3060 (12GB) 或以上 |
+| 3B + BlockSwap (16 块) | 6GB | 16GB+ | ⚡⚡ 慢 20-30% | RTX 3050 (8GB) |
+| 3B + BlockSwap (32 块) | 4GB | 16GB+ | ⚡ 慢 50-70% | GTX 1660 Super (6GB) |
+| 7B + BlockSwap (32 块) | 8GB | 32GB+ | ⚡ 慢 60-80% | RTX 3070 (8GB) |
+
+**速度影响因素排序**（从大到小）：
+1. **BlockSwap 开启**：降低 20-70%（取决于交换块数）
+2. **分辨率提高**：2048×2048 比 1024×1024 慢 3-4 倍
+3. **视频帧数增加**：32 帧比 16 帧慢 1.5-2 倍
+4. **FP8 vs FP16**：**几乎无差异**（当前未实现真正的 FP8 计算）
+
+> 💡 **实用建议**：
+> - **显存充足 (≥12GB)**：关闭 BlockSwap，用 3B-FP16，速度最快
+> - **显存中等 (8-10GB)**：开启 BlockSwap (16 块)，平衡速度与可用性
+> - **显存紧张 (4-6GB)**：开启 BlockSwap (32 块) + 降低分辨率，能跑起来最重要
 ## ✅ 验证安装成功
 
 运行以下命令检查所有组件是否正常：
