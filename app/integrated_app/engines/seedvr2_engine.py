@@ -761,33 +761,29 @@ class SeedVR2Engine(
                     attention_mode=attention_mode or "sdpa",
                 )
             elif model_size == "7b":
-                from model_lib.dit.nadit import NaDiT
+                from model_lib.dit.nadit import NaDiT, NaDiTConfig
 
-                model = NaDiT(
-                    vid_in_channels=dit_config["vid_in_channels"],
-                    vid_out_channels=dit_config["vid_out_channels"],
-                    vid_dim=dit_config["vid_dim"],
-                    txt_in_dim=dit_config["txt_in_dim"],
-                    txt_dim=dit_config["txt_dim"],
-                    emb_dim=dit_config["emb_dim"],
-                    heads=dit_config["heads"],
-                    head_dim=dit_config["head_dim"],
-                    expand_ratio=dit_config["expand_ratio"],
-                    norm=dit_config["norm"],
-                    norm_eps=dit_config["norm_eps"],
-                    ada=dit_config["ada"],
-                    qk_bias=dit_config["qk_bias"],
-                    qk_rope=dit_config.get("qk_rope", True),
-                    qk_norm=dit_config["qk_norm"],
+                # 将 dit_config 映射到 NaDiTConfig 参数
+                config = NaDiTConfig(
+                    in_channels=dit_config["vid_in_channels"],
                     patch_size=dit_config["patch_size"],
-                    num_layers=num_layers,
-                    block_type=dit_config["block_type"],
-                    shared_qkv=dit_config.get("shared_qkv", False),
-                    shared_mlp=dit_config.get("shared_mlp", False),
+                    depth=num_layers,
+                    dim=dit_config["vid_dim"],
+                    num_heads=dit_config["heads"],
+                    mlp_expand_ratio=dit_config["expand_ratio"],
                     mlp_type=dit_config.get("mlp_type", "normal"),
-                    window=dit_config.get("window"),
-                    window_method=window_method,
+                    norm_type=dit_config["norm"],
+                    ada_layer=dit_config["ada"],
+                    text_dim=dit_config["txt_dim"],
+                    rope_theta_t=dit_config.get("rope_theta_t", 3600),
+                    rope_theta_h=dit_config.get("rope_theta_h", 3600),
+                    rope_theta_w=dit_config.get("rope_theta_w", 3600),
+                    rope_dim=dit_config.get("rope_dim"),
+                    block_type=dit_config["block_type"],
+                    window_size=dit_config.get("window"),
+                    fp8=dit_config.get("fp8", False),
                 )
+                model = NaDiT(config)
             else:
                 raise ValueError(f"未知模型大小: {model_size}")
 
@@ -1184,3 +1180,4 @@ class SeedVR2Engine(
     # ------------------------------------------------------------------
     # 内部方法 - VAE 编解码
     # ------------------------------------------------------------------
+
