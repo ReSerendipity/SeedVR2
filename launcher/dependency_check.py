@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import time
 from dataclasses import dataclass
 
 TORCH_PACKAGES = ["torch", "torchvision", "torchaudio"]
@@ -18,13 +19,20 @@ TORCH_INDEXES = {
     "aliyun-cu128": "https://mirrors.aliyun.com/pytorch-wheels/cu128",
 }
 
-_PROBE_CODE = (
-    "import json, importlib.util as u;"
-    "r={};"
-    "for p in ['torch','torchvision','torchaudio']:"
-    "  r[p] = getattr(__import__(p), '__version__', None) if u.find_spec(p) else None;"
-    "print(json.dumps(r))"
-)
+# 逐包 try/except：单个包（如 torch DLL）导入失败不会拖垮整个探测，
+# 其它包仍能正常上报。注意必须用真实换行（-c 支持多行脚本），
+# 单行里不允许 for:try: 这种复合语句嵌套。
+_PROBE_CODE = "\n".join([
+    "import json, importlib.util as u",
+    "r = {}",
+    "for p in ['torch', 'torchvision', 'torchaudio']:",
+    "    try:",
+    "        m = __import__(p) if u.find_spec(p) else None",
+    "        r[p] = getattr(m, '__version__', None) if m else None",
+    "    except Exception:",
+    "        r[p] = None",
+    "print(json.dumps(r))",
+])
 _CUDA_CODE = "import torch; print(torch.cuda.is_available())"
 
 
@@ -37,24 +45,39 @@ class TorchCheckResult:
 
 
 def run_python_code(python_exe: str, code: str, timeout: int = 120) -> tuple[int, str]:
-    """在指定 Python 中执行代码，返回 (exit_code, stdout.strip())。"""
+    """在指定 Python 中执行代码，返回 (exit_code, 输出文本)。
+
+    stdout 为空时回退显示 stderr，便于诊断子进程内的导入错误。
+    """
     try:
         proc = subprocess.run(
-            [python_exe, "-c", code], capture_output=True, text=True, timeout=timeout,
+            [python_exe, "-c", code],
+            capture_output=True, text=True, timeout=timeout,
+            encoding="utf-8", errors="replace",
         )
-        return proc.returncode, proc.stdout.strip()
-    except (OSError, subprocess.SubprocessError):
-        return 1, ""
+        out = (proc.stdout or proc.stderr or "").strip()
+        return proc.returncode, out
+    except (OSError, subprocess.SubprocessError) as exc:
+        return 1, str(exc)
 
 
 def check_torch(python_exe: str) -> TorchCheckResult:
-    exit_code, out = run_python_code(python_exe, _PROBE_CODE)
+    """探测 torch 家族安装状态。Windows 下 torch 子进程导入偶发失败，重试 3 次。"""
     versions: dict = {}
-    if exit_code == 0 and out:
-        try:
-            versions = json.loads(out.splitlines()[-1])
-        except json.JSONDecodeError:
-            versions = {}
+    last_out = ""
+    for _ in range(3):
+        exit_code, out = run_python_code(python_exe, _PROBE_CODE)
+        last_out = out
+        if exit_code == 0 and out:
+            try:
+                parsed = json.loads(out.splitlines()[-1])
+                if isinstance(parsed, dict):
+                    versions = parsed
+                    break
+            except json.JSONDecodeError:
+                versions = {}
+        time.sleep(1)
+
     installed = bool(versions.get("torch"))
 
     cuda = False
@@ -67,7 +90,7 @@ def check_torch(python_exe: str) -> TorchCheckResult:
         if not cuda:
             msg += "（警告：CUDA 不可用）"
     else:
-        msg = "torch 未安装"
+        msg = f"torch 未安装（探测输出: {last_out[:120] or '无'}）"
     return TorchCheckResult(installed=installed, versions=versions, cuda_available=cuda, message=msg)
 
 

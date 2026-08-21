@@ -91,6 +91,18 @@ $("btn-torch").onclick = async () => {
 };
 $("btn-verify").onclick = async () => { await syncState(); };
 
+// 跳过 torch 安装（复用已有环境：.venv / 系统已装 torch）
+$("btn-torch-skip").onclick = async () => {
+  $("torch-log").textContent = "正在复核 torch 环境…";
+  const r = await api("/api/torch/skip", { method: "POST" });
+  $("torch-log").textContent = (r.ok ? "✅ " : "❌ ") + (r.message || JSON.stringify(r));
+  if (r.ok) {
+    $("torch-bar").style.width = "100%";
+    $("btn-verify").classList.remove("hidden");
+    await syncState();
+  }
+};
+
 // 模型
 $("btn-models").onclick = async () => { await syncState(); };
 

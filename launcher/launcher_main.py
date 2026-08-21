@@ -29,15 +29,20 @@ def install_dir() -> Path:
 
 
 def find_portable_python(root: Path) -> Path:
-    """定位便携 Python（兼容 WinPython 多种目录结构，逻辑对齐 clean_launch.py）。
+    """定位便携 Python（优先项目虚拟环境，兼容 WinPython 多种目录结构）。
 
-    依次尝试：
+    优先级（对齐 start.bat）：
+    0. {root}/.venv/Scripts/python.exe（开发模式/用户已用 uv 装好依赖时直接复用）
     1. WPy64-312101/python/python.exe（标准布局）
     2. WPy64-*/python/python.exe
     3. WPy64-*/python-*.amd64/python.exe（WinPython dot 变体布局）
     4. 递归兜底搜索任一 python.exe
     找不到时返回默认路径（供报错信息使用）。
     """
+    venv = root / ".venv" / "Scripts" / "python.exe"
+    if venv.exists():
+        return venv
+
     bases: list[Path] = []
     wp = root / "WPy64-312101"
     if wp.is_dir():
