@@ -8,6 +8,7 @@ from launcher.env_check import (
     check_env,
     _parse_nvidia_smi,
     _parse_nvidia_mem,
+    _parse_nvidia_query,
     _check_disk_space,
 )
 
@@ -24,15 +25,25 @@ def test_parse_nvidia_smi_detects_gpu():
     assert res["cuda_version"] == "13.3"
 
 
-def test_parse_nvidia_smi_cuda_umd_format():
-    # 新版驱动使用 "CUDA UMD Version" 头（同 install.bat 处理逻辑）
+def test_parse_nvidia_smi_kmt_umd_format():
+    # 新版驱动（610.xx）使用 "KMD Version" + "CUDA UMD Version" 头
     out = (
-        "NVIDIA-SMI 572.83  Driver Version: 572.83  CUDA UMD Version: 13.3\n"
-        "|  NVIDIA GeForce RTX 5070                 ...\n"
+        "NVIDIA-SMI 610.88  KMD Version: 610.88  CUDA UMD Version: 13.3\n"
+        "|   0  NVIDIA GeForce RTX 5070 Ti Laptop GPU ...\n"
     )
     res = _parse_nvidia_smi(out)
-    assert res["driver_version"] == "572.83"
+    assert res["driver_version"] == "610.88"
     assert res["cuda_version"] == "13.3"
+
+
+def test_parse_nvidia_query_name_and_vram():
+    name, vram = _parse_nvidia_query("NVIDIA GeForce RTX 5070 Ti Laptop GPU, 12227 MiB")
+    assert name == "NVIDIA GeForce RTX 5070 Ti Laptop GPU"
+    assert vram == 11.9
+
+
+def test_parse_nvidia_query_empty():
+    assert _parse_nvidia_query("") == (None, None)
 
 
 def test_parse_nvidia_smi_no_gpu():
