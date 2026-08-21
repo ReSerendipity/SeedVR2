@@ -1,0 +1,61 @@
+# .github/workflows/desktop-release.yml
+# tag 触发（如 v1.0.0）：构建启动器 → 预装小依赖 → 编译安装包 → GPG 签名 → 上传 Release
+name: Desktop Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 下载便携 WinPython
+        shell: powershell
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/winpython/winpython/releases/download/..." -OutFile WPy.zip
+          Expand-Archive WPy.zip -DestinationPath WPy64-312101
+
+      - name: 预装小依赖（torch 家族除外）
+        shell: powershell
+        run: |
+          .\WPy64-312101\python\python.exe -m pip install --upgrade pip
+          .\WPy64-312101\python\python.exe -m pip install -r launcher\requirements-small.txt --timeout 300 --retries 3
+
+      - name: 构建启动器
+        shell: powershell
+        run: |
+          python -m pip install pyinstaller
+          python -m PyInstaller --noconfirm --onefile --windowed --name SeedVR2 --paths . launcher\launcher_main.py
+
+      - name: 编译安装包（ISCC）
+        shell: powershell
+        run: |
+          Invoke-WebRequest -Uri "https://jrsoftware.org/download.php/is.exe" -OutFile is.exe
+          .\is.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" launcher\installer.iss
+
+      - name: 生成 SHA256SUMS 并签名
+        shell: powershell
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
+        run: |
+          Get-FileHash dist\SeedVR2-Setup-*.exe -Algorithm SHA256 | ForEach-Object {
+            "$($_.Hash.ToLower())  $([System.IO.Path]::GetFileName($_.Path))"
+          } | Set-Content dist\SHA256SUMS
+          # 复用现有 gpg 逻辑（需在 runner 导入私钥后执行 detach-sign）
+
+      - name: 上传 Release 附件
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $exe = Get-ChildItem dist\SeedVR2-Setup-*.exe | Select-Object -First 1
+          gh release upload $tag "$($exe.FullName)" dist\SHA256SUMS --clobber
