@@ -20,11 +20,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 下载便携 WinPython 3.12.4.1（项目已知可用地址）
+      - name: 下载便携 WinPython 3.12.10.1（GitHub Release 资产）
         shell: powershell
         run: |
-          $url = "https://github.com/winpython/winpython/releases/download/8.2.20240618/Winpython64-3.12.4.1.exe"
-          Invoke-WebRequest -Uri $url -OutFile WPy.exe
+          $url = "https://github.com/winpython/winpython/releases/download/16.5.20250614/Winpython64-3.12.10.1dotb4.exe"
+          $ok = $false
+          foreach ($i in 1..3) {
+            try {
+              Invoke-WebRequest -Uri $url -OutFile WPy.exe -UseBasicParsing -TimeoutSec 300
+              $ok = $true
+              break
+            } catch {
+              Write-Output "download attempt $i failed: $($_.Exception.Message)"
+              Start-Sleep -Seconds 5
+            }
+          }
+          if (-not $ok) { throw "WinPython download failed after 3 attempts" }
           Write-Output "downloaded WPy.exe size: $((Get-Item WPy.exe).Length)"
 
       - name: 解压 WinPython 到 WPy64-312101
