@@ -13,7 +13,8 @@ AI 驱动的视频 / 图片超分辨率修复工具，全部在本机运行。
 ## ⚠️ 使用前须知
 
 - 需要 **NVIDIA 显卡**（不支持 CPU 修复）
-- 首次完整安装需下载约 2.5GB 的 torch 依赖 + 模型权重，请预留 ≥ 50GB 磁盘空间
+- 磁盘空间：**最小约 20GB**（默认 3B FP8 模型），想用 7B 全精度模型请预留 **50GB**
+- 首次完整安装需下载约 2.5GB 的 torch 依赖 + 模型权重，请耐心等待
 - 遇到问题请看 [新手引导](https://reserendipity.github.io/SeedVR2-lite/docs/) 或提交 [Issue](https://github.com/ReSerendipity/SeedVR2-lite/issues)
 
 ---
