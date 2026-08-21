@@ -67,9 +67,14 @@ jobs:
       - name: 编译安装包（ISCC）
         shell: powershell
         run: |
-          Invoke-WebRequest -Uri "https://jrsoftware.org/download.php/is.exe" -OutFile is.exe
-          .\is.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" launcher\installer.iss
+          # 从 GitHub Release 下载 Inno Setup 6.7.3（jrsoftware.org 在 runner 上连不上）
+          $url = "https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe"
+          Invoke-WebRequest -Uri $url -OutFile is.exe -UseBasicParsing -TimeoutSec 300
+          Start-Process -FilePath ".\is.exe" -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait
+          $iscc = Get-ChildItem "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe","${env:ProgramFiles}\Inno Setup 6\ISCC.exe","${env:LOCALAPPDATA}\Programs\Inno Setup 6\ISCC.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $iscc) { throw "ISCC.exe not found after install" }
+          Write-Output "ISCC: $($iscc.FullName)"
+          & $iscc.FullName launcher\installer.iss
           Get-ChildItem dist\SeedVR2-Setup-*.exe | Select-Object Name, Length
 
       - name: 生成 SHA256SUMS
