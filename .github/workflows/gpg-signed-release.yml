@@ -58,7 +58,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
 
       - name: Import GPG key
-        if: secrets.GPG_PRIVATE_KEY != ''
+        if: env.GPG_PRIVATE_KEY != ''
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         run: |
           echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --dearmor --import
           echo "default-cache-ttl=3600" > ~/.gnupg/gpg-agent.conf
@@ -85,7 +87,9 @@ jobs:
           echo "sha256_content=$(cat ../SHA256SUMS)" >> $GITHUB_OUTPUT
 
       - name: GPG sign SHA256SUMS
-        if: steps.sha256.outputs.sha256_content != '' && secrets.GPG_PRIVATE_KEY != ''
+        if: steps.sha256.outputs.sha256_content != '' && env.GPG_PRIVATE_KEY != ''
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         run: |
           gpg --batch --yes --passphrase-fd 0 --pinentry-mode loopback \
             --local-user "${{ secrets.GPG_KEY_ID }}" \
