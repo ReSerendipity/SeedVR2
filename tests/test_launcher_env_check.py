@@ -24,6 +24,17 @@ def test_parse_nvidia_smi_detects_gpu():
     assert res["cuda_version"] == "13.3"
 
 
+def test_parse_nvidia_smi_cuda_umd_format():
+    # 新版驱动使用 "CUDA UMD Version" 头（同 install.bat 处理逻辑）
+    out = (
+        "NVIDIA-SMI 572.83  Driver Version: 572.83  CUDA UMD Version: 13.3\n"
+        "|  NVIDIA GeForce RTX 5070                 ...\n"
+    )
+    res = _parse_nvidia_smi(out)
+    assert res["driver_version"] == "572.83"
+    assert res["cuda_version"] == "13.3"
+
+
 def test_parse_nvidia_smi_no_gpu():
     res = _parse_nvidia_smi("NVIDIA-SMI has failed because it couldn't communicate")
     assert res["gpu_found"] is False

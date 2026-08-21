@@ -10,6 +10,12 @@ import sys
 import webbrowser
 from pathlib import Path
 
+# 开发模式直接运行脚本（python launcher/launcher_main.py）时，脚本所在目录会被设为
+# sys.path[0]，项目根不在路径中，导致 `from launcher.*` 导入失败；这里显式补上项目根。
+# 打包后（PyInstaller）依赖内置于 exe，此插入无害。
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from launcher.bootstrap_server import Router, start_server
 from launcher.setup_state import SetupState
 

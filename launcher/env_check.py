@@ -70,12 +70,19 @@ def _parse_nvidia_mem(output: str) -> float | None:
 
 
 def _parse_nvidia_smi(output: str) -> dict:
-    """从 nvidia-smi 输出解析 GPU 名称与驱动/CUDA 版本。"""
+    """从 nvidia-smi 输出解析 GPU 名称与驱动/CUDA 版本。
+
+    兼容新旧两种驱动头格式：
+    - 旧：Driver Version: 572.83   CUDA Version: 13.3
+    - 新：Driver Version: 572.83   CUDA UMD Version: 13.3
+    """
     result = {"gpu_found": False, "gpu_name": None, "driver_version": None, "cuda_version": None}
-    header = re.search(r"Driver Version:\s*([\d.]+)\s+CUDA Version:\s*([\d.]+)", output)
-    if header:
-        result["driver_version"] = header.group(1)
-        result["cuda_version"] = header.group(2)
+    drv = re.search(r"Driver Version:\s*([\d.]+)", output)
+    if drv:
+        result["driver_version"] = drv.group(1)
+    cuda = re.search(r"CUDA\s+(?:UMD\s+)?Version:\s*([\d.]+)", output)
+    if cuda:
+        result["cuda_version"] = cuda.group(1)
     # 真实 nvidia-smi 的 GPU 行形如 "|   0  NVIDIA GeForce RTX 3060        On  | ..."，
     # 百分比（如 30%）在名称行的下一行；名称后跟多空格列分隔或行尾。
     # 排除头部 "NVIDIA-SMI" 行（避免误把头部当 GPU 名）。
