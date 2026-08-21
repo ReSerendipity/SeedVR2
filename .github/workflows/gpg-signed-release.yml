@@ -84,10 +84,11 @@ jobs:
           cd release-assets
           sha256sum * > ../SHA256SUMS
           cat ../SHA256SUMS
-          echo "sha256_content=$(cat ../SHA256SUMS)" >> $GITHUB_OUTPUT
+          # 注意：GITHUB_OUTPUT 不支持多行值，只输出单行布尔标记
+          echo "ok=true" >> $GITHUB_OUTPUT
 
       - name: GPG sign SHA256SUMS
-        if: steps.sha256.outputs.sha256_content != '' && env.GPG_PRIVATE_KEY != ''
+        if: steps.sha256.outputs.ok == 'true' && env.GPG_PRIVATE_KEY != ''
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         run: |
@@ -99,7 +100,7 @@ jobs:
           gpg --verify SHA256SUMS.gpg SHA256SUMS
 
       - name: Upload SHA256SUMS and signature
-        if: steps.sha256.outputs.sha256_content != ''
+        if: steps.sha256.outputs.ok == 'true'
         run: |
           if [ -f SHA256SUMS.gpg ]; then
             gh release upload "${{ steps.tag.outputs.tag }}" SHA256SUMS SHA256SUMS.gpg --clobber
@@ -110,7 +111,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
 
       - name: Update release body with verification instructions
-        if: steps.sha256.outputs.sha256_content != ''
+        if: steps.sha256.outputs.ok == 'true'
         run: |
           cat > verification_note.md << 'EOF'
 
