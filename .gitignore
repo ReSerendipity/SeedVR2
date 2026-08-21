@@ -11,6 +11,10 @@ build/
 *.tar.gz
 *.zip
 
+# Launcher runtime state / PyInstaller spec (local build artifacts)
+.setup_state.json
+*.spec
+
 # WinPython environment (local Python distribution, ~5GB)
 WPy64-*/
 WinPython/
