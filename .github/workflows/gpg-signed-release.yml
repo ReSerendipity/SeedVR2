@@ -3,13 +3,16 @@
 # 在 GitHub Release 发布时自动生成 SHA256SUMS 文件并用 GPG 签名，
 # 防止供应链投毒 (CWE-912)。
 #
-# 使用前提:
-#   1. 在 GitHub Repository Settings > Secrets and variables > Actions 中配置:
-#      - GPG_PRIVATE_KEY: GPG 私钥 (gpg --export-secret-keys --armor KEY_ID)
-#      - GPG_PASSPHRASE: GPG 私钥密码
-#      - GPG_KEY_ID: GPG 密钥 ID (可选，自动从私钥提取)
-#   2. 创建 tag: git tag -s v1.0.0  (使用 -s 签名 tag)
-#   3. 推送 tag: git push origin v1.0.0
+# 触发方式:
+#   - release: published（自动，仅当 Release 由非 GITHUB_TOKEN 创建时才会触发；
+#     由 Actions 内 gh release create 创建的 Release 不会触发本事件）
+#   - workflow_dispatch（手动，输入要签名的 tag；留空则取最新 Release）
+#
+# 使用前提（仓库 Settings > Secrets and variables > Actions）:
+#   - GPG_PRIVATE_KEY: GPG 私钥 (gpg --export-secret-keys --armor KEY_ID)
+#   - GPG_PASSPHRASE: GPG 私钥密码
+#   - GPG_KEY_ID: GPG 密钥 ID（可选，自动从私钥提取）
+# 未配置 GPG secrets 时本工作流仍会生成并上传 SHA256SUMS，只是跳过签名。
 #
 # 用户验证方式:
 #   gpg --verify SHA256SUMS.gpg SHA256SUMS
@@ -18,6 +21,12 @@
 name: GPG-Signed Release
 
 on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "要签名的 Release tag（留空取最新 Release）"
+        required: false
+        default: ""
   release:
     types: [published]
 
@@ -33,7 +42,23 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Determine tag
+        id: tag
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          if [ -z "$TAG" ]; then
+            TAG="${{ inputs.tag }}"
+          fi
+          if [ -z "$TAG" ]; then
+            TAG=$(gh release list --limit 1 --json tagName --jq '.[0].tagName')
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Signing release: $TAG"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Import GPG key
+        if: secrets.GPG_PRIVATE_KEY != ''
         run: |
           echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --dearmor --import
           echo "default-cache-ttl=3600" > ~/.gnupg/gpg-agent.conf
@@ -45,13 +70,14 @@ jobs:
         id: download
         run: |
           mkdir -p release-assets
-          gh release download ${{ github.event.release.tag_name }} --dir release-assets --clobber
+          gh release download "${{ steps.tag.outputs.tag }}" --dir release-assets --clobber
           echo "asset_count=$(ls release-assets | wc -l)" >> $GITHUB_OUTPUT
         env:
           GH_TOKEN: ${{ github.token }}
 
       - name: Generate SHA256SUMS
         id: sha256
+        if: steps.download.outputs.asset_count != '0'
         run: |
           cd release-assets
           sha256sum * > ../SHA256SUMS
@@ -59,44 +85,52 @@ jobs:
           echo "sha256_content=$(cat ../SHA256SUMS)" >> $GITHUB_OUTPUT
 
       - name: GPG sign SHA256SUMS
+        if: steps.sha256.outputs.sha256_content != '' && secrets.GPG_PRIVATE_KEY != ''
         run: |
           gpg --batch --yes --passphrase-fd 0 --pinentry-mode loopback \
-            --local-user ${{ secrets.GPG_KEY_ID }} \
+            --local-user "${{ secrets.GPG_KEY_ID }}" \
             --output SHA256SUMS.gpg \
             --detach-sign SHA256SUMS <<< "${{ secrets.GPG_PASSPHRASE }}"
           echo "GPG signature created:"
           gpg --verify SHA256SUMS.gpg SHA256SUMS
 
       - name: Upload SHA256SUMS and signature
+        if: steps.sha256.outputs.sha256_content != ''
         run: |
-          gh release upload ${{ github.event.release.tag_name }} \
-            SHA256SUMS SHA256SUMS.gpg --clobber
+          if [ -f SHA256SUMS.gpg ]; then
+            gh release upload "${{ steps.tag.outputs.tag }}" SHA256SUMS SHA256SUMS.gpg --clobber
+          else
+            gh release upload "${{ steps.tag.outputs.tag }}" SHA256SUMS --clobber
+          fi
         env:
           GH_TOKEN: ${{ github.token }}
 
       - name: Update release body with verification instructions
+        if: steps.sha256.outputs.sha256_content != ''
         run: |
           cat > verification_note.md << 'EOF'
-          
+
           ---
-          
+
           ## 🔐 完整性验证
-          
-          下载 `SHA256SUMS` 和 `SHA256SUMS.gpg` 后执行:
-          
+
+          下载 `SHA256SUMS` 后执行:
+
           ```bash
-          # 1. 导入 GPG 公钥 (首次)
-          gpg --keyserver keyserver.ubuntu.com --recv-keys ${{ secrets.GPG_KEY_ID }}
-          
-          # 2. 验证签名
-          gpg --verify SHA256SUMS.gpg SHA256SUMS
-          
-          # 3. 验证文件哈希
+          # 1. 校验文件哈希
           sha256sum -c SHA256SUMS
           ```
+
+          ```bash
+          # 2.（可选）GPG 校验签名——先导入 GPG 公钥（首次）
+          gpg --keyserver keyserver.ubuntu.com --recv-keys ${{ secrets.GPG_KEY_ID }}
+
+          # 3. 验证签名（若已提供 SHA256SUMS.gpg）
+          gpg --verify SHA256SUMS.gpg SHA256SUMS
+          ```
           EOF
-          
-          gh release edit ${{ github.event.release.tag_name }} \
-            --notes-file <(cat <(gh release view ${{ github.event.release.tag_name }} --json body -q .body) verification_note.md)
+
+          gh release edit "${{ steps.tag.outputs.tag }}" \
+            --notes-file <(cat <(gh release view "${{ steps.tag.outputs.tag }}" --json body -q .body) verification_note.md)
         env:
           GH_TOKEN: ${{ github.token }}
