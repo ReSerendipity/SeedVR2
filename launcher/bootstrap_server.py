@@ -96,6 +96,7 @@ class Router:
         self.get("/api/status", lambda: {
             "env": env_result["data"],
             "torch_ready": state.torch_ready,
+            "smoke_test_passed": state.get("smoke_test_passed", False),
             "models": check_models(model_dir).to_dict(),
         })
 
