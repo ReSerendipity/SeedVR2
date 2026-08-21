@@ -123,4 +123,10 @@ jobs:
           $exe = Get-ChildItem dist\SeedVR2-Setup-*.exe | Select-Object -First 1
           # release-please 可能已创建 Release，已存在则忽略
           gh release create $tag --title "$tag" --generate-notes 2>$null
+          # 组装发布说明：新手安装指引（顶部）+ 自动 changelog
+          $body = gh release view $tag --json body -q .body 2>$null
+          $intro = Get-Content -Raw launcher\release-notes-intro.md
+          $bodyFile = Join-Path $env:RUNNER_TEMP "relbody.md"
+          ($intro + "`n" + $body) | Set-Content -Path $bodyFile -Encoding utf8
+          gh release edit $tag --notes-file $bodyFile
           gh release upload $tag "$($exe.FullName)" dist\SHA256SUMS --clobber

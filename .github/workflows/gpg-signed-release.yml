@@ -117,22 +117,19 @@ jobs:
 
           ---
 
-          ## 🔐 完整性验证
+          ## 🔐 完整性校验（可选，普通用户可跳过）
 
-          下载 `SHA256SUMS` 后执行:
+          直接下载安装即可，**无需任何校验**。以下仅面向进阶用户，用于确认下载的安装包未被篡改：
+
+          1. 下载 `SHA256SUMS`，与安装包放在同一目录
+          2. 执行校验（Windows 可在 Git Bash / WSL 中运行）：
 
           ```bash
-          # 1. 校验文件哈希
           sha256sum -c SHA256SUMS
           ```
 
-          ```bash
-          # 2.（可选）GPG 校验签名——先导入 GPG 公钥（首次）
-          gpg --keyserver keyserver.ubuntu.com --recv-keys ${{ secrets.GPG_KEY_ID }}
-
-          # 3. 验证签名（若已提供 SHA256SUMS.gpg）
-          gpg --verify SHA256SUMS.gpg SHA256SUMS
-          ```
+          3. 输出 `OK` 即文件完好；若日后提供 `SHA256SUMS.gpg`，可再验签：
+          `gpg --verify SHA256SUMS.gpg SHA256SUMS`
           EOF
 
           gh release edit "${{ steps.tag.outputs.tag }}" \
