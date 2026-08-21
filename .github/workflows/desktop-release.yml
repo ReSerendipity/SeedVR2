@@ -41,10 +41,23 @@ jobs:
       - name: 解压 WinPython 到 WPy64-312101
         shell: powershell
         run: |
-          New-Item -ItemType Directory -Path WPy64-312101 -Force | Out-Null
           $sevenZip = "C:\Program Files\7-Zip\7z.exe"
           if (-not (Test-Path $sevenZip)) { throw "7-Zip not found on runner" }
-          & $sevenZip x WPy.exe "-oWPy64-312101" -y | Out-Null
+          New-Item -ItemType Directory -Path "$env:RUNNER_TEMP\wp" -Force | Out-Null
+          & $sevenZip x WPy.exe "-o$env:RUNNER_TEMP\wp" -y | Out-Null
+          # 归档内含顶层目录（如 WPy64-312101b4），整理为约定的 WPy64-312101
+          $wpRoot = Get-ChildItem "$env:RUNNER_TEMP\wp" -Directory | Select-Object -First 1
+          if (-not $wpRoot) { throw "no WinPython root extracted" }
+          Move-Item $wpRoot.FullName WPy64-312101
+          # 删除 python 目录联接（reparse point）：ISCC 无法跟随，会导致"找不到路径"编译失败
+          $pyLink = "WPy64-312101\python"
+          if (Test-Path $pyLink) {
+            $it = Get-Item $pyLink -Force
+            if ($it.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+              [System.IO.Directory]::Delete($pyLink)
+              Write-Output "removed python junction"
+            }
+          }
           $py = Get-ChildItem WPy64-312101 -Recurse -Filter python.exe | Select-Object -First 1
           if (-not $py) { throw "python.exe not found after extraction" }
           Write-Output "PYTHON=$($py.FullName)"
@@ -56,6 +69,10 @@ jobs:
           $py = Get-ChildItem WPy64-312101 -Recurse -Filter python.exe | Select-Object -First 1
           & $py.FullName -m pip install --upgrade pip
           & $py.FullName -m pip install -r launcher\requirements-small.txt --timeout 300 --retries 3
+          # diffusers/transformers 会硬依赖 torch，装完小依赖后必须移除 torch 家族，
+          # 否则会被打进安装包（膨胀到 3GB+ 且超 GitHub 2GB 单文件限制）
+          & $py.FullName -m pip uninstall -y torch torchvision torchaudio
+          Write-Output "torch family removed from bundled python"
 
       - name: 构建启动器（PyInstaller，含静态资源）
         shell: powershell
