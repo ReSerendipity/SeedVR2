@@ -29,14 +29,50 @@ def install_dir() -> Path:
 
 
 def find_portable_python(root: Path) -> Path:
-    cand = root / "WPy64-312101" / "python" / "python.exe"
-    if cand.exists():
-        return cand
-    for wp in root.glob("WPy64-*"):
-        p = wp / "python" / "python.exe"
+    """定位便携 Python（兼容 WinPython 多种目录结构，逻辑对齐 clean_launch.py）。
+
+    依次尝试：
+    1. WPy64-312101/python/python.exe（标准布局）
+    2. WPy64-*/python/python.exe
+    3. WPy64-*/python-*.amd64/python.exe（WinPython dot 变体布局）
+    4. 递归兜底搜索任一 python.exe
+    找不到时返回默认路径（供报错信息使用）。
+    """
+    bases: list[Path] = []
+    wp = root / "WPy64-312101"
+    if wp.is_dir():
+        bases.append(wp)
+    bases.extend(sorted(root.glob("WPy64-*")))
+    bases.extend(sorted(root.glob("WinPython64-*")))
+
+    for base in bases:
+        p = base / "python" / "python.exe"
         if p.exists():
             return p
-    return cand  # 返回默认路径，供报错信息使用
+        for pd in base.glob("python-*.amd64"):
+            p = pd / "python.exe"
+            if p.exists():
+                return p
+
+    for base in bases:
+        found = list(base.rglob("python.exe"))
+        if found:
+            return found[0]
+
+    return root / "WPy64-312101" / "python" / "python.exe"
+
+
+def static_dir(root: Path) -> Path:
+    """定位引导页静态资源目录。
+
+    打包后优先用 PyInstaller 内置副本（--add-data 打入 exe），否则用安装目录旁的文件。
+    """
+    if getattr(sys, "frozen", False):
+        meipass = Path(getattr(sys, "_MEIPASS", root))
+        p = meipass / "launcher" / "static"
+        if p.is_dir():
+            return p
+    return root / "launcher" / "static"
 
 
 def find_free_port(start: int = BOOTSTRAP_PORT, tries: int = 10) -> int:
@@ -54,11 +90,11 @@ def find_free_port(start: int = BOOTSTRAP_PORT, tries: int = 10) -> int:
 def main() -> int:
     root = install_dir()
     python_exe = str(find_portable_python(root))
-    static_dir = root / "launcher" / "static"
+    static = static_dir(root)
     model_dir = root / "model"
     state = SetupState(root / ".setup_state.json")
 
-    router = Router(static_dir)
+    router = Router(static)
     shutdown_fn = None  # 由下方闭包赋值，注册 API 时传入
 
     def _shutdown():

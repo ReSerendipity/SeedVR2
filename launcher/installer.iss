@@ -46,6 +46,8 @@ Source: "..\requirements.txt"; DestDir: "{app}"
 Source: "..\WPy64-312101\*"; DestDir: "{app}\WPy64-312101"; Flags: recursesubdirs
 ; 启动器（PyInstaller 产物，含引导页静态资源）
 Source: "..\dist\SeedVR2.exe"; DestDir: "{app}"
+; 引导页静态资源（启动器未内置时的磁盘副本）
+Source: "..\launcher\static\*"; DestDir: "{app}\launcher\static"; Flags: recursesubdirs
 ; 冒烟测试图
 Source: "..\demo\assets\inputs\input-1.jpg"; DestDir: "{app}\launcher\test-assets"; DestName: "test-input.jpg"
 ; 目录占位（model/、data/、logs/）

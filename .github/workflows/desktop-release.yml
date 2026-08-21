@@ -1,8 +1,13 @@
 # .github/workflows/desktop-release.yml
-# tag 触发（如 v1.0.0）：构建启动器 → 预装小依赖 → 编译安装包 → GPG 签名 → 上传 Release
+# 桌面发行：构建启动器（PyInstaller）→ 预装小依赖 → 编译安装包（ISCC）→ 上传。
+# 触发方式：
+#   - workflow_dispatch：手动验证构建（不上传 Release，只留 workflow artifact）
+#   - push tag v*：构建并上传安装包到对应 Release（GPG 签名由 gpg-signed-release.yml
+#     在 release published 时自动完成，本工作流不重复签名）
 name: Desktop Release
 
 on:
+  workflow_dispatch:
   push:
     tags: ["v*"]
 
@@ -15,23 +20,38 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 下载便携 WinPython
+      - name: 下载便携 WinPython 3.12.4.1（项目已知可用地址）
         shell: powershell
         run: |
-          Invoke-WebRequest -Uri "https://github.com/winpython/winpython/releases/download/..." -OutFile WPy.zip
-          Expand-Archive WPy.zip -DestinationPath WPy64-312101
+          $url = "https://github.com/winpython/winpython/releases/download/8.2.20240618/Winpython64-3.12.4.1.exe"
+          Invoke-WebRequest -Uri $url -OutFile WPy.exe
+          Write-Output "downloaded WPy.exe size: $((Get-Item WPy.exe).Length)"
 
-      - name: 预装小依赖（torch 家族除外）
+      - name: 解压 WinPython 到 WPy64-312101
         shell: powershell
         run: |
-          .\WPy64-312101\python\python.exe -m pip install --upgrade pip
-          .\WPy64-312101\python\python.exe -m pip install -r launcher\requirements-small.txt --timeout 300 --retries 3
+          New-Item -ItemType Directory -Path WPy64-312101 -Force | Out-Null
+          $sevenZip = "C:\Program Files\7-Zip\7z.exe"
+          if (-not (Test-Path $sevenZip)) { throw "7-Zip not found on runner" }
+          & $sevenZip x WPy.exe "-oWPy64-312101" -y | Out-Null
+          $py = Get-ChildItem WPy64-312101 -Recurse -Filter python.exe | Select-Object -First 1
+          if (-not $py) { throw "python.exe not found after extraction" }
+          Write-Output "PYTHON=$($py.FullName)"
+          Write-Output "PYVER=$(& $py.FullName --version)"
 
-      - name: 构建启动器
+      - name: 预装小依赖（torch 家族除外，torch 由启动器首启安装）
+        shell: powershell
+        run: |
+          $py = Get-ChildItem WPy64-312101 -Recurse -Filter python.exe | Select-Object -First 1
+          & $py.FullName -m pip install --upgrade pip
+          & $py.FullName -m pip install -r launcher\requirements-small.txt --timeout 300 --retries 3
+
+      - name: 构建启动器（PyInstaller，含静态资源）
         shell: powershell
         run: |
           python -m pip install pyinstaller
-          python -m PyInstaller --noconfirm --onefile --windowed --name SeedVR2 --paths . launcher\launcher_main.py
+          python -m PyInstaller --noconfirm --onefile --windowed --name SeedVR2 --paths . --add-data "launcher\static;launcher\static" launcher\launcher_main.py
+          Get-Item dist\SeedVR2.exe | Select-Object Name, Length
 
       - name: 编译安装包（ISCC）
         shell: powershell
@@ -39,23 +59,30 @@ jobs:
           Invoke-WebRequest -Uri "https://jrsoftware.org/download.php/is.exe" -OutFile is.exe
           .\is.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" launcher\installer.iss
+          Get-ChildItem dist\SeedVR2-Setup-*.exe | Select-Object Name, Length
 
-      - name: 生成 SHA256SUMS 并签名
+      - name: 生成 SHA256SUMS
         shell: powershell
-        env:
-          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
         run: |
-          Get-FileHash dist\SeedVR2-Setup-*.exe -Algorithm SHA256 | ForEach-Object {
+          Get-ChildItem dist\SeedVR2-Setup-*.exe | Get-FileHash -Algorithm SHA256 | ForEach-Object {
             "$($_.Hash.ToLower())  $([System.IO.Path]::GetFileName($_.Path))"
-          } | Set-Content dist\SHA256SUMS
-          # 复用现有 gpg 逻辑（需在 runner 导入私钥后执行 detach-sign）
+          } | Set-Content dist\SHA256SUMS -Encoding ascii
 
-      - name: 上传 Release 附件
+      - name: 上传安装包为 workflow artifact（验证构建）
+        uses: actions/upload-artifact@v4
+        with:
+          name: SeedVR2-Setup
+          path: |
+            dist/SeedVR2-Setup-*.exe
+            dist/SHA256SUMS
+
+      - name: 打 tag 时上传到 Release
+        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "${{ github.ref_name }}"
           $exe = Get-ChildItem dist\SeedVR2-Setup-*.exe | Select-Object -First 1
+          # release-please 可能已创建 Release，已存在则忽略
+          gh release create $tag --title "$tag" --generate-notes 2>$null
           gh release upload $tag "$($exe.FullName)" dist\SHA256SUMS --clobber
