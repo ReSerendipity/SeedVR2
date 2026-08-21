@@ -30,8 +30,9 @@ WINPYTHON_DIRS = [
     PROJECT_ROOT / "WinPython",  # 旧版目录名
 ]
 
+# WinPython 3.12.10.1 dot 变体（GitHub Release 资产，已验证可下载）
 WINPYTHON_DOWNLOAD_URL = (
-    "https://github.com/winpython/winpython/releases/download/8.2.20240618/Winpython64-3.12.4.1.exe"
+    "https://github.com/winpython/winpython/releases/download/16.5.20250614/Winpython64-3.12.10.1dotb4.exe"
 )
 
 

@@ -84,6 +84,11 @@ jobs:
       - name: 编译安装包（ISCC）
         shell: powershell
         run: |
+          # 版本号：tag（v1.2.0 → 1.2.0）优先，手动触发回退到 pyproject
+          $tag = "${{ github.ref_name }}"
+          if ($tag -match '^v(.+)$') { $appVer = $Matches[1] }
+          else { $appVer = & python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])" }
+          Write-Output "AppVersion=$appVer"
           # 从 GitHub Release 下载 Inno Setup 6.7.3（jrsoftware.org 在 runner 上连不上）
           $url = "https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe"
           Invoke-WebRequest -Uri $url -OutFile is.exe -UseBasicParsing -TimeoutSec 300
@@ -91,7 +96,7 @@ jobs:
           $iscc = Get-ChildItem "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe","${env:ProgramFiles}\Inno Setup 6\ISCC.exe","${env:LOCALAPPDATA}\Programs\Inno Setup 6\ISCC.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
           if (-not $iscc) { throw "ISCC.exe not found after install" }
           Write-Output "ISCC: $($iscc.FullName)"
-          & $iscc.FullName launcher\installer.iss
+          & $iscc.FullName "/DAppVer=$appVer" launcher\installer.iss
           Get-ChildItem dist\SeedVR2-Setup-*.exe | Select-Object Name, Length
 
       - name: 生成 SHA256SUMS

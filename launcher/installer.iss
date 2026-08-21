@@ -1,15 +1,18 @@
 ; launcher/installer.iss — SeedVR2 桌面安装包
-; 编译：ISCC.exe launcher/installer.iss
+; 编译：ISCC.exe /DAppVer=<版本> launcher/installer.iss
 ; 注意：便携 Python 必须已预装小依赖（见 Task 9），torch 家族首启由启动器安装。
 
+#ifndef AppVer
+  #define AppVer "1.0.0"
+#endif
+
 #define AppName "SeedVR2"
-#define AppVersion "1.0.0"
 #define AppPublisher "ReSerendipity"
 #define AppExeName "SeedVR2.exe"
 
 [Setup]
 AppName={#AppName}
-AppVersion={#AppVersion}
+AppVersion={#AppVer}
 AppPublisher={#AppPublisher}
 DefaultDirName={localappdata}\SeedVR2-lite
 DefaultGroupName={#AppName}
@@ -19,7 +22,7 @@ SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=lowest
 OutputDir=..\dist
-OutputBaseFilename=SeedVR2-Setup-{#AppVersion}
+OutputBaseFilename=SeedVR2-Setup-{#AppVer}
 ArchitecturesInstallIn64BitMode=x64compatible
 DisableProgramGroupPage=yes
 ; 安装完成后自动启动启动器（首次引导）
