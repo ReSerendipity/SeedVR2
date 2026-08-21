@@ -1,0 +1,73 @@
+<!-- launcher/static/index.html -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SeedVR2 安装引导</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <main class="wrap">
+    <header class="head">
+      <h1>SeedVR2 安装引导</h1>
+      <p class="sub">自动完成环境检测、依赖安装与功能自检，全程无需命令行。</p>
+    </header>
+
+    <ol class="steps" id="steps">
+      <li data-step="env" class="active">环境检测</li>
+      <li data-step="torch">Torch 安装</li>
+      <li data-step="verify">依赖校验</li>
+      <li data-step="models">模型下载</li>
+      <li data-step="smoke">模拟测试</li>
+      <li data-step="ready">开始使用</li>
+    </ol>
+
+    <section class="panel" id="panel-env">
+      <h2>① 环境检测</h2>
+      <div id="env-result" class="result">检测中…</div>
+      <button id="btn-env" class="btn">重新检测</button>
+      <details class="help"><summary>需要帮助？</summary><p>本步骤检测 NVIDIA GPU、显卡驱动与磁盘空间。SeedVR2 仅支持 NVIDIA CUDA 推理。</p></details>
+    </section>
+
+    <section class="panel hidden" id="panel-torch">
+      <h2>② Torch 安装</h2>
+      <p id="torch-hint">将使用内置 Python 从 PyTorch 源下载安装 torch 家族（约 2.5GB，可断点续装）。</p>
+      <label>安装源
+        <select id="torch-mirror">
+          <option value="pytorch-cu128">PyTorch 官方（cu128）</option>
+          <option value="aliyun-cu128">阿里云镜像（cu128，国内更快）</option>
+        </select>
+      </label>
+      <button id="btn-torch" class="btn">开始安装 / 重试</button>
+      <div class="bar"><i id="torch-bar"></i></div>
+      <pre id="torch-log" class="log"></pre>
+      <button id="btn-verify" class="btn hidden">校验通过，下一步</button>
+      <details class="help"><summary>需要帮助？</summary><p>安装失败可切换镜像源重试；已装好的部分不会重复下载。</p></details>
+    </section>
+
+    <section class="panel hidden" id="panel-models">
+      <h2>③ 模型下载</h2>
+      <p id="model-recommend"></p>
+      <div id="model-list" class="result"></div>
+      <button id="btn-models" class="btn">重新检测模型</button>
+      <details class="help"><summary>需要帮助？</summary><p>必装：VAE + 文本嵌入；主模型 6 选 1。放到 <code>{install}\model\</code> 目录后点「重新检测」。</p></details>
+    </section>
+
+    <section class="panel hidden" id="panel-smoke">
+      <h2>④ 模拟测试</h2>
+      <p>将用内置测试图跑一次真实修复，验证功能正常。</p>
+      <button id="btn-smoke" class="btn">开始测试</button>
+      <div id="smoke-result" class="result"></div>
+      <details class="help"><summary>需要帮助？</summary><p>测试会实际调用 GPU 进行一次图像修复，通常需要 1-3 分钟。</p></details>
+    </section>
+
+    <section class="panel hidden" id="panel-ready">
+      <h2>⑤ 开始使用</h2>
+      <p>一切就绪！点击下方按钮打开应用。</p>
+      <button id="btn-open" class="btn primary">打开 SeedVR2</button>
+    </section>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>
