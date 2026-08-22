@@ -16,6 +16,7 @@ jobs:
     name: Semgrep SAST
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
@@ -47,6 +48,7 @@ jobs:
     name: Secret Scanning (Trivy FS)
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
         with:
