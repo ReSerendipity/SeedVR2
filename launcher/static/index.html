@@ -32,7 +32,12 @@
 
     <section class="panel hidden" id="panel-torch">
       <h2>② Torch 安装</h2>
-      <p id="torch-hint">将使用内置 Python 从 PyTorch 源下载安装 torch 家族（约 2.5GB，可断点续装）。</p>
+      <p id="torch-hint">将使用所选运行环境下载安装 torch 家族（约 2.5GB，可断点续装）。</p>
+      <label>运行环境（Python）
+        <select id="python-env">
+          <option value="">检测中…</option>
+        </select>
+      </label>
       <label>安装源
         <select id="torch-mirror">
           <option value="aliyun-cu128">阿里云镜像（CUDA 12.8，国内更快）</option>

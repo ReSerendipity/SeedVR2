@@ -24,9 +24,10 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from launcher.dependency_check import TORCH_INDEXES, check_torch, recommend_cuda_index, torch_install_cmd
+from launcher.dependency_check import TORCH_INDEXES, recommend_cuda_index, torch_install_cmd
 from launcher.env_check import check_env
 from launcher.model_check import check_models, recommend_main_model
+from launcher.python_env import chosen_python, detect_python_envs
 from launcher.setup_state import SetupState
 from launcher.smoke_test import run_smoke_test
 
@@ -92,6 +93,9 @@ class Router:
         torch_state = {"status": "idle", "log": "", "index": "pytorch-cu128", "error": None}
         smoke_state = {"status": "idle", "result": None}
         app_proc: dict = {"proc": None}
+        # 运行环境：默认用启动器定位的 python_exe，用户在引导页可切换为
+        # .venv / 系统 Python / WinPython 三选一（存 setup_state）。
+        _selected = {"python_exe": python_exe}
 
         self.get("/api/status", lambda: {
             "env": env_result["data"],
@@ -104,11 +108,16 @@ class Router:
         self.post("/api/env-check", lambda: self._run_env(env_result, install_dir))
         self.get("/api/env-check", lambda: env_result)
 
+        # 运行环境（Python 三选一）
+        self.get("/api/python/detect", lambda: self._detect_python(install_dir, state, _selected))
+        self.post("/api/python/select", lambda: self._select_python(install_dir, state, _selected, self._last_body))
+
         # torch 安装
-        self.post("/api/torch/install", lambda: self._start_torch_install(torch_state, python_exe, state))
+        self.post("/api/torch/install",
+                  lambda: self._start_torch_install(torch_state, _selected["python_exe"], state))
         self.get("/api/torch/status", lambda: torch_state)
         self.post("/api/torch/mirror", lambda: self._set_mirror(torch_state, self._last_body))
-        self.post("/api/torch/skip", lambda: self._skip_torch(python_exe, state, self._last_body))
+        self.post("/api/torch/skip", lambda: self._skip_torch(_selected, state, self._last_body))
 
         # 模型
         self.get("/api/models/check", lambda: check_models(model_dir).to_dict())
@@ -120,7 +129,7 @@ class Router:
 
         # 应用
         self.get("/api/app/health", lambda: {"up": self._app_health()})
-        self.post("/api/app/start", lambda: self._start_app(app_proc, python_exe, install_dir))
+        self.post("/api/app/start", lambda: self._start_app(app_proc, _selected["python_exe"], install_dir))
         self.post("/api/app/open", lambda: self._open_app())
 
         # 退出启动器（应用已独立运行时调用）
@@ -183,40 +192,43 @@ class Router:
             torch_state["index"] = index
         return {"ok": True, "index": torch_state["index"]}
 
-    def _skip_torch(self, python_exe: str, state: SetupState, last_body: dict = None) -> dict:
-        """跳过 torch 安装：先复核是否已可用，可用则放行；否则若用户显式
-        确认（force=true）也允许跳过，但附上手动安装指引并提示后续风险。"""
-        res = check_torch(python_exe)
-        if res.installed:
-            state.set("torch_installed", True)
-            state.set("torch_verified", True)
-            return {"ok": True, "message": "检测到已可用的 torch 环境，已跳过安装"}
-        forced = bool((last_body or {}).get("force"))
-        if forced:
-            # 用户坚持自行安装后跳过：仍记录已跳过，冒烟测试前会再探测，
-            # 若届时仍不可用会在冒烟步骤给出明确失败原因而非静默挂起。
-            state.set("torch_installed", True)
-            state.set("torch_verified", False)
-            return {
-                "ok": True,
-                "skipped": True,
-                "message": (
-                    "已按你的选择跳过 torch 安装（请自行安装）。推荐在安装目录下的 "
-                    "便携 Python 执行：\n\n"
-                    f"  {python_exe} -m pip install torch torchvision torchaudio "
-                    "--index-url https://download.pytorch.org/whl/cu128\n\n"
-                    "或安装好对应 CUDA 版本的 torch 后重新运行本向导。"
-                ),
-            }
+    def _detect_python(self, install_dir: Path, state: SetupState, _selected: dict) -> dict:
+        envs = detect_python_envs(install_dir, state)
+        chosen = chosen_python(envs, state)
+        # 默认未显式选择时，用启动器定位的 python_exe；否则用上次选择
+        if chosen is not None:
+            _selected["python_exe"] = chosen.path
+        elif state.get("python_env_id"):
+            state.set("python_env_id", None)  # 清除失效选择
         return {
-            "ok": False,
-            "manual": (
-                f"{python_exe} -m pip install torch torchvision torchaudio "
+            "envs": [e.to_dict() for e in envs],
+            "selected": chosen.id if chosen else None,
+        }
+
+    def _select_python(self, install_dir: Path, state: SetupState, _selected: dict, last_body: dict) -> dict:
+        env_id = (last_body or {}).get("env_id")
+        envs = detect_python_envs(install_dir, state)
+        target = next((e for e in envs if e.id == env_id), None)
+        if target is None:
+            return {"ok": False, "message": f"未知的运行环境：{env_id}"}
+        state.set("python_env_id", target.id)
+        _selected["python_exe"] = target.path
+        return {"ok": True, "path": target.path, "id": target.id}
+
+    def _skip_torch(self, _selected: dict, state: SetupState, last_body: dict = None) -> dict:
+        """真跳过：用户点跳过即放行（零门槛）。torch_verified 置 False，
+        用户自行负责；冒烟测试前会再探测并以明确原因提示，而非静默挂起。"""
+        state.set("torch_installed", True)
+        state.set("torch_verified", False)
+        return {
+            "ok": True,
+            "skipped": True,
+            "message": (
+                "已跳过 torch 安装。请自行在运行环境安装 torch，或在系统环境安装好后"
+                "回来重新检测。可在此运行环境执行：\n\n"
+                f"  {_selected['python_exe']} -m pip install torch torchvision torchaudio "
                 "--index-url https://download.pytorch.org/whl/cu128"
             ),
-            "message": f"未检测到可用的 torch 环境。探测详情：{res.message}\n"
-                       "可直接尝试上述命令手动安装；装好后再次点『跳过』；"
-                       "或点击『强制跳过』跳过 torch 步骤自行处理。",
         }
 
     def _start_smoke(self, smoke_state: dict, install_dir: Path, state: SetupState):

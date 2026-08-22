@@ -15,6 +15,7 @@ DEFAULT_STATE: dict = {
     "torch_installed": False,   # torch 家族已安装
     "torch_verified": False,    # torch 安装校验通过
     "smoke_test_passed": False,  # 冒烟测试通过
+    "python_env_id": None,       # 用户选择的运行环境（.venv / system / winpython）
 }
 
 _LOCK = threading.Lock()

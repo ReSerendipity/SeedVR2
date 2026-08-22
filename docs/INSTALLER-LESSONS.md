@@ -81,16 +81,23 @@
   下可能就连 dry-run 都 `IncompleteRead` 中断（本机实测阿里云 cu128 会断、cu126
   稳定）。这不是配置错误而是网络/CDN 不稳定的表现，可换同级档位（如 cu126）或官方源。
 
-### B.6 "跳过"策略（用户可自行安装）
+### B.6 "跳过"策略（用户自主控制）
 
-- 首个"跳过"按钮：先探测 torch 是否已可用，**可用才放行**（防呆，避免冒烟测试无 GPU
-  下静默失败）。
-- 探测不到时，返回手动安装命令（`<python> -m pip install torch torchvision
-  torchaudio --index-url https://download.pytorch.org/whl/cu128`）供用户自行执行；
-  装好后再次点"跳过"即放行。
-- 用户仍想临时跳过：前端弹 `confirm` 二次确认后走 `force=true`，后端记录
-  `torch_installed=True`/`torch_verified=False`，后续冒烟测试前会再探测并以明确
-  失败原因提示（而非静默挂起）。
+- **真跳过（零门槛）**：点"跳过"即放行，不做任何探测门槛。后端仅记录
+  `torch_installed=True`/`torch_verified=False`，冒烟测试前会再探测并以明确原因
+  提示（而非静默失败挂起）。用户自行负责 torch 依赖（返回手动 pip 命令供参考）。
+- 这样避免"强制用户必须走安装向导"，把是否装依赖的决策权完全交给用户。
+
+### B.7 Python 运行环境三选一（非强制 WinPython）
+
+- 不再强制使用内置 WinPython。引导页新增"运行环境（Python）"下拉，
+  从 **项目虚拟环境（.venv）/ 系统 Python / 内置 WinPython** 三选一，
+  torch 安装和应用启动都用所选环境。
+- 探测：`.venv/Scripts/python.exe` 存在 → .venv；`where python` 排除自身 .venv/
+  WinPython 后取第一个 → system；`WPy64-*/python/python.exe` → winpython。
+- 选择存 `setup_state.json` 的 `python_env_id`，torch 安装与 `clean_launch.py` 启动
+  均用所选 python 路径（`_selected["python_exe"]` 动态接线）。未选择时回退到
+  启动器默认定位的 python。
 
 ## C. 版本查询 / 发布节奏（复用）
 
@@ -106,10 +113,10 @@
 | 关注点 | 文件 |
 |---|---|
 | 安装源/命令、CUDA 档位映射 | `launcher/dependency_check.py` |
+| Python 环境探测（venv/系统/WinPython） | `launcher/python_env.py` |
 | 环境检测附推荐的源 | `launcher/bootstrap_server.py` |
-| 镜像下拉选项（前端） | `launcher/static/index.html` |
-| 自动选中推荐源（前端） | `launcher/static/app.js` |
-| 打包脚本 | `launcher/installer.iss` |
+| 运行环境 + 镜像下拉（前端） | `launcher/static/index.html` |
+| 自动化选中推荐源/环境（前端） | `launcher/static/app.js` |
 | 发布 CI | `.github/workflows/desktop-release.yml` |
 | 发布说明模板 | `launcher/release-notes-intro.md` |
-| 相关单测 | `tests/test_launcher_dependency_check.py` 等 |
+| 相关单测 | `tests/test_launcher_python_env.py`、`tests/test_launcher_dependency_check.py` 等 |

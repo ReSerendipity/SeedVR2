@@ -1,6 +1,6 @@
 [project]
 name = "seedvr2-lite"
-version = "1.3.2"
+version = "1.4.0"
 description = "SeedVR2 - AI-powered video & image super-resolution toolkit"
 readme = "README.md"
 license = {text = "Apache-2.0"}

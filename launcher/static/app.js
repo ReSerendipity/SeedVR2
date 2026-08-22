@@ -65,6 +65,24 @@ async function runEnv() {
 }
 $("btn-env").onclick = runEnv;
 
+// 运行环境（Python 三选一）：加载可用环境填充下拉，切换时告知后端
+async function loadPythonEnv() {
+  const sel = $("python-env");
+  if (!sel) return;
+  const r = await api("/api/python/detect");
+  sel.innerHTML = "";
+  (r.envs || []).forEach((e) => {
+    const o = document.createElement("option");
+    o.value = e.id;
+    o.textContent = e.label + (e.detect_msg ? `（${e.detect_msg}）` : "");
+    sel.appendChild(o);
+  });
+  if (r.selected) sel.value = r.selected;
+}
+$("python-env") && ($("python-env").onchange = async () => {
+  await api("/api/python/select", { method: "POST", body: JSON.stringify({ env_id: $("python-env").value }) });
+});
+
 // Torch 安装（轮询进度）
 let torchTimer = null;
 async function startTorch() {
@@ -94,36 +112,12 @@ $("btn-torch").onclick = async () => {
 };
 $("btn-verify").onclick = async () => { await syncState(); };
 
-// 跳过 torch 安装（复用已有环境：.venv / 系统已装 torch）
+// 跳过 torch 安装（真跳过：零门槛，用户自行负责依赖）
 $("btn-torch-skip").onclick = async () => {
-  $("torch-log").textContent = "正在复核 torch 环境…";
   const r = await api("/api/torch/skip", { method: "POST" });
-  if (r.ok) {
-    $("torch-log").textContent = "✅ " + (r.message || JSON.stringify(r));
-    if (r.skipped) {
-      // 强制跳过：torch 未验证，仍需用户自行安装
-      await syncState();
-    } else {
-      $("torch-bar").style.width = "100%";
-      $("btn-verify").classList.remove("hidden");
-      await syncState();
-    }
-    return;
-  }
-  // 非可用：展示探测详情 + 手动安装命令 + 提供「强制跳过」二次确认
-  $("torch-log").textContent = "❌ " + (r.message || JSON.stringify(r));
-  const force = window.confirm(
-    "仍未检测到 torch 环境。\n\n" +
-    (r.manual ? "手动安装命令：\n" + r.manual + "\n\n" : "") +
-    "若你已自行安装/将自行安装 torch，可『强制跳过』本步骤；" +
-    "否则请先正常安装。\n\n是否强制跳过 torch 步骤？"
-  );
-  if (force) {
-    $("torch-log").textContent = "正在强制跳过…";
-    const r2 = await api("/api/torch/skip", { method: "POST", body: JSON.stringify({ force: true }) });
-    $("torch-log").textContent = (r2.ok ? "✅ " : "❌ ") + (r2.message || JSON.stringify(r2));
-    await syncState();
-  }
+  $("torch-log").textContent = "✅ " + (r.message || JSON.stringify(r));
+  $("torch-log").textContent += "\n\n你已选择跳过 torch 安装（未校验依赖）。请自行确认运行环境可用；冒烟测试前会再检测。";
+  await syncState();
 };
 
 // 模型
@@ -156,6 +150,7 @@ $("btn-open").onclick = async () => {
 // 初始化：先按持久化状态定位，再自动执行环境检测
 (async function init() {
   await syncState();
+  await loadPythonEnv();
   await runEnv();
   const rec = await api("/api/models/recommend");
   if (rec && rec.recommended) {
