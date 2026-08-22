@@ -108,7 +108,7 @@ class Router:
         self.post("/api/torch/install", lambda: self._start_torch_install(torch_state, python_exe, state))
         self.get("/api/torch/status", lambda: torch_state)
         self.post("/api/torch/mirror", lambda: self._set_mirror(torch_state, self._last_body))
-        self.post("/api/torch/skip", lambda: self._skip_torch(python_exe, state))
+        self.post("/api/torch/skip", lambda: self._skip_torch(python_exe, state, self._last_body))
 
         # 模型
         self.get("/api/models/check", lambda: check_models(model_dir).to_dict())
@@ -183,16 +183,40 @@ class Router:
             torch_state["index"] = index
         return {"ok": True, "index": torch_state["index"]}
 
-    def _skip_torch(self, python_exe: str, state: SetupState) -> dict:
-        """跳过 torch 安装：先复核是否已可用，可用则标记就绪，否则拒绝跳过。"""
+    def _skip_torch(self, python_exe: str, state: SetupState, last_body: dict = None) -> dict:
+        """跳过 torch 安装：先复核是否已可用，可用则放行；否则若用户显式
+        确认（force=true）也允许跳过，但附上手动安装指引并提示后续风险。"""
         res = check_torch(python_exe)
         if res.installed:
             state.set("torch_installed", True)
             state.set("torch_verified", True)
             return {"ok": True, "message": "检测到已可用的 torch 环境，已跳过安装"}
+        forced = bool((last_body or {}).get("force"))
+        if forced:
+            # 用户坚持自行安装后跳过：仍记录已跳过，冒烟测试前会再探测，
+            # 若届时仍不可用会在冒烟步骤给出明确失败原因而非静默挂起。
+            state.set("torch_installed", True)
+            state.set("torch_verified", False)
+            return {
+                "ok": True,
+                "skipped": True,
+                "message": (
+                    "已按你的选择跳过 torch 安装（请自行安装）。推荐在安装目录下的 "
+                    "便携 Python 执行：\n\n"
+                    f"  {python_exe} -m pip install torch torchvision torchaudio "
+                    "--index-url https://download.pytorch.org/whl/cu128\n\n"
+                    "或安装好对应 CUDA 版本的 torch 后重新运行本向导。"
+                ),
+            }
         return {
             "ok": False,
-            "message": f"未检测到可用的 torch 环境。探测详情：{res.message}",
+            "manual": (
+                f"{python_exe} -m pip install torch torchvision torchaudio "
+                "--index-url https://download.pytorch.org/whl/cu128"
+            ),
+            "message": f"未检测到可用的 torch 环境。探测详情：{res.message}\n"
+                       "可直接尝试上述命令手动安装；装好后再次点『跳过』；"
+                       "或点击『强制跳过』跳过 torch 步骤自行处理。",
         }
 
     def _start_smoke(self, smoke_state: dict, install_dir: Path, state: SetupState):

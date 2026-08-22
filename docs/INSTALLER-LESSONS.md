@@ -65,15 +65,32 @@
     由环境检测读取驱动 CUDA 版本自动推荐并默认选中。档位→torch 版本映射放在
     `TORCH_CUDA_VERSIONS` 一处维护，升级只改这一处。
 15. torchvision / torchaudio 必须**同源同装（同一 index/镜像 + 同 `+cuXXX` 后缀）**
-    且版本与 torch 严格配套（如 torch 2.11.0 → torchvision 0.28.0），否则 import
-    失败或 CUDA 不识别。
+   且版本与 torch 严格配套，否则 import 失败或 CUDA 不识别 / 装不了（报
+   `No matching distribution found for torchvision==x.y.z+cuXXX`）。
 
-### B.4 "跳过"为什么被强制
+### B.4 版本配套的坑（实测教训，2026-08）
 
-16. "跳过此步"是**防呆设计**而非 bug：只有**检测到已可用的 torch 环境**（如已有
-    `.venv` / 系统已装 torch）才放行；torch 真没装时拒绝跳过，避免后续冒烟测试在
-    无 GPU/无 torch 下静默失败。报错信息会给出探测详情，用户需先解决环境或选对
-    源安装。
+- **同一 torch 版本在不同 cuXXX 源里配套的 torchvision 版本可以不同**：torch 2.11.0
+  在 **cu126 源配 torchvision 0.28.0**，但在 **cu128 源只配到 0.26.0**（cu128 源
+  wheel 发布批次更旧，尚未同步 0.28.0）。若机械按 "torch→torchvision" 推导成
+  0.28.0 拿去 cu128 装，必然报找不到。
+- **教训**：不要用公式/推导去算配套版本，必须**按档位显式写死 torch/torchvision/
+  torchaudio 三元组**（`TORCH_CUDA_VERSIONS`），并对每个档位逐个到
+  `download.pytorch.org/whl/cuXXX` 实测版本列表核对。
+- **镜像下载大文件可能断连**：`--find-links` 镜像对某一路径（如 cu128）在特定网络
+  下可能就连 dry-run 都 `IncompleteRead` 中断（本机实测阿里云 cu128 会断、cu126
+  稳定）。这不是配置错误而是网络/CDN 不稳定的表现，可换同级档位（如 cu126）或官方源。
+
+### B.6 "跳过"策略（用户可自行安装）
+
+- 首个"跳过"按钮：先探测 torch 是否已可用，**可用才放行**（防呆，避免冒烟测试无 GPU
+  下静默失败）。
+- 探测不到时，返回手动安装命令（`<python> -m pip install torch torchvision
+  torchaudio --index-url https://download.pytorch.org/whl/cu128`）供用户自行执行；
+  装好后再次点"跳过"即放行。
+- 用户仍想临时跳过：前端弹 `confirm` 二次确认后走 `force=true`，后端记录
+  `torch_installed=True`/`torch_verified=False`，后续冒烟测试前会再探测并以明确
+  失败原因提示（而非静默挂起）。
 
 ## C. 版本查询 / 发布节奏（复用）
 

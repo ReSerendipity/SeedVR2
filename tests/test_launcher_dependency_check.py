@@ -78,9 +78,10 @@ def test_torch_install_cmd_official_uses_index_url():
     cmd = torch_install_cmd("C:/py/python.exe", "pytorch-cu128")
     joined = " ".join(cmd)
     assert "--index-url https://download.pytorch.org/whl/cu128" in joined
-    # 官方源应带 CUDA 版本约束，而非裸包名
+    # cu128 配套的 torchvision 是 0.26.0（不是 0.28.0，0.28.0 在 cu128 源不存在）
     assert "torch==2.11.0+cu128" in cmd
-    assert all(p in cmd for p in ["torchvision==0.28.0+cu128", "torchaudio==2.11.0+cu128"])
+    assert "torchvision==0.26.0+cu128" in cmd
+    assert "torchaudio==2.11.0+cu128" in cmd
 
 
 def test_torch_install_cmd_aliyun_uses_find_links():
@@ -89,6 +90,14 @@ def test_torch_install_cmd_aliyun_uses_find_links():
     assert "--find-links https://mirrors.aliyun.com/pytorch-wheels/cu128" in joined
     assert "--index-url" not in joined
     assert "torch==2.11.0+cu128" in cmd
+    assert "torchvision==0.26.0+cu128" in cmd
+
+
+def test_torch_install_cmd_cu126_vision_version():
+    # cu126 配套的 torchvision 是 0.28.0（与 cu128 不同，验证按档位独立锁定）
+    cmd = torch_install_cmd("C:/py/python.exe", "aliyun-cu126")
+    assert "torch==2.11.0+cu126" in cmd
+    assert "torchvision==0.28.0+cu126" in cmd
 
 
 def test_torch_install_cmd_alias_is_default():

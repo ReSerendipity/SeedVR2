@@ -22,13 +22,16 @@ from dataclasses import dataclass
 
 TORCH_PACKAGES = ["torch", "torchvision", "torchaudio"]
 
-# 各 CUDA 档位的官方 torch 版本（未来升级时在此统一维护，torchvision/torchaudio
-# 版本号 = torch 版本去掉最后一段；例如 torch 2.11.0 -> torchvision 0.28.0）。
+# 各 CUDA 档位的 torch 家族精确版本（三元组，每个档位显式写死，不推导）。
+# 重要：同一 torch 版本在不同 cuXXX 源里配套的 torchvision 版本可能不同
+#（cu128 源 wheel 发布批次更旧，torch 2.11.0 在 cu128 只配套 torchvision 0.26.0，
+#  而在 cu126 配套 0.28.0）。因此必须按 (档位) 整体锁定，避免 "No matching distribution"。
+# 这些数据来自 download.pytorch.org 各 cuXXX 源的实测版本列表。
 TORCH_CUDA_VERSIONS = {
-    "cu118": "2.4.1",
-    "cu121": "2.5.1",
-    "cu126": "2.11.0",
-    "cu128": "2.11.0",
+    "cu118": {"torch": "2.4.1", "torchvision": "0.19.1", "torchaudio": "2.4.1"},
+    "cu121": {"torch": "2.5.1", "torchvision": "0.20.1", "torchaudio": "2.5.1"},
+    "cu126": {"torch": "2.11.0", "torchvision": "0.28.0", "torchaudio": "2.11.0"},
+    "cu128": {"torch": "2.11.0", "torchvision": "0.26.0", "torchaudio": "2.11.0"},
 }
 
 # 可切换的 PyTorch 安装源（前端镜像选择器用）。
@@ -165,22 +168,17 @@ def _parse_cuda_from_driver(cuda_version: str | None) -> str:
 
 
 def _versioned_pkg_specs(cuda: str) -> list[str]:
-    """构造带 CUDA 版本约束的 torch 家族包名（避免 --find-links 误选 CPU 版）。"""
-    torch_ver = TORCH_CUDA_VERSIONS.get(cuda)
-    if not torch_ver:
+    """构造带 CUDA 版本约束的 torch 家族包名（避免 --find-links 误选 CPU 版）。
+
+    版本三件套来自 TORCH_CUDA_VERSIONS（显式锁定，不推导）。
+    """
+    ver = TORCH_CUDA_VERSIONS.get(cuda)
+    if not ver:
         return list(TORCH_PACKAGES)  # 未知档位：退回不带约束，让 pip 按兼容规则选
-    # torchvision 版本 = torch 主.次 版本（如 torch 2.11.0 -> vision 0.28.0）
-    torchvision_ver = "0.28.0"
-    if cuda == "cu118":
-        torchvision_ver = "0.19.1"
-    elif cuda == "cu121":
-        torchvision_ver = "0.20.1"
-    elif cuda == "cu126":
-        torchvision_ver = "0.28.0"
     return [
-        f"torch=={torch_ver}+{cuda}",
-        f"torchvision=={torchvision_ver}+{cuda}",
-        f"torchaudio=={torch_ver}+{cuda}",
+        f"torch=={ver['torch']}+{cuda}",
+        f"torchvision=={ver['torchvision']}+{cuda}",
+        f"torchaudio=={ver['torchaudio']}+{cuda}",
     ]
 
 
