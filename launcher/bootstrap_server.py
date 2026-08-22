@@ -24,7 +24,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from launcher.dependency_check import TORCH_INDEXES, check_torch, torch_install_cmd
+from launcher.dependency_check import TORCH_INDEXES, check_torch, recommend_cuda_index, torch_install_cmd
 from launcher.env_check import check_env
 from launcher.model_check import check_models, recommend_main_model
 from launcher.setup_state import SetupState
@@ -133,7 +133,9 @@ class Router:
         return {"ok": True, "shutdown": True}
 
     def _run_env(self, env_result: dict, install_dir: Path):
-        env_result["data"] = check_env(install_dir).to_dict()
+        data = check_env(install_dir).to_dict()
+        data["torch_recommend"] = recommend_cuda_index(data.get("cuda_version"))
+        env_result["data"] = data
         env_result["checked"] = True
         return env_result
 

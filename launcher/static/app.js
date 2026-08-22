@@ -54,6 +54,9 @@ async function runEnv() {
     if (d.gpu_found === false) {
       msg += "\n⚠️ 未检测到 NVIDIA GPU：界面可正常打开，但修复功能需要 NVIDIA CUDA 显卡。";
     }
+    if (d.torch_recommend && $("torch-mirror")) {
+      $("torch-mirror").value = d.torch_recommend;
+    }
     $("env-result").textContent = msg;
   } catch (e) {
     $("env-result").textContent = "环境检测失败：" + e.message;

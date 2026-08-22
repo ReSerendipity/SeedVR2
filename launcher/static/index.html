@@ -35,8 +35,11 @@
       <p id="torch-hint">将使用内置 Python 从 PyTorch 源下载安装 torch 家族（约 2.5GB，可断点续装）。</p>
       <label>安装源
         <select id="torch-mirror">
-          <option value="pytorch-cu128">PyTorch 官方（cu128）</option>
-          <option value="aliyun-cu128">阿里云镜像（cu128，国内更快）</option>
+          <option value="aliyun-cu128">阿里云镜像（CUDA 12.8，国内更快）</option>
+          <option value="aliyun-cu126">阿里云镜像（CUDA 12.6）</option>
+          <option value="aliyun-cu121">阿里云镜像（CUDA 12.1）</option>
+          <option value="aliyun-cu118">阿里云镜像（CUDA 11.8，旧驱动）</option>
+          <option value="pytorch-cu128">PyTorch 官方（CUDA 12.8）</option>
         </select>
       </label>
       <button id="btn-torch" class="btn">开始安装 / 重试</button>
